@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import logging
 import platform
 import shutil
 import socket
@@ -23,6 +24,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, List, Optional
+
+log = logging.getLogger(__name__)
 
 from .host_profile import hub_port, resolve as resolve_host
 from .model_registry import Model, enabled_models
@@ -312,15 +315,16 @@ def _print_report(report: Report) -> None:
     width = max(len(c.label) for c in report.checks) + 2
     for c in report.checks:
         glyph = _STATUS_GLYPH.get(c.status, "?")
-        print(f"  {glyph} [{c.status:7}] {c.label.ljust(width)} {c.detail}")
-    print()
+        log.info("  %s [%7s] %s %s", glyph, c.status, c.label.ljust(width), c.detail)
+    log.info("")
     if report.ok:
-        print(f"overall: {report.worst_status}")
+        log.info("overall: %s", report.worst_status)
     else:
-        print(f"overall: {report.worst_status} - run with --fix to attempt repairs")
+        log.info("overall: %s - run with --fix to attempt repairs", report.worst_status)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     p = argparse.ArgumentParser(prog="python -m src.install", description="First-run checks for claude-local-calls")
     p.add_argument("--fix", action="store_true", help="attempt to fix every fixable row")
     p.add_argument("--json", action="store_true", help="machine-readable output")
@@ -334,11 +338,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                 fn = fix_fn_for(c)
                 if fn is None:
                     continue
-                print(f"-> fixing {c.id}: {c.fix_label}")
+                log.info("-> fixing %s: %s", c.id, c.fix_label)
                 try:
                     fn()
                 except Exception as e:
-                    print(f"   fix failed: {e}")
+                    log.error("   fix failed: %s", e)
         report = run_all_checks()
 
     if args.json:

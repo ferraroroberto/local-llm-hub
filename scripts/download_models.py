@@ -13,9 +13,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 from typing import List
+
+log = logging.getLogger(__name__)
 
 from huggingface_hub import hf_hub_download, list_repo_files
 
@@ -65,16 +68,16 @@ def download_one(model_id: str) -> List[Path]:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     results: List[Path] = []
-    print(f"downloading {model.id} -> {target_dir} ({len(matches)} file(s))")
+    log.info("downloading %s -> %s (%d file(s))", model.id, target_dir, len(matches))
     for repo_file in matches:
-        print(f"  fetching {repo_file}")
+        log.info("  fetching %s", repo_file)
         local_path = hf_hub_download(
             repo_id=model.hf_repo,
             filename=repo_file,
             local_dir=str(target_dir),
         )
         results.append(Path(local_path))
-        print(f"    -> {local_path}")
+        log.info("    -> %s", local_path)
 
     # If the repo stored files in a subdir (e.g. Q4_K_M/*.gguf) and the
     # registry's model_path points at <target_dir>/<shard-file>, move
@@ -107,28 +110,29 @@ def main(argv: List[str] | None = None) -> int:
     if args.only:
         candidates = [m for m in candidates if m.id == args.only]
         if not candidates:
-            print(f"model {args.only!r} not found / not enabled on this host", file=sys.stderr)
+            log.error("model %r not found / not enabled on this host", args.only)
             return 2
 
     if not candidates:
-        print("nothing to download (no local models enabled for this host)")
+        log.info("nothing to download (no local models enabled for this host)")
         return 0
 
     for m in candidates:
         files = _files_for(m)
         total = len(files)
-        print(f"- {m.id} ({m.display_name}) from {m.hf_repo} -- {total} file(s)")
+        log.info("- %s (%s) from %s -- %d file(s)", m.id, m.display_name, m.hf_repo, total)
         for f in files:
-            print(f"    {f}")
+            log.info("    %s", f)
 
     if args.list:
         return 0
 
     for m in candidates:
         download_one(m.id)
-    print("done.")
+    log.info("done.")
     return 0
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     sys.exit(main())

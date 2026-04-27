@@ -9,10 +9,13 @@ Each .bat / .sh launcher is a one-liner that calls this module.
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 from .backend_process import (
     VENDOR_LLAMA,
@@ -38,10 +41,10 @@ def _run_backend(model_id: str) -> int:
     model = resolve_model_by_id(model_id)
     if model is None:
         known = [m.id for m in enabled_models()]
-        print(f"model {model_id!r} not enabled on host {host.id}. known: {known}", file=sys.stderr)
+        log.error("model %r not enabled on host %s. known: %s", model_id, host.id, known)
         return 2
     if model.backend not in ("openai", "whisper"):
-        print(f"model {model_id!r} is backend={model.backend}; nothing to spawn", file=sys.stderr)
+        log.error("model %r is backend=%s; nothing to spawn", model_id, model.backend)
         return 2
 
     cmd = build_command(model)
@@ -51,15 +54,16 @@ def _run_backend(model_id: str) -> int:
     if sys.platform == "win32":
         vendor = VENDOR_WHISPER if model.engine == "whisper-server" else VENDOR_LLAMA
         env["PATH"] = str(vendor) + os.pathsep + env.get("PATH", "")
-    print("-> " + " ".join(cmd))
+    log.info("-> %s", " ".join(cmd))
     # Foreground execution so Ctrl+C works.
     return subprocess.call(cmd, env=env, cwd=str(PROJECT_ROOT))
 
 
 def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     args = argv if argv is not None else sys.argv[1:]
     if not args:
-        print("usage: python -m src.run_backend (hub|<model_id>)", file=sys.stderr)
+        log.error("usage: python -m src.run_backend (hub|<model_id>)")
         return 2
     target = args[0]
     if target == "hub":
