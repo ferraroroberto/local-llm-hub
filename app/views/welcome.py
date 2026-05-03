@@ -28,6 +28,7 @@ def render() -> None:
         - **🛰 Server** — start / stop the FastAPI process and watch its log live.
         - **📊 Comparison** — per-model specs table (params, quant, size, context, docs links).
         - **🧠 Models** — start / stop each local llama-server backend and tail its log.
+        - **🧮 Fit** — paste a Hugging Face URL to estimate whether a candidate model fits this machine's VRAM + RAM.
         - **✅ Testing** — run unit tests and the end-to-end smoke test.
         - **💬 Playground** — send a prompt, pick a model, see the reply and token counts.
 
