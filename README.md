@@ -1,7 +1,7 @@
 # claude-local-calls
 
 A tiny local HTTP hub that routes `POST /v1/messages` (Anthropic shape) and
-`POST /v1/chat/completions` (OpenAI shape) to seven backends by `model` name,
+`POST /v1/chat/completions` (OpenAI shape) to several backends by `model` name,
 plus a local whisper.cpp ASR server that clients hit directly:
 
 - **claude-*** — forwarded to the **`claude -p`** CLI on your machine, using
@@ -13,17 +13,14 @@ plus a local whisper.cpp ASR server that clients hit directly:
   [unsloth/GLM-4.5-Air-GGUF](https://huggingface.co/unsloth/GLM-4.5-Air-GGUF)
   on `127.0.0.1:8082` (MoE CPU offload — attention on GPU, expert tensors
   on RAM).
-- **gemma3-12b-it** — forwarded to a local `llama-server` running
-  [unsloth/gemma-3-12b-it-GGUF](https://huggingface.co/unsloth/gemma-3-12b-it-GGUF)
-  on `127.0.0.1:8083` (fast classifier tier; full GPU offload).
-- **gemma3-27b-it** — forwarded to a local `llama-server` running
-  [google/gemma-3-27b-it-qat-q4_0-gguf](https://huggingface.co/google/gemma-3-27b-it-qat-q4_0-gguf)
-  on `127.0.0.1:8084` (quality tier; QAT Q4_0 with partial GPU offload
-  to fit 16 GB VRAM).
-- **gemma3n-e4b-it** — forwarded to a local `llama-server` running
-  [unsloth/gemma-3n-E4B-it-GGUF](https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF)
-  on `127.0.0.1:8085` (edge / mobile-class ~4 B effective params; full
+- **gemma4-e4b-it** — forwarded to a local `llama-server` running
+  [unsloth/gemma-4-E4B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF)
+  on `127.0.0.1:8086` (small / classifier / edge tier; 8 B dense, full
   GPU offload).
+- **gemma4-26b-a4b-it** — forwarded to a local `llama-server` running
+  [unsloth/gemma-4-26B-A4B-it-GGUF](https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF)
+  on `127.0.0.1:8087` (quality tier; 25 B / 3.8 B-active MoE, IQ4_XS
+  i-matrix quant — whole model on GPU in 16 GB VRAM).
 - **whisper-large-v3-turbo** — a local `whisper-server`
   ([ggerganov/whisper.cpp](https://github.com/ggerganov/whisper.cpp))
   running [ggml-large-v3-turbo.bin](https://huggingface.co/ggerganov/whisper.cpp)
@@ -42,6 +39,17 @@ qwen/glm requests never leave the machine.
 
 Inspired by the `_call_claude` pattern in
 `E:\automation\inspiration-system\src\enrichment.py`.
+
+## Latest-only policy
+
+This repo intentionally ships **one model per role**. When a newer
+release in the same family covers the same use case on the reference
+hardware (e.g. Gemma 4 superseding Gemma 3), the older entry is
+removed — registry, launchers, weights, and docs all go. The current
+lineup and what each model is for live in
+[docs/model-comparison.md](docs/model-comparison.md). Older entries
+survive only in dated changelog notes under `docs/changelog/` for
+historical context.
 
 ## Scope & usage policy
 
@@ -89,12 +97,11 @@ openclaw / anthropic SDK / openai SDK / curl
                     ▼  http://<lan>:8000
    ┌────────────── FastAPI hub (src/server.py) ───────────────┐
    │  route by `model`:                                       │
-   │    claude-*       → call_claude()   (claude -p subprocess) │
-   │    qwen3.5-9b     → llama-server 127.0.0.1:8081            │
-   │    glm-4.5-air    → llama-server 127.0.0.1:8082            │
-   │    gemma3-12b-it  → llama-server 127.0.0.1:8083            │
-   │    gemma3-27b-it  → llama-server 127.0.0.1:8084            │
-   │    gemma3n-e4b-it → llama-server 127.0.0.1:8085            │
+   │    claude-*           → call_claude()   (claude -p subprocess) │
+   │    qwen3.5-9b         → llama-server 127.0.0.1:8081            │
+   │    glm-4.5-air        → llama-server 127.0.0.1:8082            │
+   │    gemma4-e4b-it      → llama-server 127.0.0.1:8086            │
+   │    gemma4-26b-a4b-it  → llama-server 127.0.0.1:8087            │
    │    whisper-large-v3-turbo → 400 "POST to :8090 directly" (audio) │
    └──────────────────────────────────────────────────────────┘
 
@@ -119,9 +126,8 @@ claude-local-calls/
 │   ├── run_hub.*                # start the FastAPI hub on :8000
 │   ├── run_qwen.*               # start llama-server for Qwen on :8081
 │   ├── run_glm.*                # start llama-server for GLM on :8082
-│   ├── run_gemma3_12b.*         # start llama-server for Gemma 3 12B on :8083
-│   ├── run_gemma3_27b.*         # start llama-server for Gemma 3 27B QAT on :8084
-│   ├── run_gemma3n_e4b.*        # start llama-server for Gemma 3n E4B on :8085
+│   ├── run_gemma4_e4b.*         # start llama-server for Gemma 4 E4B IT on :8086
+│   ├── run_gemma4_26b.*         # start llama-server for Gemma 4 26B-A4B IT on :8087
 │   ├── run_whisper.*            # start whisper-server for whisper-large-v3-turbo on :8090
 │   ├── run_all.*                # start everything enabled on this host
 │   └── launch_app.*             # Streamlit UI
@@ -148,8 +154,8 @@ claude-local-calls/
 │   ├── llama.cpp/            # prebuilt llama-server binary (gitignored)
 │   └── whisper.cpp/          # prebuilt whisper-server binary (gitignored)
 ├── models/                   # downloaded GGUFs (gitignored):
-│                             #   Qwen3.5-9B, GLM-4.5-Air, gemma-3-12b-it,
-│                             #   gemma-3-27b-it-qat (Q4_0), gemma-3n-E4B-it,
+│                             #   Qwen3.5-9B, GLM-4.5-Air, gemma-4-E4B-it,
+│                             #   gemma-4-26B-A4B-it (IQ4_XS),
 │                             #   ggml-large-v3-turbo.bin (whisper)
 └── docs/
     ├── project-structure.md
@@ -176,11 +182,10 @@ The installer reads [config/models.yaml](config/models.yaml), figures
 out which host row you are (by `CLAUDE_LOCAL_CALLS_HOST` env var, else
 hostname match, else `default: true`), and only downloads what that
 host's `enabled` list asks for. On the reference Windows PC that's
-Qwen (~6.6 GB) + GLM (~55 GB) + Gemma 3 12B (~7.3 GB) + Gemma 3 27B
-QAT (~15.6 GB) + Gemma 3n E4B (~4.3 GB) + Gemma 4 E4B (~5 GB) +
-Gemma 4 26B-A4B IQ4_XS (~13.4 GB) + whisper-large-v3-turbo (~1.62 GB,
-plus the whisper.cpp CUDA binary under `vendor/whisper.cpp/`); on the
-Mac mini it's Qwen only.
+Qwen (~6.6 GB) + GLM (~55 GB) + Gemma 4 E4B (~5 GB) + Gemma 4
+26B-A4B IQ4_XS (~13.4 GB) + whisper-large-v3-turbo (~1.62 GB, plus
+the whisper.cpp CUDA binary under `vendor/whisper.cpp/`); on the Mac
+mini it's Qwen only.
 
 Plain check (no changes):
 
@@ -226,9 +231,6 @@ itself runs fine without it.
 launchers\run_hub.bat            :: FastAPI hub on :8000
 launchers\run_qwen.bat           :: llama-server for Qwen on :8081
 launchers\run_glm.bat            :: llama-server for GLM on :8082
-launchers\run_gemma3_12b.bat     :: llama-server for Gemma 3 12B IT on :8083
-launchers\run_gemma3_27b.bat     :: llama-server for Gemma 3 27B IT QAT on :8084
-launchers\run_gemma3n_e4b.bat    :: llama-server for Gemma 3n E4B IT on :8085
 launchers\run_gemma4_e4b.bat     :: llama-server for Gemma 4 E4B IT on :8086
 launchers\run_gemma4_26b.bat     :: llama-server for Gemma 4 26B-A4B IT on :8087
 launchers\run_whisper.bat        :: whisper-server for whisper-large-v3-turbo on :8090
@@ -243,9 +245,6 @@ Equivalent Python entrypoints (run from the project root):
 .venv\Scripts\python -m src.run_backend hub
 .venv\Scripts\python -m src.run_backend qwen
 .venv\Scripts\python -m src.run_backend glm
-.venv\Scripts\python -m src.run_backend gemma3_12b
-.venv\Scripts\python -m src.run_backend gemma3_27b
-.venv\Scripts\python -m src.run_backend gemma3n_e4b
 .venv\Scripts\python -m src.run_backend gemma4_e4b
 .venv\Scripts\python -m src.run_backend gemma4_26b
 .venv\Scripts\python -m src.run_backend whisper
@@ -319,23 +318,16 @@ msg = client.messages.create(
     messages=[{"role": "user", "content": "Hello"}],
 )
 
-# Local Gemma 3 12B IT — fast classifier tier (full GPU offload)
+# Local Gemma 4 E4B IT — small / classifier / edge (8 B dense, full GPU)
 msg = client.messages.create(
-    model="gemma3-12b-it",
+    model="gemma4-e4b-it",
     max_tokens=128,
     messages=[{"role": "user", "content": "Hello"}],
 )
 
-# Local Gemma 3 27B IT QAT — quality tier (partial GPU offload)
+# Local Gemma 4 26B-A4B IT — quality tier (25 B / 3.8 B-active MoE on GPU)
 msg = client.messages.create(
-    model="gemma3-27b-it",
-    max_tokens=128,
-    messages=[{"role": "user", "content": "Hello"}],
-)
-
-# Local Gemma 3n E4B IT — edge / ultra-fast (~4B effective, full GPU)
-msg = client.messages.create(
-    model="gemma3n-e4b-it",
+    model="gemma4-26b-a4b-it",
     max_tokens=128,
     messages=[{"role": "user", "content": "Hello"}],
 )
