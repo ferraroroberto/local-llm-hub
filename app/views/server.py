@@ -5,6 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from src import server_process as sp
+from src import system_stats as stats
 
 
 def render() -> None:
@@ -31,6 +32,8 @@ def render() -> None:
     cols[1].metric("PID", str(sp.pid()) if running else "—")
     cols[2].metric("Health", "ok" if reachable else "—")
     cols[3].metric("Log lines", f"{len(sp.log_lines())}")
+
+    _render_resource_bars()
 
     ctrl = st.columns([1, 1, 1, 4])
     with ctrl[0]:
@@ -71,3 +74,52 @@ def render() -> None:
         "The process is managed by this Streamlit session. Stopping the app "
         "will also stop the server. For standalone use, run `launchers/run_hub.bat`."
     )
+
+
+@st.fragment(run_every="5s")
+def _render_resource_bars() -> None:
+    ram = stats.ram_stats()
+    gpus = stats.gpu_stats()
+
+    st.caption("**System resources** (auto-refresh 5s)")
+
+    bars = 1 + 2 * len(gpus)
+    cols = st.columns(bars)
+
+    with cols[0]:
+        st.progress(min(ram["percent"] / 100.0, 1.0))
+        st.caption(
+            f"RAM · {ram['used_gb']:.1f} / {ram['total_gb']:.1f} GB · "
+            f"{ram['percent']:.0f}%"
+        )
+
+    for idx, gpu in enumerate(gpus):
+        short = _short_gpu_name(gpu.get("name") or f"GPU {idx}")
+        vram_pct = gpu.get("vram_percent")
+        used_mb = gpu.get("used_mb")
+        total_mb = gpu.get("total_mb")
+        util_pct = gpu.get("util_percent")
+
+        with cols[1 + 2 * idx]:
+            value = (vram_pct or 0.0) / 100.0
+            st.progress(min(value, 1.0))
+            if used_mb is not None and total_mb is not None:
+                st.caption(
+                    f"VRAM · {short} · {used_mb / 1024:.1f} / "
+                    f"{total_mb / 1024:.1f} GB · {vram_pct:.0f}%"
+                )
+            else:
+                st.caption(f"VRAM · {short} · n/a")
+
+        with cols[2 + 2 * idx]:
+            value = (util_pct or 0.0) / 100.0
+            st.progress(min(value, 1.0))
+            if util_pct is not None:
+                st.caption(f"GPU util · {short} · {util_pct:.0f}%")
+            else:
+                st.caption(f"GPU util · {short} · n/a")
+
+
+def _short_gpu_name(name: str) -> str:
+    cleaned = name.replace("NVIDIA ", "").replace("GeForce ", "").strip()
+    return cleaned or name

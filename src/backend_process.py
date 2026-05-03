@@ -33,6 +33,12 @@ VENDOR_LLAMA = PROJECT_ROOT / "vendor" / "llama.cpp"
 VENDOR_WHISPER = PROJECT_ROOT / "vendor" / "whisper.cpp"
 RING_MAX = 1000
 
+# On Windows, give the child its own process group so CTRL_BREAK_EVENT
+# during stop() doesn't propagate to Streamlit / launch_app.bat.
+_WIN_NEW_GROUP = (
+    subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+)
+
 
 def _llama_server_binary() -> Path:
     name = "llama-server.exe" if sys.platform == "win32" else "llama-server"
@@ -200,6 +206,7 @@ def start(model_id: str) -> tuple[bool, str]:
             errors="replace",
             bufsize=1,
             env=env,
+            creationflags=_WIN_NEW_GROUP,
         )
     except Exception as e:
         return False, f"failed to launch: {e}"

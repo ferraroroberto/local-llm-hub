@@ -31,6 +31,12 @@ PORT = 8000
 BASE_URL = f"http://{LOCAL_HOST}:{PORT}"
 RING_MAX = 1000
 
+# On Windows, give the child its own process group so CTRL_BREAK_EVENT
+# during stop() doesn't propagate to Streamlit / launch_app.bat.
+_WIN_NEW_GROUP = (
+    subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+)
+
 
 def lan_ip() -> Optional[str]:
     """Best-effort LAN IP of this machine.
@@ -116,6 +122,7 @@ def start() -> tuple[bool, str]:
             errors="replace",
             bufsize=1,
             env=env,
+            creationflags=_WIN_NEW_GROUP,
         )
     except Exception as e:
         return False, f"failed to launch: {e}"
