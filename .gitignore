@@ -40,3 +40,6 @@ config/machine_specs.yaml
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Tray single-instance lock
+.tray.pid

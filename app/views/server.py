@@ -24,12 +24,25 @@ def render() -> None:
         st.markdown(f"**Local:** {local_md}")
         st.caption("No LAN route detected — reachable from this machine only.")
 
-    running = sp.is_running()
-    reachable = sp.is_reachable() if running else False
+    own = sp.ownership()
+    is_ours = own == sp.OWNERSHIP_OURS
+    is_external = own == sp.OWNERSHIP_EXTERNAL
+    reachable = sp.is_reachable() if (is_ours or is_external) else False
+    ext_pid = sp.external_pid()
+    process_label = (
+        "running (managed)" if is_ours
+        else "running (external)" if is_external
+        else "stopped"
+    )
+    pid_label = (
+        str(sp.pid()) if is_ours
+        else (str(ext_pid) if ext_pid else "—") if is_external
+        else "—"
+    )
 
     cols = st.columns(4)
-    cols[0].metric("Process", "running" if running else "stopped")
-    cols[1].metric("PID", str(sp.pid()) if running else "—")
+    cols[0].metric("Process", process_label)
+    cols[1].metric("PID", pid_label)
     cols[2].metric("Health", "ok" if reachable else "—")
     cols[3].metric("Log lines", f"{len(sp.log_lines())}")
 
@@ -37,42 +50,56 @@ def render() -> None:
 
     ctrl = st.columns([1, 1, 1, 4])
     with ctrl[0]:
-        if st.button("▶ Start", type="primary", disabled=running, width="stretch"):
+        # Disabled when anything (us or external) holds the port.
+        if st.button("▶ Start", type="primary", disabled=(own != sp.OWNERSHIP_NONE), width="stretch"):
             ok, msg = sp.start()
             (st.success if ok else st.warning)(msg)
             st.rerun()
     with ctrl[1]:
-        if st.button("■ Stop", disabled=not running, width="stretch"):
-            ok, msg = sp.stop()
-            (st.success if ok else st.warning)(msg)
-            st.rerun()
+        if is_external:
+            label = f"💀 Stop external (PID {ext_pid})" if ext_pid else "💀 Stop external"
+            if st.button(label, width="stretch"):
+                ok, msg = sp.force_stop_external()
+                (st.success if ok else st.error)(msg)
+                st.rerun()
+        else:
+            if st.button("■ Stop", disabled=not is_ours, width="stretch"):
+                ok, msg = sp.stop()
+                (st.success if ok else st.warning)(msg)
+                st.rerun()
     with ctrl[2]:
         if st.button("🔄 Refresh", width="stretch"):
             st.rerun()
 
-    strays = [] if running else sp.stray_pids_on_port()
-    if strays:
-        pretty = ", ".join(str(p) for p in strays)
-        st.warning(
-            f"Port {sp.PORT} is held by another process (PID {pretty}) — "
-            "probably a stale server from a previous session. Start will "
-            "fail with WinError 10048 until it's gone."
+    if is_external:
+        st.info(
+            f"Hub on :{sp.PORT} is **adopted** — held by another process "
+            f"(PID {ext_pid}), most likely the tray or a `run_hub` launcher. "
+            "It's reachable and routing requests normally; this session just "
+            "didn't spawn it. Use **Stop external** to reclaim the port if "
+            "you want to take over."
         )
-        if st.button(f"💀 Kill stray process on port {sp.PORT}", width="content"):
-            ok, msg = sp.kill_stray_on_port()
-            (st.success if ok else st.error)(msg)
-            st.rerun()
 
     st.divider()
 
     st.markdown("**Server log** (stdout + stderr)")
-    lines = sp.log_lines()
-    body = "\n".join(lines[-400:]) if lines else "(no output yet — start the server)"
-    st.code(body, language="log")
+    if is_external:
+        st.caption(
+            "Log tail is unavailable for adopted processes — Windows can't "
+            "attach to another process's stdout post-hoc. See the launcher "
+            "that owns the hub for its output."
+        )
+        st.code("(adopted — no log tail available)", language="log")
+    else:
+        lines = sp.log_lines()
+        body = "\n".join(lines[-400:]) if lines else "(no output yet — start the server)"
+        st.code(body, language="log")
 
     st.caption(
-        "The process is managed by this Streamlit session. Stopping the app "
-        "will also stop the server. For standalone use, run `launchers/run_hub.bat`."
+        "The process is managed by this Streamlit session unless adopted. "
+        "Stopping the app stops only servers it spawned. For standalone use, "
+        "run `run_hub.bat` (or `tray.bat` on Windows for a silent system-tray "
+        "launcher)."
     )
 
 

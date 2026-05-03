@@ -19,8 +19,11 @@ def _render_claude_card(m) -> None:
 
 
 def _render_local_card(m) -> None:
-    running = lp.is_running(m.id)
-    reachable = lp.is_reachable(m) if running else False
+    own = lp.ownership(m.id)
+    is_ours = own == lp.OWNERSHIP_OURS
+    is_external = own == lp.OWNERSHIP_EXTERNAL
+    reachable = lp.is_reachable(m) if (is_ours or is_external) else False
+    ext_pid = lp.external_pid(m.id)
 
     is_whisper = m.backend == "whisper" or m.engine == "whisper-server"
     glyph = "🎙" if is_whisper else "🦙"
@@ -28,33 +31,61 @@ def _render_local_card(m) -> None:
     st.subheader(f"{glyph} {m.display_name}")
     st.caption(f"`{engine_label}` on :{m.port} — id `{m.id}`")
 
+    process_label = (
+        "running (managed)" if is_ours
+        else "running (external)" if is_external
+        else "stopped"
+    )
+    pid_label = (
+        str(lp.pid(m.id)) if is_ours
+        else (str(ext_pid) if ext_pid else "—") if is_external
+        else "—"
+    )
+
     cols = st.columns(4)
-    cols[0].metric("Process", "running" if running else "stopped")
-    cols[1].metric("PID", str(lp.pid(m.id)) if running else "—")
+    cols[0].metric("Process", process_label)
+    cols[1].metric("PID", pid_label)
     cols[2].metric("Health", "ok" if reachable else "—")
     cols[3].metric("Log lines", f"{len(lp.log_lines(m.id))}")
 
     ctrl = st.columns([1, 1, 1, 4])
     with ctrl[0]:
         if st.button("▶ Start", key=f"start_{m.id}", type="primary",
-                     disabled=running, width="stretch"):
+                     disabled=(own != lp.OWNERSHIP_NONE), width="stretch"):
             ok, msg = lp.start(m.id)
             (st.success if ok else st.warning)(msg)
             st.rerun()
     with ctrl[1]:
-        if st.button("■ Stop", key=f"stop_{m.id}",
-                     disabled=not running, width="stretch"):
-            ok, msg = lp.stop(m.id)
-            (st.success if ok else st.warning)(msg)
-            st.rerun()
+        if is_external:
+            label = f"💀 Stop external (PID {ext_pid})" if ext_pid else "💀 Stop external"
+            if st.button(label, key=f"force_stop_{m.id}", width="stretch"):
+                ok, msg = lp.force_stop_external(m.id)
+                (st.success if ok else st.error)(msg)
+                st.rerun()
+        else:
+            if st.button("■ Stop", key=f"stop_{m.id}",
+                         disabled=not is_ours, width="stretch"):
+                ok, msg = lp.stop(m.id)
+                (st.success if ok else st.warning)(msg)
+                st.rerun()
     with ctrl[2]:
         if st.button("🔄 Refresh", key=f"refresh_{m.id}", width="stretch"):
             st.rerun()
 
+    if is_external:
+        st.info(
+            f"Adopted — port :{m.port} is held by another process"
+            + (f" (PID {ext_pid})" if ext_pid else "")
+            + ". This session didn't spawn it; logs aren't available here."
+        )
+
     with st.expander("Log tail", expanded=False):
-        lines = lp.log_lines(m.id)
-        body = "\n".join(lines[-400:]) if lines else "(no output yet — start the backend)"
-        st.code(body, language="log")
+        if is_external:
+            st.code("(adopted — no log tail available)", language="log")
+        else:
+            lines = lp.log_lines(m.id)
+            body = "\n".join(lines[-400:]) if lines else "(no output yet — start the backend)"
+            st.code(body, language="log")
 
     with st.expander("Launch args", expanded=False):
         try:

@@ -8,3 +8,9 @@ streamlit>=1.37
 pyyaml>=6.0
 huggingface_hub>=0.24
 psutil>=5.9
+
+# Tray launcher (system tray icon + tk log window). Pillow renders the
+# tray glyph at runtime; winotify gives WinRT toast fallback on Windows.
+pystray>=0.19
+Pillow>=10.0
+winotify>=1.1; platform_system == "Windows"

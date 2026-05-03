@@ -14,6 +14,15 @@ hub:
   port: 8000
   bind_host: "0.0.0.0"
 
+# System-tray launcher (`tray.bat` → `python -m tray`).
+# Drives what `tray/app.py` does on startup. Both keys are optional; an
+# empty / missing autostart_model leaves the tray idle for the user to
+# pick a model from the menu.
+tray:
+  autostart_hub: true
+  autostart_model: gemma4_26b   # set to null to skip model autostart
+  hub_ready_timeout_s: 30
+
 hosts:
   pc-cuda:
     platform: win32

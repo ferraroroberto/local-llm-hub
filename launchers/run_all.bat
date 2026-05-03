@@ -6,6 +6,9 @@ REM  stop_all.bat (TODO) to shut them down.
 REM ==========================================================
 cd /d "%~dp0.."
 
+REM Hub now lives at the repo root as run_hub.bat (same Python under
+REM the hood). Keep launching it via run_backend so this script stays
+REM self-contained and behaves identically to the per-model lines.
 start "claude-local-calls - hub"             cmd /k .venv\Scripts\python.exe -m src.run_backend hub
 start "claude-local-calls - qwen"            cmd /k .venv\Scripts\python.exe -m src.run_backend qwen
 start "claude-local-calls - glm"             cmd /k .venv\Scripts\python.exe -m src.run_backend glm

@@ -122,15 +122,16 @@ how the whisper backend slotted in.
 claude-local-calls/
 ├── .venv/                    # local virtualenv
 ├── requirements.txt
-├── launchers/                   # one-shot entrypoints (.bat + .sh)
-│   ├── run_hub.*                # start the FastAPI hub on :8000
+├── tray.bat                  # Windows-only system-tray launcher (silent)
+├── run_hub.bat / .sh         # start the FastAPI hub on :8000
+├── launch_app.bat / .sh      # Streamlit control panel
+├── launchers/                # per-model backends (.bat + .sh)
 │   ├── run_qwen.*               # start llama-server for Qwen on :8081
 │   ├── run_glm.*                # start llama-server for GLM on :8082
 │   ├── run_gemma4_e4b.*         # start llama-server for Gemma 4 E4B IT on :8086
 │   ├── run_gemma4_26b.*         # start llama-server for Gemma 4 26B-A4B IT on :8087
 │   ├── run_whisper.*            # start whisper-server for whisper-large-v3-turbo on :8090
-│   ├── run_all.*                # start everything enabled on this host
-│   └── launch_app.*             # Streamlit UI
+│   └── run_all.*                # start everything enabled on this host
 ├── config/
 │   └── models.yaml           # host + model registry
 ├── src/
@@ -141,8 +142,14 @@ claude-local-calls/
 │   ├── host_profile.py       # pick active host row
 │   ├── install.py            # first-run checks + --fix
 │   ├── run_backend.py        # hub|qwen|glm|…|whisper dispatcher
-│   ├── server_process.py     # hub Popen + kill-stray-on-port
+│   ├── server_process.py     # hub Popen + ownership / adopt-or-spawn
 │   └── backend_process.py    # per-model Popen (llama-server + whisper-server)
+├── tray/                     # Windows system-tray launcher (silent pythonw)
+│   ├── app.py                #   pystray menu + tk event pump
+│   ├── log_window.py         #   tk Notebook tailing hub + per-model logs
+│   ├── config.py             #   reads tray: section from models.yaml
+│   ├── icon.py               #   PIL hub glyph (no image file in repo)
+│   └── single_instance.py    #   .tray.pid lock validated with psutil
 ├── app/                      # Streamlit UI (welcome/install/server/models/…)
 ├── scripts/
 │   ├── smoke_test.py
@@ -228,7 +235,8 @@ itself runs fine without it.
 ## Run
 
 ```bat
-launchers\run_hub.bat            :: FastAPI hub on :8000
+run_hub.bat                      :: FastAPI hub on :8000
+launch_app.bat                   :: Streamlit control panel
 launchers\run_qwen.bat           :: llama-server for Qwen on :8081
 launchers\run_glm.bat            :: llama-server for GLM on :8082
 launchers\run_gemma4_e4b.bat     :: llama-server for Gemma 4 E4B IT on :8086
@@ -237,7 +245,55 @@ launchers\run_whisper.bat        :: whisper-server for whisper-large-v3-turbo on
 launchers\run_all.bat            :: start every backend enabled for this host
 ```
 
-(macOS / Linux: `./launchers/run_hub.sh`, `./launchers/run_all.sh`, etc.)
+(macOS / Linux: `./run_hub.sh`, `./launch_app.sh`, `./launchers/run_all.sh`, etc.)
+
+### Tray launcher (Windows)
+
+```bat
+tray.bat
+```
+
+Starts a resident system-tray icon (silent — no terminal window) that:
+
+- Auto-starts the hub on :8000 and the model declared in
+  `config/models.yaml` under `tray.autostart_model` (default
+  `gemma4_26b`). Set it to `null` to skip model autostart, or to any
+  enabled model id to change the default.
+- Lets you toggle any other enabled local model on/off from the
+  **Models** submenu (multiple may run concurrently).
+- Streams hub + per-model logs in a tk window via **Open log window**.
+- Opens the Streamlit admin UI on demand via **Open Streamlit admin**.
+
+Drop a shortcut to `tray.bat` in the Windows Startup folder
+(`shell:startup`) so the box behaves as an always-on local-LLM
+endpoint after login. Routine tray activity is silent; if the tray
+ever crashes, a single-shot `tray-crash.log` is written at the repo
+root with the traceback (delete it any time — it's only recreated on
+the next crash).
+
+### Server adoption between launchers
+
+The hub on :8000 (and each per-model port :808x) is single-owner — TCP
+allows only one process to bind a port. To make `tray.bat`,
+`run_hub.bat`, the per-model `launchers/run_*.bat` scripts, and the
+Streamlit Server/Models tabs coexist, every launcher follows the same
+**adopt-or-spawn** rule:
+
+- If the port is already reachable, the launcher *adopts* the running
+  process (no second spawn, no error) and treats it as up.
+- Each launcher only stops what it spawned itself. Closing the tray
+  doesn't stop a hub that `run_hub.bat` started, and vice versa.
+- The Streamlit Server/Models tabs distinguish managed vs. adopted
+  processes and offer a **Stop external (PID xxx)** button when you
+  explicitly want to reclaim a port.
+
+One known limitation: **logs aren't available for adopted processes**.
+Windows can't attach to another process's stdout after the fact, so
+the in-process ring buffer in the tray's log window or the Streamlit
+Server tab stays empty for an adopted hub. The launcher that actually
+spawned the process still has its log; check there. If you need cross-
+process log tail badly, the future fix is to add a small file or
+HTTP tail endpoint to the hub itself — out of scope for now.
 
 Equivalent Python entrypoints (run from the project root):
 
@@ -260,9 +316,10 @@ The hub binds on `0.0.0.0:8000`, so any machine on the same network
 (another laptop, a VM, an agent like openclaw running next to you) can
 use it.
 
-1. **Start the hub** (either `launchers/run_hub.bat` / `.sh` or the
-   Streamlit *Server* tab). Start any local backends you need from
-   `launchers/run_qwen.*` / `launchers/run_glm.*` or the *Models* tab.
+1. **Start the hub** (either `run_hub.bat` / `.sh` at the repo root, or
+   the Streamlit *Server* tab, or `tray.bat` on Windows). Start any
+   local backends you need from `launchers/run_qwen.*` /
+   `launchers/run_glm.*` or the *Models* tab.
 2. **Find your LAN IP.** The Streamlit *Server* page shows it as a
    clickable **LAN** link. From a terminal:
 

@@ -1,10 +1,24 @@
-"""Manage the FastAPI server as a subprocess, for the Streamlit UI.
+"""Manage the FastAPI server as a subprocess, for the Streamlit UI and tray.
 
 Keeps a singleton `Popen` + a background reader thread that drains
 stdout/stderr into a thread-safe ring buffer the UI can poll on each
 rerun. Streamlit reruns the script on every interaction, so we stash
 state on a module-level singleton rather than `st.session_state`
 (which is per-session and would break if the browser tab reloads).
+
+**Ownership model.** A single hub process binds :8000; whoever spawned
+it owns it. Other observers (a second Streamlit session, the tray,
+``run_hub.bat`` invoked while the tray is up) can *adopt* the running
+hub: they see it as reachable but don't try to start a duplicate and
+don't tear it down on their own exit. Three states:
+
+* ``OWNERSHIP_OURS`` — we hold a live ``Popen``; ``stop()`` will tear
+  it down and our log ring has its stdout.
+* ``OWNERSHIP_EXTERNAL`` — port is held by someone else's process. We
+  can talk to it through the network and we can force-kill it via
+  :func:`force_stop_external`, but we have no log tail (Windows can't
+  attach to another process's stdout post-hoc).
+* ``OWNERSHIP_NONE`` — nothing on the port; safe to ``start()``.
 """
 
 from __future__ import annotations
@@ -31,10 +45,17 @@ PORT = 8000
 BASE_URL = f"http://{LOCAL_HOST}:{PORT}"
 RING_MAX = 1000
 
+OWNERSHIP_OURS = "ours"
+OWNERSHIP_EXTERNAL = "external"
+OWNERSHIP_NONE = "none"
+
 # On Windows, give the child its own process group so CTRL_BREAK_EVENT
-# during stop() doesn't propagate to Streamlit / launch_app.bat.
+# during stop() doesn't propagate to Streamlit / launch_app.bat, and
+# suppress the console so silent parents (pythonw, e.g. the tray) don't
+# spawn a stray cmd window.
 _WIN_NEW_GROUP = (
-    subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+    subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+    if sys.platform == "win32" else 0
 )
 
 
@@ -107,6 +128,14 @@ def start() -> tuple[bool, str]:
     if is_running():
         return False, "already running"
 
+    # Adopt: someone else's hub is already answering on :8000 — don't
+    # try to spawn a duplicate (it'd fail with WinError 10048 anyway).
+    # The caller treats this as a successful no-op.
+    if is_reachable(timeout=0.4):
+        ext_pid = external_pid()
+        suffix = f" (PID {ext_pid})" if ext_pid else ""
+        return True, f"adopted external hub{suffix}"
+
     clear_log()
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
@@ -142,7 +171,15 @@ def stop() -> tuple[bool, str]:
 
     try:
         if sys.platform == "win32":
-            p.send_signal(signal.CTRL_BREAK_EVENT)  # best effort
+            # Best-effort polite shutdown. Fails with WinError 6 ("handle is
+            # invalid") when the child was spawned with CREATE_NO_WINDOW
+            # (e.g. from the tray under pythonw) because there's no console
+            # to deliver the event through — that's fine, terminate() below
+            # still tears it down.
+            try:
+                p.send_signal(signal.CTRL_BREAK_EVENT)
+            except (OSError, ValueError):
+                pass
         p.terminate()
         try:
             p.wait(timeout=5)
@@ -168,12 +205,19 @@ def find_port_pids(port: int) -> list[int]:
 
     Cross-platform: uses `netstat` on Windows, `lsof` on macOS/Linux.
     Returns [] if nothing is listening or the tool isn't available.
+
+    Note: under ``pythonw`` (e.g. when called from the tray) Windows
+    Terminal will spawn a fresh window for any console child unless we
+    pass ``CREATE_NO_WINDOW``. The Streamlit menu render path calls
+    :func:`ownership` → :func:`find_port_pids` once per enabled model,
+    so without the flag every menu open spawns N Terminal windows.
     """
     try:
         if sys.platform == "win32":
             out = subprocess.run(
                 ["netstat", "-ano", "-p", "TCP"],
                 capture_output=True, text=True, timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             ).stdout
             pids: set[int] = set()
             for line in out.splitlines():
@@ -194,10 +238,34 @@ def find_port_pids(port: int) -> list[int]:
         return []
 
 
-def stray_pids_on_port(port: int = PORT) -> list[int]:
-    """PIDs on `port` that are NOT the process we manage."""
-    ours = pid()
-    return [p for p in find_port_pids(port) if p != ours]
+def ownership() -> str:
+    """Return ``OWNERSHIP_OURS`` / ``EXTERNAL`` / ``NONE`` for the hub port."""
+    if is_running():
+        return OWNERSHIP_OURS
+    if find_port_pids(PORT):
+        return OWNERSHIP_EXTERNAL
+    return OWNERSHIP_NONE
+
+
+def external_pid() -> Optional[int]:
+    """PID of the external port-holder, or ``None`` if we own it / port is free."""
+    if is_running():
+        return None
+    pids = find_port_pids(PORT)
+    return pids[0] if pids else None
+
+
+def force_stop_external() -> tuple[bool, str]:
+    """Force-kill whoever currently holds :8000, if it's not us.
+
+    Use this when the user wants to reclaim the port — e.g. clicking
+    "Stop & take over" in the Server tab, or after a tray crash left a
+    detached pythonw owning the hub.
+    """
+    target = external_pid()
+    if target is None:
+        return False, f"no external process on port {PORT}"
+    return kill_pid(target)
 
 
 def kill_pid(target_pid: int) -> tuple[bool, str]:
@@ -207,6 +275,7 @@ def kill_pid(target_pid: int) -> tuple[bool, str]:
             r = subprocess.run(
                 ["taskkill", "/F", "/PID", str(target_pid)],
                 capture_output=True, text=True, timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             if r.returncode == 0:
                 return True, f"killed pid {target_pid}"
@@ -220,14 +289,3 @@ def kill_pid(target_pid: int) -> tuple[bool, str]:
         return False, f"error killing {target_pid}: {e}"
 
 
-def kill_stray_on_port(port: int = PORT) -> tuple[bool, str]:
-    """Kill every process holding `port` that isn't ours. Idempotent."""
-    strays = stray_pids_on_port(port)
-    if not strays:
-        return False, f"no stray process on port {port}"
-    results = [kill_pid(p) for p in strays]
-    killed = [msg for ok, msg in results if ok]
-    failed = [msg for ok, msg in results if not ok]
-    if failed:
-        return False, "; ".join(failed)
-    return True, "; ".join(killed)

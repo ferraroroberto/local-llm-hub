@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import subprocess
+import sys
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,11 @@ def call_claude(
         args += ["--system-prompt", system]
 
     try:
+        # Suppress the Windows Terminal window that would otherwise spawn
+        # for every request when the hub itself is running under pythonw
+        # (e.g. launched from the tray with CREATE_NO_WINDOW — children
+        # don't inherit the parent's no-window state).
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         proc = subprocess.run(
             args,
             input=prompt,
@@ -45,6 +51,7 @@ def call_claude(
             timeout=timeout,
             check=False,
             shell=False,
+            creationflags=creationflags,
         )
     except FileNotFoundError as e:
         raise ClaudeCLIError(

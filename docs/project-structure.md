@@ -263,8 +263,9 @@ the envelope into OpenAI shape; for the local llama-server backends
   Host resolution: `CLAUDE_LOCAL_CALLS_HOST` env var, else hostname
   match, else `default: true` row.
 - **Entry points.**
-  - `python -m src.run_backend hub` (or `launchers/run_hub.bat` /
-    `.sh`) — starts FastAPI on `0.0.0.0:8000`.
+  - `python -m src.run_backend hub` (or `run_hub.bat` / `.sh` at the
+    repo root, or `tray.bat` on Windows) — starts FastAPI on
+    `0.0.0.0:8000`.
   - `python -m src.run_backend qwen` / `glm` / `gemma4_e4b` /
     `gemma4_26b` / `whisper` (or the matching
     `launchers/run_*.bat` / `.sh`) — starts the matching
@@ -272,8 +273,8 @@ the envelope into OpenAI shape; for the local llama-server backends
     `models.yaml`.
   - `python -m src.install [--fix]` — runs every health check, fixes
     the fixable; shared with the Streamlit Install tab.
-  - `streamlit run app/app.py` (or `launchers/launch_app.bat` /
-    `.sh`) — UI.
+  - `streamlit run app/app.py` (or `launch_app.bat` / `.sh` at the
+    repo root) — UI.
 - **Only two places shell out.**
   [`src/claude_cli.py`](../src/claude_cli.py) owns
   `subprocess.run(["claude", "-p", ...])`.

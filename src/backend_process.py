@@ -2,14 +2,21 @@
 
 Each enabled local model in the registry gets its own singleton process +
 log ring buffer here. Keyed by model id ("qwen", "glm", "whisper"). Used
-by the Streamlit Models view to start/stop individual backends and tail
-their output without any global state entanglement.
+by the Streamlit Models view, the tray, and the per-model launcher
+scripts to start/stop individual backends and tail their output without
+global-state entanglement.
 
 Two engine families share this manager:
-  - `llama-server` for chat/completion GGUF models (qwen, glm, gemma3*)
+  - `llama-server` for chat/completion GGUF models (qwen, glm, gemma4*)
   - `whisper-server` for whisper.cpp ASR (OpenAI-compatible /v1/audio/*)
 The shape differences (binary location, -m vs --model flag, health
 endpoint) are absorbed in `build_command` and `is_reachable`.
+
+Ownership semantics mirror :mod:`src.server_process` — see its module
+docstring. ``start(model_id)`` adopts an already-reachable backend on
+the model's port instead of spawning a duplicate; ``stop(model_id)``
+only stops what we spawned. Use :func:`force_stop_external` to reclaim
+a port held by someone else.
 """
 
 from __future__ import annotations
@@ -27,6 +34,13 @@ from typing import Deque, Dict, Optional
 import httpx
 
 from .model_registry import Model, enabled_models, resolve as resolve_model
+from .server_process import (
+    OWNERSHIP_EXTERNAL,
+    OWNERSHIP_NONE,
+    OWNERSHIP_OURS,
+    find_port_pids,
+    kill_pid,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 VENDOR_LLAMA = PROJECT_ROOT / "vendor" / "llama.cpp"
@@ -34,9 +48,12 @@ VENDOR_WHISPER = PROJECT_ROOT / "vendor" / "whisper.cpp"
 RING_MAX = 1000
 
 # On Windows, give the child its own process group so CTRL_BREAK_EVENT
-# during stop() doesn't propagate to Streamlit / launch_app.bat.
+# during stop() doesn't propagate to Streamlit / launch_app.bat, and
+# suppress the console so silent parents (pythonw, e.g. the tray) don't
+# spawn a stray cmd window for native binaries like llama-server.exe.
 _WIN_NEW_GROUP = (
-    subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+    subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+    if sys.platform == "win32" else 0
 )
 
 
@@ -180,6 +197,12 @@ def start(model_id: str) -> tuple[bool, str]:
     if is_running(model_id):
         return False, "already running"
 
+    # Adopt an external instance already listening on this model's port.
+    if is_reachable(model, timeout=0.4):
+        ext = external_pid(model_id)
+        suffix = f" (PID {ext})" if ext else ""
+        return True, f"adopted external instance{suffix}"
+
     state = _state_for(model_id)
     clear_log(model_id)
 
@@ -256,3 +279,34 @@ def running_backends() -> Dict[str, Model]:
         if m.backend in ("openai", "whisper") and is_running(m.id):
             out[m.id] = m
     return out
+
+
+def ownership(model_id: str) -> str:
+    """Tri-state ownership of the port for *model_id* — see server_process docstring."""
+    model = resolve_model_by_id(model_id)
+    if model is None or model.port is None:
+        return OWNERSHIP_NONE
+    if is_running(model_id):
+        return OWNERSHIP_OURS
+    if find_port_pids(model.port):
+        return OWNERSHIP_EXTERNAL
+    return OWNERSHIP_NONE
+
+
+def external_pid(model_id: str) -> Optional[int]:
+    """PID holding *model_id*'s port if it isn't us, else ``None``."""
+    if is_running(model_id):
+        return None
+    model = resolve_model_by_id(model_id)
+    if model is None or model.port is None:
+        return None
+    pids = find_port_pids(model.port)
+    return pids[0] if pids else None
+
+
+def force_stop_external(model_id: str) -> tuple[bool, str]:
+    """Force-kill whoever currently holds *model_id*'s port, if it's not us."""
+    target = external_pid(model_id)
+    if target is None:
+        return False, "no external process on this model's port"
+    return kill_pid(target)

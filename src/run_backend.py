@@ -21,16 +21,31 @@ from .backend_process import (
     VENDOR_LLAMA,
     VENDOR_WHISPER,
     build_command,
+    external_pid as backend_external_pid,
+    is_reachable as backend_is_reachable,
     resolve_model_by_id,
 )
 from .host_profile import resolve as resolve_host
 from .model_registry import enabled_models
+from .server_process import (
+    BASE_URL as HUB_BASE_URL,
+    external_pid as hub_external_pid,
+    is_reachable as hub_is_reachable,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _run_hub() -> int:
-    # Delegate to the existing FastAPI entrypoint.
+    # Adopt: if the hub is already up (e.g. started by the tray or another
+    # `run_hub` window), don't try to bind :8000 a second time — uvicorn
+    # would crash with WinError 10048. Print and exit cleanly so the user
+    # can see what happened in the launcher's terminal.
+    if hub_is_reachable(timeout=0.4):
+        ext = hub_external_pid()
+        suffix = f" (PID {ext})" if ext else ""
+        log.info("hub already running at %s%s — nothing to do.", HUB_BASE_URL, suffix)
+        return 0
     from . import server
     server.main()
     return 0
@@ -46,6 +61,14 @@ def _run_backend(model_id: str) -> int:
     if model.backend not in ("openai", "whisper"):
         log.error("model %r is backend=%s; nothing to spawn", model_id, model.backend)
         return 2
+
+    # Same adopt-check as the hub: skip if something already answers on
+    # this model's port.
+    if backend_is_reachable(model, timeout=0.4):
+        ext = backend_external_pid(model_id)
+        suffix = f" (PID {ext})" if ext else ""
+        log.info("%s already running on :%s%s — nothing to do.", model.display_name, model.port, suffix)
+        return 0
 
     cmd = build_command(model)
     env = os.environ.copy()
