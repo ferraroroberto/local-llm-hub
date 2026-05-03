@@ -7,3 +7,4 @@ anthropic>=0.40
 streamlit>=1.30
 pyyaml>=6.0
 huggingface_hub>=0.24
+psutil>=5.9

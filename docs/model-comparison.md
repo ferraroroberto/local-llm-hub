@@ -19,6 +19,8 @@ markdown. Where a precise number isn't meaningful for a backend
 | `gemma3-12b-it` | Gemma 3 (Google) | 12 B dense | Q4_K_M | 6.8 GB | 16 384 | full GPU (`-ngl 99`) | 8083 | ~70–90 | [Gemma docs](https://ai.google.dev/gemma/docs) · [official card](https://huggingface.co/google/gemma-3-12b-it) · [GGUF we ship](https://huggingface.co/unsloth/gemma-3-12b-it-GGUF) |
 | `gemma3-27b-it` | Gemma 3 QAT (Google) | 27 B dense | Q4_0 (QAT) | 14.5 GB | 4 096 | partial GPU (`-ngl 50`) + `--flash-attn on` | 8084 | ~15–25 | [QAT announcement](https://developers.googleblog.com/en/gemma-3-quantized-aware-trained-state-of-the-art-ai-to-consumer-gpus/) · [official card](https://huggingface.co/google/gemma-3-27b-it-qat-q4_0-gguf) · [GGUF we ship](https://huggingface.co/unsloth/gemma-3-27b-it-qat-GGUF) |
 | `gemma3n-e4b-it` | Gemma 3n (Google, edge) | ~4 B effective | Q4_K_M | 4.2 GB | 16 384 | full GPU (`-ngl 99`) | 8085 | ~120–160 | [Gemma 3n docs](https://ai.google.dev/gemma/docs/gemma-3n) · [official card](https://huggingface.co/google/gemma-3n-E4B-it) · [GGUF we ship](https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF) |
+| `gemma4-e4b-it` | Gemma 4 (Google, edge / multimodal) | 8 B dense (text-only here) | Q4_K_M | 4.7 GB | 16 384 | full GPU (`-ngl 99`) | 8086 | ~92 | [Gemma 4 page](https://deepmind.google/models/gemma/gemma-4/) · [official card](https://huggingface.co/google/gemma-4-E4B-it) · [GGUF we ship](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF) |
+| `gemma4-26b-a4b-it` | Gemma 4 MoE (Google) | 25.2 B / 3.8 B active MoE | IQ4_XS (i-matrix) | 13.0 GB | 8 192 | full GPU (`-ngl 99`) + `--flash-attn on` | 8087 | ~91 | [Gemma 4 page](https://deepmind.google/models/gemma/gemma-4/) · [official card](https://huggingface.co/google/gemma-4-26B-A4B-it) · [GGUF we ship](https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF) |
 | `whisper-large-v3-turbo` | whisper.cpp (OpenAI) | 809 M (ASR, not chat; distilled large-v3 w/ 4 decoder layers) | ggml f16 | 1.62 GB | audio (30 s chunks) | ~2 GB | 8090 | realtime-factor ~4–8× (GPU) | [whisper.cpp](https://github.com/ggerganov/whisper.cpp) · [ggml models](https://huggingface.co/ggerganov/whisper.cpp) · [turbo vs large-v3](changelog/20260422-whisper-turbo-vs-large-v3.md) · [OpenAI paper](https://arxiv.org/abs/2212.04356) |
 
 \* Single-stream generation on an RTX 5060 Ti 16 GB, short
@@ -26,6 +28,15 @@ prompts (~100 input tokens). Ranges are indicative, not a
 benchmark — prompt prefill, long contexts, and concurrent
 traffic move the numbers. Measure on your workload before
 committing.
+
+**Gemma 4 reasoning note:** Both `gemma4-*` models emit a
+`message.reasoning_content` field alongside `message.content` — the
+model thinks step-by-step before answering, and llama-server splits
+the chain-of-thought from the final reply. Set `max_tokens` generous
+enough (≥ ~150 for short answers, more for complex tasks) or the
+budget runs out mid-reasoning and `content` comes back empty. Clients
+that only read `content` will see "no reply" without realising the
+model was still thinking.
 
 ## Roles at a glance
 
@@ -36,6 +47,8 @@ committing.
 | **Classifier verifier (default)** | `gemma3-12b-it` | Strict instruction-following + JSON-schema adherence. See [changelog/20260420-add-gemma-for-action-item-classification.md](changelog/20260420-add-gemma-for-action-item-classification.md). |
 | **Classifier quality ceiling** | `gemma3-27b-it` | QAT 4-bit, near-BF16 quality. Benchmark the 12B against it before shipping. |
 | **Edge / ultra-fast probe** | `gemma3n-e4b-it` | Smallest footprint, highest tok/s. Use for first-pass triage or where latency > quality. |
+| **Modern small all-rounder** | `gemma4-e4b-it` | Newer Gemma 4 architecture at 8 B dense; fits trivially with full GPU offload. Successor candidate to `gemma3n-e4b-it` once benchmarked. |
+| **Top quality on 16 GB GPU** | `gemma4-26b-a4b-it` | 25 B-total MoE with only 3.8 B active per token. IQ4_XS keeps the whole model on GPU; quality approaches the dense 27B at much higher tok/s thanks to MoE sparsity. |
 | **Cloud parity check** | `claude-haiku-4-5` / `sonnet-4-6` / `opus-4-7` | Off-device baseline via `claude -p`; same hub, just swap the `model` string. |
 | **Speech-to-text (ASR)** | `whisper-large-v3-turbo` | whisper.cpp on :8090. OpenAI-compatible `/v1/audio/transcriptions`. Port is a shared mutual-exclusion lock with the `transcribe_voice` project. Distilled large-v3 (4 decoder layers) — ~2× faster than large-v3 at near-identical WER on Spanish/English. See [turbo vs large-v3](changelog/20260424-whisper-turbo-vs-large-v3.md). Switch size by editing [config/models.yaml](../config/models.yaml) (`ggml-<size>.bin`) and re-running `python -m src.install --fix`. |
 

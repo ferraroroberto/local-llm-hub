@@ -177,7 +177,8 @@ out which host row you are (by `CLAUDE_LOCAL_CALLS_HOST` env var, else
 hostname match, else `default: true`), and only downloads what that
 host's `enabled` list asks for. On the reference Windows PC that's
 Qwen (~6.6 GB) + GLM (~55 GB) + Gemma 3 12B (~7.3 GB) + Gemma 3 27B
-QAT (~15.6 GB) + Gemma 3n E4B (~4.3 GB) + whisper-large-v3-turbo (~1.62 GB,
+QAT (~15.6 GB) + Gemma 3n E4B (~4.3 GB) + Gemma 4 E4B (~5 GB) +
+Gemma 4 26B-A4B IQ4_XS (~13.4 GB) + whisper-large-v3-turbo (~1.62 GB,
 plus the whisper.cpp CUDA binary under `vendor/whisper.cpp/`); on the
 Mac mini it's Qwen only.
 
@@ -193,6 +194,32 @@ fixes, one button per row.
 Requires the `claude` CLI on `PATH` (Claude Code) if any `claude-*`
 model is enabled for your host.
 
+### Machine specs (optional)
+
+[config/machine_specs_example.yaml](config/machine_specs_example.yaml)
+documents the hardware schema this hub uses to reason about local
+model fit (VRAM, system RAM, GPU compute capability). To populate the
+real file for your host, run the detection script:
+
+```bat
+.venv\Scripts\python scripts\detect_machine_specs.py
+```
+
+```bash
+./.venv/bin/python scripts/detect_machine_specs.py
+```
+
+Or copy the example manually and edit it:
+
+```bat
+copy config\machine_specs_example.yaml config\machine_specs.yaml
+```
+
+`config/machine_specs.yaml` is gitignored. AI coding agents working in
+this repo will read it (when present) to recommend model sizes and
+quantizations that actually fit your hardware. Optional — the hub
+itself runs fine without it.
+
 ## Run
 
 ```bat
@@ -202,6 +229,8 @@ launchers\run_glm.bat            :: llama-server for GLM on :8082
 launchers\run_gemma3_12b.bat     :: llama-server for Gemma 3 12B IT on :8083
 launchers\run_gemma3_27b.bat     :: llama-server for Gemma 3 27B IT QAT on :8084
 launchers\run_gemma3n_e4b.bat    :: llama-server for Gemma 3n E4B IT on :8085
+launchers\run_gemma4_e4b.bat     :: llama-server for Gemma 4 E4B IT on :8086
+launchers\run_gemma4_26b.bat     :: llama-server for Gemma 4 26B-A4B IT on :8087
 launchers\run_whisper.bat        :: whisper-server for whisper-large-v3-turbo on :8090
 launchers\run_all.bat            :: start every backend enabled for this host
 ```
@@ -217,6 +246,8 @@ Equivalent Python entrypoints (run from the project root):
 .venv\Scripts\python -m src.run_backend gemma3_12b
 .venv\Scripts\python -m src.run_backend gemma3_27b
 .venv\Scripts\python -m src.run_backend gemma3n_e4b
+.venv\Scripts\python -m src.run_backend gemma4_e4b
+.venv\Scripts\python -m src.run_backend gemma4_26b
 .venv\Scripts\python -m src.run_backend whisper
 ```
 

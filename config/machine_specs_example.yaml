@@ -1,0 +1,45 @@
+# Hardware reference for this host.
+# Copy to machine_specs.yaml (gitignored) and fill in real values,
+# or run: python scripts/detect_machine_specs.py
+#
+# Used to inform local model-fit decisions (which model sizes /
+# quantizations are realistic on this host's VRAM and system RAM).
+
+machine:
+  name: "my-workstation"            # short identifier for this host
+  role: "primary"                   # primary | secondary | dev | etc.
+
+os:
+  name: "Windows 11 Pro"            # or "Ubuntu 24.04", "macOS 14", ...
+  version: "10.0.26200"
+  architecture: "x64"
+
+cpu:
+  model: "Example CPU"
+  cores: 8                          # physical cores
+  threads: 16                       # logical cores (SMT/HT)
+  base_clock_mhz: 4000
+
+memory:
+  total_gb: 64
+
+gpus:
+  - name: "Example GPU"
+    vram_gb: 16
+    driver_version: "000.00"
+    compute_capability: "8.6"       # NVIDIA only; omit for AMD/Intel
+    cuda: true                      # true | false
+    primary: true                   # the GPU used for LLM inference
+  # - name: "Integrated GPU"
+  #   vram_gb: 0.5
+  #   cuda: false
+  #   primary: false
+
+storage:
+  - model: "Example NVMe"
+    size_gb: 1000
+    type: "NVMe SSD"                # NVMe SSD | SATA SSD | HDD
+
+notes: |
+  Free-form notes about how this machine is used,
+  thermal/power constraints, model-fit guidance, etc.

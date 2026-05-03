@@ -18,7 +18,7 @@ hosts:
   pc-cuda:
     platform: win32
     default: true
-    enabled: [qwen, glm, gemma3_12b, gemma3_27b, gemma3n_e4b, whisper]
+    enabled: [qwen, glm, gemma3_12b, gemma3_27b, gemma3n_e4b, gemma4_e4b, gemma4_26b, whisper]
 
   mac-mini-m4:
     platform: darwin
@@ -135,6 +135,50 @@ models:
       - "16384"
       - "--alias"
       - "gemma3n-e4b-it"
+
+  # --- Local Gemma 4 E4B IT via llama.cpp (8B dense; full GPU offload) ---
+  # Gemma 4 edge variant. Single-file Q4_K_M GGUF, ~5 GB on disk, fits
+  # comfortably in 16 GB VRAM with plenty of context headroom.
+  gemma4_e4b:
+    display_name: gemma4-e4b-it
+    backend: openai
+    engine: llama-server
+    port: 8086
+    hf_repo: "unsloth/gemma-4-E4B-it-GGUF"
+    hf_pattern: "gemma-4-E4B-it-Q4_K_M.gguf"
+    model_path: "models/gemma-4-E4B-it-Q4_K_M.gguf"
+    args:
+      - "--jinja"
+      - "-ngl"
+      - "99"
+      - "-c"
+      - "16384"
+      - "--alias"
+      - "gemma4-e4b-it"
+
+  # --- Local Gemma 4 26B-A4B IT via llama.cpp (MoE; full GPU offload) ---
+  # MoE model: 25.2B total / 3.8B active. The standard Q4_K_M GGUF is 16.9 GB
+  # and won't fit on a 16 GB GPU without expert offload. Using IQ4_XS
+  # (13.4 GB, importance-matrix quantized — quality close to Q4_K_M) so the
+  # whole model sits on GPU. Context capped at 8K to leave KV cache room.
+  gemma4_26b:
+    display_name: gemma4-26b-a4b-it
+    backend: openai
+    engine: llama-server
+    port: 8087
+    hf_repo: "unsloth/gemma-4-26B-A4B-it-GGUF"
+    hf_pattern: "gemma-4-26B-A4B-it-UD-IQ4_XS.gguf"
+    model_path: "models/gemma-4-26B-A4B-it-UD-IQ4_XS.gguf"
+    args:
+      - "--jinja"
+      - "-ngl"
+      - "99"
+      - "-c"
+      - "8192"
+      - "--flash-attn"
+      - "on"
+      - "--alias"
+      - "gemma4-26b-a4b-it"
 
   # --- Local whisper.cpp ASR server (OpenAI-compatible audio endpoints) ---
   # Port 8090 is fixed by design — it is the mutual-exclusion lock shared

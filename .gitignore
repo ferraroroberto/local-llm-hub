@@ -35,5 +35,8 @@ models/
 .env
 .env.local
 
+# Host-specific machine specs (real values; example file is committed)
+config/machine_specs.yaml
+
 # Claude Code local settings
 .claude/settings.local.json
