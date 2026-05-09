@@ -1,4 +1,4 @@
-# claude-local-calls
+# Local LLM Hub
 
 A tiny local HTTP hub that routes `POST /v1/messages` (Anthropic shape) and
 `POST /v1/chat/completions` (OpenAI shape) to several backends by `model` name,
@@ -28,6 +28,14 @@ plus a local whisper.cpp ASR server that clients hit directly:
   clients POST to :8090 directly (the hub does not proxy audio
   endpoints). Port 8090 is a shared mutual-exclusion lock with
   `E:\automation\automation\audio\transcribe_voice`.
+- **whisper-medium-translate** — a *lazy-loaded* sibling whisper-server
+  on `127.0.0.1:8091` running `ggml-medium.bin` on CPU. Same
+  OpenAI-compatible `/v1/audio/transcriptions` shape; supports
+  `task=translate` (turbo is transcription-only — its decoder distill
+  drops translation). A small FastAPI proxy owns the port; the actual
+  whisper-server child is spawned on first request and torn down after
+  5 min of idle, so medium isn't sitting in RAM when you don't use
+  translate. Cold-start ~3-5s on first call.
 
 Side-by-side technical specs + docs links for all backends live in
 [docs/model-comparison.md](docs/model-comparison.md).
@@ -50,6 +58,16 @@ lineup and what each model is for live in
 [docs/model-comparison.md](docs/model-comparison.md). Older entries
 survive only in dated changelog notes under `docs/changelog/` for
 historical context.
+
+**Exception — one model per role, not per family.** The whisper
+backend has two slots — `whisper` (turbo, 8090, transcription) and
+`whisper_translate` (medium, 8091, translation). Turbo is
+distill-decoded and was *not* trained on the translate task, so we
+keep medium in a sibling slot for the rare cases when translation is
+needed. The translate slot is lazy-loaded (proxy on, model off until
+first call, unloaded after 5 min idle) so it doesn't spend RAM when
+unused. The single-slot rule still applies *per role* — there is one
+transcription model and one translation model.
 
 ## Scope & usage policy
 
@@ -105,8 +123,10 @@ openclaw / anthropic SDK / openai SDK / curl
    │    whisper-large-v3-turbo → 400 "POST to :8090 directly" (audio) │
    └──────────────────────────────────────────────────────────┘
 
-audio clients  ──────►  whisper-server 127.0.0.1:8090
-                          (OpenAI-compatible /v1/audio/transcriptions)
+audio clients  ──────►  whisper-server 127.0.0.1:8090         (turbo, transcribe)
+audio clients  ──────►  whisper_translate proxy 127.0.0.1:8091 (medium, translate, lazy)
+                          (both speak OpenAI-compatible /v1/audio/transcriptions;
+                           the proxy spawns whisper-server on demand and unloads on idle)
 ```
 
 See [docs/project-structure.md](docs/project-structure.md) for the full
@@ -119,7 +139,7 @@ how the whisper backend slotted in.
 ## Layout
 
 ```
-claude-local-calls/
+local-llm-hub/
 ├── .venv/                    # local virtualenv
 ├── requirements.txt
 ├── tray.bat                  # Windows-only system-tray launcher (silent)
@@ -131,6 +151,7 @@ claude-local-calls/
 │   ├── run_gemma4_e4b.*         # start llama-server for Gemma 4 E4B IT on :8086
 │   ├── run_gemma4_26b.*         # start llama-server for Gemma 4 26B-A4B IT on :8087
 │   ├── run_whisper.*            # start whisper-server for whisper-large-v3-turbo on :8090
+│   ├── run_whisper_translate.*  # start lazy whisper-medium-translate proxy on :8091
 │   └── run_all.*                # start everything enabled on this host
 ├── config/
 │   └── models.yaml           # host + model registry
@@ -143,7 +164,8 @@ claude-local-calls/
 │   ├── install.py            # first-run checks + --fix
 │   ├── run_backend.py        # hub|qwen|glm|…|whisper dispatcher
 │   ├── server_process.py     # hub Popen + ownership / adopt-or-spawn
-│   └── backend_process.py    # per-model Popen (llama-server + whisper-server)
+│   ├── backend_process.py    # per-model Popen (llama-server + whisper-server)
+│   └── whisper_translate_proxy.py  # FastAPI shim that lazy-spawns whisper-server (medium, CPU)
 ├── tray/                     # Windows system-tray launcher (silent pythonw)
 │   ├── app.py                #   pystray menu + tk event pump
 │   ├── log_window.py         #   tk Notebook tailing hub + per-model logs
@@ -163,7 +185,8 @@ claude-local-calls/
 ├── models/                   # downloaded GGUFs (gitignored):
 │                             #   Qwen3.5-9B, GLM-4.5-Air, gemma-4-E4B-it,
 │                             #   gemma-4-26B-A4B-it (IQ4_XS),
-│                             #   ggml-large-v3-turbo.bin (whisper)
+│                             #   ggml-large-v3-turbo.bin (whisper turbo, transcribe),
+│                             #   ggml-medium.bin (whisper medium, translate)
 └── docs/
     ├── project-structure.md
     ├── model-comparison.md
@@ -186,13 +209,13 @@ for the models enabled for this host:
 ```
 
 The installer reads [config/models.yaml](config/models.yaml), figures
-out which host row you are (by `CLAUDE_LOCAL_CALLS_HOST` env var, else
+out which host row you are (by `local_llm_hub_HOST` env var, else
 hostname match, else `default: true`), and only downloads what that
 host's `enabled` list asks for. On the reference Windows PC that's
 Qwen (~6.6 GB) + GLM (~55 GB) + Gemma 4 E4B (~5 GB) + Gemma 4
-26B-A4B IQ4_XS (~13.4 GB) + whisper-large-v3-turbo (~1.62 GB, plus
-the whisper.cpp CUDA binary under `vendor/whisper.cpp/`); on the Mac
-mini it's Qwen only.
+26B-A4B IQ4_XS (~13.4 GB) + whisper-large-v3-turbo (~1.62 GB) +
+whisper-medium for translate (~1.5 GB), plus the whisper.cpp CUDA
+binary under `vendor/whisper.cpp/`; on the Mac mini it's Qwen only.
 
 Plain check (no changes):
 
@@ -242,6 +265,7 @@ launchers\run_glm.bat            :: llama-server for GLM on :8082
 launchers\run_gemma4_e4b.bat     :: llama-server for Gemma 4 E4B IT on :8086
 launchers\run_gemma4_26b.bat     :: llama-server for Gemma 4 26B-A4B IT on :8087
 launchers\run_whisper.bat        :: whisper-server for whisper-large-v3-turbo on :8090
+launchers\run_whisper_translate.bat :: lazy whisper-medium-translate proxy on :8091
 launchers\run_all.bat            :: start every backend enabled for this host
 ```
 
@@ -304,6 +328,7 @@ Equivalent Python entrypoints (run from the project root):
 .venv\Scripts\python -m src.run_backend gemma4_e4b
 .venv\Scripts\python -m src.run_backend gemma4_26b
 .venv\Scripts\python -m src.run_backend whisper
+.venv\Scripts\python -m src.run_backend whisper_translate
 ```
 
 The hub binds on `0.0.0.0:8000`, so other machines on your LAN can
@@ -423,6 +448,15 @@ audio endpoints):
 ```bash
 curl -s -F file=@clip.wav -F response_format=json \
   http://127.0.0.1:8090/v1/audio/transcriptions
+```
+
+Translate non-English audio to English via the lazy translate slot
+(direct to :8091; proxy spawns medium on first call, unloads after
+5 min idle):
+
+```bash
+curl -s -F file=@spanish.wav -F task=translate \
+  http://127.0.0.1:8091/v1/audio/transcriptions
 ```
 
 Or with the OpenAI SDK:

@@ -33,7 +33,7 @@ def test_resolves_hostname_match(tmp_path, monkeypatch):
         },
     })
     _patch_config_path(monkeypatch, cfg)
-    monkeypatch.delenv("CLAUDE_LOCAL_CALLS_HOST", raising=False)
+    monkeypatch.delenv("local_llm_hub_HOST", raising=False)
     monkeypatch.setattr("socket.gethostname", lambda: "test-pc")
 
     prof = host_profile.resolve()
@@ -58,7 +58,7 @@ def test_env_override_wins(tmp_path, monkeypatch):
         },
     })
     _patch_config_path(monkeypatch, cfg)
-    monkeypatch.setenv("CLAUDE_LOCAL_CALLS_HOST", "mac")
+    monkeypatch.setenv("local_llm_hub_HOST", "mac")
 
     prof = host_profile.resolve()
     assert prof.id == "mac"
@@ -83,7 +83,7 @@ def test_resolve_by_alias(tmp_path, monkeypatch):
         },
     })
     _patch_config_path(monkeypatch, cfg)
-    monkeypatch.setenv("CLAUDE_LOCAL_CALLS_HOST", "pc")
+    monkeypatch.setenv("local_llm_hub_HOST", "pc")
 
     m = model_registry.resolve("qwen3.5")
     assert m is not None
@@ -108,13 +108,13 @@ def test_gemma_per_host_filtering(tmp_path, monkeypatch):
     })
     _patch_config_path(monkeypatch, cfg)
 
-    monkeypatch.setenv("CLAUDE_LOCAL_CALLS_HOST", "pc-cuda")
+    monkeypatch.setenv("local_llm_hub_HOST", "pc-cuda")
     names_pc = {m.display_name for m in model_registry.enabled_models()}
     assert {"qwen3.5-9b", "glm-4.5-air", "gemma4-e4b-it", "gemma4-26b-a4b-it"} <= names_pc
     assert model_registry.resolve("gemma4-e4b-it").port == 8086
     assert model_registry.resolve("gemma4-26b-a4b-it").port == 8087
 
-    monkeypatch.setenv("CLAUDE_LOCAL_CALLS_HOST", "mac-mini-m4")
+    monkeypatch.setenv("local_llm_hub_HOST", "mac-mini-m4")
     names_mac = {m.display_name for m in model_registry.enabled_models()}
     assert "gemma4-e4b-it" not in names_mac
     assert "gemma4-26b-a4b-it" not in names_mac
@@ -146,7 +146,7 @@ def test_whisper_entry(tmp_path, monkeypatch):
     })
     _patch_config_path(monkeypatch, cfg)
 
-    monkeypatch.setenv("CLAUDE_LOCAL_CALLS_HOST", "pc-cuda")
+    monkeypatch.setenv("local_llm_hub_HOST", "pc-cuda")
     m = model_registry.resolve("whisper-large-v3-turbo")
     assert m is not None
     assert m.id == "whisper"
@@ -156,8 +156,62 @@ def test_whisper_entry(tmp_path, monkeypatch):
     assert m.url == "http://127.0.0.1:8090/v1"
     assert "--gpu" in m.args
 
-    monkeypatch.setenv("CLAUDE_LOCAL_CALLS_HOST", "mac-mini-m4")
+    monkeypatch.setenv("local_llm_hub_HOST", "mac-mini-m4")
     assert model_registry.resolve("whisper-large-v3-turbo") is None
+
+
+def test_whisper_translate_lazy_entry(tmp_path, monkeypatch):
+    """Lazy translate slot lives next to turbo: same backend, different engine + port."""
+    cfg = _write_config(tmp_path, {
+        "hub": {"port": 8000},
+        "hosts": {
+            "pc-cuda": {"platform": "win32", "default": True,
+                        "enabled": ["whisper", "whisper_translate"]},
+        },
+        "models": {
+            "whisper": {
+                "display_name": "whisper-large-v3-turbo",
+                "backend": "whisper",
+                "engine": "whisper-server",
+                "port": 8090,
+                "model_path": "models/ggml-large-v3-turbo.bin",
+            },
+            "whisper_translate": {
+                "display_name": "whisper-medium-translate",
+                "backend": "whisper",
+                "engine": "whisper-server-lazy",
+                "port": 8091,
+                "internal_port": 18091,
+                "idle_seconds": 300,
+                "hf_repo": "ggerganov/whisper.cpp",
+                "hf_pattern": "ggml-medium.bin",
+                "model_path": "models/ggml-medium.bin",
+                "args": ["-ng", "--inference-path", "/v1/audio/transcriptions"],
+            },
+        },
+    })
+    _patch_config_path(monkeypatch, cfg)
+    monkeypatch.setenv("local_llm_hub_HOST", "pc-cuda")
+
+    # Both whisper rows surface side-by-side on the same host.
+    ids = {m.id for m in model_registry.enabled_models()}
+    assert {"whisper", "whisper_translate"} <= ids
+
+    turbo = model_registry.resolve("whisper-large-v3-turbo")
+    assert turbo.port == 8090
+    assert turbo.engine == "whisper-server"
+
+    lazy = model_registry.resolve("whisper-medium-translate")
+    assert lazy is not None
+    assert lazy.id == "whisper_translate"
+    assert lazy.backend == "whisper"
+    assert lazy.engine == "whisper-server-lazy"
+    assert lazy.port == 8091
+    assert lazy.internal_port == 18091
+    assert lazy.idle_seconds == 300
+    assert "-ng" in lazy.args
+    # External contract URL still matches whisper-server's shape.
+    assert lazy.url == "http://127.0.0.1:8091/v1"
 
 
 def test_model_url_from_port(tmp_path, monkeypatch):
@@ -169,7 +223,7 @@ def test_model_url_from_port(tmp_path, monkeypatch):
         },
     })
     _patch_config_path(monkeypatch, cfg)
-    monkeypatch.setenv("CLAUDE_LOCAL_CALLS_HOST", "pc")
+    monkeypatch.setenv("local_llm_hub_HOST", "pc")
 
     m = model_registry.resolve("qwen3.5-9b")
     assert m.url == "http://127.0.0.1:8081/v1"

@@ -68,7 +68,15 @@ def _whisper_server_binary() -> Path:
 
 
 def _is_whisper(model: Model) -> bool:
-    return model.engine == "whisper-server" or model.backend == "whisper"
+    return (
+        model.engine == "whisper-server"
+        or model.engine == "whisper-server-lazy"
+        or model.backend == "whisper"
+    )
+
+
+def _is_lazy_whisper(model: Model) -> bool:
+    return model.engine == "whisper-server-lazy"
 
 
 def _vendor_dir_for(model: Model) -> Path:
@@ -155,6 +163,24 @@ def build_command(model: Model) -> list[str]:
     if not model.model_path:
         raise RuntimeError(f"model {model.id} has no model_path")
     model_path = (PROJECT_ROOT / model.model_path).resolve()
+
+    if _is_lazy_whisper(model):
+        # The proxy itself doesn't need the model on disk to start — it
+        # only needs whisper-server present. We still surface a clear
+        # error if the model is missing, since the first POST would fail.
+        bin_path = _whisper_server_binary()
+        if not bin_path.exists():
+            raise RuntimeError(
+                f"whisper-server not found at {bin_path} - run scripts/install_whisper_cpp.py"
+            )
+        if not model_path.exists():
+            raise RuntimeError(
+                f"whisper model not found at {model_path} - run scripts/download_models.py --only {model.id}"
+            )
+        return [
+            sys.executable, "-m", "src.whisper_translate_proxy",
+            "--model-id", model.id,
+        ]
 
     if _is_whisper(model):
         bin_path = _whisper_server_binary()

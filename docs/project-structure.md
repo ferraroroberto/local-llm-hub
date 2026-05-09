@@ -1,10 +1,11 @@
 # Project structure
 
-An LLM-oriented map of `claude-local-calls`. Three views: a **component
+An LLM-oriented map of `local-llm-hub`. Three views: a **component
 diagram** showing runtime data flow between clients, the hub, and the
 backends (Claude subscription + local llama-server processes for
 Qwen3.5-9B, GLM-4.5-Air, Gemma 4 E4B, Gemma 4 26B-A4B + whisper.cpp
-ASR); a **module
+ASR for both transcribe (turbo, eager) and translate (medium, lazy));
+a **module
 diagram** showing the Python package layout and imports; and a
 **request lifecycle** sequence. Use this file as context when asking
 an LLM to modify the project — it shows which file owns what, and what
@@ -128,7 +129,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    ROOT["claude-local-calls/"]
+    ROOT["local-llm-hub/"]
     ROOT --> README["README.md"]
     ROOT --> REQ["requirements.txt"]
     ROOT --> LIC["LICENSE"]
@@ -148,6 +149,7 @@ flowchart TB
     SRC --> S8["server_process.py<br/>hub Popen + kill-port"]
     SRC --> S9["backend_process.py<br/>per-model Popen (llama-server + whisper-server)"]
     SRC --> S10["landing.py<br/>HTML for GET /"]
+    SRC --> S11["whisper_translate_proxy.py<br/>FastAPI shim that lazy-spawns whisper-server<br/>(medium, CPU; idle-unload)"]
 
     ROOT --> APPDIR["app/"]
     APPDIR --> A1["app.py<br/>Streamlit nav"]
@@ -180,7 +182,8 @@ flowchart TB
     MDLS --> M2["GLM-4.5-Air-Q4_K_M/<br/>multi-part GGUF"]
     MDLS --> M3["gemma-4-E4B-it-Q4_K_M.gguf"]
     MDLS --> M4["gemma-4-26B-A4B-it-UD-IQ4_XS.gguf (MoE)"]
-    MDLS --> M5["ggml-large-v3-turbo.bin (whisper)"]
+    MDLS --> M5["ggml-large-v3-turbo.bin (whisper turbo, transcribe)"]
+    MDLS --> M6["ggml-medium.bin (whisper medium, translate)"]
 
     ROOT --> DOCS["docs/"]
     DOCS --> D1["project-structure.md<br/>(this file)"]
@@ -260,17 +263,22 @@ the envelope into OpenAI shape; for the local llama-server backends
   every host. Each host has an `enabled` whitelist — the installer,
   the registry, the UI, and the smoke test all respect it, so nothing
   is downloaded, launched, or listed that this host hasn't opted into.
-  Host resolution: `CLAUDE_LOCAL_CALLS_HOST` env var, else hostname
+  Host resolution: `local_llm_hub_HOST` env var, else hostname
   match, else `default: true` row.
 - **Entry points.**
   - `python -m src.run_backend hub` (or `run_hub.bat` / `.sh` at the
     repo root, or `tray.bat` on Windows) — starts FastAPI on
     `0.0.0.0:8000`.
   - `python -m src.run_backend qwen` / `glm` / `gemma4_e4b` /
-    `gemma4_26b` / `whisper` (or the matching
+    `gemma4_26b` / `whisper` / `whisper_translate` (or the matching
     `launchers/run_*.bat` / `.sh`) — starts the matching
     `llama-server` / `whisper-server` child with args from
-    `models.yaml`.
+    `models.yaml`. The `whisper_translate` slot uses the
+    `whisper-server-lazy` engine, which dispatches to
+    `src/whisper_translate_proxy.py` instead of spawning
+    `whisper-server` directly: the proxy binds the external port and
+    only spawns the actual whisper-server child on first request,
+    tearing it down again after the configured idle window.
   - `python -m src.install [--fix]` — runs every health check, fixes
     the fixable; shared with the Streamlit Install tab.
   - `streamlit run app/app.py` (or `launch_app.bat` / `.sh` at the

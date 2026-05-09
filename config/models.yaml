@@ -1,9 +1,9 @@
-# Models registry for the claude-local-calls hub.
+# Models registry for the local-llm-hub hub.
 #
 # - `hosts` lists each machine this repo runs on. `platform` matches
 #   sys.platform ("win32" or "darwin"); `default: true` lets the first
 #   matching row win when no hostname matches exactly. Override with
-#   the CLAUDE_LOCAL_CALLS_HOST env var.
+#   the local_llm_hub_HOST env var.
 # - `enabled` is the whitelist of model ids this host is willing to
 #   serve locally. The installer only downloads GGUFs for enabled ids.
 # - `models` defines every model the hub knows about, across all hosts.
@@ -27,7 +27,7 @@ hosts:
   pc-cuda:
     platform: win32
     default: true
-    enabled: [qwen, glm, gemma4_e4b, gemma4_26b, whisper]
+    enabled: [qwen, glm, gemma4_e4b, gemma4_26b, whisper, whisper_translate]
 
   mac-mini-m4:
     platform: darwin
@@ -152,6 +152,42 @@ models:
     # --inference-path exposes the OpenAI-compatible route that clients
     # (including transcribe_voice's TranscriptionClient) expect.
     args:
+      - "--threads"
+      - "4"
+      - "--processors"
+      - "1"
+      - "--inference-path"
+      - "/v1/audio/transcriptions"
+
+  # --- Lazy-loaded translate-capable whisper instance (CPU, medium) ---
+  # Sibling slot to `whisper`. Turbo (above) is transcription-only — the
+  # decoder distill drops translation training. This second slot fills
+  # the translate role with `ggml-medium.bin`, a non-distilled model.
+  #
+  # Engine `whisper-server-lazy` runs a tiny FastAPI proxy on `port`
+  # (8091) that spawns whisper-server on `internal_port` only when a
+  # request arrives, and unloads it after `idle_seconds` of no traffic.
+  # This is deliberate: translate is rare-use, we don't want medium
+  # sitting in RAM permanently. Cold-start latency on first call is
+  # ~3-5s while medium loads.
+  #
+  # CPU-only (`-ng`) by design — leaves VRAM for gemma4_26b. Medium on
+  # CPU is real-time-ish for short dictation clips.
+  #
+  # Sister project (transcribe_voice / voice-transcriber) hits this on
+  # 8091 with `task=translate` form-field. Same OpenAI-compatible shape.
+  whisper_translate:
+    display_name: whisper-medium-translate
+    backend: whisper
+    engine: whisper-server-lazy
+    port: 8091
+    internal_port: 18091
+    idle_seconds: 300
+    hf_repo: "ggerganov/whisper.cpp"
+    hf_pattern: "ggml-medium.bin"
+    model_path: "models/ggml-medium.bin"
+    args:
+      - "-ng"
       - "--threads"
       - "4"
       - "--processors"

@@ -66,7 +66,7 @@ needed the path swap so the two sides stay in lockstep:
    right model loaded:
    ```
    whisper_init_from_file_with_params_no_state: loading model from
-     'E:\automation\claude-local-calls\models\ggml-large-v3-turbo.bin'
+     'E:\automation\local-llm-hub\models\ggml-large-v3-turbo.bin'
    whisper_model_load: n_text_layer  = 4      # distilled decoder
    whisper_model_load: type          = 5 (large v3)
    whisper_model_load:        CUDA0 total size =  1623.92 MB
@@ -94,3 +94,16 @@ needed the path swap so the two sides stay in lockstep:
 - No change to the :8090 mutex contract with `transcribe_voice`.
 - No hub passthrough for audio endpoints.
 - No streaming, no VAD.
+
+## Addendum 2026-05-09 — translate slot added
+
+The "no parallel rows" non-goal above was about quality-tier
+duplication (`whisper_small` vs. `whisper_large_v3` for the same
+transcribe role). It does **not** preclude a parallel slot for a
+*different role*. On 2026-05-09 we added `whisper_translate`
+(medium, lazy-loaded, port 8091) for the translate task, because
+turbo's distilled decoder doesn't translate. The single-slot rule
+is now phrased as one-model-per-role, not one-model-per-family.
+See [20260509-add-whisper-translate-instance.md](20260509-add-whisper-translate-instance.md)
+for the rationale, the lazy-load mechanism, and the contract for
+voice-transcriber.

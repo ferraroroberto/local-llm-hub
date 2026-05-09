@@ -27,6 +27,13 @@ class Model:
     hf_pattern: Optional[str] = None
     model_path: Optional[str] = None
     args: List[str] = field(default_factory=list)
+    # Lazy-loaded engines (e.g. whisper-server-lazy) wrap the real
+    # backend in a proxy that owns the child process. ``port`` stays the
+    # external contract; ``internal_port`` is where the wrapped child
+    # actually binds (loopback only). ``idle_seconds`` is how long the
+    # child stays loaded after the last request before it's torn down.
+    internal_port: Optional[int] = None
+    idle_seconds: Optional[int] = None
 
     @property
     def all_names(self) -> List[str]:
@@ -54,6 +61,8 @@ def _row_to_model(model_id: str, row: Dict) -> Model:
         hf_pattern=row.get("hf_pattern"),
         model_path=row.get("model_path"),
         args=list(row.get("args", []) or []),
+        internal_port=int(row["internal_port"]) if row.get("internal_port") is not None else None,
+        idle_seconds=int(row["idle_seconds"]) if row.get("idle_seconds") is not None else None,
     )
 
 
