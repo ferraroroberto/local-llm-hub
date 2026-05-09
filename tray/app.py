@@ -84,9 +84,9 @@ class TrayApp:
 
     def run(self) -> int:
         self._icon = pystray.Icon(
-            "claude_local_calls_tray",
+            "local_llm_hub_tray",
             make_icon_image(COLOR_STARTING),
-            "claude-local-calls",
+            "Local LLM Hub",
             menu=self._build_menu(),
         )
         self._icon.run_detached()
@@ -248,8 +248,8 @@ class TrayApp:
         self._refresh_icon_color()
         self._update_menu()
 
-        if self.cfg.autostart_model:
-            self._start_model(self.cfg.autostart_model, autostart=True)
+        for model_id in self.cfg.autostart_models:
+            self._start_model(model_id, autostart=True)
 
     def _start_hub_worker(self) -> None:
         ok, msg = sp.start()
@@ -406,7 +406,7 @@ class TrayApp:
     def _notify(self, title: str, message: str) -> None:
         if _WinToast is not None:
             try:
-                _WinToast(app_id="claude-local-calls", title=title, msg=message).show()
+                _WinToast(app_id="local-llm-hub", title=title, msg=message).show()
                 return
             except Exception as exc:
                 logger.debug("winotify failed (%s) — falling back to pystray", exc)

@@ -209,7 +209,7 @@ for the models enabled for this host:
 ```
 
 The installer reads [config/models.yaml](config/models.yaml), figures
-out which host row you are (by `local_llm_hub_HOST` env var, else
+out which host row you are (by `LOCAL_LLM_HUB_HOST` env var, else
 hostname match, else `default: true`), and only downloads what that
 host's `enabled` list asks for. On the reference Windows PC that's
 Qwen (~6.6 GB) + GLM (~55 GB) + Gemma 4 E4B (~5 GB) + Gemma 4
@@ -279,10 +279,11 @@ tray.bat
 
 Starts a resident system-tray icon (silent — no terminal window) that:
 
-- Auto-starts the hub on :8000 and the model declared in
-  `config/models.yaml` under `tray.autostart_model` (default
-  `gemma4_26b`). Set it to `null` to skip model autostart, or to any
-  enabled model id to change the default.
+- Auto-starts the hub on :8000 and the models listed in
+  `config/models.yaml` under `tray.autostart_models` (default
+  `[gemma4_e4b, whisper, whisper_translate]`). Set it to `[]` to skip
+  model autostart, or change the list to any subset of enabled model
+  ids.
 - Lets you toggle any other enabled local model on/off from the
   **Models** submenu (multiple may run concurrently).
 - Streams hub + per-model logs in a tk window via **Open log window**.
