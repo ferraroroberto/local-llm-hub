@@ -6,7 +6,7 @@ import streamlit as st
 
 
 def render() -> None:
-    st.title("👋 claude-local-calls")
+    st.title("👋 Local LLM Hub")
     st.caption(
         "A local Anthropic-compatible API backed by `claude -p` and your "
         "Claude Code subscription."

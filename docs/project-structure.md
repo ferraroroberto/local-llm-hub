@@ -263,7 +263,7 @@ the envelope into OpenAI shape; for the local llama-server backends
   every host. Each host has an `enabled` whitelist — the installer,
   the registry, the UI, and the smoke test all respect it, so nothing
   is downloaded, launched, or listed that this host hasn't opted into.
-  Host resolution: `local_llm_hub_HOST` env var, else hostname
+  Host resolution: `LOCAL_LLM_HUB_HOST` env var, else hostname
   match, else `default: true` row.
 - **Entry points.**
   - `python -m src.run_backend hub` (or `run_hub.bat` / `.sh` at the

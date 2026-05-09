@@ -3,7 +3,7 @@
 The registry keeps per-host settings (which models are enabled, etc.)
 keyed by a short id. At runtime we pick the matching row based on
 `sys.platform` and hostname, with `default: true` as a tiebreaker and
-the `CLAUDE_LOCAL_CALLS_HOST` env var as an explicit override.
+the `LOCAL_LLM_HUB_HOST` env var as an explicit override.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = PROJECT_ROOT / "config" / "models.yaml"
-ENV_OVERRIDE = "CLAUDE_LOCAL_CALLS_HOST"
+ENV_OVERRIDE = "LOCAL_LLM_HUB_HOST"
 
 
 @dataclass(frozen=True)
@@ -53,7 +53,7 @@ def resolve() -> HostProfile:
     """Pick the host profile for this machine.
 
     Precedence:
-      1. `CLAUDE_LOCAL_CALLS_HOST` env var selects an exact id.
+      1. `LOCAL_LLM_HUB_HOST` env var selects an exact id.
       2. Any host row whose `hostname` equals `socket.gethostname()`.
       3. Any host row matching `sys.platform` with `default: true`.
       4. Any host row matching `sys.platform`.

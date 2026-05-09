@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-os.environ.setdefault("CLAUDE_LOCAL_CALLS_HOST", "pc-cuda")
+os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
 
 from src import install as install_mod
 

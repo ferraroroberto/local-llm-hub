@@ -1,11 +1,11 @@
 @echo off
 REM ==========================================================
-REM  claude-local-calls - whisper.cpp ASR server (port 8090)
+REM  local-llm-hub - whisper.cpp ASR server (port 8090)
 REM  OpenAI-compatible /v1/audio/transcriptions + /v1/audio/translations.
 REM  Port 8090 is a shared mutual-exclusion lock with
 REM  E:\automation\automation\audio\transcribe_voice.
 REM ==========================================================
-title claude-local-calls - whisper-large-v3-turbo
+title Local LLM Hub - whisper-large-v3-turbo
 cd /d "%~dp0.."
 
 echo ============================================================

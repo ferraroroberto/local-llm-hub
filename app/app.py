@@ -1,4 +1,4 @@
-"""Streamlit entry point for claude-local-calls.
+"""Streamlit entry point for Local LLM Hub.
 
 Run with:
 
@@ -17,7 +17,7 @@ import streamlit as st
 from views import comparison, fit, install, models, playground, server, testing, welcome
 
 st.set_page_config(
-    page_title="claude-local-calls",
+    page_title="Local LLM Hub",
     page_icon="🪄",
     layout="wide",
     initial_sidebar_state="expanded",

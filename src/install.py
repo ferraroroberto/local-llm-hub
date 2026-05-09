@@ -325,7 +325,7 @@ def _print_report(report: Report) -> None:
 
 def main(argv: Optional[List[str]] = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    p = argparse.ArgumentParser(prog="python -m src.install", description="First-run checks for claude-local-calls")
+    p = argparse.ArgumentParser(prog="python -m src.install", description="First-run checks for local-llm-hub")
     p.add_argument("--fix", action="store_true", help="attempt to fix every fixable row")
     p.add_argument("--json", action="store_true", help="machine-readable output")
     args = p.parse_args(argv)

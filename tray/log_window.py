@@ -92,7 +92,7 @@ class LogWindow:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.win = tk.Toplevel(root)
-        self.win.title("claude-local-calls — logs")
+        self.win.title("Local LLM Hub — logs")
         self.win.geometry("1100x650")
         self.win.protocol("WM_DELETE_WINDOW", self._on_close)
 

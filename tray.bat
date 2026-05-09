@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 REM ============================================================================
-REM  claude-local-calls - tray launcher
+REM  local-llm-hub - tray launcher
 REM ----------------------------------------------------------------------------
 REM  Resident system-tray icon. Starts the FastAPI hub on :8000 and (if
 REM  configured) the autostart model from `config/models.yaml -> tray:`.

@@ -4,7 +4,7 @@ LANDING_HTML = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>claude-local-calls</title>
+<title>Local LLM Hub</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   :root {
@@ -85,7 +85,7 @@ LANDING_HTML = """<!doctype html>
 <body>
 <main>
   <header>
-    <h1>claude-local-calls</h1>
+    <h1>Local LLM Hub</h1>
     <span class="tag">v0.1.0 &middot; local Anthropic-compatible API</span>
   </header>
   <p class="lede">

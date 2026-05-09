@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# claude-local-calls - llama-server for GLM-4.5-Air on :8082
+# local-llm-hub - llama-server for GLM-4.5-Air on :8082
 # (The Mac mini's default host profile doesn't enable glm; on that
 # machine this script will exit immediately with an explanatory error.)
 set -euo pipefail

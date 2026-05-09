@@ -1,6 +1,6 @@
 # What we did — 2026-04-20
 
-Post-mortem of the work that turned `claude-local-calls` from a single-
+Post-mortem of the work that turned `local-llm-hub` from a single-
 backend Claude wrapper into a three-backend local models hub. Pairs with
 [project-structure.md](project-structure.md) — that file shows the end-
 state; this one records why, what, and what we learned.
@@ -71,7 +71,7 @@ install.
 One config, [`config/models.yaml`](../../config/models.yaml), lists every
 host (with a `platform` and an `enabled` whitelist) and every model
 (display name, aliases, backend, engine, port, GGUF path, llama-server
-args). Host resolution: `CLAUDE_LOCAL_CALLS_HOST` env var → hostname
+args). Host resolution: `LOCAL_LLM_HUB_HOST` env var → hostname
 match → `default: true` row.
 
 Everything downstream respects the active host's `enabled` list: the
@@ -123,7 +123,7 @@ lives in one Python module so we don't maintain two parallel launchers.
   Anthropic→OpenAI shape flattening, unknown-model 400, and that
   `/v1/chat/completions` passthrough hits the right upstream URL.
 - `tests/test_model_registry.py` — new; hostname match precedence,
-  `CLAUDE_LOCAL_CALLS_HOST` override, alias resolution, url synthesis.
+  `LOCAL_LLM_HUB_HOST` override, alias resolution, url synthesis.
 - `tests/test_install.py` — new; shape of `run_all_checks()`,
   `Report.worst_status` ordering, `fix_fn_for` dispatch.
 

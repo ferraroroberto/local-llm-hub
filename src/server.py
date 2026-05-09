@@ -173,7 +173,7 @@ def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
 
 # ---- FastAPI app ----
 
-app = FastAPI(title="claude-local-calls", version="0.2.0")
+app = FastAPI(title="Local LLM Hub", version="0.2.0")
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -184,7 +184,7 @@ def root() -> HTMLResponse:
 @app.get("/info", include_in_schema=False)
 def info() -> Dict[str, Any]:
     return {
-        "name": "claude-local-calls",
+        "name": "Local LLM Hub",
         "version": app.version,
         "description": "Multi-model hub: Anthropic-shape + OpenAI-shape over Claude / Qwen / GLM.",
         "endpoints": {

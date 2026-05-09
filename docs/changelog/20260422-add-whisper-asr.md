@@ -16,7 +16,7 @@ and [20260420-add-gemma-for-action-item-classification.md](20260420-add-gemma-fo
   runs its own whisper.cpp server on :8090 and exposes OpenAI-compatible
   `/v1/audio/transcriptions` + `/v1/audio/translations`. Its
   `whisper_server/whisper_server.yaml` was already annotated
-  *"intentionally identical between this repository and claude-local-calls
+  *"intentionally identical between this repository and local-llm-hub
   so the server binds the same port"* — the design had always intended
   both projects to share :8090 as a mutual-exclusion lock.
 - [scripts/install_whisper_cpp.py](../../scripts/install_whisper_cpp.py)
