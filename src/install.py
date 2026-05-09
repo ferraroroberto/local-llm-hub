@@ -80,7 +80,7 @@ def _check_python_venv() -> Check:
 
 _REQUIRED_DEPS = [
     "fastapi", "uvicorn", "httpx", "anthropic", "streamlit",
-    "yaml", "huggingface_hub", "pydantic",
+    "yaml", "huggingface_hub", "pydantic", "python_multipart",
 ]
 
 
