@@ -44,6 +44,7 @@ from typing import Optional
 import httpx
 import uvicorn
 from fastapi import FastAPI, Request, Response
+from starlette.datastructures import UploadFile
 
 from .backend_process import (
     VENDOR_WHISPER,
@@ -283,14 +284,56 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
                 media_type="application/json",
             )
         sup.touch()
-        body = await request.body()
-        headers = {}
-        ctype = request.headers.get("content-type")
-        if ctype:
-            headers["content-type"] = ctype
+
+        # Parse the inbound multipart form so we can both (a) faithfully
+        # forward every field the caller sent and (b) bridge OpenAI's
+        # `task=translate` to whisper.cpp's `translate=true` boolean,
+        # which is the actual form field whisper-server's server.cpp
+        # honors per-request.
+        try:
+            form = await request.form()
+        except Exception as exc:
+            log.warning("multipart parse failed: %s", exc)
+            return Response(
+                content=f'{{"error": "invalid multipart body: {exc}"}}',
+                status_code=400,
+                media_type="application/json",
+            )
+
+        upload: Optional[UploadFile] = None
+        data: dict[str, str] = {}
+        for key, value in form.multi_items():
+            if isinstance(value, UploadFile):
+                if key == "file" and upload is None:
+                    upload = value
+                # Drop any other file parts — whisper-server only takes one.
+                continue
+            if key == "task":
+                if value == "translate":
+                    data["translate"] = "true"
+                # task=transcribe is the upstream default; drop silently.
+                continue
+            data[key] = value
+
+        if upload is None:
+            return Response(
+                content='{"error": "missing required form field: file"}',
+                status_code=400,
+                media_type="application/json",
+            )
+
+        file_bytes = await upload.read()
+        files = {
+            "file": (
+                upload.filename or "audio",
+                file_bytes,
+                upload.content_type or "application/octet-stream",
+            )
+        }
+
         url = f"http://127.0.0.1:{internal_port}{inference_path}"
         async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
-            r = await client.post(url, content=body, headers=headers)
+            r = await client.post(url, files=files, data=data)
         sup.touch()
         return Response(
             content=r.content,
