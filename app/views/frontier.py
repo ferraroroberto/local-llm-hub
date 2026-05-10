@@ -60,17 +60,26 @@ def _read_run_text(run: str, name: str) -> str:
 
 
 def _read_roles() -> Dict[str, Optional[str]]:
+    """Return role -> model display_name (falling back to model_id)."""
     if not MODELS_YAML.exists():
         return {}
     cfg = yaml.safe_load(MODELS_YAML.read_text(encoding="utf-8")) or {}
     roles = cfg.get("roles") or {}
-    flat: Dict[str, Optional[str]] = {}
-    flat["agentic_light"] = (roles.get("agentic_light") or {}).get("model_id")
-    flat["agentic_heavy"] = (roles.get("agentic_heavy") or {}).get("model_id")
+    models = cfg.get("models") or {}
+
+    def _display(model_id: Optional[str]) -> Optional[str]:
+        if not model_id:
+            return None
+        entry = models.get(model_id) or {}
+        return entry.get("display_name") or model_id
+
     audio = roles.get("audio") or {}
-    flat["audio_transcribe"] = (audio.get("transcribe") or {}).get("model_id")
-    flat["audio_translate"] = (audio.get("translate") or {}).get("model_id")
-    return flat
+    return {
+        "agentic_light": _display((roles.get("agentic_light") or {}).get("model_id")),
+        "agentic_heavy": _display((roles.get("agentic_heavy") or {}).get("model_id")),
+        "audio_transcribe": _display((audio.get("transcribe") or {}).get("model_id")),
+        "audio_translate": _display((audio.get("translate") or {}).get("model_id")),
+    }
 
 
 # ---------- sections ----------
@@ -106,7 +115,15 @@ def _section_current_decisions() -> None:
     cols = st.columns(4)
     for i, role in enumerate(("agentic_light", "agentic_heavy",
                               "audio_transcribe", "audio_translate")):
-        cols[i].metric(ROLE_LABELS[role], roles.get(role) or "—")
+        value = roles.get(role) or "—"
+        cols[i].markdown(
+            f"<div style='color:rgba(250,250,250,0.6);font-size:0.85rem;'>"
+            f"{ROLE_LABELS[role]}</div>"
+            f"<div style='font-size:1.1rem;font-weight:600;"
+            f"word-break:break-word;line-height:1.3;margin-top:0.25rem;'>"
+            f"{value}</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def _section_report(run: str) -> None:
