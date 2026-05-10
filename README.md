@@ -17,11 +17,14 @@ Five entries in active use as of the May 2026 frontier reading:
   on `127.0.0.1:8088` (4 B hybrid Gated DeltaNet + sparse MoE, full
   GPU offload, Apache 2.0, 262 k native context). Fills the
   `agentic_light` role: OpenClaw fast lane, classification, edge.
+  Also addressable as `model="agentic_light"` — clients that hit the
+  role alias survive future `/swap-model` rotations unchanged.
 - **`gemma4-26b-a4b-it`** — local `llama-server` running
   [unsloth/gemma-4-26B-A4B-it-GGUF](https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF)
   on `127.0.0.1:8087` (25 B / 3.8 B-active MoE, IQ4_XS i-matrix quant
   — whole model on GPU in 16 GB VRAM). Fills the `agentic_heavy` role:
-  deep agentic, transcript polishing, document work, EN↔ES↔CA.
+  deep agentic, transcript polishing, document work, EN↔ES↔CA. Also
+  addressable as `model="agentic_heavy"` for the same reason.
 - **`whisper-large-v3-turbo`** — local `whisper-server`
   ([ggerganov/whisper.cpp](https://github.com/ggerganov/whisper.cpp))
   running [ggml-large-v3-turbo.bin](https://huggingface.co/ggerganov/whisper.cpp)
@@ -211,10 +214,14 @@ local-llm-hub/
 │   └── models.yaml           # hosts + models + roles + tray autostart
 ├── src/
 │   ├── server.py             # FastAPI hub (both shapes) + router
+│   ├── landing.py            # HTML landing page served at GET /
 │   ├── claude_cli.py         # subprocess wrapper around `claude -p`
 │   ├── openai_upstream.py    # httpx client + SSE think-strip pipeline
-│   ├── model_registry.py     # YAML loader
+│   ├── model_registry.py     # YAML loader (resolves display_name + aliases)
 │   ├── host_profile.py       # pick active host row
+│   ├── machine_specs.py      # parse config/machine_specs.yaml
+│   ├── fit_estimator.py      # back-end for the 🧮 Fit tab (HF model fit)
+│   ├── system_stats.py       # live RAM/GPU readings for the Server tab
 │   ├── install.py            # first-run checks + --fix
 │   ├── run_backend.py        # hub|qwen35_4b|gemma4_26b|whisper|… dispatcher
 │   ├── server_process.py     # hub Popen + ownership / adopt-or-spawn
@@ -492,6 +499,14 @@ msg = client.messages.create(
     messages=[{"role": "user", "content": "Hello"}],
 )
 print(msg.content[0].text)
+
+# Or address the role directly — survives future /swap-model rotations
+# unchanged. `agentic_light` and `agentic_heavy` both work the same way.
+msg = client.messages.create(
+    model="agentic_light",
+    max_tokens=128,
+    messages=[{"role": "user", "content": "Hello"}],
+)
 ```
 
 > Demoted candidates (`qwen3.5-9b`, `glm-4.5-air`) work the same way
