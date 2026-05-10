@@ -2,50 +2,88 @@
 
 A tiny local HTTP hub that routes `POST /v1/messages` (Anthropic shape) and
 `POST /v1/chat/completions` (OpenAI shape) to several backends by `model` name,
-plus a local whisper.cpp ASR server that clients hit directly:
+plus a local whisper.cpp ASR pair that clients hit directly.
 
-- **claude-*** — forwarded to the **`claude -p`** CLI on your machine, using
-  your local Claude Code auth (your subscription) instead of an API key.
-- **qwen3.5-9b** — forwarded to a local `llama-server` running
-  [unsloth/Qwen3.5-9B-GGUF](https://huggingface.co/unsloth/Qwen3.5-9B-GGUF)
-  on `127.0.0.1:8081`. 64 K context window, full GPU offload with
-  flash-attn (the model itself is hybrid attention + recurrent, so
-  KV at 64 K is only ~2 GB).
-- **glm-4.5-air** — forwarded to a local `llama-server` running
-  [unsloth/GLM-4.5-Air-GGUF](https://huggingface.co/unsloth/GLM-4.5-Air-GGUF)
-  on `127.0.0.1:8082` (MoE CPU offload — attention on GPU, expert tensors
-  on RAM).
-- **gemma4-e4b-it** — forwarded to a local `llama-server` running
+## Active rotation
+
+Five entries in active use as of the May 2026 frontier reading:
+
+- **`claude-*`** — forwarded to the **`claude -p`** CLI on your machine,
+  using your local Claude Code auth (your subscription) instead of an
+  API key. Aliases `claude-haiku-4-5`, `claude-sonnet-4-6`,
+  `claude-opus-4-7` all hit the same backend; the CLI picks the model.
+- **`gemma4-e4b-it`** — local `llama-server` running
   [unsloth/gemma-4-E4B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF)
-  on `127.0.0.1:8086` (small / classifier / edge tier; 8 B dense, full
-  GPU offload).
-- **gemma4-26b-a4b-it** — forwarded to a local `llama-server` running
+  on `127.0.0.1:8086` (8 B dense, full GPU offload). Fills the
+  `agentic_light` role: OpenClaw fast lane, classification, edge.
+- **`gemma4-26b-a4b-it`** — local `llama-server` running
   [unsloth/gemma-4-26B-A4B-it-GGUF](https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF)
-  on `127.0.0.1:8087` (quality tier; 25 B / 3.8 B-active MoE, IQ4_XS
-  i-matrix quant — whole model on GPU in 16 GB VRAM).
-- **whisper-large-v3-turbo** — a local `whisper-server`
+  on `127.0.0.1:8087` (25 B / 3.8 B-active MoE, IQ4_XS i-matrix quant
+  — whole model on GPU in 16 GB VRAM). Fills the `agentic_heavy` role:
+  deep agentic, transcript polishing, document work, EN↔ES↔CA.
+- **`whisper-large-v3-turbo`** — local `whisper-server`
   ([ggerganov/whisper.cpp](https://github.com/ggerganov/whisper.cpp))
   running [ggml-large-v3-turbo.bin](https://huggingface.co/ggerganov/whisper.cpp)
   on `127.0.0.1:8090`. OpenAI-compatible `/v1/audio/transcriptions`;
-  clients POST to :8090 directly (the hub does not proxy audio
+  clients POST to `:8090` directly (the hub does not proxy audio
   endpoints). Port 8090 is a shared mutual-exclusion lock with
-  `E:\automation\automation\audio\transcribe_voice`.
-- **whisper-medium-translate** — a *lazy-loaded* sibling whisper-server
+  `E:\automation\automation\audio\transcribe_voice`. Fills the
+  `audio_transcribe` role.
+- **`whisper-medium-translate`** — a *lazy-loaded* sibling whisper-server
   on `127.0.0.1:8091` running `ggml-medium.bin` on CPU. Same
   OpenAI-compatible `/v1/audio/transcriptions` shape; supports
   `task=translate` (turbo is transcription-only — its decoder distill
   drops translation). A small FastAPI proxy owns the port; the actual
   whisper-server child is spawned on first request and torn down after
   5 min of idle, so medium isn't sitting in RAM when you don't use
-  translate. Cold-start ~3-5s on first call.
+  translate. Cold-start ~3-5 s on first call. Fills the
+  `audio_translate` role.
 
-Side-by-side technical specs + docs links for all backends live in
-[docs/model-comparison.md](docs/model-comparison.md).
+## Demoted candidates (kept defined, not in active rotation)
 
-Point any client — the official `anthropic` or `openai` SDKs, openclaw,
+`qwen3.5-9b` and `glm-4.5-air` are **defined in `config/models.yaml`**
+but not in any host's `enabled:` list anymore. Their launchers still
+exist (`launchers/run_qwen.bat`, `launchers/run_glm.bat`) for ad-hoc
+bring-up. Demoted on 2026-05-10 per the May 2026 frontier reading —
+see [docs/changelog/20260510-frontier-via-slash-commands.md](docs/changelog/20260510-frontier-via-slash-commands.md)
+for the reasoning.
+
+## Roles & monthly refresh
+
+The four active local roles live in `config/models.yaml` → `roles:`:
+
+| Role | Model | Why |
+|---|---|---|
+| `agentic_light` | `gemma4_e4b` | OpenClaw fast lane / classify / edge |
+| `agentic_heavy` | `gemma4_26b` | Deep agentic, transcripts, docs, ES↔EN↔CA |
+| `audio_transcribe` | `whisper` | EN/ES audio → text |
+| `audio_translate` | `whisper_translate` | ES audio → English (lazy CPU sibling) |
+
+Two Claude Code slash commands drive the monthly refresh, both
+human-in-the-loop, both edit files directly:
+
+- **`/frontier-refresh`** — runs the research, regenerates
+  `docs/frontier/runs/<today>/{report.md,frontier.json,frontier.html}`,
+  repoints `LATEST`. **Read-only on the registry** — produces artifacts
+  only, never rewires anything.
+- **`/swap-model`** — interactive role swap. Reads the latest run +
+  current roles, asks one question at a time (which role, which target,
+  hf_repo if not registered, download now?), shows the planned diff,
+  then edits `config/models.yaml` + writes a launcher pair + (optionally)
+  shells out to `scripts/download_models.py`.
+
+The Streamlit **🛰 Frontier** tab is read-only: run picker, current
+role decisions, report markdown, embedded chart. To act on a run, run
+`/swap-model` from the CLI.
+
+Side-by-side technical specs + docs links for all active models live in
+[docs/model-comparison.md](docs/model-comparison.md). The latest research
+brief and run sit under [docs/frontier/](docs/frontier/).
+
+Point any client — the official `anthropic` or `openai` SDKs, openClaw,
 a curl one-liner — at `http://127.0.0.1:8000` and swap backends by
 changing the `model` string. Claude requests bill your subscription;
-qwen/glm requests never leave the machine.
+local model requests never leave the machine.
 
 Inspired by the `_call_claude` pattern in
 `E:\automation\inspiration-system\src\enrichment.py`.
@@ -112,23 +150,25 @@ use.
 ## Architecture at a glance
 
 ```
-openclaw / anthropic SDK / openai SDK / curl
+openClaw / anthropic SDK / openai SDK / curl
                     │
                     ▼  http://<lan>:8000
    ┌────────────── FastAPI hub (src/server.py) ───────────────┐
    │  route by `model`:                                       │
-   │    claude-*           → call_claude()   (claude -p subprocess) │
-   │    qwen3.5-9b         → llama-server 127.0.0.1:8081            │
-   │    glm-4.5-air        → llama-server 127.0.0.1:8082            │
-   │    gemma4-e4b-it      → llama-server 127.0.0.1:8086            │
-   │    gemma4-26b-a4b-it  → llama-server 127.0.0.1:8087            │
-   │    whisper-large-v3-turbo → 400 "POST to :8090 directly" (audio) │
+   │    claude-*               → call_claude()   (claude -p subprocess)  │
+   │    gemma4-e4b-it          → llama-server 127.0.0.1:8086             │
+   │    gemma4-26b-a4b-it      → llama-server 127.0.0.1:8087             │
+   │    whisper-large-v3-turbo → 400 "POST to :8090 directly" (audio)    │
+   │    whisper-medium-translate → 400 "POST to :8091 directly" (audio)  │
    └──────────────────────────────────────────────────────────┘
 
-audio clients  ──────►  whisper-server 127.0.0.1:8090         (turbo, transcribe)
-audio clients  ──────►  whisper_translate proxy 127.0.0.1:8091 (medium, translate, lazy)
+audio clients  ──────►  whisper-server 127.0.0.1:8090           (turbo, transcribe)
+audio clients  ──────►  whisper_translate proxy 127.0.0.1:8091   (medium, translate, lazy)
                           (both speak OpenAI-compatible /v1/audio/transcriptions;
                            the proxy spawns whisper-server on demand and unloads on idle)
+
+Demoted (defined in config/models.yaml, not in any host's enabled list):
+  qwen3.5-9b, glm-4.5-air — bring up via launchers/run_qwen.bat / run_glm.bat
 ```
 
 See [docs/project-structure.md](docs/project-structure.md) for the full
@@ -142,29 +182,34 @@ how the whisper backend slotted in.
 
 ```
 local-llm-hub/
-├── .venv/                    # local virtualenv
+├── .venv/                    # local virtualenv (gitignored)
+├── .claude/
+│   └── commands/             # Claude Code slash commands (committed)
+│       ├── frontier-refresh.md   # produces a monthly research run
+│       ├── swap-model.md         # interactive role swap (yaml + launcher + download)
+│       └── system-specs.md       # collect Windows hardware specs
 ├── requirements.txt
 ├── tray.bat                  # Windows-only system-tray launcher (silent)
 ├── run_hub.bat / .sh         # start the FastAPI hub on :8000
 ├── launch_app.bat / .sh      # Streamlit control panel
 ├── launchers/                # per-model backends (.bat + .sh)
-│   ├── run_qwen.*               # start llama-server for Qwen on :8081
-│   ├── run_glm.*                # start llama-server for GLM on :8082
-│   ├── run_gemma4_e4b.*         # start llama-server for Gemma 4 E4B IT on :8086
-│   ├── run_gemma4_26b.*         # start llama-server for Gemma 4 26B-A4B IT on :8087
-│   ├── run_whisper.*            # start whisper-server for whisper-large-v3-turbo on :8090
-│   ├── run_whisper_translate.*  # start lazy whisper-medium-translate proxy on :8091
+│   ├── run_qwen.*               # demoted candidate; ad-hoc only
+│   ├── run_glm.*                # demoted candidate; ad-hoc only
+│   ├── run_gemma4_e4b.*         # agentic_light role on :8086
+│   ├── run_gemma4_26b.*         # agentic_heavy role on :8087
+│   ├── run_whisper.*            # audio_transcribe role on :8090
+│   ├── run_whisper_translate.*  # audio_translate role on :8091 (lazy)
 │   └── run_all.*                # start everything enabled on this host
 ├── config/
-│   └── models.yaml           # host + model registry
+│   └── models.yaml           # hosts + models + roles + tray autostart
 ├── src/
 │   ├── server.py             # FastAPI hub (both shapes) + router
 │   ├── claude_cli.py         # subprocess wrapper around `claude -p`
-│   ├── openai_upstream.py    # httpx client for llama-server + shape translators
+│   ├── openai_upstream.py    # httpx client + SSE think-strip pipeline
 │   ├── model_registry.py     # YAML loader
 │   ├── host_profile.py       # pick active host row
 │   ├── install.py            # first-run checks + --fix
-│   ├── run_backend.py        # hub|qwen|glm|…|whisper dispatcher
+│   ├── run_backend.py        # hub|gemma4_e4b|gemma4_26b|whisper|… dispatcher
 │   ├── server_process.py     # hub Popen + ownership / adopt-or-spawn
 │   ├── backend_process.py    # per-model Popen (llama-server + whisper-server)
 │   └── whisper_translate_proxy.py  # FastAPI shim that lazy-spawns whisper-server (medium, CPU)
@@ -174,30 +219,46 @@ local-llm-hub/
 │   ├── config.py             #   reads tray: section from models.yaml
 │   ├── icon.py               #   PIL hub glyph (no image file in repo)
 │   └── single_instance.py    #   .tray.pid lock validated with psutil
-├── app/                      # Streamlit UI (welcome/install/server/models/…)
+├── app/                      # Streamlit UI
+│   ├── app.py                #   page nav (Welcome / Install / Server / …)
+│   └── views/                #   one module per tab
+│       ├── welcome.py
+│       ├── install.py
+│       ├── server.py
+│       ├── comparison.py
+│       ├── models.py
+│       ├── testing.py
+│       ├── playground.py
+│       └── frontier.py       # NEW — read-only viewer for monthly runs
 ├── scripts/
 │   ├── smoke_test.py
 │   ├── download_models.py    # huggingface_hub → models/
-│   ├── install_llama_cpp.py  # CUDA-Windows / Metal-macOS release
-│   └── install_whisper_cpp.py  # whisper.cpp CUDA/Metal release → vendor/whisper.cpp/
-├── tests/                    # test_server / test_router / test_model_registry / test_install
+│   ├── detect_machine_specs.py   # populate config/machine_specs.yaml
+│   ├── install_llama_cpp.py      # CUDA-Windows / Metal-macOS release
+│   └── install_whisper_cpp.py    # whisper.cpp CUDA/Metal release → vendor/whisper.cpp/
+├── tests/                    # test_server / test_router / test_model_registry /
+│                             # test_install / test_streaming
 ├── vendor/
 │   ├── llama.cpp/            # prebuilt llama-server binary (gitignored)
 │   └── whisper.cpp/          # prebuilt whisper-server binary (gitignored)
 ├── models/                   # downloaded GGUFs (gitignored):
-│                             #   Qwen3.5-9B, GLM-4.5-Air, gemma-4-E4B-it,
-│                             #   gemma-4-26B-A4B-it (IQ4_XS),
+│                             #   gemma-4-E4B-it, gemma-4-26B-A4B-it (IQ4_XS),
 │                             #   ggml-large-v3-turbo.bin (whisper turbo, transcribe),
-│                             #   ggml-medium.bin (whisper medium, translate)
+│                             #   ggml-medium.bin (whisper medium, translate),
+│                             #   plus any demoted candidates if brought up ad-hoc
 └── docs/
     ├── project-structure.md
     ├── model-comparison.md
-    └── changelog/                # dated post-mortems / plan docs
-        ├── 20260420-hub-with-qwen-and-glm.md
-        ├── 20260420-add-gemma-for-action-item-classification.md
-        ├── 20260420-glm-performance-assessment.md
-        ├── 20260422-add-whisper-asr.md
-        └── 20260424-launchers-and-docs-reorg.md
+    ├── frontier/                 # monthly efficient-frontier research
+    │   ├── RESEARCH_PROMPT.md    #   canonical brief; read by /frontier-refresh
+    │   └── runs/
+    │       ├── LATEST            #   flat file containing the latest run date
+    │       └── <YYYY-MM-DD>/     #   one dir per run
+    │           ├── report.md     #   didactic markdown report
+    │           ├── frontier.json #   machine-readable run data
+    │           └── frontier.html #   standalone interactive chart
+    └── changelog/                # dated post-mortems / decision notes
+        └── …                     # see ls docs/changelog/ for the current list
 ```
 
 ## Setup
@@ -214,10 +275,17 @@ The installer reads [config/models.yaml](config/models.yaml), figures
 out which host row you are (by `LOCAL_LLM_HUB_HOST` env var, else
 hostname match, else `default: true`), and only downloads what that
 host's `enabled` list asks for. On the reference Windows PC that's
-Qwen (~6.6 GB) + GLM (~55 GB) + Gemma 4 E4B (~5 GB) + Gemma 4
-26B-A4B IQ4_XS (~13.4 GB) + whisper-large-v3-turbo (~1.62 GB) +
-whisper-medium for translate (~1.5 GB), plus the whisper.cpp CUDA
-binary under `vendor/whisper.cpp/`; on the Mac mini it's Qwen only.
+the active rotation: Gemma 4 E4B (~5 GB), Gemma 4 26B-A4B IQ4_XS
+(~13.4 GB), whisper-large-v3-turbo (~1.62 GB), whisper-medium for
+translate (~1.5 GB), plus the llama.cpp + whisper.cpp CUDA binaries
+under `vendor/`. On the Mac mini it's Qwen only.
+
+The demoted candidates (`qwen3.5-9b`, `glm-4.5-air`) are in the
+registry but **not** in any host's `enabled:` list, so the installer
+ignores them. To bring one up ad-hoc, add it to `enabled:` and re-run
+`--fix`, or just download manually with
+`python scripts/download_models.py --only qwen` and launch via
+`launchers/run_qwen.bat`.
 
 Plain check (no changes):
 
@@ -262,13 +330,17 @@ itself runs fine without it.
 ```bat
 run_hub.bat                      :: FastAPI hub on :8000
 launch_app.bat                   :: Streamlit control panel
+
+:: Active rotation
+launchers\run_gemma4_e4b.bat     :: agentic_light  on :8086
+launchers\run_gemma4_26b.bat     :: agentic_heavy  on :8087
+launchers\run_whisper.bat        :: audio_transcribe on :8090
+launchers\run_whisper_translate.bat :: audio_translate on :8091 (lazy)
+launchers\run_all.bat            :: start every backend in `enabled:` for this host
+
+:: Demoted candidates — present but not in `enabled:` by default
 launchers\run_qwen.bat           :: llama-server for Qwen on :8081
 launchers\run_glm.bat            :: llama-server for GLM on :8082
-launchers\run_gemma4_e4b.bat     :: llama-server for Gemma 4 E4B IT on :8086
-launchers\run_gemma4_26b.bat     :: llama-server for Gemma 4 26B-A4B IT on :8087
-launchers\run_whisper.bat        :: whisper-server for whisper-large-v3-turbo on :8090
-launchers\run_whisper_translate.bat :: lazy whisper-medium-translate proxy on :8091
-launchers\run_all.bat            :: start every backend enabled for this host
 ```
 
 (macOS / Linux: `./run_hub.sh`, `./launch_app.sh`, `./launchers/run_all.sh`, etc.)
@@ -326,12 +398,14 @@ Equivalent Python entrypoints (run from the project root):
 
 ```bat
 .venv\Scripts\python -m src.run_backend hub
-.venv\Scripts\python -m src.run_backend qwen
-.venv\Scripts\python -m src.run_backend glm
 .venv\Scripts\python -m src.run_backend gemma4_e4b
 .venv\Scripts\python -m src.run_backend gemma4_26b
 .venv\Scripts\python -m src.run_backend whisper
 .venv\Scripts\python -m src.run_backend whisper_translate
+
+:: Demoted (ad-hoc only; not in tray autostart, not auto-installed)
+.venv\Scripts\python -m src.run_backend qwen
+.venv\Scripts\python -m src.run_backend glm
 ```
 
 The hub binds on `0.0.0.0:8000`, so other machines on your LAN can
@@ -389,28 +463,14 @@ msg = client.messages.create(
     messages=[{"role": "user", "content": "Hello"}],
 )
 
-# Local Qwen — no network, no cost
-msg = client.messages.create(
-    model="qwen3.5-9b",
-    max_tokens=128,
-    messages=[{"role": "user", "content": "Hello"}],
-)
-
-# Local GLM — MoE via CPU offload
-msg = client.messages.create(
-    model="glm-4.5-air",
-    max_tokens=128,
-    messages=[{"role": "user", "content": "Hello"}],
-)
-
-# Local Gemma 4 E4B IT — small / classifier / edge (8 B dense, full GPU)
+# agentic_light role — Gemma 4 E4B (8 B dense, full GPU)
 msg = client.messages.create(
     model="gemma4-e4b-it",
     max_tokens=128,
     messages=[{"role": "user", "content": "Hello"}],
 )
 
-# Local Gemma 4 26B-A4B IT — quality tier (25 B / 3.8 B-active MoE on GPU)
+# agentic_heavy role — Gemma 4 26B MoE (25 B / 3.8 B-active on GPU)
 msg = client.messages.create(
     model="gemma4-26b-a4b-it",
     max_tokens=128,
@@ -419,13 +479,17 @@ msg = client.messages.create(
 print(msg.content[0].text)
 ```
 
-OpenAI SDK (get native tool calls for qwen/glm via `llama-server --jinja`):
+> Demoted candidates (`qwen3.5-9b`, `glm-4.5-air`) work the same way
+> if you've brought them up ad-hoc — pass their model name as
+> `model=`. The hub will return 400 if their backend isn't reachable.
+
+OpenAI SDK (get native tool calls via `llama-server --jinja`):
 
 ```python
 from openai import OpenAI
 client = OpenAI(api_key="local-dummy", base_url="http://127.0.0.1:8000/v1")
 msg = client.chat.completions.create(
-    model="qwen3.5-9b",
+    model="gemma4-26b-a4b-it",
     messages=[{"role": "user", "content": "Hello"}],
 )
 print(msg.choices[0].message.content)
@@ -436,7 +500,7 @@ Raw HTTP:
 ```bash
 curl -s http://127.0.0.1:8000/v1/messages \
   -H "Content-Type: application/json" \
-  -d '{"model":"glm-4.5-air","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}'
+  -d '{"model":"gemma4-26b-a4b-it","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}'
 ```
 
 List enabled models:
@@ -586,5 +650,7 @@ notice. Note that the license covers *this code* only; your use of the
 underlying `claude` CLI is still governed by Anthropic's terms (see
 [Scope & usage policy](#scope--usage-policy) above) and the model
 weights follow their own licenses
-([Qwen](https://huggingface.co/Qwen),
-[GLM / Zhipu AI](https://huggingface.co/zai-org)).
+([Gemma terms](https://ai.google.dev/gemma/terms),
+[Whisper / OpenAI MIT](https://github.com/openai/whisper/blob/main/LICENSE),
+plus [Qwen](https://huggingface.co/Qwen) /
+[GLM](https://huggingface.co/zai-org) for the demoted candidates).

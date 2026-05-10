@@ -8,29 +8,69 @@ import streamlit as st
 def render() -> None:
     st.title("👋 Local LLM Hub")
     st.caption(
-        "A local Anthropic-compatible API backed by `claude -p` and your "
-        "Claude Code subscription."
+        "A local Anthropic- and OpenAI-shaped API backed by `claude -p`, "
+        "local llama-server backends, and a whisper.cpp ASR pair."
     )
 
     st.markdown(
         """
         ### What this is
 
-        A tiny FastAPI server that exposes `POST /v1/messages` with the
-        same shape as the official **Anthropic Messages API**, but
-        routes each call through the local **`claude -p`** CLI. Point
-        any client — including the official `anthropic` SDK — at
-        `http://127.0.0.1:8000` and your existing code keeps working,
-        charged to your Claude subscription instead of API credits.
+        A tiny FastAPI server that exposes `POST /v1/messages`
+        (Anthropic shape) and `POST /v1/chat/completions` (OpenAI shape)
+        on `http://127.0.0.1:8000`, routing each call to the right
+        backend by the `model` field. Same wire shape as the official
+        Anthropic / OpenAI APIs, so the official `anthropic` and
+        `openai` SDKs work unchanged.
 
-        ### Using this app
+        - `claude-*` models go through your local `claude -p` CLI and
+          your Claude Code subscription — no API key needed.
+        - Local `gemma4-*` models go through `llama-server` on loopback
+          ports.
+        - `whisper-large-v3-turbo` (`:8090`) and `whisper-medium-translate`
+          (`:8091`, lazy CPU) run as separate `whisper-server` processes;
+          audio clients hit them directly (the hub doesn't proxy audio).
 
-        - **🛰 Server** — start / stop the FastAPI process and watch its log live.
-        - **📊 Comparison** — per-model specs table (params, quant, size, context, docs links).
-        - **🧠 Models** — start / stop each local llama-server backend and tail its log.
-        - **🧮 Fit** — paste a Hugging Face URL to estimate whether a candidate model fits this machine's VRAM + RAM.
+        ### Active roles right now
+
+        Four local roles, mapped in `config/models.yaml` → `roles:`:
+
+        | Role | Model |
+        |---|---|
+        | `agentic_light` | `gemma4-e4b-it` (OpenClaw fast lane / classify) |
+        | `agentic_heavy` | `gemma4-26b-a4b-it` (deep agentic / transcripts / docs / ES↔EN↔CA) |
+        | `audio_transcribe` | `whisper-large-v3-turbo` (EN/ES → text) |
+        | `audio_translate` | `whisper-medium-translate` (lazy CPU; ES → EN, on-demand) |
+
+        `qwen3.5-9b` and `glm-4.5-air` are kept as **ad-hoc candidates**
+        — defined in `config/models.yaml` but not in the active rotation.
+        Bring up via `launchers/run_qwen.bat` / `run_glm.bat` if needed.
+
+        ### Tabs in this app
+
+        - **🛰 Server** — start / stop the FastAPI hub on `:8000` and watch its log.
+        - **📊 Comparison** — per-model specs table (active rotation only).
+        - **🧠 Models** — start / stop each enabled backend and tail its log.
         - **✅ Testing** — run unit tests and the end-to-end smoke test.
         - **💬 Playground** — send a prompt, pick a model, see the reply and token counts.
+        - **🛰 Frontier** — read-only view of the latest monthly research run (report + chart) and the current role decisions.
+
+        ### Refreshing the roster (Claude Code slash commands)
+
+        The monthly refresh and per-role swaps are driven from Claude
+        Code, not from this UI:
+
+        - **`/frontier-refresh`** — runs the research, regenerates
+          `docs/frontier/runs/<today>/{report.md,frontier.json,frontier.html}`,
+          repoints `LATEST`. Read-only on the registry.
+        - **`/swap-model`** — interactive role swap. Reads the latest
+          recommendations, asks one question at a time, shows the
+          planned diff, edits `config/models.yaml` + writes a launcher
+          + (optionally) downloads the new GGUF.
+
+        See [`docs/changelog/20260510-frontier-via-slash-commands.md`](https://github.com/ferraroroberto/local-llm-hub/blob/main/docs/changelog/20260510-frontier-via-slash-commands.md)
+        for why the swap path is a slash command and not a button in
+        this app.
 
         ### Use it from your own code
         """
@@ -41,13 +81,22 @@ def render() -> None:
         '''from anthropic import Anthropic
 
 client = Anthropic(api_key="local-dummy", base_url="http://127.0.0.1:8000")
+
+# Claude via subscription
 msg = client.messages.create(
     model="claude-haiku-4-5",
     max_tokens=128,
     messages=[{"role": "user", "content": "Hello"}],
 )
 print(msg.content[0].text)
-print("in:", msg.usage.input_tokens, "out:", msg.usage.output_tokens)
+
+# Local agentic_light role — fast, full GPU
+msg = client.messages.create(
+    model="gemma4-e4b-it",
+    max_tokens=128,
+    messages=[{"role": "user", "content": "Hello"}],
+)
+print(msg.content[0].text)
 ''',
         language="python",
     )
@@ -61,15 +110,27 @@ print("in:", msg.usage.input_tokens, "out:", msg.usage.output_tokens)
         language="bash",
     )
 
+    st.markdown("**Audio (direct to whisper, hub doesn't proxy `/v1/audio/*`):**")
+    st.code(
+        '# Transcribe — turbo on :8090\n'
+        'curl -s -F file=@clip.wav -F response_format=json \\\n'
+        '  http://127.0.0.1:8090/v1/audio/transcriptions\n'
+        '\n'
+        '# Translate ES → EN — lazy medium on :8091 (cold-start ~3-5s)\n'
+        'curl -s -F file=@spanish.wav -F task=translate \\\n'
+        '  http://127.0.0.1:8091/v1/audio/transcriptions',
+        language="bash",
+    )
+
     st.markdown(
         """
         ### LAN access
 
-        The server binds on `0.0.0.0`, so other machines on your
-        network (another laptop, a VM, an agent) can call it directly.
-        Open the **🛰 Server** tab to see the clickable **LAN** URL for
-        this machine — point the remote client's `base_url` at that
-        URL instead of `127.0.0.1`:
+        The hub binds on `0.0.0.0:8000`, so other machines on your
+        network (another laptop, a VM, an agent like openClaw) can call
+        it directly. Open the **🛰 Server** tab to see the clickable
+        **LAN** URL — point the remote client's `base_url` at it instead
+        of `127.0.0.1`:
 
         ```python
         client = Anthropic(
@@ -88,7 +149,12 @@ print("in:", msg.usage.input_tokens, "out:", msg.usage.output_tokens)
         - **`app/`** — this Streamlit UI (entry point + views).
         - **`src/`** — non-UI Python: CLI wrapper, FastAPI server, process manager.
         - **`tests/`** — pytest unit tests.
-        - **`scripts/`** — end-to-end smoke test.
+        - **`scripts/`** — installer, downloader, end-to-end smoke test.
+        - **`launchers/`** — per-backend `.bat` / `.sh` scripts.
+        - **`tray/`** — Windows system-tray launcher (silent pythonw).
+        - **`config/models.yaml`** — host + model registry; `roles:` section.
+        - **`docs/frontier/`** — research brief + monthly runs.
+        - **`.claude/commands/`** — slash commands for Claude Code.
 
         ### Requirements
 
@@ -97,8 +163,16 @@ print("in:", msg.usage.input_tokens, "out:", msg.usage.output_tokens)
 
         ### Caveats (intentional — lightweight)
 
-        No streaming, no images, no tool use, multi-turn is flattened.
-        See the **Backlog for improvement** in `README.md` for the full
-        list of what a faithful Anthropic-API parity would add.
+        Streaming on `POST /v1/chat/completions` (OpenAI shape) **is**
+        supported — including server-side `<think>` block stripping for
+        reasoning models. Anthropic-shape `POST /v1/messages` streaming
+        still returns a single JSON object (event translation is on the
+        backlog).
+
+        Multi-turn for Claude is flattened into a single prompt. Tool
+        use round-trips across the Anthropic ↔ OpenAI shapes are not
+        implemented for the local backends. Images / documents /
+        extended-thinking blocks are dropped at the shape boundary.
+        See **Backlog for improvement** in `README.md` for the full list.
         """
     )
