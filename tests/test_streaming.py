@@ -85,7 +85,7 @@ def _resp(content: str = "", reasoning_content: str = "") -> dict:
     if reasoning_content:
         msg["reasoning_content"] = reasoning_content
     return {
-        "id": "x", "object": "chat.completion", "model": "qwen3.5-9b",
+        "id": "x", "object": "chat.completion", "model": "gemma4-e4b-it",
         "choices": [{"index": 0, "message": msg, "finish_reason": "stop"}],
         "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
     }
@@ -128,7 +128,7 @@ def _delta(content: str = "", reasoning_content: str = "") -> dict:
     if reasoning_content:
         delta["reasoning_content"] = reasoning_content
     return {
-        "id": "x", "object": "chat.completion.chunk", "model": "qwen3.5-9b",
+        "id": "x", "object": "chat.completion.chunk", "model": "gemma4-e4b-it",
         "choices": [{"index": 0, "delta": delta, "finish_reason": None}],
     }
 
@@ -190,7 +190,7 @@ def test_chat_completions_strips_think_non_stream(monkeypatch):
     r = client.post(
         "/v1/chat/completions",
         json={
-            "model": "qwen3.5-9b",
+            "model": "gemma4-e4b-it",
             "messages": [{"role": "user", "content": "hi"}],
         },
     )
@@ -219,7 +219,7 @@ def test_chat_completions_streaming_proxies_sse(monkeypatch):
         "POST",
         "/v1/chat/completions",
         json={
-            "model": "qwen3.5-9b",
+            "model": "gemma4-e4b-it",
             "stream": True,
             "messages": [{"role": "user", "content": "hi"}],
         },
@@ -257,7 +257,7 @@ def test_chat_completions_stream_upstream_error(monkeypatch):
         "POST",
         "/v1/chat/completions",
         json={
-            "model": "qwen3.5-9b",
+            "model": "gemma4-e4b-it",
             "stream": True,
             "messages": [{"role": "user", "content": "hi"}],
         },

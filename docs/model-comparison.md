@@ -14,11 +14,15 @@ markdown. Where a precise number isn't meaningful for a backend
 | Model (hub id) | Family | Params | Quant | GGUF size | Context | VRAM fit (16 GB) | Hub port | Typical tok/s* | References (official · card · benchmarks) |
 |---|---|---|---|---|---|---|---|---|---|
 | `claude-haiku-4-5` (aliases: `claude-sonnet-4-6`, `claude-opus-4-7`) | Claude (Anthropic) | n/a (cloud via `claude -p`) | n/a | n/a | per model — see docs | n/a | 8000 (hub) | n/a (subscription) | [anthropic.com/claude](https://docs.anthropic.com/en/docs/about-claude/models) · [llm-stats](https://llm-stats.com/models?provider=anthropic) |
-| `qwen3.5-9b` | Qwen 3.5 (Alibaba; hybrid attn + recurrent) | 9 B dense | Q4_K_M | 5.3 GB | 65 536 (trained 262 144) | full GPU (`-ngl 99`) + `--flash-attn on`, single slot | 8081 | ~80–110 | [Qwen org on HF](https://huggingface.co/Qwen) · [GGUF we ship](https://huggingface.co/unsloth/Qwen3.5-9B-GGUF) · [MLX (Mac)](https://huggingface.co/mlx-community/Qwen3.5-9B-MLX-4bit) |
-| `glm-4.5-air` | GLM-4.5-Air (Zhipu / zai-org) | 106 B / 12 B active MoE | Q4_K_M | 46.6 + 21.4 GB (2 shards) | 16 384 | attention on GPU, experts on RAM (`-ot .ffn_.*_exps.=CPU`) | 8082 | ~6–10 | [official card](https://huggingface.co/zai-org/GLM-4.5-Air) · [GGUF we ship](https://huggingface.co/unsloth/GLM-4.5-Air-GGUF) · [llm-stats](https://llm-stats.com/models/glm-4.5-air) |
 | `gemma4-e4b-it` | Gemma 4 (Google, edge / multimodal) | 8 B dense (text-only here) | Q4_K_M | 4.7 GB | 16 384 | full GPU (`-ngl 99`) | 8086 | ~92 | [Gemma 4 page](https://deepmind.google/models/gemma/gemma-4/) · [official card](https://huggingface.co/google/gemma-4-E4B-it) · [GGUF we ship](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF) |
 | `gemma4-26b-a4b-it` | Gemma 4 MoE (Google) | 25.2 B / 3.8 B active MoE | IQ4_XS (i-matrix) | 13.0 GB | 8 192 | full GPU (`-ngl 99`) + `--flash-attn on` | 8087 | ~91 | [Gemma 4 page](https://deepmind.google/models/gemma/gemma-4/) · [official card](https://huggingface.co/google/gemma-4-26B-A4B-it) · [GGUF we ship](https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF) |
 | `whisper-large-v3-turbo` | whisper.cpp (OpenAI) | 809 M (ASR, not chat; distilled large-v3 w/ 4 decoder layers) | ggml f16 | 1.62 GB | audio (30 s chunks) | ~2 GB | 8090 | realtime-factor ~4–8× (GPU) | [whisper.cpp](https://github.com/ggerganov/whisper.cpp) · [ggml models](https://huggingface.co/ggerganov/whisper.cpp) · [turbo vs large-v3](changelog/20260422-whisper-turbo-vs-large-v3.md) · [OpenAI paper](https://arxiv.org/abs/2212.04356) |
+| `whisper-medium-translate` | whisper.cpp (OpenAI) — lazy CPU sibling | 769 M (medium) | ggml f16 | ~1.5 GB | audio (30 s chunks) | CPU-only | 8091 | cold-start ~3–5 s, ~realtime on 7800X3D | [official medium](https://huggingface.co/openai/whisper-medium) · [ggml models](https://huggingface.co/ggerganov/whisper.cpp) · [why a sibling slot](changelog/20260509-add-whisper-translate-instance.md) |
+
+> **Demoted candidates** (kept defined in `config/models.yaml` but
+> **not in the active rotation** — see `enabled:` for the active host):
+> `qwen3.5-9b`, `glm-4.5-air`. Bring up ad-hoc with
+> `launchers/run_qwen.bat` / `run_glm.bat` if you need them.
 
 \* Single-stream generation on an RTX 5060 Ti 16 GB, short
 prompts (~100 input tokens). Ranges are indicative, not a
@@ -39,12 +43,15 @@ model was still thinking.
 
 | Role | Model | Why |
 |---|---|---|
-| **Default agentic / coding** | `glm-4.5-air` | 106 B MoE quality; the MoE CPU-offload keeps it viable on 16 GB VRAM. Slow but strong. |
-| **Fast dense all-rounder** | `qwen3.5-9b` | The fastest "smart enough" option. Tool-call-capable via `--jinja`. |
-| **Small / classifier / edge** | `gemma4-e4b-it` | 8 B dense, full GPU offload. Strict instruction-following and tight latency — the default for classification, JSON-schema work, and first-pass triage. |
-| **Top quality on 16 GB GPU** | `gemma4-26b-a4b-it` | 25 B-total MoE with only 3.8 B active per token. IQ4_XS keeps the whole model on GPU; quality approaches a dense 27B at much higher tok/s thanks to MoE sparsity. |
-| **Cloud parity check** | `claude-haiku-4-5` / `sonnet-4-6` / `opus-4-7` | Off-device baseline via `claude -p`; same hub, just swap the `model` string. |
-| **Speech-to-text (ASR)** | `whisper-large-v3-turbo` | whisper.cpp on :8090. OpenAI-compatible `/v1/audio/transcriptions`. Port is a shared mutual-exclusion lock with the `transcribe_voice` project. Distilled large-v3 (4 decoder layers) — ~2× faster than large-v3 at near-identical WER on Spanish/English. See [turbo vs large-v3](changelog/20260424-whisper-turbo-vs-large-v3.md). Switch size by editing [config/models.yaml](../config/models.yaml) (`ggml-<size>.bin`) and re-running `python -m src.install --fix`. |
+| **agentic_light** (OpenClaw fast lane) | `gemma4-e4b-it` | 8 B dense, full GPU offload. Strict instruction-following and tight latency — the default for routing, classification, JSON-schema work, and first-pass triage. |
+| **agentic_heavy** (deep lane / transcripts / docs) | `gemma4-26b-a4b-it` | 25 B-total MoE with only 3.8 B active per token. IQ4_XS keeps the whole model on GPU; quality approaches a dense 27B at much higher tok/s thanks to MoE sparsity. Strong multilingual incl. Catalan. |
+| **audio_transcribe** | `whisper-large-v3-turbo` | whisper.cpp on :8090. OpenAI-compatible `/v1/audio/transcriptions`. Port is a shared mutual-exclusion lock with the `transcribe_voice` project. Distilled large-v3 (4 decoder layers) — ~2× faster than large-v3 at near-identical WER on Spanish/English. |
+| **audio_translate** (lazy) | `whisper-medium-translate` | whisper.cpp medium on CPU, lazy-loaded on :8091 by a tiny FastAPI proxy. Spawns on first `task=translate` request, unloads after 5 min idle. Turbo's distilled decoder doesn't translate, so this slot fills the gap without keeping medium hot. |
+| **Cloud parity** | `claude-haiku-4-5` / `sonnet-4-6` / `opus-4-7` | Off-device baseline via `claude -p`; same hub, just swap the `model` string. Not a local role — never touched by `/swap-model`. |
+
+> Roles are declared in `config/models.yaml` → `roles:`. Update them
+> via `/swap-model` in Claude Code (interactive, edits the yaml +
+> writes a launcher + optionally downloads weights).
 
 ## How to add a new row to this table
 

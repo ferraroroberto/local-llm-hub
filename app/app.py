@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st
 
-from views import comparison, fit, install, models, playground, server, testing, welcome
+from views import comparison, frontier, install, models, playground, server, testing, welcome
 
 st.set_page_config(
     page_title="Local LLM Hub",
@@ -41,9 +41,9 @@ nav_pages = [
     st.Page(server.render,     title="Server",     icon="🛰",  url_path="server"),
     st.Page(comparison.render, title="Comparison", icon="📊", url_path="comparison"),
     st.Page(models.render,     title="Models",     icon="🧠", url_path="models"),
-    st.Page(fit.render,        title="Fit",        icon="🧮", url_path="fit"),
     st.Page(testing.render,    title="Testing",    icon="✅", url_path="testing"),
     st.Page(playground.render, title="Playground", icon="💬", url_path="playground"),
+    st.Page(frontier.render,   title="Frontier",   icon="🛰", url_path="frontier"),
 ]
 
 pg = st.navigation(nav_pages, position="sidebar")

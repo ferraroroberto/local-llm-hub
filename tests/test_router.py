@@ -20,7 +20,7 @@ def _fake_openai_response(text: str = "pong"):
     return {
         "id": "chatcmpl-xyz",
         "object": "chat.completion",
-        "model": "qwen3.5-9b",
+        "model": "gemma4-e4b-it",
         "choices": [{
             "index": 0,
             "message": {"role": "assistant", "content": text},
@@ -46,7 +46,7 @@ def test_messages_routes_openai_backend(monkeypatch):
     r = client.post(
         "/v1/messages",
         json={
-            "model": "qwen3.5-9b",
+            "model": "gemma4-e4b-it",
             "max_tokens": 64,
             "system": "Answer briefly.",
             "messages": [{"role": "user", "content": "ping"}],
@@ -55,14 +55,14 @@ def test_messages_routes_openai_backend(monkeypatch):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["content"] == [{"type": "text", "text": "pong"}]
-    assert body["model"] == "qwen3.5-9b"
+    assert body["model"] == "gemma4-e4b-it"
     assert body["stop_reason"] == "end_turn"
 
     # System prompt was prepended to the OpenAI messages.
-    assert captured["model"] == "qwen3.5-9b"
+    assert captured["model"] == "gemma4-e4b-it"
     assert captured["messages"][0] == {"role": "system", "content": "Answer briefly."}
     assert captured["messages"][1]["role"] == "user"
-    assert "127.0.0.1:8081" in captured["base_url"]
+    assert "127.0.0.1:8086" in captured["base_url"]
 
 
 def test_messages_unknown_model_400():
@@ -89,7 +89,7 @@ def test_chat_completions_passthrough_openai(monkeypatch):
     r = client.post(
         "/v1/chat/completions",
         json={
-            "model": "qwen3.5-9b",
+            "model": "gemma4-e4b-it",
             "messages": [{"role": "user", "content": "hello"}],
         },
     )
@@ -105,5 +105,5 @@ def test_list_models_includes_enabled():
     r = client.get("/v1/models")
     assert r.status_code == 200
     ids = {entry["id"] for entry in r.json()["data"]}
-    assert "qwen3.5-9b" in ids
+    assert "gemma4-e4b-it" in ids
     assert "claude-haiku-4-5" in ids

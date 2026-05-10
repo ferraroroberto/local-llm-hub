@@ -1,0 +1,432 @@
+{
+  "run_date": "2026-05-10",
+  "hardware": {
+    "gpu": "RTX 5060 Ti 16 GB",
+    "gpu_bandwidth_gb_s": 448,
+    "ram_gb": 128,
+    "cpu": "Ryzen 7 7800X3D",
+    "os": "Windows 11 Pro"
+  },
+  "weights": {
+    "agentic": 0.35,
+    "polish": 0.25,
+    "multilingual": 0.25,
+    "longctx": 0.15
+  },
+  "tier_info": {
+    "A": {"label": "Fast lane", "color": "#7B8B5E", "desc": "Small, fully GPU-resident, sub-50 ms latency"},
+    "B": {"label": "Balanced", "color": "#B5664E", "desc": "Fits in 16 GB VRAM, the workhorse zone"},
+    "C": {"label": "Quality", "color": "#3E5C66", "desc": "CPU offload, slow but highest accuracy"}
+  },
+  "models": [
+    {
+      "id": "qwen3-4b",
+      "name": "Qwen3 4B (2507)",
+      "family": "Qwen",
+      "tier": "A",
+      "params": "4B",
+      "arch": "dense",
+      "quant": "Q4_K_M",
+      "vram_gb": 3,
+      "tps": 100,
+      "quality": 63,
+      "ctx": "32k (256k YaRN)",
+      "license": "Apache 2.0",
+      "fits_vram": true,
+      "frontier": true,
+      "primary_use": "OpenClaw routing, fast tool calls",
+      "note": "Best small agentic model. Solid ES, Catalan acceptable."
+    },
+    {
+      "id": "gemma3-4b",
+      "name": "Gemma 3 4B",
+      "family": "Gemma",
+      "tier": "A",
+      "params": "4B",
+      "arch": "dense",
+      "quant": "Q4_K_M",
+      "vram_gb": 3,
+      "tps": 100,
+      "quality": 60,
+      "ctx": "128k",
+      "license": "Gemma",
+      "fits_vram": true,
+      "frontier": true,
+      "primary_use": "Fast multilingual triage, transcript shaping",
+      "note": "Best Catalan support of the small models. Weaker function calling than Qwen3."
+    },
+    {
+      "id": "phi4-mini",
+      "name": "Phi-4 Mini",
+      "family": "Phi",
+      "tier": "A",
+      "params": "3.8B",
+      "arch": "dense",
+      "quant": "Q4_K_M",
+      "vram_gb": 2.5,
+      "tps": 120,
+      "quality": 49,
+      "ctx": "16k",
+      "license": "MIT",
+      "fits_vram": true,
+      "frontier": true,
+      "primary_use": "English reasoning, structured output",
+      "note": "Speed king in the small tier, but multilingual gap rules it out for ES/CA."
+    },
+    {
+      "id": "llama32-3b",
+      "name": "Llama 3.2 3B",
+      "family": "Llama",
+      "tier": "A",
+      "params": "3B",
+      "arch": "dense",
+      "quant": "Q4_K_M",
+      "vram_gb": 2,
+      "tps": 120,
+      "quality": 43,
+      "ctx": "128k",
+      "license": "Llama 3.2",
+      "fits_vram": true,
+      "frontier": false,
+      "primary_use": "—",
+      "note": "Dominated. 2026 community testing reports unreliable triage / hallucinated replies."
+    },
+    {
+      "id": "qwen35-9b",
+      "name": "Qwen3.5 9B",
+      "family": "Qwen",
+      "tier": "B",
+      "params": "9B",
+      "arch": "dense",
+      "quant": "Q4_K_M",
+      "vram_gb": 5.5,
+      "tps": 80,
+      "quality": 71,
+      "ctx": "250k+",
+      "license": "Apache 2.0",
+      "fits_vram": true,
+      "frontier": false,
+      "primary_use": "Ultra-long-context document work",
+      "note": "Confirmed 250k+ context on this exact GPU. Loses to Gemma 4 26B MoE on speed AND quality."
+    },
+    {
+      "id": "gemma3-12b",
+      "name": "Gemma 3 12B",
+      "family": "Gemma",
+      "tier": "B",
+      "params": "12B",
+      "arch": "dense",
+      "quant": "Q4_K_M",
+      "vram_gb": 7,
+      "tps": 50,
+      "quality": 69,
+      "ctx": "128k",
+      "license": "Gemma",
+      "fits_vram": true,
+      "frontier": false,
+      "primary_use": "—",
+      "note": "Dominated by Gemma 4 26B MoE on every axis."
+    },
+    {
+      "id": "mistral-small-32",
+      "name": "Mistral Small 3.2",
+      "family": "Mistral",
+      "tier": "B",
+      "params": "~22B",
+      "arch": "dense",
+      "quant": "Q4_K_M",
+      "vram_gb": 13,
+      "tps": 30,
+      "quality": 74,
+      "ctx": "128k",
+      "license": "Apache 2.0",
+      "fits_vram": true,
+      "frontier": false,
+      "primary_use": "—",
+      "note": "Strong European multilingual but dominated on speed by MoE alternatives."
+    },
+    {
+      "id": "gptoss-20b",
+      "name": "GPT-OSS 20B",
+      "family": "GPT-OSS",
+      "tier": "B",
+      "params": "21B / 3.6B active",
+      "arch": "MoE",
+      "quant": "MXFP4 (native)",
+      "vram_gb": 12,
+      "tps": 100,
+      "quality": 72,
+      "ctx": "131k",
+      "license": "Apache 2.0",
+      "fits_vram": true,
+      "frontier": true,
+      "primary_use": "Tool-heavy agentic pipelines",
+      "note": "Excellent BFCL/τ-bench, native MXFP4 fits 16 GB. Multilingual ES/CA unverified — test before relying."
+    },
+    {
+      "id": "gemma4-26b-moe",
+      "name": "Gemma 4 26B MoE",
+      "family": "Gemma",
+      "tier": "B",
+      "params": "26B / 4B active",
+      "arch": "MoE",
+      "quant": "native (W4)",
+      "vram_gb": 14,
+      "tps": 99,
+      "quality": 83,
+      "ctx": "256k",
+      "license": "Gemma",
+      "fits_vram": true,
+      "frontier": true,
+      "primary_use": "★ Default workhorse — transcripts, documents, deep agentic, EN↔ES↔CA",
+      "note": "The standout 16 GB-class model of 2026. 99 t/s confirmed on RTX 5060 Ti at full 256k context."
+    },
+    {
+      "id": "gemma3-27b",
+      "name": "Gemma 3 27B (dense)",
+      "family": "Gemma",
+      "tier": "B",
+      "params": "27B",
+      "arch": "dense",
+      "quant": "Q4_K_M",
+      "vram_gb": 16,
+      "tps": 15,
+      "quality": 77,
+      "ctx": "128k",
+      "license": "Gemma",
+      "fits_vram": false,
+      "frontier": false,
+      "primary_use": "—",
+      "note": "Dominated by Gemma 4 26B MoE: same family, higher quality, ~6× faster decode thanks to MoE."
+    },
+    {
+      "id": "qwen35-35b-moe",
+      "name": "Qwen3.5-35B-A3B",
+      "family": "Qwen",
+      "tier": "C",
+      "params": "35B / 3B active",
+      "arch": "MoE",
+      "quant": "Q4_K_M",
+      "vram_gb": 18,
+      "tps": 40,
+      "quality": 79,
+      "ctx": "160k",
+      "license": "Apache 2.0",
+      "fits_vram": false,
+      "frontier": false,
+      "primary_use": "—",
+      "note": "Slight VRAM overflow (~2 GB) but still fast. Dominated by Gemma 4 26B MoE at this speed/quality combo."
+    },
+    {
+      "id": "qwen3-32b",
+      "name": "Qwen3 32B (dense)",
+      "family": "Qwen",
+      "tier": "C",
+      "params": "32B",
+      "arch": "dense",
+      "quant": "Q4_K_M",
+      "vram_gb": 19.5,
+      "tps": 11,
+      "quality": 84,
+      "ctx": "128k",
+      "license": "Apache 2.0",
+      "fits_vram": false,
+      "frontier": true,
+      "primary_use": "Quality runs, hard agentic, batch overnight",
+      "note": "BFCL v3 leader among open weights (75.7%). ~3.5 GB CPU spill, ~10–12 t/s."
+    },
+    {
+      "id": "llama33-70b",
+      "name": "Llama 3.3 70B",
+      "family": "Llama",
+      "tier": "C",
+      "params": "70B",
+      "arch": "dense",
+      "quant": "Q4_K_M",
+      "vram_gb": 40,
+      "tps": 4,
+      "quality": 82,
+      "ctx": "128k",
+      "license": "Llama 3.3",
+      "fits_vram": false,
+      "frontier": false,
+      "primary_use": "—",
+      "note": "Heavy CPU offload (24 GB+ in RAM). Dominated by Qwen3 32B: faster AND higher quality."
+    }
+  ],
+  "asr_models": [
+    {
+      "id": "fw-turbo",
+      "name": "faster-whisper Turbo",
+      "params": "809M (CT2)",
+      "vram_gb": 1,
+      "rtfx": "100–150×",
+      "languages": "EN, ES + 97 others",
+      "translate": false,
+      "license": "MIT",
+      "role": "primary",
+      "tagline": "★ Drop-in upgrade from your current Turbo",
+      "note": "Same Whisper Large v3 Turbo weights you already use, reimplemented in CTranslate2. ~2× faster, lower VRAM via INT8. No quality regression. Use compute_type=\"int8_float16\"."
+    },
+    {
+      "id": "whisper-turbo-current",
+      "name": "Whisper Large v3 Turbo",
+      "params": "809M",
+      "vram_gb": 1.6,
+      "rtfx": "60–80×",
+      "languages": "EN, ES + 97 others",
+      "translate": false,
+      "license": "MIT",
+      "role": "current",
+      "tagline": "◆ Your current default",
+      "note": "Solid for EN/ES transcription. Switch the runtime to faster-whisper for free speed; keep the model."
+    },
+    {
+      "id": "fw-large-v3",
+      "name": "faster-whisper Large v3",
+      "params": "1.55B (CT2)",
+      "vram_gb": 2,
+      "rtfx": "30–50×",
+      "languages": "EN, ES + 97 others",
+      "translate": true,
+      "license": "MIT",
+      "role": "alt",
+      "tagline": "☆ Use for ES → EN single-pass translation",
+      "note": "Higher accuracy than Turbo and supports task=translate. Fallback for workload G when the LLM slot is busy."
+    },
+    {
+      "id": "granite-speech",
+      "name": "IBM Granite Speech 3.3 8B",
+      "params": "8B",
+      "vram_gb": 5,
+      "rtfx": "15–30×",
+      "languages": "EN, FR, DE, ES",
+      "translate": false,
+      "license": "Apache 2.0",
+      "role": "alt",
+      "tagline": "☆ Accuracy upgrade if you hit Turbo ceiling",
+      "note": "5.85% avg WER — second only to Canary-Qwen on the HF leaderboard. Real ES support but per-language ES benchmarks sparse. Heavier (~5 GB, ~3× the latency). Worth it only if Turbo is making errors that matter."
+    },
+    {
+      "id": "qwen3-asr",
+      "name": "Qwen3-ASR",
+      "params": "1.7B / 0.6B",
+      "vram_gb": 1.5,
+      "rtfx": "TBD",
+      "languages": "52 incl. EN/ES",
+      "translate": false,
+      "license": "Apache 2.0",
+      "role": "watch",
+      "tagline": "⏱ Watch — retest next quarter",
+      "note": "Released January 2026 by Alibaba. Per-language ES WER not yet published. Could displace Turbo if benchmarks land favorably."
+    },
+    {
+      "id": "canary-qwen",
+      "name": "NVIDIA Canary-Qwen 2.5B",
+      "params": "2.5B",
+      "vram_gb": 5,
+      "rtfx": "20–40×",
+      "languages": "EN (limited multilingual)",
+      "translate": false,
+      "license": "NVIDIA",
+      "role": "dropped",
+      "tagline": "✗ Dropped — English-only in practice",
+      "note": "#1 on HF Open ASR Leaderboard at 5.63% WER, but English-strong with very limited Spanish support."
+    }
+  ],
+  "asr_translation_paths": [
+    {
+      "id": "single",
+      "label": "Architecture (i) — Single-model",
+      "headline": "faster-whisper Large v3 with task=translate",
+      "pros": "Simplest pipeline, ~2 GB VRAM, ~30× realtime, single pass",
+      "cons": "Literal English output. No style polish, no summarization, occasional idiom loss.",
+      "verdict": "Fallback when LLM slot is occupied"
+    },
+    {
+      "id": "two-stage",
+      "label": "Architecture (ii) — Two-stage",
+      "headline": "faster-whisper Turbo (ES) → Gemma 4 26B MoE (translate + polish + disfluency)",
+      "pros": "Higher quality, context-aware translation, polishing + filler removal in same LLM call. Catalan extension comes free.",
+      "cons": "~15 GB VRAM total — fast-lane model drops out for batches.",
+      "verdict": "★ Default for batch audio translation"
+    }
+  ],
+  "disfluency_verdict": {
+    "decision": "Fold into the LLM polishing pass",
+    "reasoning": "Specialized disfluency-removal models (DisfluencyFixer, DISCO) are research-grade and primarily EN/HI/DE/FR — Spanish coverage is sparse. Tier-B LLMs (Gemma 4 26B MoE, Qwen3.5 9B) handle disfluency removal extremely well as part of an instruction-following pass. Adding a separate component means another model loaded, another VRAM slot, another point of failure, and worse multilingual coverage than the LLM you already run.",
+    "prompt": "Clean up this transcript:\n- Remove filler words (um, uh, eh, este, like, you know)\n- Remove false starts and self-corrections, keep the corrected version\n- Tighten conciseness without losing meaning or voice\n- Preserve technical terms and proper nouns exactly\n- Keep the output in [Spanish/English] — do not translate\n\nTranscript:\n{transcript}"
+  },
+  "concurrency_recipes": [
+    {
+      "id": "two-lanes",
+      "label": "Recipe 1 — Two lanes",
+      "summary": "Qwen3 4B (GPU, ~3 GB) + Gemma 4 26B MoE (GPU, ~14 GB).",
+      "note": "Both at full speed. Total ~17 GB — minor shared-memory spill, handled gracefully on Blackwell."
+    },
+    {
+      "id": "quality-batch",
+      "label": "Recipe 2 — Quality batch",
+      "summary": "Qwen3 4B (GPU) + Qwen3 32B dense (GPU + ~3.5 GB CPU spill).",
+      "note": "Fast lane unaffected. 32B at ~10 t/s — overnight transcript reprocessing."
+    },
+    {
+      "id": "three-concurrent",
+      "label": "Recipe 3 — Three concurrent",
+      "summary": "Qwen3 4B + GPT-OSS 20B (GPU, ~15 GB) + Gemma 3 4B (CPU-only, RAM).",
+      "note": "The 7800X3D's 96 MB L3 makes Gemma 3 4B on CPU run ~10 t/s — useful as a translation specialist."
+    }
+  ],
+  "top_picks": [
+    {
+      "tier": "A",
+      "model_id": "qwen3-4b",
+      "why": "Best small agentic model on this hardware. Pair with Gemma 3 4B if Catalan polish matters more than tool-call accuracy."
+    },
+    {
+      "tier": "B",
+      "model_id": "gemma4-26b-moe",
+      "why": "99 t/s, full 256k context, Google-grade multilingual. The default for transcript polishing, document work, and deep agentic."
+    },
+    {
+      "tier": "C",
+      "model_id": "qwen3-32b",
+      "why": "BFCL leader at 75.7%. ~10 t/s with mild CPU spill — reserve for batch quality runs where correctness > latency."
+    }
+  ],
+  "shortlist": {
+    "agentic_light": {
+      "current": "gemma4-e4b-it",
+      "current_id": "gemma4_e4b",
+      "recommended": "Qwen3 4B (2507)",
+      "recommended_id": "qwen3_4b",
+      "recommended_action": "upgrade",
+      "reason": "Strict frontier reading. Qwen3 4B is the Tier A top pick on the chart (Apache 2.0, ~3 GB Q4_K_M, ~100 t/s, best small agentic model). Gemma 4 E4B is the incumbent and works fine, but it isn't plotted on the frontier — Qwen3 4B is the analyzed Pareto pick for OpenClaw routing/classification."
+    },
+    "agentic_heavy": {
+      "current": "gemma4-26b-a4b-it",
+      "current_id": "gemma4_26b",
+      "recommended": "gemma4-26b-a4b-it",
+      "recommended_id": "gemma4_26b",
+      "recommended_action": "keep",
+      "reason": "Incumbent and Tier B top pick on the frontier. 99 t/s, 256k ctx, strong multilingual including Catalan. The standout 16 GB-class model of 2026 — no swap warranted."
+    },
+    "audio_transcribe": {
+      "current": "whisper-large-v3-turbo",
+      "current_id": "whisper",
+      "recommended": "whisper-large-v3-turbo (faster-whisper runtime)",
+      "recommended_id": "whisper",
+      "recommended_action": "runtime_upgrade",
+      "recommended_runtime": "faster-whisper",
+      "reason": "Runtime upgrade only — same Turbo weights via CTranslate2 give ~2× RTFx and lower VRAM (report §7.3 ★ Primary). Engine code change is manual."
+    },
+    "audio_translate": {
+      "current": "whisper-medium",
+      "current_id": "whisper_translate",
+      "recommended": "whisper-medium (defer)",
+      "recommended_id": "whisper_translate",
+      "recommended_action": "watch",
+      "reason": "Strict frontier reading. Report §7.4 picks two-stage (Turbo → Gemma 4 26B MoE) as the default for ES→EN, leaving whisper-medium as a fallback only when the LLM slot is busy. Mark as watch — keep the slot defined and lazy-loaded, but don't actively maintain it."
+    }
+  }
+}

@@ -21,16 +21,20 @@ hub:
 tray:
   autostart_hub: true
   autostart_models:             # set to [] to skip model autostart
-    - qwen
-    - whisper
-    - whisper_translate
+    - gemma4_e4b                # agentic_light role — fast lane
+    - whisper                   # audio_transcribe role
+    - whisper_translate         # audio_translate role (lazy)
   hub_ready_timeout_s: 30
 
 hosts:
   pc-cuda:
     platform: win32
     default: true
-    enabled: [qwen, glm, gemma4_e4b, gemma4_26b, whisper, whisper_translate]
+    # qwen and glm are kept defined below as candidates for ad-hoc bring-up,
+    # but are out of the active rotation. To bring one up: add its id back
+    # to this list and run `python -m src.install --fix`, or just launch
+    # `launchers/run_qwen.bat` directly.
+    enabled: [gemma4_e4b, gemma4_26b, whisper, whisper_translate]
 
   mac-mini-m4:
     platform: darwin
@@ -223,3 +227,22 @@ models:
       - "1"
       - "--inference-path"
       - "/v1/audio/transcriptions"
+
+# --- Active roles (managed by src/model_swap.py via the Frontier tab) ---
+# Maps a small fixed set of role slots to model ids in `models:` above.
+# Latest-only: exactly one model id per role (audio is two-slotted by
+# design — turbo for transcribe, medium for translate). The `claude`
+# subscription path is **not** part of this rotation and is never
+# touched by the swap logic.
+roles:
+  agentic_light:
+    model_id: gemma4_e4b
+    notes: "OpenClaw fast lane, classification, edge"
+  agentic_heavy:
+    model_id: gemma4_26b
+    notes: "OpenClaw deep lane, transcripts, documents, translation, disfluency removal"
+  audio:
+    transcribe:
+      model_id: whisper            # whisper-large-v3-turbo on :8090
+    translate:
+      model_id: whisper_translate  # whisper-medium on :8091, lazy
