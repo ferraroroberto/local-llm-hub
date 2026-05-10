@@ -8,7 +8,9 @@ plus a local whisper.cpp ASR server that clients hit directly:
   your local Claude Code auth (your subscription) instead of an API key.
 - **qwen3.5-9b** — forwarded to a local `llama-server` running
   [unsloth/Qwen3.5-9B-GGUF](https://huggingface.co/unsloth/Qwen3.5-9B-GGUF)
-  on `127.0.0.1:8081`.
+  on `127.0.0.1:8081`. 64 K context window, full GPU offload with
+  flash-attn (the model itself is hybrid attention + recurrent, so
+  KV at 64 K is only ~2 GB).
 - **glm-4.5-air** — forwarded to a local `llama-server` running
   [unsloth/GLM-4.5-Air-GGUF](https://huggingface.co/unsloth/GLM-4.5-Air-GGUF)
   on `127.0.0.1:8082` (MoE CPU offload — attention on GPU, expert tensors
