@@ -20,7 +20,25 @@
   },
   "models": [
     {
-      "id": "qwen3-4b",
+      "id": "qwen35-4b",
+      "name": "Qwen 3.5 4B",
+      "family": "Qwen",
+      "tier": "A",
+      "params": "4B",
+      "arch": "hybrid (DeltaNet + sparse MoE)",
+      "quant": "Q4_K_M",
+      "vram_gb": 3,
+      "tps": 110,
+      "quality": 65,
+      "ctx": "262k native",
+      "license": "Apache 2.0",
+      "fits_vram": true,
+      "frontier": true,
+      "primary_use": "OpenClaw routing, fast tool calls, edge",
+      "note": "Feb 2026 release. Hybrid Gated DeltaNet + sparse MoE on a 4B base, 262k native ctx, 201 languages incl. ES/CA. Replaces Qwen3 4B (2507) as the Tier A top pick."
+    },
+    {
+      "id": "qwen3-4b-2507",
       "name": "Qwen3 4B (2507)",
       "family": "Qwen",
       "tier": "A",
@@ -33,9 +51,9 @@
       "ctx": "32k (256k YaRN)",
       "license": "Apache 2.0",
       "fits_vram": true,
-      "frontier": true,
-      "primary_use": "OpenClaw routing, fast tool calls",
-      "note": "Best small agentic model. Solid ES, Catalan acceptable."
+      "frontier": false,
+      "primary_use": "—",
+      "note": "Solid small agentic model from late 2025. Now dominated by Qwen 3.5 4B on context, multilingual reach, and quality."
     },
     {
       "id": "gemma3-4b",
@@ -52,8 +70,8 @@
       "license": "Gemma",
       "fits_vram": true,
       "frontier": true,
-      "primary_use": "Fast multilingual triage, transcript shaping",
-      "note": "Best Catalan support of the small models. Weaker function calling than Qwen3."
+      "primary_use": "Fast multilingual triage, transcript shaping, Catalan",
+      "note": "Best Catalan support of the small models. Weaker function calling than Qwen3.5. Useful as a CPU-side translation specialist on the 7800X3D."
     },
     {
       "id": "phi4-mini",
@@ -97,7 +115,7 @@
       "family": "Qwen",
       "tier": "B",
       "params": "9B",
-      "arch": "dense",
+      "arch": "hybrid",
       "quant": "Q4_K_M",
       "vram_gb": 5.5,
       "tps": 80,
@@ -107,7 +125,7 @@
       "fits_vram": true,
       "frontier": false,
       "primary_use": "Ultra-long-context document work",
-      "note": "Confirmed 250k+ context on this exact GPU. Loses to Gemma 4 26B MoE on speed AND quality."
+      "note": "Confirmed 250k+ context on this exact GPU. Loses to Gemma 4 26B MoE and Qwen 3.6 35B-A3B on speed AND quality."
     },
     {
       "id": "gemma3-12b",
@@ -179,7 +197,43 @@
       "fits_vram": true,
       "frontier": true,
       "primary_use": "★ Default workhorse — transcripts, documents, deep agentic, EN↔ES↔CA",
-      "note": "The standout 16 GB-class model of 2026. 99 t/s confirmed on RTX 5060 Ti at full 256k context."
+      "note": "The standout 16 GB-class model of 2026. 99 t/s confirmed at full 256k context (njannasch.dev, 2026-03-02). Ties with Qwen 3.6 35B-A3B in May 2026 — Gemma stays the default on multilingual / Catalan track record."
+    },
+    {
+      "id": "qwen36-35b-a3b",
+      "name": "Qwen 3.6 35B-A3B",
+      "family": "Qwen",
+      "tier": "B",
+      "params": "35B / 3B active",
+      "arch": "MoE (hybrid DeltaNet)",
+      "quant": "Q4_K_M",
+      "vram_gb": 13.5,
+      "tps": 98,
+      "quality": 84,
+      "ctx": "262k native (1M extensible)",
+      "license": "Apache 2.0",
+      "fits_vram": true,
+      "frontier": true,
+      "primary_use": "★ Tied with Gemma 4 26B MoE — agentic, long-doc, 201-language multilingual",
+      "note": "Released 2026-04-16. 98 t/s at full 262k context on the 5060 Ti per njannasch.dev. Apache 2.0 (cleaner than Gemma license). 201-language coverage; ES well-covered, Catalan less benchmarked than Gemma. Composite within ~1% of Gemma 4 26B → call it a tie."
+    },
+    {
+      "id": "qwen36-27b",
+      "name": "Qwen 3.6 27B (dense)",
+      "family": "Qwen",
+      "tier": "B",
+      "params": "27B",
+      "arch": "dense",
+      "quant": "Q4_K_M",
+      "vram_gb": 16,
+      "tps": 31,
+      "quality": 80,
+      "ctx": "65k usable",
+      "license": "Apache 2.0",
+      "fits_vram": false,
+      "frontier": false,
+      "primary_use": "—",
+      "note": "Released April 2026. 31 t/s on the 5060 Ti with up to 65K usable context per njannasch.dev. Dominated by the 35B-A3B MoE sibling on speed AND quality at the same VRAM footprint — MoE wins on this hardware."
     },
     {
       "id": "gemma3-27b",
@@ -215,7 +269,7 @@
       "fits_vram": false,
       "frontier": false,
       "primary_use": "—",
-      "note": "Slight VRAM overflow (~2 GB) but still fast. Dominated by Gemma 4 26B MoE at this speed/quality combo."
+      "note": "Predecessor to Qwen 3.6 35B-A3B. Now dominated by the 3.6 update on speed and benchmark scores at lower VRAM."
     },
     {
       "id": "qwen3-32b",
@@ -233,7 +287,25 @@
       "fits_vram": false,
       "frontier": true,
       "primary_use": "Quality runs, hard agentic, batch overnight",
-      "note": "BFCL v3 leader among open weights (75.7%). ~3.5 GB CPU spill, ~10–12 t/s."
+      "note": "BFCL v3 leader among open weights (75.7%). ~3.5 GB CPU spill, ~10–12 t/s. Held off the Tier B frontier by Qwen 3.6 35B-A3B which now matches its quality at ~9× the speed."
+    },
+    {
+      "id": "mistral-medium-35",
+      "name": "Mistral Medium 3.5",
+      "family": "Mistral",
+      "tier": "C",
+      "params": "128B",
+      "arch": "dense",
+      "quant": "Q4_K_M",
+      "vram_gb": 75,
+      "tps": 2,
+      "quality": 86,
+      "ctx": "256k",
+      "license": "Modified MIT",
+      "fits_vram": false,
+      "frontier": false,
+      "primary_use": "—",
+      "note": "Released 2026-04-29. Dense 128B is too large for this box even with 128 GB RAM offload — single-digit t/s. Modified MIT license has revenue gates. Dropped on hardware grounds, not quality."
     },
     {
       "id": "llama33-70b",
@@ -251,7 +323,7 @@
       "fits_vram": false,
       "frontier": false,
       "primary_use": "—",
-      "note": "Heavy CPU offload (24 GB+ in RAM). Dominated by Qwen3 32B: faster AND higher quality."
+      "note": "Heavy CPU offload (24 GB+ in RAM). Dominated by Qwen3 32B: faster AND higher quality at lower VRAM."
     }
   ],
   "asr_models": [
@@ -300,17 +372,17 @@
       "params": "8B",
       "vram_gb": 5,
       "rtfx": "15–30×",
-      "languages": "EN, FR, DE, ES",
-      "translate": false,
+      "languages": "EN, FR, DE, ES, PT",
+      "translate": true,
       "license": "Apache 2.0",
       "role": "alt",
       "tagline": "☆ Accuracy upgrade if you hit Turbo ceiling",
-      "note": "5.85% avg WER — second only to Canary-Qwen on the HF leaderboard. Real ES support but per-language ES benchmarks sparse. Heavier (~5 GB, ~3× the latency). Worth it only if Turbo is making errors that matter."
+      "note": "5.85% avg WER — second only to Canary-Qwen on the HF leaderboard. Multilingual revision now confirmed for EN/FR/DE/ES/PT plus speech translation X↔EN for those languages and EN→{JA, ZH}. Heavier (~5 GB, ~3× the latency). Worth it only if Turbo is making errors that matter."
     },
     {
       "id": "qwen3-asr",
-      "name": "Qwen3-ASR",
-      "params": "1.7B / 0.6B",
+      "name": "Qwen3-ASR 1.7B",
+      "params": "1.7B",
       "vram_gb": 1.5,
       "rtfx": "TBD",
       "languages": "52 incl. EN/ES",
@@ -318,7 +390,20 @@
       "license": "Apache 2.0",
       "role": "watch",
       "tagline": "⏱ Watch — retest next quarter",
-      "note": "Released January 2026 by Alibaba. Per-language ES WER not yet published. Could displace Turbo if benchmarks land favorably."
+      "note": "Now in Azure AI Foundry alongside the open weights. Per-language ES WER still not in published comparative benchmarks. Could displace Turbo if community numbers land favorably."
+    },
+    {
+      "id": "parakeet-v3",
+      "name": "NVIDIA Parakeet TDT v3",
+      "params": "1.1B",
+      "vram_gb": 2,
+      "rtfx": "2000+×",
+      "languages": "25 incl. EN/ES",
+      "translate": false,
+      "license": "NVIDIA",
+      "role": "watch",
+      "tagline": "⏱ Watch — multilingual now in scope",
+      "note": "v3 expands from English-only to 25 languages including Spanish (per HF Open ASR Leaderboard 2026-Q1 update). RTFx 2793 on Whisper-Large-v3's reference setup. Worth a smoke test on ES recordings — could be the speed king if ES quality holds."
     },
     {
       "id": "canary-qwen",
@@ -354,54 +439,60 @@
   ],
   "disfluency_verdict": {
     "decision": "Fold into the LLM polishing pass",
-    "reasoning": "Specialized disfluency-removal models (DisfluencyFixer, DISCO) are research-grade and primarily EN/HI/DE/FR — Spanish coverage is sparse. Tier-B LLMs (Gemma 4 26B MoE, Qwen3.5 9B) handle disfluency removal extremely well as part of an instruction-following pass. Adding a separate component means another model loaded, another VRAM slot, another point of failure, and worse multilingual coverage than the LLM you already run.",
+    "reasoning": "Specialized disfluency-removal models (DisfluencyFixer, DISCO) are research-grade and primarily EN/HI/DE/FR — Spanish coverage is sparse. Tier-B LLMs (Gemma 4 26B MoE, Qwen 3.6 35B-A3B) handle disfluency removal extremely well as part of an instruction-following pass. Adding a separate component means another model loaded, another VRAM slot, another point of failure, and worse multilingual coverage than the LLM you already run.",
     "prompt": "Clean up this transcript:\n- Remove filler words (um, uh, eh, este, like, you know)\n- Remove false starts and self-corrections, keep the corrected version\n- Tighten conciseness without losing meaning or voice\n- Preserve technical terms and proper nouns exactly\n- Keep the output in [Spanish/English] — do not translate\n\nTranscript:\n{transcript}"
   },
   "concurrency_recipes": [
     {
       "id": "two-lanes",
       "label": "Recipe 1 — Two lanes",
-      "summary": "Qwen3 4B (GPU, ~3 GB) + Gemma 4 26B MoE (GPU, ~14 GB).",
+      "summary": "Qwen 3.5 4B (GPU, ~3 GB) + Gemma 4 26B MoE (GPU, ~14 GB).",
       "note": "Both at full speed. Total ~17 GB — minor shared-memory spill, handled gracefully on Blackwell."
     },
     {
+      "id": "qwen36-stack",
+      "label": "Recipe 2 — Qwen 3.6 stack (Apache 2.0 only)",
+      "summary": "Qwen 3.5 4B (GPU, ~3 GB) + Qwen 3.6 35B-A3B (GPU, ~13.5 GB).",
+      "note": "All-Apache stack — useful when license clarity matters (Macaya Bank work). Speed parity with Recipe 1."
+    },
+    {
       "id": "quality-batch",
-      "label": "Recipe 2 — Quality batch",
-      "summary": "Qwen3 4B (GPU) + Qwen3 32B dense (GPU + ~3.5 GB CPU spill).",
+      "label": "Recipe 3 — Quality batch",
+      "summary": "Qwen 3.5 4B (GPU) + Qwen3 32B dense (GPU + ~3.5 GB CPU spill).",
       "note": "Fast lane unaffected. 32B at ~10 t/s — overnight transcript reprocessing."
     },
     {
       "id": "three-concurrent",
-      "label": "Recipe 3 — Three concurrent",
-      "summary": "Qwen3 4B + GPT-OSS 20B (GPU, ~15 GB) + Gemma 3 4B (CPU-only, RAM).",
-      "note": "The 7800X3D's 96 MB L3 makes Gemma 3 4B on CPU run ~10 t/s — useful as a translation specialist."
+      "label": "Recipe 4 — Three concurrent",
+      "summary": "Qwen 3.5 4B + GPT-OSS 20B (GPU, ~15 GB) + Gemma 3 4B (CPU-only, RAM).",
+      "note": "The 7800X3D's 96 MB L3 makes Gemma 3 4B on CPU run ~10 t/s — useful as a Catalan-strong specialist."
     }
   ],
   "top_picks": [
     {
       "tier": "A",
-      "model_id": "qwen3-4b",
-      "why": "Best small agentic model on this hardware. Pair with Gemma 3 4B if Catalan polish matters more than tool-call accuracy."
+      "model_id": "qwen35-4b",
+      "why": "Best small agentic model on this hardware as of May 2026. Hybrid DeltaNet + sparse MoE, 262k native ctx, 201 languages, Apache 2.0. Pair with Gemma 3 4B if Catalan polish matters more than tool-call accuracy."
     },
     {
       "tier": "B",
       "model_id": "gemma4-26b-moe",
-      "why": "99 t/s, full 256k context, Google-grade multilingual. The default for transcript polishing, document work, and deep agentic."
+      "why": "99 t/s, full 256k context, Google-grade multilingual including Catalan. Tied with Qwen 3.6 35B-A3B — keep Gemma as default on Catalan track record; switch to Qwen 3.6 if you need pure Apache 2.0."
     },
     {
       "tier": "C",
       "model_id": "qwen3-32b",
-      "why": "BFCL leader at 75.7%. ~10 t/s with mild CPU spill — reserve for batch quality runs where correctness > latency."
+      "why": "BFCL leader at 75.7%. ~10 t/s with mild CPU spill — reserve for batch quality runs where correctness > latency. Now competing closely with Qwen 3.6 35B-A3B at full GPU speed."
     }
   ],
   "shortlist": {
     "agentic_light": {
       "current": "gemma4-e4b-it",
       "current_id": "gemma4_e4b",
-      "recommended": "Qwen3 4B (2507)",
-      "recommended_id": "qwen3_4b",
+      "recommended": "Qwen 3.5 4B",
+      "recommended_id": "qwen35_4b",
       "recommended_action": "upgrade",
-      "reason": "Strict frontier reading. Qwen3 4B is the Tier A top pick on the chart (Apache 2.0, ~3 GB Q4_K_M, ~100 t/s, best small agentic model). Gemma 4 E4B is the incumbent and works fine, but it isn't plotted on the frontier — Qwen3 4B is the analyzed Pareto pick for OpenClaw routing/classification."
+      "reason": "Strict frontier reading. Qwen 3.5 4B (Feb 2026) is the new Tier A top pick — hybrid Gated DeltaNet + sparse MoE, 262k native ctx, 201 languages, Apache 2.0. Replaces Qwen3 4B (2507) on the frontier. Gemma 4 E4B is the incumbent and works fine, but Qwen 3.5 4B is the analyzed Pareto pick for OpenClaw routing/classification."
     },
     "agentic_heavy": {
       "current": "gemma4-26b-a4b-it",
@@ -409,7 +500,7 @@
       "recommended": "gemma4-26b-a4b-it",
       "recommended_id": "gemma4_26b",
       "recommended_action": "keep",
-      "reason": "Incumbent and Tier B top pick on the frontier. 99 t/s, 256k ctx, strong multilingual including Catalan. The standout 16 GB-class model of 2026 — no swap warranted."
+      "reason": "Incumbent and Tier B top pick on the frontier. 99 t/s, 256k ctx, strong multilingual including Catalan. Now tied (≤3% composite) with Qwen 3.6 35B-A3B (Apr 2026, Apache 2.0, 98 t/s, 262k ctx, 201 languages). Gemma stays the default on Catalan track record; consider switching to Qwen 3.6 if Apache 2.0 license clarity becomes important."
     },
     "audio_transcribe": {
       "current": "whisper-large-v3-turbo",
