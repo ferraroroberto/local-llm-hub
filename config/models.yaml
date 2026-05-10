@@ -21,7 +21,7 @@ hub:
 tray:
   autostart_hub: true
   autostart_models:             # set to [] to skip model autostart
-    - gemma4_e4b
+    - qwen
     - whisper
     - whisper_translate
   hub_ready_timeout_s: 30
