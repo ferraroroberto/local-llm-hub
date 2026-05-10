@@ -124,6 +124,11 @@ models:
   # See docs/frontier/runs/2026-05-10/report.md §5 (Tier A) and §10.
   qwen35_4b:
     display_name: qwen3.5-4b
+    # `agentic_light` is the role alias — clients (e.g. voice-transcriber)
+    # address the role, not this specific model id. When swap-model flips
+    # roles.agentic_light.model_id to a successor, this alias must move
+    # to the successor's row so the contract stays stable.
+    aliases: ["agentic_light"]
     backend: openai
     engine: llama-server
     port: 8088
@@ -184,6 +189,9 @@ models:
   # whole model sits on GPU. Context capped at 8K to leave KV cache room.
   gemma4_26b:
     display_name: gemma4-26b-a4b-it
+    # `agentic_heavy` is the role alias — see note on qwen35_4b. Move
+    # this alias with the role pointer when swap-model upgrades the slot.
+    aliases: ["agentic_heavy"]
     backend: openai
     engine: llama-server
     port: 8087

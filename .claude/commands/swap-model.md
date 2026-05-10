@@ -19,6 +19,15 @@ they want; ask. Plan-mode rules apply throughout.
 - Edit `config/models.yaml` as text (or with surgical replacements).
   Do **not** round-trip the whole file through `yaml.safe_dump` — it
   will strip the heavy in-line commenting that documents each entry.
+- **Role aliases follow the role pointer.** The `agentic_light` and
+  `agentic_heavy` slot rows carry an `aliases:` entry containing the
+  role name itself, so external clients (voice-transcriber, openClaw,
+  ad-hoc curl) can address `model="agentic_light"` and have the hub
+  resolve to whoever currently holds that slot. On `upgrade` /
+  `retire`, the role alias **must move** from the ex-incumbent row to
+  the new role-holder's row in the same edit. Leaving it on the
+  ex-incumbent silently keeps clients pointed at the old model after
+  the swap. Audio roles do not currently use this pattern.
 - After every `upgrade` or `retire` action, **the swap is not done
   until the rest of the repo agrees with the new role pointer**.
   README, the Streamlit welcome page, `docs/model-comparison.md`,
@@ -88,6 +97,8 @@ section so the user sees the full blast radius up front:
 Will edit config/models.yaml:
   + models.qwen3_4b: { display_name: qwen3-4b-2507, backend: openai, ... }
   ~ roles.agentic_light.model_id: gemma4_e4b → qwen3_4b
+  ~ models.gemma4_e4b.aliases: ["agentic_light"] → []   (alias follows role)
+  ~ models.qwen3_4b.aliases:  []  → ["agentic_light"]   (new role-holder)
   ~ tray.autostart_models: gemma4_e4b → qwen3_4b
   ~ hosts.pc-cuda.enabled: + qwen3_4b
 Will write launchers/run_qwen3_4b.bat, .sh
@@ -113,6 +124,13 @@ Get explicit user approval ("yes" / "go") before executing.
 ### 5. Execute
 
 - Edit `config/models.yaml` in place (text edits, preserve comments).
+  For `agentic_light` / `agentic_heavy` upgrades, in the same edit:
+  remove the role name from the ex-incumbent's `aliases:` list
+  (delete the field entirely if it becomes empty) and add it to the
+  new role-holder's `aliases:` list. The alias is the client-facing
+  contract — the `roles:` pointer is internal bookkeeping; both must
+  flip together or the hub will keep routing `model="agentic_light"`
+  to the old row.
 - Write `launchers/run_<id>.bat` and `run_<id>.sh` modeled after a
   sibling launcher in the same family. Set the title and the python
   invocation to the new id; everything else is boilerplate.
@@ -389,6 +407,10 @@ requires it.
 ## What success looks like
 
 - `roles.<role>.model_id` flipped to the new id
+- For `agentic_light` / `agentic_heavy` swaps: the role name appears
+  in the new model row's `aliases:` list and is gone from the
+  ex-incumbent's. `curl /v1/messages` with `model="<role_name>"`
+  resolves to the new backend.
 - `models.<new_id>` row present with all the fields needed by
   `src.run_backend`
 - Active host's `enabled:` list contains the new id
