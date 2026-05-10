@@ -490,7 +490,13 @@ whose port isn't reachable, and reports per-model pass/fail.
 
 ## Limitations (intentional — lightweight)
 
-- No streaming. `stream: true` is accepted but returns a single response.
+- **Partial streaming.** `POST /v1/chat/completions` with
+  `stream: true` is fully supported for local backends — the hub
+  proxies llama-server's SSE through, scrubbing `<think>...</think>`
+  blocks from reasoning models (qwen / glm) so OpenAI-shape clients
+  see only the final answer. The Anthropic-shape `POST /v1/messages`
+  still returns a single JSON object when `stream: true` (Anthropic
+  event translation is on the backlog below).
 - Multi-turn chats are flattened into a single prompt for `claude -p`.
   (The local backends handle multi-turn natively through llama-server.)
 - Tool-use translation across Anthropic ↔ OpenAI shapes is not
@@ -508,7 +514,10 @@ Ordered roughly by payoff for API parity / developer experience.
 
 **High value — closes real compatibility gaps**
 
-- **Streaming (SSE).** Map `claude -p --output-format stream-json` and
+- **Streaming (SSE) on `/v1/messages`.** OpenAI-shape streaming on
+  `/v1/chat/completions` already lands as of
+  [docs/changelog/20260510-openai-streaming-and-think-strip.md](docs/changelog/20260510-openai-streaming-and-think-strip.md).
+  Still missing: map `claude -p --output-format stream-json` and
   llama-server's native SSE onto the Anthropic event shape
   (`message_start`, `content_block_delta`, `message_delta`,
   `message_stop`) so `client.messages.stream(...)` works unchanged.

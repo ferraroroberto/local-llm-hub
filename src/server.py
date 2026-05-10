@@ -12,9 +12,12 @@ Two shapes exposed:
   * POST /v1/chat/completions  - OpenAI shape (passthrough/translation)
   * GET  /v1/models            - union of enabled names (both shapes)
 
-Caveats (phase 1): text-only content. No streaming. No tool_use round-trip
-for non-claude backends (OpenAI-shape callers get tool use natively from
-llama-server; Anthropic-shape callers targeting qwen/glm are text-only).
+Caveats: text-only content; no tool_use round-trip on the Anthropic
+shape for non-claude backends (OpenAI-shape callers get tool use
+natively from llama-server). Streaming: ``/v1/chat/completions``
+proxies upstream SSE through (with ``<think>`` blocks stripped for
+reasoning models); ``/v1/messages`` still returns a single JSON for
+``stream=true`` until the Anthropic event translation lands.
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ import uuid
 from typing import Any, Dict, List, Optional, Union
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from .claude_cli import ClaudeCLIError, call_claude
@@ -36,7 +39,9 @@ from .openai_upstream import (
     UpstreamError,
     anthropic_to_openai_messages,
     call_openai_chat,
-    openai_response_text,
+    call_openai_chat_stream,
+    clean_openai_response,
+    iter_cleaned_sse,
     openai_to_anthropic_envelope,
 )
 
@@ -287,13 +292,81 @@ def _wrap_as_openai(text: str, *, model_name: str, in_toks: int, out_toks: int, 
     }
 
 
-@app.post("/v1/chat/completions")
-def chat_completions(req: ChatCompletionRequest) -> JSONResponse:
-    if req.stream:
-        logger.warning("stream=true requested - returning non-streaming response")
+def _stream_openai_passthrough(model: Model, req: "ChatCompletionRequest") -> StreamingResponse:
+    """Proxy llama-server SSE through the hub, stripping ``<think>`` blocks.
 
+    The upstream already speaks OpenAI-compatible SSE. We re-emit each
+    line verbatim except ``data:`` frames whose JSON payload we mutate
+    to fold ``reasoning_content`` and remove ``<think>...</think>``
+    spans (using a per-stream :class:`ThinkStripper` so a tag split
+    across chunks is still recognised).
+    """
+    if not model.url:
+        raise HTTPException(status_code=500, detail="model has no url")
+    extra: Dict[str, Any] = {}
+    if req.tools is not None:
+        extra["tools"] = req.tools
+    if req.tool_choice is not None:
+        extra["tool_choice"] = req.tool_choice
+
+    def event_stream() -> Any:
+        try:
+            raw = call_openai_chat_stream(
+                model.url,
+                model=model.display_name,
+                messages=req.messages,
+                max_tokens=req.max_tokens,
+                temperature=req.temperature,
+                extra=extra or None,
+            )
+            for cleaned in iter_cleaned_sse(raw):
+                yield cleaned + "\n"
+            # SSE record terminator after the final line. llama-server
+            # already sends ``data: [DONE]``; the trailing blank line
+            # closes the last event for strict SSE parsers.
+            yield "\n"
+        except UpstreamError as e:
+            logger.error("upstream stream error: %s", e)
+            err = {
+                "error": {
+                    "message": str(e),
+                    "type": "upstream_error",
+                    "code": "upstream_error",
+                }
+            }
+            import json as _json
+            yield "data: " + _json.dumps(err) + "\n\n"
+            yield "data: [DONE]\n\n"
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers=headers,
+    )
+
+
+@app.post("/v1/chat/completions")
+def chat_completions(req: ChatCompletionRequest) -> Response:
     model = _resolve(req.model)
-    logger.info("/v1/chat/completions model=%s backend=%s", req.model, model.backend)
+    logger.info(
+        "/v1/chat/completions model=%s backend=%s stream=%s",
+        req.model, model.backend, req.stream,
+    )
+
+    if req.stream and model.backend == "openai":
+        return _stream_openai_passthrough(model, req)
+    if req.stream:
+        # Non-openai backends don't have an SSE source; fall back to a
+        # single non-streaming response. Logged so it's visible.
+        logger.warning(
+            "stream=true on backend=%s - returning non-streaming response",
+            model.backend,
+        )
 
     if model.backend == "claude":
         # Flatten OpenAI messages into a claude -p prompt.
@@ -353,8 +426,10 @@ def chat_completions(req: ChatCompletionRequest) -> JSONResponse:
             )
         except UpstreamError as e:
             raise HTTPException(status_code=502, detail=str(e))
-        # Passthrough of upstream response (already OpenAI-shape).
-        return JSONResponse(raw)
+        # Passthrough of upstream response (already OpenAI-shape), with
+        # <think>...</think> stripped from message.content and
+        # reasoning_content folded into content when content is empty.
+        return JSONResponse(clean_openai_response(raw))
 
     raise HTTPException(status_code=500, detail=f"unknown backend {model.backend!r}")
 
