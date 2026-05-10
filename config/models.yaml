@@ -21,7 +21,7 @@ hub:
 tray:
   autostart_hub: true
   autostart_models:             # set to [] to skip model autostart
-    - gemma4_e4b                # agentic_light role — fast lane
+    - qwen35_4b                 # agentic_light role — fast lane
     - whisper                   # audio_transcribe role
     - whisper_translate         # audio_translate role (lazy)
   hub_ready_timeout_s: 30
@@ -34,7 +34,7 @@ hosts:
     # but are out of the active rotation. To bring one up: add its id back
     # to this list and run `python -m src.install --fix`, or just launch
     # `launchers/run_qwen.bat` directly.
-    enabled: [gemma4_e4b, gemma4_26b, whisper, whisper_translate]
+    enabled: [qwen35_4b, gemma4_e4b, gemma4_26b, whisper, whisper_translate]
 
   mac-mini-m4:
     platform: darwin
@@ -113,6 +113,47 @@ models:
       - "glm-4.5-air"
       # GLM-4.5 also emits <think> blocks; keep them inline so the hub
       # can strip them. See note on the qwen entry above.
+      - "--reasoning-format"
+      - "none"
+
+  # --- Local Qwen 3.5 4B via llama.cpp (hybrid Gated DeltaNet + sparse MoE) ---
+  # Tier A frontier pick (May 2026): replaces gemma4_e4b on `agentic_light`.
+  # Q4_K_M is ~3 GB on disk; Apache 2.0; native ctx 262144. Same Qwen3-style
+  # chat template as the 9B sibling, so we keep flash-attn on, single slot,
+  # and `--reasoning-format none` to let the hub strip <think>...</think>.
+  # See docs/frontier/runs/2026-05-10/report.md §5 (Tier A) and §10.
+  qwen35_4b:
+    display_name: qwen3.5-4b
+    backend: openai
+    engine: llama-server
+    port: 8088
+    hf_repo: "unsloth/Qwen3.5-4B-GGUF"
+    hf_pattern: "Qwen3.5-4B-Q4_K_M.gguf"
+    model_path: "models/Qwen3.5-4B-Q4_K_M.gguf"
+    args:
+      - "--jinja"
+      - "-ngl"
+      - "99"
+      # 64K context — same approach as the 9B sibling. The 4B base + Gated
+      # DeltaNet + sparse-MoE architecture has a small KV footprint, so 64K
+      # fits comfortably in VRAM alongside gemma4_26b on the deep lane.
+      - "-c"
+      - "65536"
+      # Flash attention. Required at 64K — fused kernel cuts attention
+      # scratch and is faster on RTX cards.
+      - "--flash-attn"
+      - "on"
+      # Single slot. agentic_light is OpenClaw's fast lane; we'd rather hand
+      # the whole context to one request than split it across competing slots.
+      - "--parallel"
+      - "1"
+      - "--alias"
+      - "qwen3.5-4b"
+      # Qwen3-style templates emit reasoning between <think>...</think>.
+      # `none` keeps the tags inline in `content`, so the hub can scrub them
+      # server-side (src/openai_upstream.ThinkStripper). Without this, the
+      # reasoning lands in `reasoning_content`, which OpenAI-shape clients
+      # like openClaw's vllm provider ignore — they then see empty content.
       - "--reasoning-format"
       - "none"
 
@@ -236,7 +277,7 @@ models:
 # touched by the swap logic.
 roles:
   agentic_light:
-    model_id: gemma4_e4b
+    model_id: qwen35_4b
     notes: "OpenClaw fast lane, classification, edge"
   agentic_heavy:
     model_id: gemma4_26b

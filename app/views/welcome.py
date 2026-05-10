@@ -25,8 +25,8 @@ def render() -> None:
 
         - `claude-*` models go through your local `claude -p` CLI and
           your Claude Code subscription — no API key needed.
-        - Local `gemma4-*` models go through `llama-server` on loopback
-          ports.
+        - Local `qwen3.5-4b` and `gemma4-26b-a4b-it` go through
+          `llama-server` on loopback ports.
         - `whisper-large-v3-turbo` (`:8090`) and `whisper-medium-translate`
           (`:8091`, lazy CPU) run as separate `whisper-server` processes;
           audio clients hit them directly (the hub doesn't proxy audio).
@@ -37,14 +37,15 @@ def render() -> None:
 
         | Role | Model |
         |---|---|
-        | `agentic_light` | `gemma4-e4b-it` (OpenClaw fast lane / classify) |
+        | `agentic_light` | `qwen3.5-4b` (OpenClaw fast lane / classify) |
         | `agentic_heavy` | `gemma4-26b-a4b-it` (deep agentic / transcripts / docs / ES↔EN↔CA) |
         | `audio_transcribe` | `whisper-large-v3-turbo` (EN/ES → text) |
         | `audio_translate` | `whisper-medium-translate` (lazy CPU; ES → EN, on-demand) |
 
-        `qwen3.5-9b` and `glm-4.5-air` are kept as **ad-hoc candidates**
-        — defined in `config/models.yaml` but not in the active rotation.
-        Bring up via `launchers/run_qwen.bat` / `run_glm.bat` if needed.
+        `gemma4-e4b-it`, `qwen3.5-9b`, and `glm-4.5-air` are kept as
+        **ad-hoc candidates** — defined in `config/models.yaml` but not
+        in the active rotation. Bring up via the matching
+        `launchers/run_*.bat` if needed.
 
         ### Tabs in this app
 
@@ -92,7 +93,7 @@ print(msg.content[0].text)
 
 # Local agentic_light role — fast, full GPU
 msg = client.messages.create(
-    model="gemma4-e4b-it",
+    model="qwen3.5-4b",
     max_tokens=128,
     messages=[{"role": "user", "content": "Hello"}],
 )

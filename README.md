@@ -12,9 +12,10 @@ Five entries in active use as of the May 2026 frontier reading:
   using your local Claude Code auth (your subscription) instead of an
   API key. Aliases `claude-haiku-4-5`, `claude-sonnet-4-6`,
   `claude-opus-4-7` all hit the same backend; the CLI picks the model.
-- **`gemma4-e4b-it`** — local `llama-server` running
-  [unsloth/gemma-4-E4B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF)
-  on `127.0.0.1:8086` (8 B dense, full GPU offload). Fills the
+- **`qwen3.5-4b`** — local `llama-server` running
+  [unsloth/Qwen3.5-4B-GGUF](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF)
+  on `127.0.0.1:8088` (4 B hybrid Gated DeltaNet + sparse MoE, full
+  GPU offload, Apache 2.0, 262 k native context). Fills the
   `agentic_light` role: OpenClaw fast lane, classification, edge.
 - **`gemma4-26b-a4b-it`** — local `llama-server` running
   [unsloth/gemma-4-26B-A4B-it-GGUF](https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF)
@@ -48,13 +49,18 @@ bring-up. Demoted on 2026-05-10 per the May 2026 frontier reading —
 see [docs/changelog/20260510-frontier-via-slash-commands.md](docs/changelog/20260510-frontier-via-slash-commands.md)
 for the reasoning.
 
+`gemma4-e4b-it` is the previous `agentic_light` role-holder, replaced
+by `qwen3.5-4b` on 2026-05-10 via `/swap-model`. It is **kept in
+`enabled:`** on the reference host for ad-hoc bring-up via
+`launchers/run_gemma4_e4b.bat`, but no longer autostarted.
+
 ## Roles & monthly refresh
 
 The four active local roles live in `config/models.yaml` → `roles:`:
 
 | Role | Model | Why |
 |---|---|---|
-| `agentic_light` | `gemma4_e4b` | OpenClaw fast lane / classify / edge |
+| `agentic_light` | `qwen35_4b` | OpenClaw fast lane / classify / edge |
 | `agentic_heavy` | `gemma4_26b` | Deep agentic, transcripts, docs, ES↔EN↔CA |
 | `audio_transcribe` | `whisper` | EN/ES audio → text |
 | `audio_translate` | `whisper_translate` | ES audio → English (lazy CPU sibling) |
@@ -156,7 +162,7 @@ openClaw / anthropic SDK / openai SDK / curl
    ┌────────────── FastAPI hub (src/server.py) ───────────────┐
    │  route by `model`:                                       │
    │    claude-*               → call_claude()   (claude -p subprocess)  │
-   │    gemma4-e4b-it          → llama-server 127.0.0.1:8086             │
+   │    qwen3.5-4b             → llama-server 127.0.0.1:8088             │
    │    gemma4-26b-a4b-it      → llama-server 127.0.0.1:8087             │
    │    whisper-large-v3-turbo → 400 "POST to :8090 directly" (audio)    │
    │    whisper-medium-translate → 400 "POST to :8091 directly" (audio)  │
@@ -169,6 +175,8 @@ audio clients  ──────►  whisper_translate proxy 127.0.0.1:8091   (
 
 Demoted (defined in config/models.yaml, not in any host's enabled list):
   qwen3.5-9b, glm-4.5-air — bring up via launchers/run_qwen.bat / run_glm.bat
+Replaced as agentic_light on 2026-05-10 (still enabled on pc-cuda for fallback):
+  gemma4-e4b-it — bring up via launchers/run_gemma4_e4b.bat
 ```
 
 See [docs/project-structure.md](docs/project-structure.md) for the full
@@ -195,7 +203,8 @@ local-llm-hub/
 ├── launchers/                # per-model backends (.bat + .sh)
 │   ├── run_qwen.*               # demoted candidate; ad-hoc only
 │   ├── run_glm.*                # demoted candidate; ad-hoc only
-│   ├── run_gemma4_e4b.*         # agentic_light role on :8086
+│   ├── run_qwen35_4b.*          # agentic_light role on :8088
+│   ├── run_gemma4_e4b.*         # ex-agentic_light fallback on :8086 (still enabled, not autostarted)
 │   ├── run_gemma4_26b.*         # agentic_heavy role on :8087
 │   ├── run_whisper.*            # audio_transcribe role on :8090
 │   ├── run_whisper_translate.*  # audio_translate role on :8091 (lazy)
@@ -209,7 +218,7 @@ local-llm-hub/
 │   ├── model_registry.py     # YAML loader
 │   ├── host_profile.py       # pick active host row
 │   ├── install.py            # first-run checks + --fix
-│   ├── run_backend.py        # hub|gemma4_e4b|gemma4_26b|whisper|… dispatcher
+│   ├── run_backend.py        # hub|qwen35_4b|gemma4_26b|whisper|… dispatcher
 │   ├── server_process.py     # hub Popen + ownership / adopt-or-spawn
 │   ├── backend_process.py    # per-model Popen (llama-server + whisper-server)
 │   └── whisper_translate_proxy.py  # FastAPI shim that lazy-spawns whisper-server (medium, CPU)
@@ -242,7 +251,8 @@ local-llm-hub/
 │   ├── llama.cpp/            # prebuilt llama-server binary (gitignored)
 │   └── whisper.cpp/          # prebuilt whisper-server binary (gitignored)
 ├── models/                   # downloaded GGUFs (gitignored):
-│                             #   gemma-4-E4B-it, gemma-4-26B-A4B-it (IQ4_XS),
+│                             #   Qwen3.5-4B (Q4_K_M), gemma-4-26B-A4B-it (IQ4_XS),
+│                             #   gemma-4-E4B-it (fallback, still enabled),
 │                             #   ggml-large-v3-turbo.bin (whisper turbo, transcribe),
 │                             #   ggml-medium.bin (whisper medium, translate),
 │                             #   plus any demoted candidates if brought up ad-hoc
@@ -275,10 +285,11 @@ The installer reads [config/models.yaml](config/models.yaml), figures
 out which host row you are (by `LOCAL_LLM_HUB_HOST` env var, else
 hostname match, else `default: true`), and only downloads what that
 host's `enabled` list asks for. On the reference Windows PC that's
-the active rotation: Gemma 4 E4B (~5 GB), Gemma 4 26B-A4B IQ4_XS
+the active rotation: Qwen 3.5 4B (~2.6 GB), Gemma 4 26B-A4B IQ4_XS
 (~13.4 GB), whisper-large-v3-turbo (~1.62 GB), whisper-medium for
-translate (~1.5 GB), plus the llama.cpp + whisper.cpp CUDA binaries
-under `vendor/`. On the Mac mini it's Qwen only.
+translate (~1.5 GB), plus Gemma 4 E4B (~5 GB) kept as the
+agentic_light fallback, plus the llama.cpp + whisper.cpp CUDA
+binaries under `vendor/`. On the Mac mini it's Qwen only.
 
 The demoted candidates (`qwen3.5-9b`, `glm-4.5-air`) are in the
 registry but **not** in any host's `enabled:` list, so the installer
@@ -332,11 +343,14 @@ run_hub.bat                      :: FastAPI hub on :8000
 launch_app.bat                   :: Streamlit control panel
 
 :: Active rotation
-launchers\run_gemma4_e4b.bat     :: agentic_light  on :8086
+launchers\run_qwen35_4b.bat      :: agentic_light  on :8088
 launchers\run_gemma4_26b.bat     :: agentic_heavy  on :8087
 launchers\run_whisper.bat        :: audio_transcribe on :8090
 launchers\run_whisper_translate.bat :: audio_translate on :8091 (lazy)
 launchers\run_all.bat            :: start every backend in `enabled:` for this host
+
+:: Fallback / ad-hoc (still in `enabled:` on pc-cuda, not autostarted)
+launchers\run_gemma4_e4b.bat     :: previous agentic_light on :8086
 
 :: Demoted candidates — present but not in `enabled:` by default
 launchers\run_qwen.bat           :: llama-server for Qwen on :8081
@@ -355,7 +369,7 @@ Starts a resident system-tray icon (silent — no terminal window) that:
 
 - Auto-starts the hub on :8000 and the models listed in
   `config/models.yaml` under `tray.autostart_models` (default
-  `[gemma4_e4b, whisper, whisper_translate]`). Set it to `[]` to skip
+  `[qwen35_4b, whisper, whisper_translate]`). Set it to `[]` to skip
   model autostart, or change the list to any subset of enabled model
   ids.
 - Lets you toggle any other enabled local model on/off from the
@@ -398,10 +412,13 @@ Equivalent Python entrypoints (run from the project root):
 
 ```bat
 .venv\Scripts\python -m src.run_backend hub
-.venv\Scripts\python -m src.run_backend gemma4_e4b
+.venv\Scripts\python -m src.run_backend qwen35_4b
 .venv\Scripts\python -m src.run_backend gemma4_26b
 .venv\Scripts\python -m src.run_backend whisper
 .venv\Scripts\python -m src.run_backend whisper_translate
+
+:: Fallback (still enabled, not autostarted)
+.venv\Scripts\python -m src.run_backend gemma4_e4b
 
 :: Demoted (ad-hoc only; not in tray autostart, not auto-installed)
 .venv\Scripts\python -m src.run_backend qwen
@@ -463,9 +480,9 @@ msg = client.messages.create(
     messages=[{"role": "user", "content": "Hello"}],
 )
 
-# agentic_light role — Gemma 4 E4B (8 B dense, full GPU)
+# agentic_light role — Qwen 3.5 4B (hybrid Gated DeltaNet + sparse MoE, full GPU)
 msg = client.messages.create(
-    model="gemma4-e4b-it",
+    model="qwen3.5-4b",
     max_tokens=128,
     messages=[{"role": "user", "content": "Hello"}],
 )

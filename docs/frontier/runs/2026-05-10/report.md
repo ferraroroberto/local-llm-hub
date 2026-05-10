@@ -349,7 +349,7 @@ and the yaml together, so the two stay in sync.
 
 | Role | Model | Decided | Why |
 |---|---|---|---|
-| **agentic_light** | `gemma4_e4b` (gemma4-e4b-it) | 2026-05-10 | Incumbent. Working in production for OpenClaw routing/classification. Strict frontier reading prefers Qwen 3.5 4B (Tier A top pick), but no measured ceiling on the incumbent yet — keep until proven worse. |
+| **agentic_light** | `qwen35_4b` (qwen3.5-4b) | 2026-05-10 | Upgraded from gemma4_e4b via `/swap-model`. Tier A top pick on the May 2026 frontier — hybrid Gated DeltaNet + sparse MoE on a 4B base, Q4_K_M ~3 GB, 262k native ctx, 201 languages, Apache 2.0. Replaces Qwen3 4B (2507) on the frontier. gemma4_e4b retained in `enabled:` for ad-hoc fallback. |
 | **agentic_heavy** | `gemma4_26b` (gemma4-26b-a4b-it) | 2026-05-10 | Tier B top pick on the frontier. 99 t/s, 256k ctx, strong multilingual including Catalan. Now tied with Qwen 3.6 35B-A3B (Apache 2.0) — Gemma stays default on Catalan track record. |
 | **audio_transcribe** | `whisper` (whisper-large-v3-turbo) | 2026-05-10 | Runtime upgrade to faster-whisper Turbo is the strict-frontier pick (~2× RTFx, lower VRAM, same quality). **Engine code change pending** — manual work in `src/run_backend.py` + `src/backend_process.py`. Until then, stay on whisper.cpp Turbo. |
 | **audio_translate** | `whisper_translate` (whisper-medium, lazy CPU) | 2026-05-10 | Strict frontier reading recommends `watch` — report §7.4 makes the two-stage path (Turbo → Gemma 4 26B) the default, leaving this slot as a fallback only. Keep defined and lazy-loaded; no active maintenance. |

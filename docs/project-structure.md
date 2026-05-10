@@ -133,7 +133,7 @@ flowchart TB
     ROOT --> README["README.md"]
     ROOT --> REQ["requirements.txt"]
     ROOT --> LIC["LICENSE"]
-    ROOT --> LAUNCHERS["launchers/<br/>run_hub / run_qwen / run_glm / run_gemma4_e4b / run_gemma4_26b / run_whisper / run_all<br/>.bat (Windows) + .sh (macOS)<br/>launch_app.bat / .sh"]
+    ROOT --> LAUNCHERS["launchers/<br/>run_hub / run_qwen / run_glm / run_qwen35_4b / run_gemma4_e4b / run_gemma4_26b / run_whisper / run_all<br/>.bat (Windows) + .sh (macOS)<br/>launch_app.bat / .sh"]
 
     ROOT --> CFGDIR["config/"]
     CFGDIR --> C1["models.yaml<br/>hosts + models registry"]
@@ -145,7 +145,7 @@ flowchart TB
     SRC --> S4["model_registry.py<br/>YAML loader + Model class"]
     SRC --> S5["host_profile.py<br/>pick active host row"]
     SRC --> S6["install.py<br/>checks + fix dispatch"]
-    SRC --> S7["run_backend.py<br/>hub|qwen|glm|gemma4*|whisper dispatcher"]
+    SRC --> S7["run_backend.py<br/>hub|qwen|glm|qwen35_4b|gemma4*|whisper dispatcher"]
     SRC --> S8["server_process.py<br/>hub Popen + kill-port"]
     SRC --> S9["backend_process.py<br/>per-model Popen (llama-server + whisper-server)"]
     SRC --> S10["landing.py<br/>HTML for GET /"]
@@ -180,10 +180,11 @@ flowchart TB
     ROOT --> MDLS["models/<br/>(gitignored)"]
     MDLS --> M1["Qwen3.5-9B-Q4_K_M.gguf"]
     MDLS --> M2["GLM-4.5-Air-Q4_K_M/<br/>multi-part GGUF"]
-    MDLS --> M3["gemma-4-E4B-it-Q4_K_M.gguf"]
-    MDLS --> M4["gemma-4-26B-A4B-it-UD-IQ4_XS.gguf (MoE)"]
-    MDLS --> M5["ggml-large-v3-turbo.bin (whisper turbo, transcribe)"]
-    MDLS --> M6["ggml-medium.bin (whisper medium, translate)"]
+    MDLS --> M3["Qwen3.5-4B-Q4_K_M.gguf (agentic_light)"]
+    MDLS --> M4["gemma-4-E4B-it-Q4_K_M.gguf (fallback)"]
+    MDLS --> M5["gemma-4-26B-A4B-it-UD-IQ4_XS.gguf (MoE; agentic_heavy)"]
+    MDLS --> M6["ggml-large-v3-turbo.bin (whisper turbo, transcribe)"]
+    MDLS --> M7["ggml-medium.bin (whisper medium, translate)"]
 
     ROOT --> DOCS["docs/"]
     DOCS --> D1["project-structure.md<br/>(this file)"]
@@ -222,7 +223,7 @@ sequenceDiagram
     F-->>C: 200 JSON {id, content, usage, stop_reason}
 ```
 
-### Local backend (model=qwen3.5-9b, glm-4.5-air, gemma4-e4b-it, gemma4-26b-a4b-it)
+### Local backend (model=qwen3.5-4b, gemma4-26b-a4b-it, plus qwen3.5-9b / glm-4.5-air / gemma4-e4b-it ad-hoc)
 
 ```mermaid
 sequenceDiagram
@@ -247,16 +248,18 @@ sequenceDiagram
 OpenAI-shape callers (`POST /v1/chat/completions`) skip the
 Anthropic translation hops on both paths — for Claude the hub wraps
 the envelope into OpenAI shape; for the local llama-server backends
-(qwen/glm/gemma4-e4b/gemma4-26b-a4b) it's near-passthrough.
+(qwen35_4b/qwen/glm/gemma4-e4b/gemma4-26b-a4b) it's near-passthrough.
 
 ## Key facts for LLM context
 
 - **Purpose.** Single local HTTP endpoint that speaks both Anthropic
   and OpenAI shapes and routes by model name to several backends:
-  Claude subscription (via the `claude -p` CLI), local Qwen3.5-9B,
-  local GLM-4.5-Air, local Gemma 4 E4B IT, local Gemma 4 26B-A4B IT
-  (MoE), and whisper.cpp ASR. Lets clients (openclaw, anthropic/openai
-  SDKs) keep one `base_url` and swap models via a string. See
+  Claude subscription (via the `claude -p` CLI), local Qwen 3.5 4B
+  (agentic_light), local Gemma 4 26B-A4B IT MoE (agentic_heavy),
+  whisper.cpp ASR (turbo + lazy translate), plus Gemma 4 E4B IT
+  (fallback) and Qwen3.5-9B / GLM-4.5-Air (ad-hoc candidates). Lets
+  clients (openclaw, anthropic/openai SDKs) keep one `base_url` and
+  swap models via a string. See
   [model-comparison.md](model-comparison.md) for per-model specs.
 - **One config, per-host filtering.**
   [`config/models.yaml`](../config/models.yaml) lists every model and
@@ -269,8 +272,9 @@ the envelope into OpenAI shape; for the local llama-server backends
   - `python -m src.run_backend hub` (or `run_hub.bat` / `.sh` at the
     repo root, or `tray.bat` on Windows) — starts FastAPI on
     `0.0.0.0:8000`.
-  - `python -m src.run_backend qwen` / `glm` / `gemma4_e4b` /
-    `gemma4_26b` / `whisper` / `whisper_translate` (or the matching
+  - `python -m src.run_backend qwen35_4b` / `gemma4_26b` / `whisper`
+    / `whisper_translate` (active rotation), plus `qwen` / `glm` /
+    `gemma4_e4b` (ad-hoc / fallback) (or the matching
     `launchers/run_*.bat` / `.sh`) — starts the matching
     `llama-server` / `whisper-server` child with args from
     `models.yaml`. The `whisper_translate` slot uses the
