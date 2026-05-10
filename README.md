@@ -30,15 +30,14 @@ Five entries in active use as of the May 2026 frontier reading:
   endpoints). Port 8090 is a shared mutual-exclusion lock with
   `E:\automation\automation\audio\transcribe_voice`. Fills the
   `audio_transcribe` role.
-- **`whisper-medium-translate`** — a *lazy-loaded* sibling whisper-server
-  on `127.0.0.1:8091` running `ggml-medium.bin` on CPU. Same
+- **`whisper-medium-translate`** — sibling whisper-server on
+  `127.0.0.1:8091` running `ggml-medium.bin` on CPU. Same
   OpenAI-compatible `/v1/audio/transcriptions` shape; supports
   `task=translate` (turbo is transcription-only — its decoder distill
-  drops translation). A small FastAPI proxy owns the port; the actual
-  whisper-server child is spawned on first request and torn down after
-  5 min of idle, so medium isn't sitting in RAM when you don't use
-  translate. Cold-start ~3-5 s on first call. Fills the
-  `audio_translate` role.
+  drops translation). Eager-loaded (~1.5 GB RAM, always ready). Fills
+  the `audio_translate` role. A lazy-load mode is also available — see
+  [src/whisper_translate_proxy.py](src/whisper_translate_proxy.py) — for
+  hosts that need to reclaim RAM when translate is rare.
 
 ## Demoted candidates (kept defined, not in active rotation)
 
@@ -63,7 +62,7 @@ The four active local roles live in `config/models.yaml` → `roles:`:
 | `agentic_light` | `qwen35_4b` | OpenClaw fast lane / classify / edge |
 | `agentic_heavy` | `gemma4_26b` | Deep agentic, transcripts, docs, ES↔EN↔CA |
 | `audio_transcribe` | `whisper` | EN/ES audio → text |
-| `audio_translate` | `whisper_translate` | ES audio → English (lazy CPU sibling) |
+| `audio_translate` | `whisper_translate` | ES audio → English (eager CPU sibling) |
 
 Two Claude Code slash commands drive the monthly refresh, both
 human-in-the-loop, both edit files directly:
@@ -110,10 +109,9 @@ backend has two slots — `whisper` (turbo, 8090, transcription) and
 `whisper_translate` (medium, 8091, translation). Turbo is
 distill-decoded and was *not* trained on the translate task, so we
 keep medium in a sibling slot for the rare cases when translation is
-needed. The translate slot is lazy-loaded (proxy on, model off until
-first call, unloaded after 5 min idle) so it doesn't spend RAM when
-unused. The single-slot rule still applies *per role* — there is one
-transcription model and one translation model.
+needed. Medium runs eager on CPU (~1.5 GB RAM) so the first translate
+call is instant. The single-slot rule still applies *per role* —
+there is one transcription model and one translation model.
 
 ## Scope & usage policy
 
@@ -168,10 +166,10 @@ openClaw / anthropic SDK / openai SDK / curl
    │    whisper-medium-translate → 400 "POST to :8091 directly" (audio)  │
    └──────────────────────────────────────────────────────────┘
 
-audio clients  ──────►  whisper-server 127.0.0.1:8090           (turbo, transcribe)
-audio clients  ──────►  whisper_translate proxy 127.0.0.1:8091   (medium, translate, lazy)
+audio clients  ──────►  whisper-server 127.0.0.1:8090           (turbo, transcribe, GPU)
+audio clients  ──────►  whisper-server 127.0.0.1:8091           (medium, translate, CPU)
                           (both speak OpenAI-compatible /v1/audio/transcriptions;
-                           the proxy spawns whisper-server on demand and unloads on idle)
+                           hub does not proxy /v1/audio/* — clients hit them directly)
 
 Demoted (defined in config/models.yaml, not in any host's enabled list):
   qwen3.5-9b, glm-4.5-air — bring up via launchers/run_qwen.bat / run_glm.bat
@@ -207,7 +205,7 @@ local-llm-hub/
 │   ├── run_gemma4_e4b.*         # ex-agentic_light fallback on :8086 (still enabled, not autostarted)
 │   ├── run_gemma4_26b.*         # agentic_heavy role on :8087
 │   ├── run_whisper.*            # audio_transcribe role on :8090
-│   ├── run_whisper_translate.*  # audio_translate role on :8091 (lazy)
+│   ├── run_whisper_translate.*  # audio_translate role on :8091 (eager CPU)
 │   └── run_all.*                # start everything enabled on this host
 ├── config/
 │   └── models.yaml           # hosts + models + roles + tray autostart
@@ -221,7 +219,7 @@ local-llm-hub/
 │   ├── run_backend.py        # hub|qwen35_4b|gemma4_26b|whisper|… dispatcher
 │   ├── server_process.py     # hub Popen + ownership / adopt-or-spawn
 │   ├── backend_process.py    # per-model Popen (llama-server + whisper-server)
-│   └── whisper_translate_proxy.py  # FastAPI shim that lazy-spawns whisper-server (medium, CPU)
+│   └── whisper_translate_proxy.py  # FastAPI shim for optional lazy-load mode (dormant; whisper_translate is eager)
 ├── tray/                     # Windows system-tray launcher (silent pythonw)
 │   ├── app.py                #   pystray menu + tk event pump
 │   ├── log_window.py         #   tk Notebook tailing hub + per-model logs
@@ -346,7 +344,7 @@ launch_app.bat                   :: Streamlit control panel
 launchers\run_qwen35_4b.bat      :: agentic_light  on :8088
 launchers\run_gemma4_26b.bat     :: agentic_heavy  on :8087
 launchers\run_whisper.bat        :: audio_transcribe on :8090
-launchers\run_whisper_translate.bat :: audio_translate on :8091 (lazy)
+launchers\run_whisper_translate.bat :: audio_translate on :8091 (eager CPU)
 launchers\run_all.bat            :: start every backend in `enabled:` for this host
 
 :: Fallback / ad-hoc (still in `enabled:` on pc-cuda, not autostarted)
@@ -534,9 +532,8 @@ curl -s -F file=@clip.wav -F response_format=json \
   http://127.0.0.1:8090/v1/audio/transcriptions
 ```
 
-Translate non-English audio to English via the lazy translate slot
-(direct to :8091; proxy spawns medium on first call, unloads after
-5 min idle):
+Translate non-English audio to English via the translate slot
+(direct to :8091; medium runs eager on CPU, ~1.5 GB RAM):
 
 ```bash
 curl -s -F file=@spanish.wav -F task=translate \

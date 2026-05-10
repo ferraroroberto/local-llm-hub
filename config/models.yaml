@@ -261,10 +261,8 @@ models:
   whisper_translate:
     display_name: whisper-medium-translate
     backend: whisper
-    engine: whisper-server-lazy
+    engine: whisper-server
     port: 8091
-    internal_port: 18091
-    idle_seconds: 300
     hf_repo: "ggerganov/whisper.cpp"
     hf_pattern: "ggml-medium.bin"
     model_path: "models/ggml-medium.bin"

@@ -4,7 +4,7 @@ An LLM-oriented map of `local-llm-hub`. Three views: a **component
 diagram** showing runtime data flow between clients, the hub, and the
 backends (Claude subscription + local llama-server processes for
 Qwen3.5-9B, GLM-4.5-Air, Gemma 4 E4B, Gemma 4 26B-A4B + whisper.cpp
-ASR for both transcribe (turbo, eager) and translate (medium, lazy));
+ASR for both transcribe (turbo, GPU) and translate (medium, CPU));
 a **module
 diagram** showing the Python package layout and imports; and a
 **request lifecycle** sequence. Use this file as context when asking
@@ -149,7 +149,7 @@ flowchart TB
     SRC --> S8["server_process.py<br/>hub Popen + kill-port"]
     SRC --> S9["backend_process.py<br/>per-model Popen (llama-server + whisper-server)"]
     SRC --> S10["landing.py<br/>HTML for GET /"]
-    SRC --> S11["whisper_translate_proxy.py<br/>FastAPI shim that lazy-spawns whisper-server<br/>(medium, CPU; idle-unload)"]
+    SRC --> S11["whisper_translate_proxy.py<br/>FastAPI shim for optional lazy-load mode<br/>(dormant; whisper_translate runs eager)"]
 
     ROOT --> APPDIR["app/"]
     APPDIR --> A1["app.py<br/>Streamlit nav"]
@@ -256,7 +256,7 @@ the envelope into OpenAI shape; for the local llama-server backends
   and OpenAI shapes and routes by model name to several backends:
   Claude subscription (via the `claude -p` CLI), local Qwen 3.5 4B
   (agentic_light), local Gemma 4 26B-A4B IT MoE (agentic_heavy),
-  whisper.cpp ASR (turbo + lazy translate), plus Gemma 4 E4B IT
+  whisper.cpp ASR (turbo transcribe + medium translate), plus Gemma 4 E4B IT
   (fallback) and Qwen3.5-9B / GLM-4.5-Air (ad-hoc candidates). Lets
   clients (openclaw, anthropic/openai SDKs) keep one `base_url` and
   swap models via a string. See
@@ -278,11 +278,12 @@ the envelope into OpenAI shape; for the local llama-server backends
     `launchers/run_*.bat` / `.sh`) — starts the matching
     `llama-server` / `whisper-server` child with args from
     `models.yaml`. The `whisper_translate` slot uses the
-    `whisper-server-lazy` engine, which dispatches to
-    `src/whisper_translate_proxy.py` instead of spawning
-    `whisper-server` directly: the proxy binds the external port and
-    only spawns the actual whisper-server child on first request,
-    tearing it down again after the configured idle window.
+    `whisper-server` engine (eager-load, medium on CPU, ~1.5 GB RAM).
+    A lazy-load alternative exists — set
+    `engine: whisper-server-lazy` + `internal_port` + `idle_seconds`
+    to route through `src/whisper_translate_proxy.py`, which
+    spawns/unloads the child around an idle window — but the active
+    rotation runs eager.
   - `python -m src.install [--fix]` — runs every health check, fixes
     the fixable; shared with the Streamlit Install tab.
   - `streamlit run app/app.py` (or `launch_app.bat` / `.sh` at the

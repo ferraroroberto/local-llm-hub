@@ -1,19 +1,17 @@
 @echo off
 REM ==========================================================
-REM  local-llm-hub - whisper-medium-translate (lazy, port 8091)
+REM  local-llm-hub - whisper-medium-translate (eager CPU, port 8091)
 REM  OpenAI-compatible /v1/audio/transcriptions; supports
 REM  task=translate. Sibling to run_whisper.bat (turbo on 8090).
-REM  The whisper-server child is spawned on first request and
-REM  torn down after the configured idle window (5 min default).
+REM  Loads ggml-medium.bin upfront and stays resident (~1.5 GB RAM).
 REM ==========================================================
-title Local LLM Hub - whisper-translate (lazy)
+title Local LLM Hub - whisper-translate
 cd /d "%~dp0.."
 
 echo ============================================================
-echo   whisper_translate proxy on http://127.0.0.1:8091
+echo   whisper-medium-translate on http://127.0.0.1:8091
 echo   POST WAV to /v1/audio/transcriptions (task=translate to translate)
-echo   First call cold-loads ggml-medium.bin on CPU (~3-5s)
-echo   Idle 5 min unloads the model; next call cold-loads again
+echo   ggml-medium.bin loaded on CPU (~1.5 GB RAM, always ready)
 echo   Ctrl+C to stop
 echo ============================================================
 echo.

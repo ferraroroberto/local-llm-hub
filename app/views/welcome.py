@@ -28,7 +28,7 @@ def render() -> None:
         - Local `qwen3.5-4b` and `gemma4-26b-a4b-it` go through
           `llama-server` on loopback ports.
         - `whisper-large-v3-turbo` (`:8090`) and `whisper-medium-translate`
-          (`:8091`, lazy CPU) run as separate `whisper-server` processes;
+          (`:8091`, eager CPU) run as separate `whisper-server` processes;
           audio clients hit them directly (the hub doesn't proxy audio).
 
         ### Active roles right now
@@ -40,7 +40,7 @@ def render() -> None:
         | `agentic_light` | `qwen3.5-4b` (OpenClaw fast lane / classify) |
         | `agentic_heavy` | `gemma4-26b-a4b-it` (deep agentic / transcripts / docs / ES↔EN↔CA) |
         | `audio_transcribe` | `whisper-large-v3-turbo` (EN/ES → text) |
-        | `audio_translate` | `whisper-medium-translate` (lazy CPU; ES → EN, on-demand) |
+        | `audio_translate` | `whisper-medium-translate` (eager CPU; ES → EN) |
 
         `gemma4-e4b-it`, `qwen3.5-9b`, and `glm-4.5-air` are kept as
         **ad-hoc candidates** — defined in `config/models.yaml` but not
@@ -117,7 +117,7 @@ print(msg.content[0].text)
         'curl -s -F file=@clip.wav -F response_format=json \\\n'
         '  http://127.0.0.1:8090/v1/audio/transcriptions\n'
         '\n'
-        '# Translate ES → EN — lazy medium on :8091 (cold-start ~3-5s)\n'
+        '# Translate ES → EN — medium on :8091 (CPU, eager-loaded)\n'
         'curl -s -F file=@spanish.wav -F task=translate \\\n'
         '  http://127.0.0.1:8091/v1/audio/transcriptions',
         language="bash",
