@@ -56,18 +56,29 @@ def call_gemini(
             "`gemini` CLI not found on PATH. Install with "
             "`npm i -g @google/gemini-cli` and run `gemini /auth login` once."
         )
-    args: List[str] = [exe, "-p"]
+    # `--skip-trust`: bypass the CLI's trusted-folder check, which would
+    # otherwise abort headless runs from an "untrusted" cwd.
+    # `-p " "`: the CLI requires a non-empty prompt value after `-p`; the
+    # real prompt is piped on stdin and appended to this placeholder.
+    args: List[str] = [exe, "--skip-trust", "-p", " "]
     if model:
         args += ["-m", model]
 
     pieces: List[str] = []
     if system:
         pieces.append(f"[System]\n{system}\n")
+    # Gemini CLI sandboxes file reads to its workspace (cwd). When images
+    # are attached we run the subprocess with `cwd` set to their parent
+    # dir and reference each file by basename — absolute paths outside
+    # the workspace come back as "file path is inaccessible due to
+    # security constraints". The hub's `_extract_image_blocks` writes
+    # every image for a request into the same temp dir, so a single
+    # parent always covers the whole batch.
+    run_cwd: Optional[str] = None
     if images:
-        # `@<path>` tokens are how the CLI pulls external files into the
-        # request. Use absolute, forward-slash paths so they work
-        # identically on Windows and POSIX.
-        refs = " ".join(f"@{Path(p).resolve().as_posix()}" for p in images)
+        image_paths = [Path(p).resolve() for p in images]
+        run_cwd = str(image_paths[0].parent)
+        refs = " ".join(f"@{p.name}" for p in image_paths)
         pieces.append(refs)
     pieces.append(prompt)
     stdin_text = "\n".join(pieces)
@@ -83,6 +94,7 @@ def call_gemini(
             timeout=timeout,
             check=False,
             shell=False,
+            cwd=run_cwd,
             creationflags=creationflags,
         )
     except FileNotFoundError as e:

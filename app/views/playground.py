@@ -2,13 +2,28 @@
 
 from __future__ import annotations
 
+import base64
 import time
+from typing import Optional
 
 import httpx
 import streamlit as st
 
 from src import server_process as sp
-from src.model_registry import enabled_models
+from src.model_registry import Model, enabled_models, resolve as resolve_model
+
+# Backends that support image content blocks via the hub.
+_IMAGE_BACKENDS = {"claude", "gemini"}
+
+# Media-type lookup for the image-block payload. Keep aligned with the
+# server-side `_extract_image_blocks` extension map.
+_MEDIA_TYPES = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "webp": "image/webp",
+    "gif": "image/gif",
+}
 
 
 def _model_options() -> list[str]:
@@ -74,6 +89,33 @@ def render() -> None:
         key="pg_prompt",
     )
 
+    # Image uploader appears only for backends that actually accept images
+    # through the hub (claude-*, gemini-*). Local llama.cpp backends are
+    # text-only — the hub would return 400 — so the widget is hidden to
+    # keep the testing surface honest.
+    resolved: Optional[Model] = resolve_model(model) if model else None
+    images_enabled = resolved is not None and resolved.backend in _IMAGE_BACKENDS
+    uploads = []
+    if images_enabled:
+        uploads = st.file_uploader(
+            "Images (optional)",
+            type=list(_MEDIA_TYPES.keys()),
+            accept_multiple_files=True,
+            key=f"pg_images_{st.session_state.get('pg_uploader_nonce', 0)}",
+            help=(
+                "Attach one or more images to test multimodal input. "
+                "Sent as Anthropic-style `image` content blocks; the hub "
+                "writes them to a per-request temp dir before invoking "
+                "the CLI."
+            ),
+        ) or []
+        if uploads:
+            # Render small fixed-width thumbnails inline — the uploader
+            # itself already lists filenames, so the preview just needs
+            # to confirm "yes, that's the right image" at a glance.
+            for up in uploads:
+                st.image(up.getvalue(), caption=up.name, width=96)
+
     send = st.button(
         "Send",
         type="primary",
@@ -81,9 +123,30 @@ def render() -> None:
     )
 
     if send:
+        # Build the user message. With no images we send a plain string
+        # (preserves the text-only path for local backends); with images
+        # we switch to Anthropic-shaped content blocks the hub knows how
+        # to route into claude_cli / gemini_cli.
+        if uploads:
+            blocks: list[dict] = [{"type": "text", "text": prompt}]
+            for up in uploads:
+                ext = (up.name.rsplit(".", 1)[-1] or "").lower()
+                media_type = _MEDIA_TYPES.get(ext, "image/png")
+                blocks.append({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": base64.b64encode(up.getvalue()).decode("ascii"),
+                    },
+                })
+            user_content: object = blocks
+        else:
+            user_content = prompt
+
         payload: dict = {
             "model": model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": user_content}],
         }
         if apply_max:
             payload["max_tokens"] = int(max_tokens)
@@ -103,6 +166,14 @@ def render() -> None:
             return
 
         elapsed = time.time() - t0
+
+        # Bump the uploader's key so attached images clear after a
+        # successful round-trip. We don't clear on HTTP errors so the
+        # user can retry without re-attaching.
+        if r.status_code == 200 and uploads:
+            st.session_state["pg_uploader_nonce"] = (
+                st.session_state.get("pg_uploader_nonce", 0) + 1
+            )
 
         if r.status_code != 200:
             st.error(f"HTTP {r.status_code}")

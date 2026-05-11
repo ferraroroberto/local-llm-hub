@@ -17,11 +17,11 @@ Subscription-backed cloud routes (no GPU, no API keys, no Cloud project):
   and downstream callers keep working unchanged.
 - **`gemini-*`** — forwarded to the **`gemini -p`** CLI, using your
   Google sign-in (browser login, no API key required). Three rows:
-  `gemini-3.1-pro` (alias `gemini_pro`, requires Google AI Pro
-  or Ultra as of 2026-03-25), `gemini-3-flash`, `gemini-3.1-flash-lite`
-  (alias `gemini_lite`, GA 2026-05-07). Quotas are shared with Gemini
-  Code Assist, lifted on the AI Pro / Ultra plans. Falls back to
-  `GEMINI_API_KEY` env if set.
+  `gemini-3.1-pro-preview` (alias `gemini_pro`, requires Google AI
+  Pro or Ultra as of 2026-03-25), `gemini-3-flash-preview`,
+  `gemini-3.1-flash-lite-preview` (alias `gemini_lite`, GA
+  2026-05-07). Quotas are shared with Gemini Code Assist, lifted on
+  the AI Pro / Ultra plans. Falls back to `GEMINI_API_KEY` env if set.
 
 Local entries in active use as of the May 2026 frontier reading:
 
@@ -536,18 +536,20 @@ msg = client.messages.create(
 
 # Gemini 3.1 Pro via your Google AI Pro subscription (browser login)
 msg = client.messages.create(
-    model="gemini_pro",   # alias for gemini-3.1-pro
+    model="gemini_pro",   # alias for gemini-3.1-pro-preview
     max_tokens=128,
     messages=[{"role": "user", "content": "Hello"}],
 )
 
-# Image content blocks work on both subscription paths (claude-* and gemini-*)
+# Image content blocks work on both subscription paths (claude-* and gemini-*).
+# The Streamlit Playground tab grows a file uploader automatically when the
+# selected model resolves to a claude/gemini backend.
 import base64
 with open("photo.png", "rb") as f:
     b64 = base64.b64encode(f.read()).decode()
 
 msg = client.messages.create(
-    model="gemini-3.1-pro",
+    model="gemini-3.1-pro-preview",
     messages=[{
         "role": "user",
         "content": [

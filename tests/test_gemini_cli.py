@@ -70,6 +70,7 @@ def test_call_gemini_image_refs_use_at_syntax(monkeypatch, tmp_path):
 
     def fake_run(args, **kw):
         captured["input"] = kw.get("input")
+        captured["cwd"] = kw.get("cwd")
         return _fake_proc(stdout="image described")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -78,14 +79,17 @@ def test_call_gemini_image_refs_use_at_syntax(monkeypatch, tmp_path):
     img.write_bytes(b"fake-png-bytes")
     gemini_cli.call_gemini(
         "what is this?",
-        model="gemini-3.1-pro",
+        model="gemini-3.1-pro-preview",
         images=[img],
     )
     body = captured["input"]
-    # @<absolute path> with forward slashes (POSIX-style, works on Windows).
-    assert "@" in body
-    assert img.resolve().as_posix() in body
+    # Images are referenced by basename and the subprocess runs with
+    # cwd set to their parent dir — absolute paths into %TEMP% hit
+    # Gemini's workspace sandbox and come back as "file path is
+    # inaccessible due to security constraints".
+    assert f"@{img.name}" in body
     assert "what is this?" in body
+    assert captured["cwd"] == str(img.resolve().parent)
 
 
 def test_call_gemini_missing_cli_raises(monkeypatch):

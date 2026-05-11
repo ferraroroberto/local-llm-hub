@@ -112,7 +112,7 @@ def test_list_models_includes_enabled():
     assert "claude_sonnet" in ids
     assert "claude_opus" in ids
     # Gemini subscription path is always enabled, like Claude.
-    assert "gemini-3.1-pro" in ids
+    assert "gemini-3.1-pro-preview" in ids
     assert "gemini_pro" in ids
     assert "gemini_flash" in ids
     assert "gemini_lite" in ids
@@ -139,7 +139,7 @@ def test_messages_routes_gemini_backend(monkeypatch):
     r = client.post(
         "/v1/messages",
         json={
-            "model": "gemini-3.1-pro",
+            "model": "gemini-3.1-pro-preview",
             "max_tokens": 64,
             "system": "Answer briefly.",
             "messages": [{"role": "user", "content": "ping"}],
@@ -148,13 +148,13 @@ def test_messages_routes_gemini_backend(monkeypatch):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["content"] == [{"type": "text", "text": "g-pong"}]
-    assert body["model"] == "gemini-3.1-pro"
-    assert captured["model"] == "gemini-3.1-pro"
+    assert body["model"] == "gemini-3.1-pro-preview"
+    assert captured["model"] == "gemini-3.1-pro-preview"
     assert captured["system"] == "Answer briefly."
 
 
 def test_messages_routes_gemini_alias(monkeypatch):
-    """`gemini_pro` alias resolves to display_name `gemini-3.1-pro`."""
+    """`gemini_pro` alias resolves to display_name `gemini-3.1-pro-preview`."""
     captured = {}
 
     def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
@@ -177,7 +177,7 @@ def test_messages_routes_gemini_alias(monkeypatch):
     )
     assert r.status_code == 200
     # Alias → underlying display_name handed to the CLI.
-    assert captured["model"] == "gemini-3.1-pro"
+    assert captured["model"] == "gemini-3.1-pro-preview"
 
 
 def test_messages_routes_claude_alias(monkeypatch):
@@ -221,7 +221,7 @@ def test_chat_completions_routes_gemini(monkeypatch):
     r = client.post(
         "/v1/chat/completions",
         json={
-            "model": "gemini-3-flash",
+            "model": "gemini-3-flash-preview",
             "messages": [{"role": "user", "content": "hello"}],
         },
     )

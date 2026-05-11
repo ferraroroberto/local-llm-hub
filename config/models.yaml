@@ -70,17 +70,17 @@ models:
   # (`gemini /auth login`); Pro models require a paid subscription as
   # of 2026-03-25. Falls back to GEMINI_API_KEY env if set.
   gemini_pro:
-    display_name: gemini-3.1-pro
+    display_name: gemini-3.1-pro-preview
     backend: gemini
     aliases: ["gemini_pro"]
 
   gemini_flash:
-    display_name: gemini-3-flash
+    display_name: gemini-3-flash-preview
     backend: gemini
     aliases: ["gemini_flash"]
 
   gemini_flash_lite:
-    display_name: gemini-3.1-flash-lite
+    display_name: gemini-3.1-flash-lite-preview
     backend: gemini
     aliases: ["gemini_lite"]
 
