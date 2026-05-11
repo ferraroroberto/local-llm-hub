@@ -3,7 +3,8 @@
 Routes each request by the `model` field to one of the backends in
 `config/models.yaml`:
 
-- claude-*                -> `claude -p` subprocess (existing behaviour)
+- claude-*                -> `claude -p` subprocess (Anthropic subscription)
+- gemini-*                -> `gemini -p` subprocess (Google AI Pro subscription)
 - qwen3.5-9b / qwen*      -> llama-server at 127.0.0.1:8081 (/v1)
 - glm-4.5-air / glm*      -> llama-server at 127.0.0.1:8082 (/v1)
 
@@ -22,16 +23,21 @@ reasoning models); ``/v1/messages`` still returns a single JSON for
 
 from __future__ import annotations
 
+import base64
 import logging
+import tempfile
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Union
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from .claude_cli import ClaudeCLIError, call_claude
+from .gemini_cli import GeminiCLIError, call_gemini
 from .host_profile import hub_bind_host, hub_port
 from .landing import LANDING_HTML
 from .model_registry import Model, enabled_models, resolve as resolve_model
@@ -58,6 +64,10 @@ logger = logging.getLogger(__name__)
 class ContentBlock(BaseModel):
     type: str
     text: Optional[str] = None
+    # Anthropic image block: {"type": "image", "source": {"type": "base64",
+    # "media_type": "image/png", "data": "<b64>"}} or {"type": "url",
+    # "url": "https://..."}. Kept loose to forward fields we don't model.
+    source: Optional[Dict[str, Any]] = None
 
 
 class Message(BaseModel):
@@ -91,6 +101,87 @@ def _system_to_text(system: Optional[Union[str, List[ContentBlock]]]) -> Optiona
     if isinstance(system, str):
         return system
     return _content_to_text(system) or None
+
+
+_EXT_BY_MEDIA_TYPE = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
+}
+
+
+@contextmanager
+def _extract_image_blocks(
+    messages: List[Message],
+) -> Iterator[Tuple[List[Message], List[Path]]]:
+    """Pull image content blocks out of messages, write them to a temp dir.
+
+    Yields ``(stripped_messages, image_paths)``. Stripped messages keep
+    only text blocks so the existing flattener works unchanged. The temp
+    dir and its contents are removed when the context exits, which must
+    not happen until after the backend subprocess returns.
+
+    Only Anthropic-style ``{"type": "image", "source": {"type": "base64",
+    ...}}`` blocks are extracted today. ``source.type == "url"`` is
+    forwarded as a text reference to the URL since neither CLI fetches
+    remote URLs on our behalf — image-by-URL needs `httpx.get` first,
+    which we can add later if a caller actually needs it.
+    """
+    image_paths: List[Path] = []
+    stripped: List[Message] = []
+    has_images = any(
+        isinstance(m.content, list)
+        and any(b.type == "image" for b in m.content)
+        for m in messages
+    )
+
+    if not has_images:
+        # Fast path — no temp dir at all when there's nothing to extract.
+        yield messages, []
+        return
+
+    with tempfile.TemporaryDirectory(prefix="hub-img-") as td:
+        td_path = Path(td)
+        for msg in messages:
+            if isinstance(msg.content, str):
+                stripped.append(msg)
+                continue
+            kept: List[ContentBlock] = []
+            for block in msg.content:
+                if block.type != "image" or not block.source:
+                    kept.append(block)
+                    continue
+                src = block.source
+                stype = src.get("type")
+                if stype == "base64":
+                    data_b64 = src.get("data") or ""
+                    media = src.get("media_type", "image/png")
+                    ext = _EXT_BY_MEDIA_TYPE.get(media, "bin")
+                    fname = f"img_{len(image_paths)}.{ext}"
+                    fpath = td_path / fname
+                    try:
+                        fpath.write_bytes(base64.b64decode(data_b64))
+                    except Exception as e:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"bad image block: {e}",
+                        )
+                    image_paths.append(fpath)
+                elif stype == "url":
+                    url = src.get("url", "")
+                    kept.append(ContentBlock(type="text", text=f"[image url: {url}]"))
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"unsupported image source.type {stype!r}",
+                    )
+            # Keep at least an empty text block so flatteners don't crash.
+            if not kept:
+                kept = [ContentBlock(type="text", text="")]
+            stripped.append(Message(role=msg.role, content=kept))
+        yield stripped, image_paths
 
 
 def _flatten_messages(messages: List[Message]) -> str:
@@ -147,18 +238,48 @@ def _resolve(model_name: str) -> Model:
     return m
 
 
-def _run_claude_backend(req: MessagesRequest) -> Dict[str, Any]:
-    prompt = _flatten_messages(req.messages)
+def _run_claude_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     system = _system_to_text(req.system)
-    try:
-        return call_claude(prompt, model=req.model, system=system)
-    except ClaudeCLIError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    with _extract_image_blocks(req.messages) as (msgs, images):
+        prompt = _flatten_messages(msgs)
+        try:
+            return call_claude(
+                # Use resolved display_name so version-free aliases
+                # (e.g. `claude_haiku`) hit the right CLI model.
+                prompt, model=model.display_name, system=system,
+                images=images or None,
+            )
+        except ClaudeCLIError as e:
+            raise HTTPException(status_code=502, detail=str(e))
+
+
+def _run_gemini_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
+    system = _system_to_text(req.system)
+    with _extract_image_blocks(req.messages) as (msgs, images):
+        prompt = _flatten_messages(msgs)
+        try:
+            return call_gemini(
+                prompt, model=model.display_name, system=system,
+                images=images or None,
+            )
+        except GeminiCLIError as e:
+            raise HTTPException(status_code=502, detail=str(e))
 
 
 def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     if not model.url:
         raise HTTPException(status_code=500, detail=f"model {model.id} has no url")
+    if any(
+        isinstance(m.content, list) and any(b.type == "image" for b in m.content)
+        for m in req.messages
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"backend {model.id!r} ({model.display_name}) is text-only. "
+                "Route image requests to a claude-* or gemini-* model instead."
+            ),
+        )
     messages = anthropic_to_openai_messages(
         [m.model_dump() for m in req.messages],
         _system_to_text(req.system),
@@ -191,7 +312,7 @@ def info() -> Dict[str, Any]:
     return {
         "name": "Local LLM Hub",
         "version": app.version,
-        "description": "Multi-model hub: Anthropic-shape + OpenAI-shape over Claude / Qwen / GLM.",
+        "description": "Multi-model hub: Anthropic-shape + OpenAI-shape over Claude / Gemini / Qwen / GLM.",
         "endpoints": {
             "health": "GET /health",
             "messages": "POST /v1/messages",
@@ -236,7 +357,9 @@ def messages(req: MessagesRequest) -> JSONResponse:
     logger.info("/v1/messages model=%s backend=%s", req.model, model.backend)
 
     if model.backend == "claude":
-        env = _run_claude_backend(req)
+        env = _run_claude_backend(model, req)
+    elif model.backend == "gemini":
+        env = _run_gemini_backend(model, req)
     elif model.backend == "openai":
         env = _run_openai_backend(model, req)
     elif model.backend == "whisper":
@@ -368,8 +491,8 @@ def chat_completions(req: ChatCompletionRequest) -> Response:
             model.backend,
         )
 
-    if model.backend == "claude":
-        # Flatten OpenAI messages into a claude -p prompt.
+    if model.backend in ("claude", "gemini"):
+        # Flatten OpenAI messages into a single prompt for the CLI path.
         sys_text: Optional[str] = None
         turns: List[str] = []
         for m in req.messages:
@@ -387,8 +510,11 @@ def chat_completions(req: ChatCompletionRequest) -> Response:
                 turns.append(f"Assistant: {content}")
         prompt = "\n".join(turns) if len(turns) > 1 else (turns[0].split(": ", 1)[-1] if turns else "")
         try:
-            env = call_claude(prompt, model=req.model, system=sys_text)
-        except ClaudeCLIError as e:
+            if model.backend == "claude":
+                env = call_claude(prompt, model=model.display_name, system=sys_text)
+            else:
+                env = call_gemini(prompt, model=model.display_name, system=sys_text)
+        except (ClaudeCLIError, GeminiCLIError) as e:
             raise HTTPException(status_code=502, detail=str(e))
         text = env.get("result", "")
         usage = env.get("usage") or {}

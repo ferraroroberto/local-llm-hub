@@ -6,12 +6,25 @@ plus a local whisper.cpp ASR pair that clients hit directly.
 
 ## Active rotation
 
-Five entries in active use as of the May 2026 frontier reading:
+Subscription-backed cloud routes (no GPU, no API keys, no Cloud project):
 
 - **`claude-*`** — forwarded to the **`claude -p`** CLI on your machine,
   using your local Claude Code auth (your subscription) instead of an
-  API key. Aliases `claude-haiku-4-5`, `claude-sonnet-4-6`,
-  `claude-opus-4-7` all hit the same backend; the CLI picks the model.
+  API key. Three rows: `claude-haiku-4-5` (alias `claude_haiku`),
+  `claude-sonnet-4-6` (`claude_sonnet`), `claude-opus-4-7`
+  (`claude_opus`). The short aliases are version-free, so when a new
+  Claude release lands only the row's `display_name` needs updating
+  and downstream callers keep working unchanged.
+- **`gemini-*`** — forwarded to the **`gemini -p`** CLI, using your
+  Google sign-in (browser login, no API key required). Three rows:
+  `gemini-3.1-pro` (alias `gemini_pro`, requires Google AI Pro
+  or Ultra as of 2026-03-25), `gemini-3-flash`, `gemini-3.1-flash-lite`
+  (alias `gemini_lite`, GA 2026-05-07). Quotas are shared with Gemini
+  Code Assist, lifted on the AI Pro / Ultra plans. Falls back to
+  `GEMINI_API_KEY` env if set.
+
+Local entries in active use as of the May 2026 frontier reading:
+
 - **`qwen3.5-4b`** — local `llama-server` running
   [unsloth/Qwen3.5-4B-GGUF](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF)
   on `127.0.0.1:8088` (4 B hybrid Gated DeltaNet + sparse MoE, full
@@ -119,33 +132,36 @@ there is one transcription model and one translation model.
 ## Scope & usage policy
 
 This is a **personal playground** for running your own experiments
-against your own Claude Code subscription and your own local GPU on
-devices you personally own. It is **not** a hosted service, a
-multi-tenant proxy, or a way to share subscription access.
+against your own Claude Code and Google AI Pro subscriptions and your
+own local GPU on devices you personally own. It is **not** a hosted
+service, a multi-tenant proxy, or a way to share subscription access.
 
-To stay clearly within Anthropic's terms, please use it only as
-intended:
+To stay clearly within Anthropic's and Google's terms, please use it
+only as intended:
 
-- ✅ **Do** use it locally to call Claude from your own scripts,
-  agents, and tools on devices you personally own.
+- ✅ **Do** use it locally to call Claude or Gemini from your own
+  scripts, agents, and tools on devices you personally own.
 - ✅ **Do** use it on a trusted LAN to reach your own second machine
   or VM (e.g. a local agent runtime).
-- ✅ **Do** route non-Claude traffic to the local qwen/glm backends as
-  much as you like — those are your own weights on your own silicon.
-- ❌ **Don't** share the endpoint with other people — for Claude, that
-  would be sharing subscription access, which Anthropic's
-  [Consumer Terms](https://www.anthropic.com/legal/consumer-terms)
-  don't allow.
+- ✅ **Do** route non-cloud traffic to the local qwen/gemma backends
+  as much as you like — those are your own weights on your own silicon.
+- ❌ **Don't** share the endpoint with other people — for Claude or
+  Gemini, that would be sharing subscription access, which neither
+  Anthropic's [Consumer Terms](https://www.anthropic.com/legal/consumer-terms)
+  nor Google's [Additional Terms](https://policies.google.com/terms/generative-ai)
+  allow.
 - ❌ **Don't** port-forward it to the public internet or host it
   behind a domain.
 - ❌ **Don't** build a product, commercial service, or large automated
-  pipeline on top of the Claude path — for anything beyond personal
-  experimentation use the paid API, which the
-  [Usage Policy](https://www.anthropic.com/legal/aup) and Commercial
-  Terms are designed for.
-- ❌ **Don't** hammer `claude -p` in tight loops; keep volume at
-  human-in-the-loop speeds so you don't abuse the service or get
-  rate-limited. The local backends are rate-limited only by your GPU.
+  pipeline on top of the Claude or Gemini paths — for anything beyond
+  personal experimentation use the paid Anthropic API or Vertex AI /
+  Gemini API, which their respective usage policies and commercial
+  terms are designed for.
+- ❌ **Don't** hammer `claude -p` or `gemini -p` in tight loops; keep
+  volume at human-in-the-loop speeds so you don't abuse the service or
+  get rate-limited. The Gemini CLI quota is shared with Gemini Code
+  Assist, so heavy hub use can also starve your IDE assistant. The
+  local backends are rate-limited only by your GPU.
 
 If your use case goes beyond "me, tinkering on my own machine,"
 switch to the Anthropic API for Claude. When in doubt, check
@@ -163,6 +179,7 @@ openClaw / anthropic SDK / openai SDK / curl
    ┌────────────── FastAPI hub (src/server.py) ───────────────┐
    │  route by `model`:                                       │
    │    claude-*               → call_claude()   (claude -p subprocess)  │
+   │    gemini-* / gemini_*    → call_gemini()   (gemini -p subprocess)  │
    │    qwen3.5-4b             → llama-server 127.0.0.1:8088             │
    │    gemma4-26b-a4b-it      → llama-server 127.0.0.1:8087             │
    │    whisper-large-v3-turbo → 400 "POST to :8090 directly" (audio)    │
@@ -216,6 +233,7 @@ local-llm-hub/
 │   ├── server.py             # FastAPI hub (both shapes) + router
 │   ├── landing.py            # HTML landing page served at GET /
 │   ├── claude_cli.py         # subprocess wrapper around `claude -p`
+│   ├── gemini_cli.py         # subprocess wrapper around `gemini -p` (Google AI Pro)
 │   ├── openai_upstream.py    # httpx client + SSE think-strip pipeline
 │   ├── model_registry.py     # YAML loader (resolves display_name + aliases)
 │   ├── host_profile.py       # pick active host row
@@ -314,6 +332,14 @@ fixes, one button per row.
 
 Requires the `claude` CLI on `PATH` (Claude Code) if any `claude-*`
 model is enabled for your host.
+
+Requires the `gemini` CLI on `PATH` (install with
+`npm i -g @google/gemini-cli`, then run `gemini /auth login` once) if
+you want to use any `gemini-*` model. The CLI's browser login uses
+your Google account; AI Pro / Ultra subscribers get higher daily
+quotas through the same path. Without it, requests targeting
+`gemini-*` return 502 with a clear "CLI not found" message — the rest
+of the hub keeps working.
 
 ### Machine specs (optional)
 
@@ -507,6 +533,32 @@ msg = client.messages.create(
     max_tokens=128,
     messages=[{"role": "user", "content": "Hello"}],
 )
+
+# Gemini 3.1 Pro via your Google AI Pro subscription (browser login)
+msg = client.messages.create(
+    model="gemini_pro",   # alias for gemini-3.1-pro
+    max_tokens=128,
+    messages=[{"role": "user", "content": "Hello"}],
+)
+
+# Image content blocks work on both subscription paths (claude-* and gemini-*)
+import base64
+with open("photo.png", "rb") as f:
+    b64 = base64.b64encode(f.read()).decode()
+
+msg = client.messages.create(
+    model="gemini-3.1-pro",
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "What's in this image?"},
+            {"type": "image", "source": {
+                "type": "base64", "media_type": "image/png", "data": b64,
+            }},
+        ],
+    }],
+)
+print(msg.content[0].text)
 ```
 
 > Demoted candidates (`qwen3.5-9b`, `glm-4.5-air`) work the same way
@@ -599,9 +651,16 @@ whose port isn't reachable, and reports per-model pass/fail.
   from llama-server's `--jinja` templates; Anthropic-shape callers to
   qwen/glm are text-only for now. Claude tool use passes through
   unchanged.
-- Images / documents / extended thinking blocks are dropped at the
-  shape boundary.
-- Token counts reflect what each backend reports in its response.
+- **Image content blocks are supported on the `claude-*` and `gemini-*`
+  subscription paths** — the hub base64-decodes each block to a
+  per-request temp dir and passes the files via `claude --add-dir` /
+  `gemini @path`. Local `llama-server` backends (`qwen3.5-*`,
+  `gemma4-*`) are text-only and return 400 with a hint to retry on a
+  subscription model. Documents and extended-thinking blocks are still
+  dropped at the shape boundary.
+- Token counts reflect what each backend reports in its response. The
+  `gemini -p` CLI does not surface token counts, so usage on the
+  `gemini-*` path is reported as zero.
 
 ## Backlog for improvement
 
@@ -632,10 +691,13 @@ Ordered roughly by payoff for API parity / developer experience.
   into logs for traceability.
 - **CORS.** Enable it so browser-based clients and local webapps can
   call the hub directly.
-- **Image & document content blocks.** Decode base64 attachments to a
-  per-request temp dir, pass via `--add-dir` to Claude, and to the
-  appropriate multimodal llama-server builds for qwen-VL when we add
-  them.
+- **Document content blocks** (PDFs, text files). Image blocks already
+  land — see Limitations above — but document content blocks are still
+  dropped at the shape boundary. Decode-and-`--add-dir` would lift
+  them too.
+- **Multimodal local backends.** Image blocks work on the cloud routes
+  (`claude-*`, `gemini-*`); local routing is text-only until a
+  multimodal llama-server build (qwen-VL, gemma-vision) is wired in.
 
 **Medium value — fidelity and ergonomics**
 

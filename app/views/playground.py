@@ -12,11 +12,19 @@ from src.model_registry import enabled_models
 
 
 def _model_options() -> list[str]:
-    names: list[str] = []
+    """Aliases-only, sorted A-Z.
+
+    Only models that have at least one alias appear — aliases are the
+    stable identifiers (e.g. `claude_haiku`, `gemini_pro`,
+    `agentic_light`) that survive version bumps, so they're the right
+    thing for callers to address. Models without aliases (e.g.
+    standalone whisper rows) are intentionally hidden from the
+    playground; address them by display_name from code if needed.
+    """
+    aliases: list[str] = []
     for m in enabled_models():
-        names.extend(m.all_names)
-    # de-dupe while preserving order
-    return list(dict.fromkeys(names))
+        aliases.extend(m.aliases)
+    return sorted(dict.fromkeys(aliases))
 
 
 def render() -> None:
@@ -37,7 +45,11 @@ def render() -> None:
         apply_max = st.checkbox(
             "Apply max_tokens",
             value=False,
-            help="When off, no cap is sent — `claude -p` decides when to stop.",
+            help=(
+                "When off, no cap is sent — the backend decides when to stop "
+                "(`claude -p` / `gemini -p` for subscription routes; "
+                "llama-server for local backends)."
+            ),
         )
         max_tokens = st.number_input(
             "max_tokens",
@@ -113,12 +125,19 @@ def render() -> None:
         metrics[3].metric("cache write", cache_w)
         metrics[4].metric("output tokens", usage.get("output_tokens", 0))
         metrics[5].metric("elapsed", f"{elapsed:.1f}s")
-        st.caption(
-            "`input (total) = input (new) + cache read + cache write`. "
-            "Claude Code caches the system preamble, tools, and often your "
-            "message itself, so `input (new)` is usually tiny — the real "
-            "prompt size is the total."
-        )
+        if cache_r or cache_w:
+            st.caption(
+                "`input (total) = input (new) + cache read + cache write`. "
+                "Claude Code caches the system preamble, tools, and often "
+                "your message itself, so `input (new)` is usually tiny — "
+                "the real prompt size is the total."
+            )
+        elif in_total == 0 and int(usage.get("output_tokens", 0) or 0) == 0:
+            st.caption(
+                "Token counts are zero — the `gemini -p` CLI doesn't "
+                "surface usage data, so the hub reports zeros on the "
+                "`gemini-*` path."
+            )
 
         st.markdown("**Response**")
         st.markdown(text or "_(empty response)_")

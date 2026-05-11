@@ -9,10 +9,22 @@ from src.model_registry import enabled_models
 
 
 def _render_claude_card(m) -> None:
-    st.subheader(f"🤖 {m.display_name}")
+    st.subheader(f"🌀 {m.display_name}")
     st.caption(
-        "Anthropic subscription via `claude -p`. Lives inside the hub process; "
-        "controlled from the 🛰 Server tab."
+        "Anthropic subscription via `claude -p`. Lives inside the hub "
+        "process; controlled from the 🛰 Server tab. Routed to the CLI "
+        f"as `--model {m.display_name}`."
+    )
+    if m.aliases:
+        st.caption("Aliases: " + ", ".join(m.aliases))
+
+
+def _render_gemini_card(m) -> None:
+    st.subheader(f"♊ {m.display_name}")
+    st.caption(
+        "Google AI Pro subscription via `gemini -p`. Lives inside the hub "
+        "process; AI Pro/Ultra raises daily quotas, shared with Gemini Code "
+        "Assist. Set up once with `gemini /auth login`."
     )
     if m.aliases:
         st.caption("Aliases: " + ", ".join(m.aliases))
@@ -111,6 +123,8 @@ def render() -> None:
     for m in models:
         if m.backend == "claude":
             _render_claude_card(m)
+        elif m.backend == "gemini":
+            _render_gemini_card(m)
         elif m.backend in ("openai", "whisper"):
             _render_local_card(m)
         else:

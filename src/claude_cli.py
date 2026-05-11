@@ -10,7 +10,8 @@ import json
 import logging
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -24,17 +25,31 @@ def call_claude(
     *,
     model: Optional[str] = None,
     system: Optional[str] = None,
+    images: Optional[Sequence[Path]] = None,
     timeout: float = 600.0,
 ) -> Dict[str, Any]:
     """Invoke `claude -p --output-format json` and return the parsed envelope.
 
-    Prompt is fed via stdin to avoid command-line length limits.
+    Prompt is fed via stdin to avoid command-line length limits. ``images``
+    are passed via ``--add-dir`` (the temp dir holding them is added to
+    Claude's allowed filesystem set) and their absolute paths are prepended
+    to the prompt so Claude knows to read them.
     """
     args: List[str] = ["claude", "-p", "--output-format", "json"]
     if model:
         args += ["--model", model]
     if system:
         args += ["--system-prompt", system]
+
+    if images:
+        # All images live under a single per-request temp dir today; pass
+        # that one parent dir via --add-dir and reference each file by
+        # absolute path in the prompt.
+        parents = {Path(p).resolve().parent for p in images}
+        for d in parents:
+            args += ["--add-dir", str(d)]
+        refs = "\n".join(f"- {Path(p).resolve()}" for p in images)
+        prompt = f"Attached images:\n{refs}\n\n{prompt}"
 
     try:
         # Suppress the Windows Terminal window that would otherwise spawn

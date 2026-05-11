@@ -9,7 +9,7 @@ def render() -> None:
     st.title("👋 Local LLM Hub")
     st.caption(
         "A local Anthropic- and OpenAI-shaped API backed by `claude -p`, "
-        "local llama-server backends, and a whisper.cpp ASR pair."
+        "`gemini -p`, local llama-server backends, and a whisper.cpp ASR pair."
     )
 
     st.markdown(
@@ -25,6 +25,9 @@ def render() -> None:
 
         - `claude-*` models go through your local `claude -p` CLI and
           your Claude Code subscription — no API key needed.
+        - `gemini-*` models go through your local `gemini -p` CLI and
+          your Google AI Pro subscription (browser sign-in) — no API
+          key needed. Falls back to `GEMINI_API_KEY` if set.
         - Local `qwen3.5-4b` and `gemma4-26b-a4b-it` go through
           `llama-server` on loopback ports.
         - `whisper-large-v3-turbo` (`:8090`) and `whisper-medium-translate`
@@ -56,6 +59,23 @@ def render() -> None:
         - **💬 Playground** — send a prompt, pick a model, see the reply and token counts.
         - **🛰 Frontier** — read-only view of the latest monthly research run (report + chart) and the current role decisions.
 
+        ### Subscription-backed cloud routes
+
+        Two "always available" routes use your existing personal CLIs —
+        no GCP project, no API keys, no per-call billing:
+
+        | Model | Backend | Subscription |
+        |---|---|---|
+        | `claude_haiku` / `claude_sonnet` / `claude_opus` | `claude -p` | Anthropic Pro/Max |
+        | `gemini-3.1-pro` (alias `gemini_pro`) | `gemini -p` | Google AI Pro (AI Pro required for 3.1 Pro since 2026-03-25) |
+        | `gemini-3-flash` | `gemini -p` | Google AI Pro |
+        | `gemini-3.1-flash-lite` (alias `gemini_lite`) | `gemini -p` | Google AI Pro |
+
+        Image content blocks work on **both** subscription paths —
+        attach a base64 image and the hub writes it to a per-request
+        temp dir, then hands the file to `claude -p --add-dir` /
+        `gemini -p @path`. Cleanup is automatic.
+
         ### Refreshing the roster (Claude Code slash commands)
 
         The monthly refresh and per-role swaps are driven from Claude
@@ -83,9 +103,9 @@ def render() -> None:
 
 client = Anthropic(api_key="local-dummy", base_url="http://127.0.0.1:8000")
 
-# Claude via subscription
+# Claude via subscription — alias survives version bumps
 msg = client.messages.create(
-    model="claude-haiku-4-5",
+    model="claude_haiku",   # alias for claude-haiku-4-5
     max_tokens=128,
     messages=[{"role": "user", "content": "Hello"}],
 )
@@ -93,7 +113,15 @@ print(msg.content[0].text)
 
 # Local agentic_light role — fast, full GPU
 msg = client.messages.create(
-    model="qwen3.5-4b",
+    model="agentic_light",   # alias for qwen3.5-4b
+    max_tokens=128,
+    messages=[{"role": "user", "content": "Hello"}],
+)
+print(msg.content[0].text)
+
+# Gemini 3.1 Pro via your Google AI Pro subscription
+msg = client.messages.create(
+    model="gemini_pro",   # alias for gemini-3.1-pro
     max_tokens=128,
     messages=[{"role": "user", "content": "Hello"}],
 )
@@ -106,7 +134,7 @@ print(msg.content[0].text)
     st.code(
         'curl -s http://127.0.0.1:8000/v1/messages \\\n'
         '  -H "Content-Type: application/json" \\\n'
-        '  -d \'{"model":"claude-haiku-4-5","max_tokens":64,'
+        '  -d \'{"model":"claude_haiku","max_tokens":64,'
         '"messages":[{"role":"user","content":"hi"}]}\'',
         language="bash",
     )
@@ -170,10 +198,13 @@ print(msg.content[0].text)
         still returns a single JSON object (event translation is on the
         backlog).
 
-        Multi-turn for Claude is flattened into a single prompt. Tool
-        use round-trips across the Anthropic ↔ OpenAI shapes are not
-        implemented for the local backends. Images / documents /
-        extended-thinking blocks are dropped at the shape boundary.
-        See **Backlog for improvement** in `README.md` for the full list.
+        Multi-turn for Claude / Gemini is flattened into a single
+        prompt. Tool use round-trips across the Anthropic ↔ OpenAI
+        shapes are not implemented for the local backends. Image
+        content blocks **are** supported on the `claude-*` and
+        `gemini-*` paths; local `llama-server` backends are text-only
+        and return 400 with a hint to retry on a subscription route.
+        Documents and extended-thinking blocks are still dropped at the
+        shape boundary. See **Backlog for improvement** in `README.md`.
         """
     )

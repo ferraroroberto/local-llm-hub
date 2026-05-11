@@ -75,15 +75,15 @@ def all_models() -> List[Model]:
 def enabled_models(host: Optional[HostProfile] = None) -> List[Model]:
     """Return models the active host is configured to serve.
 
-    Claude is always enabled (the subscription path doesn't cost disk or
-    VRAM) — openai-backed local models must appear in the host's
-    `enabled` list.
+    Claude and Gemini are always enabled (subscription/CLI paths don't
+    cost disk or VRAM) — openai-backed local models must appear in the
+    host's `enabled` list.
     """
     profile = host or resolve_host()
     whitelist = set(profile.enabled)
     result: List[Model] = []
     for m in all_models():
-        if m.backend == "claude" or m.id in whitelist:
+        if m.backend in ("claude", "gemini") or m.id in whitelist:
             result.append(m)
     return result
 

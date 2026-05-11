@@ -42,13 +42,47 @@ hosts:
     enabled: [qwen]
 
 models:
-  # --- Claude subscription path (existing behaviour) ---
-  # Listed as one logical "model" but routes by the exact model name
-  # the client sent, so all three claude-* names hit the same backend.
-  claude:
+  # --- Claude subscription path (`claude -p` CLI) ---
+  # One row per Claude model the CLI exposes. The hub routes the
+  # version-free alias (e.g. `claude_haiku`) to display_name and passes
+  # display_name as `--model` to the CLI — so when Anthropic ships
+  # claude-haiku-5 (or whatever's next), only `display_name` needs
+  # updating and clients keep working unchanged.
+  claude_haiku:
     display_name: claude-haiku-4-5
     backend: claude
-    aliases: ["claude-sonnet-4-6", "claude-opus-4-7"]
+    aliases: ["claude_haiku"]
+
+  claude_sonnet:
+    display_name: claude-sonnet-4-6
+    backend: claude
+    aliases: ["claude_sonnet"]
+
+  claude_opus:
+    display_name: claude-opus-4-7
+    backend: claude
+    aliases: ["claude_opus"]
+
+  # --- Gemini subscription path (Google AI Pro via `gemini` CLI) ---
+  # Same pattern as the Claude rows: a stable short alias per row, and
+  # the actual CLI model name as display_name. AI Pro / AI Ultra
+  # subscribers get higher daily quotas through the browser-login path
+  # (`gemini /auth login`); Pro models require a paid subscription as
+  # of 2026-03-25. Falls back to GEMINI_API_KEY env if set.
+  gemini_pro:
+    display_name: gemini-3.1-pro
+    backend: gemini
+    aliases: ["gemini_pro"]
+
+  gemini_flash:
+    display_name: gemini-3-flash
+    backend: gemini
+    aliases: ["gemini_flash"]
+
+  gemini_flash_lite:
+    display_name: gemini-3.1-flash-lite
+    backend: gemini
+    aliases: ["gemini_lite"]
 
   # --- Local Qwen3.5-9B via llama.cpp ---
   qwen:

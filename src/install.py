@@ -124,6 +124,25 @@ def _check_claude_cli() -> Check:
         return Check("claude_cli", "`claude` CLI on PATH", "warn", str(e))
 
 
+def _check_gemini_cli() -> Check:
+    exe = shutil.which("gemini")
+    if not exe:
+        return Check(
+            "gemini_cli", "`gemini` CLI on PATH", "warn",
+            "not found — install with `npm i -g @google/gemini-cli` and run "
+            "`gemini /auth login` to use the Gemini backend (Google AI Pro)",
+        )
+    try:
+        r = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            ver = (r.stdout or r.stderr).strip().splitlines()[0] if (r.stdout or r.stderr) else "ok"
+            return Check("gemini_cli", "`gemini` CLI on PATH", "ok", ver)
+        return Check("gemini_cli", "`gemini` CLI on PATH", "warn",
+                     f"--version exited {r.returncode}")
+    except Exception as e:
+        return Check("gemini_cli", "`gemini` CLI on PATH", "warn", str(e))
+
+
 def _check_gpu() -> Check:
     if sys.platform == "win32":
         nv = shutil.which("nvidia-smi")
@@ -257,6 +276,7 @@ def run_all_checks() -> Report:
         _check_deps(),
         _check_host_profile(),
         _check_claude_cli(),
+        _check_gemini_cli(),
         _check_gpu(),
         _check_llama_cpp(),
     ]

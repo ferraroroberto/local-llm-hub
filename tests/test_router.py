@@ -106,4 +106,126 @@ def test_list_models_includes_enabled():
     assert r.status_code == 200
     ids = {entry["id"] for entry in r.json()["data"]}
     assert "qwen3.5-4b" in ids
+    # Claude rows + their stable aliases.
     assert "claude-haiku-4-5" in ids
+    assert "claude_haiku" in ids
+    assert "claude_sonnet" in ids
+    assert "claude_opus" in ids
+    # Gemini subscription path is always enabled, like Claude.
+    assert "gemini-3.1-pro" in ids
+    assert "gemini_pro" in ids
+    assert "gemini_flash" in ids
+    assert "gemini_lite" in ids
+
+
+def test_messages_routes_gemini_backend(monkeypatch):
+    captured = {}
+
+    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+        captured["prompt"] = prompt
+        captured["model"] = model
+        captured["system"] = system
+        return {
+            "type": "result",
+            "is_error": False,
+            "result": "g-pong",
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
+
+    monkeypatch.setattr(server_mod, "call_gemini", fake_call)
+
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/v1/messages",
+        json={
+            "model": "gemini-3.1-pro",
+            "max_tokens": 64,
+            "system": "Answer briefly.",
+            "messages": [{"role": "user", "content": "ping"}],
+        },
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["content"] == [{"type": "text", "text": "g-pong"}]
+    assert body["model"] == "gemini-3.1-pro"
+    assert captured["model"] == "gemini-3.1-pro"
+    assert captured["system"] == "Answer briefly."
+
+
+def test_messages_routes_gemini_alias(monkeypatch):
+    """`gemini_pro` alias resolves to display_name `gemini-3.1-pro`."""
+    captured = {}
+
+    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+        captured["model"] = model
+        return {
+            "type": "result", "is_error": False, "result": "ok",
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
+
+    monkeypatch.setattr(server_mod, "call_gemini", fake_call)
+
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/v1/messages",
+        json={
+            "model": "gemini_pro",
+            "messages": [{"role": "user", "content": "hi"}],
+        },
+    )
+    assert r.status_code == 200
+    # Alias → underlying display_name handed to the CLI.
+    assert captured["model"] == "gemini-3.1-pro"
+
+
+def test_messages_routes_claude_alias(monkeypatch):
+    """`claude_sonnet` alias resolves to display_name `claude-sonnet-4-6`."""
+    captured = {}
+
+    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+        captured["model"] = model
+        return {
+            "type": "result", "is_error": False, "result": "ok",
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
+
+    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/v1/messages",
+        json={
+            "model": "claude_sonnet",
+            "messages": [{"role": "user", "content": "hi"}],
+        },
+    )
+    assert r.status_code == 200
+    # Alias → CLI receives the real model version, not the alias.
+    assert captured["model"] == "claude-sonnet-4-6"
+
+
+def test_chat_completions_routes_gemini(monkeypatch):
+    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+        return {
+            "type": "result", "is_error": False, "result": "chat-ok",
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
+
+    monkeypatch.setattr(server_mod, "call_gemini", fake_call)
+
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "gemini-3-flash",
+            "messages": [{"role": "user", "content": "hello"}],
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["choices"][0]["message"]["content"] == "chat-ok"
+    assert body["object"] == "chat.completion"

@@ -21,6 +21,7 @@ import webbrowser
 from pathlib import Path
 from typing import Optional
 
+import psutil
 import pystray
 
 from src import backend_process as bp
@@ -43,6 +44,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Internal queued events dispatched on the tk main thread.
 EVT_OPEN_WINDOW = "open_window"
 EVT_OPEN_STREAMLIT = "open_streamlit"
+EVT_KILL_STREAMLIT = "kill_streamlit"
 EVT_START_HUB = "start_hub"
 EVT_STOP_HUB = "stop_hub"
 EVT_TOGGLE_MODEL = "toggle_model"
@@ -69,16 +71,10 @@ class TrayApp:
         # of empty browser windows).
         self._streamlit_lock = threading.Lock()
 
-        # Snapshot enabled models — registry doesn't change at runtime.
-        # Local models are toggleable; the Claude row (subscription, no
-        # local process) is kept for display only.
-        all_enabled = enabled_models()
+        # Snapshot enabled local models — registry doesn't change at runtime.
         self._models: list[Model] = [
-            m for m in all_enabled if m.backend in ("openai", "whisper")
+            m for m in enabled_models() if m.backend in ("openai", "whisper")
         ]
-        self._claude_model: Optional[Model] = next(
-            (m for m in all_enabled if m.backend == "claude"), None
-        )
 
     # --------------------------------------------------------------- run / quit
 
@@ -129,15 +125,9 @@ class TrayApp:
     # ----------------------------------------------------------------- menu
 
     def _build_menu(self) -> pystray.Menu:
-        items: list[pystray.MenuItem] = []
-        if self._claude_model is not None:
-            items.append(pystray.MenuItem(
-                f"☁ {self._claude_model.display_name}  (always on, subscription)",
-                None,
-                enabled=False,
-            ))
-            items.append(pystray.Menu.SEPARATOR)
-        items.extend(self._build_model_item(m) for m in self._models)
+        items: list[pystray.MenuItem] = [
+            self._build_model_item(m) for m in self._models
+        ]
         if not items:
             items.append(pystray.MenuItem(
                 "(no models enabled on this host)", None, enabled=False,
@@ -171,6 +161,12 @@ class TrayApp:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("🪟 Open log window", lambda: self._enqueue(EVT_OPEN_WINDOW), default=True),
             pystray.MenuItem("🌐 Open Streamlit admin", lambda: self._enqueue(EVT_OPEN_STREAMLIT)),
+            pystray.MenuItem(
+                "💀 Kill all Streamlit",
+                lambda: self._enqueue(EVT_KILL_STREAMLIT),
+                # Only enabled when at least one streamlit process is alive.
+                enabled=lambda _i: bool(_find_streamlit_processes()),
+            ),
             pystray.MenuItem("🔄 Refresh", lambda: self._enqueue(EVT_REFRESH)),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit", lambda: self._enqueue(EVT_QUIT)),
@@ -221,6 +217,8 @@ class TrayApp:
             self._open_log_window()
         elif kind == EVT_OPEN_STREAMLIT:
             threading.Thread(target=self._open_streamlit, daemon=True).start()
+        elif kind == EVT_KILL_STREAMLIT:
+            threading.Thread(target=self._kill_streamlit_worker, daemon=True).start()
         elif kind == EVT_START_HUB:
             threading.Thread(target=self._start_hub_worker, daemon=True).start()
         elif kind == EVT_STOP_HUB:
@@ -381,6 +379,50 @@ class TrayApp:
         finally:
             self._streamlit_lock.release()
 
+    def _kill_streamlit_worker(self) -> None:
+        """Terminate every Streamlit process this user can see.
+
+        Avoids the stale-module-import gotcha where Streamlit hot-reloads
+        the view file you edited but keeps the old ``src.*`` modules
+        cached in ``sys.modules`` — config / registry changes silently
+        don't apply until a full process restart.
+        """
+        procs = _find_streamlit_processes()
+        if not procs:
+            self._notify("Streamlit", "ℹ no Streamlit processes found")
+            return
+
+        n = len(procs)
+        self._notify("Streamlit", f"💀 killing {n} process{'es' if n != 1 else ''}…")
+
+        # Polite shutdown first.
+        for p in procs:
+            try:
+                p.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
+                logger.debug("terminate(%s) failed: %s", p.pid, exc)
+
+        # Give them a moment, then SIGKILL anything still alive.
+        gone, alive = psutil.wait_procs(procs, timeout=4.0)
+        for p in alive:
+            try:
+                p.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
+                logger.debug("kill(%s) failed: %s", p.pid, exc)
+        psutil.wait_procs(alive, timeout=2.0)
+
+        # Drop our handle so the next "Open Streamlit admin" click spawns
+        # cleanly instead of trying to reuse the dead one.
+        self._streamlit_proc = None
+
+        killed = len(gone) + len(alive)
+        self._notify(
+            "Streamlit",
+            f"✅ killed {killed} process{'es' if killed != 1 else ''} — "
+            "next 'Open Streamlit admin' will start a fresh one",
+        )
+        self._update_menu()
+
     def _refresh_icon_color(self) -> None:
         if self._icon is None:
             return
@@ -420,6 +462,55 @@ class TrayApp:
 
 
 # --------------------------------------------------------------- helpers
+
+def _is_streamlit_cmdline(cmdline: list[str]) -> bool:
+    """True iff this cmdline is an actual ``streamlit run`` invocation.
+
+    Matches two real shapes:
+      * ``[<python(.exe)>, "-m", "streamlit", "run", ...]``
+      * ``[<.../streamlit(.exe)>, "run", ...]``
+
+    Rejects bash / editor / random python -c processes that merely
+    happen to mention the word "streamlit" inside a script body or
+    environment snapshot.
+    """
+    if not cmdline:
+        return False
+    # `python -m streamlit run …`
+    tokens = [str(t).lower() for t in cmdline]
+    for i in range(len(tokens) - 3):
+        if (
+            tokens[i] == "-m"
+            and tokens[i + 1] == "streamlit"
+            and tokens[i + 2] == "run"
+        ):
+            return True
+    # `streamlit run …` — first arg is the streamlit launcher itself.
+    first = Path(tokens[0]).stem  # strips .exe and dirs
+    if first == "streamlit" and len(tokens) >= 2 and tokens[1] == "run":
+        return True
+    return False
+
+
+def _find_streamlit_processes() -> list[psutil.Process]:
+    """Every alive process whose cmdline is an actual ``streamlit run``.
+
+    Iterates :func:`psutil.process_iter` once, skipping
+    ``NoSuchProcess`` / ``AccessDenied`` rows. Excludes the tray's own
+    pid as cheap insurance.
+    """
+    own_pid = os.getpid()
+    out: list[psutil.Process] = []
+    for p in psutil.process_iter(["pid", "name", "cmdline"]):
+        try:
+            if p.pid == own_pid:
+                continue
+            if _is_streamlit_cmdline(p.info.get("cmdline") or []):
+                out.append(p)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    return out
+
 
 def _port_in_use(port: int, host: str = "127.0.0.1") -> bool:
     import socket
