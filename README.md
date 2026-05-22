@@ -15,13 +15,16 @@ Subscription-backed cloud routes (no GPU, no API keys, no Cloud project):
   (`claude_opus`). The short aliases are version-free, so when a new
   Claude release lands only the row's `display_name` needs updating
   and downstream callers keep working unchanged.
-- **`gemini-*`** — forwarded to the **`gemini -p`** CLI, using your
-  Google sign-in (browser login, no API key required). Three rows:
-  `gemini-3.1-pro-preview` (alias `gemini_pro`, requires Google AI
-  Pro or Ultra as of 2026-03-25), `gemini-3-flash-preview`,
-  `gemini-3.1-flash-lite-preview` (alias `gemini_lite`, GA
-  2026-05-07). Quotas are shared with Gemini Code Assist, lifted on
-  the AI Pro / Ultra plans. Falls back to `GEMINI_API_KEY` env if set.
+- **`gemini-*`** — forwarded to the **Antigravity CLI** (`agy`), using
+  your Google sign-in (no API key required). Three rows: `Gemini 3.1
+  Pro (High)` (alias `gemini_pro`), `Gemini 3.5 Flash (High)` (alias
+  `gemini_flash`), `Gemini 3.5 Flash (Medium)` (alias `gemini_lite`).
+  `agy` replaces the standalone `gemini` CLI, which Google deprecates
+  for AI Pro / Ultra subscribers on 2026-06-18. `agy` has no per-call
+  model flag, so the hub switches its globally-selected model through
+  the `/model` picker before each request — see
+  [src/gemini_cli.py](src/gemini_cli.py). Quotas follow your Google
+  AI Pro / Ultra plan.
 
 Local entries in active use as of the May 2026 frontier reading:
 
@@ -157,11 +160,12 @@ only as intended:
   personal experimentation use the paid Anthropic API or Vertex AI /
   Gemini API, which their respective usage policies and commercial
   terms are designed for.
-- ❌ **Don't** hammer `claude -p` or `gemini -p` in tight loops; keep
+- ❌ **Don't** hammer `claude -p` or the `agy` CLI in tight loops; keep
   volume at human-in-the-loop speeds so you don't abuse the service or
-  get rate-limited. The Gemini CLI quota is shared with Gemini Code
-  Assist, so heavy hub use can also starve your IDE assistant. The
-  local backends are rate-limited only by your GPU.
+  get rate-limited. The Antigravity CLI quota follows your Google AI
+  Pro / Ultra plan and is shared with the Antigravity IDE, so heavy hub
+  use can also starve your IDE assistant. The local backends are
+  rate-limited only by your GPU.
 
 If your use case goes beyond "me, tinkering on my own machine,"
 switch to the Anthropic API for Claude. When in doubt, check
@@ -179,7 +183,7 @@ openClaw / anthropic SDK / openai SDK / curl
    ┌────────────── FastAPI hub (src/server.py) ───────────────┐
    │  route by `model`:                                       │
    │    claude-*               → call_claude()   (claude -p subprocess)  │
-   │    gemini-* / gemini_*    → call_gemini()   (gemini -p subprocess)  │
+   │    gemini-* / gemini_*    → call_gemini()   (agy CLI via ConPTY)    │
    │    qwen3.5-4b             → llama-server 127.0.0.1:8088             │
    │    gemma4-26b-a4b-it      → llama-server 127.0.0.1:8087             │
    │    whisper-large-v3-turbo → 400 "POST to :8090 directly" (audio)    │
@@ -233,7 +237,7 @@ local-llm-hub/
 │   ├── server.py             # FastAPI hub (both shapes) + router
 │   ├── landing.py            # HTML landing page served at GET /
 │   ├── claude_cli.py         # subprocess wrapper around `claude -p`
-│   ├── gemini_cli.py         # subprocess wrapper around `gemini -p` (Google AI Pro)
+│   ├── gemini_cli.py         # Antigravity CLI (`agy`) wrapper via ConPTY (Google AI Pro)
 │   ├── openai_upstream.py    # httpx client + SSE think-strip pipeline
 │   ├── model_registry.py     # YAML loader (resolves display_name + aliases)
 │   ├── host_profile.py       # pick active host row
@@ -282,6 +286,7 @@ local-llm-hub/
 └── docs/
     ├── project-structure.md
     ├── model-comparison.md
+    ├── playbook-cli-backend-migration.md  # reusable method when a vendor CLI changes
     ├── frontier/                 # monthly efficient-frontier research
     │   ├── RESEARCH_PROMPT.md    #   canonical brief; read by /frontier-refresh
     │   └── runs/
@@ -333,13 +338,15 @@ fixes, one button per row.
 Requires the `claude` CLI on `PATH` (Claude Code) if any `claude-*`
 model is enabled for your host.
 
-Requires the `gemini` CLI on `PATH` (install with
-`npm i -g @google/gemini-cli`, then run `gemini /auth login` once) if
-you want to use any `gemini-*` model. The CLI's browser login uses
-your Google account; AI Pro / Ultra subscribers get higher daily
-quotas through the same path. Without it, requests targeting
-`gemini-*` return 502 with a clear "CLI not found" message — the rest
-of the hub keeps working.
+Requires the **Antigravity CLI** (`agy`) on `PATH` if you want to use
+any `gemini-*` model — install it from
+[antigravity.google](https://antigravity.google) and sign in once with
+your Google account. `agy` replaces the standalone `gemini` CLI, which
+Google deprecates for AI Pro / Ultra subscribers on 2026-06-18. On
+Windows the Gemini path also needs `pywinpty` (in `requirements.txt`):
+`agy`'s print mode renders to a console, so the hub drives it under a
+ConPTY. Without `agy`, requests targeting `gemini-*` return 502 with a
+clear "CLI not found" message — the rest of the hub keeps working.
 
 ### Machine specs (optional)
 
@@ -534,9 +541,9 @@ msg = client.messages.create(
     messages=[{"role": "user", "content": "Hello"}],
 )
 
-# Gemini 3.1 Pro via your Google AI Pro subscription (browser login)
+# Gemini 3.1 Pro via your Google AI Pro subscription (Antigravity CLI)
 msg = client.messages.create(
-    model="gemini_pro",   # alias for gemini-3.1-pro-preview
+    model="gemini_pro",   # alias for "Gemini 3.1 Pro (High)"
     max_tokens=128,
     messages=[{"role": "user", "content": "Hello"}],
 )
@@ -549,7 +556,7 @@ with open("photo.png", "rb") as f:
     b64 = base64.b64encode(f.read()).decode()
 
 msg = client.messages.create(
-    model="gemini-3.1-pro-preview",
+    model="gemini_pro",
     messages=[{
         "role": "user",
         "content": [
@@ -656,13 +663,17 @@ whose port isn't reachable, and reports per-model pass/fail.
 - **Image content blocks are supported on the `claude-*` and `gemini-*`
   subscription paths** — the hub base64-decodes each block to a
   per-request temp dir and passes the files via `claude --add-dir` /
-  `gemini @path`. Local `llama-server` backends (`qwen3.5-*`,
+  `agy`'s `@path` reference. Local `llama-server` backends (`qwen3.5-*`,
   `gemma4-*`) are text-only and return 400 with a hint to retry on a
   subscription model. Documents and extended-thinking blocks are still
   dropped at the shape boundary.
 - Token counts reflect what each backend reports in its response. The
-  `gemini -p` CLI does not surface token counts, so usage on the
-  `gemini-*` path is reported as zero.
+  `agy` CLI does not surface token counts, so usage on the `gemini-*`
+  path is reported as zero.
+- **Gemini calls are serialized.** `agy` selects its model from global
+  persisted state, so the hub holds a lock across the model switch and
+  the print call. Concurrent `gemini-*` requests run one at a time;
+  switching model between calls adds a one-time interactive step.
 
 ## Backlog for improvement
 

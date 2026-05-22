@@ -125,22 +125,24 @@ def _check_claude_cli() -> Check:
 
 
 def _check_gemini_cli() -> Check:
-    exe = shutil.which("gemini")
+    # The Gemini backend drives the Antigravity CLI (`agy`); Google's
+    # standalone `gemini` CLI stops serving AI Pro subscribers 2026-06-18.
+    label = "`agy` (Antigravity CLI) on PATH"
+    exe = shutil.which("agy")
     if not exe:
         return Check(
-            "gemini_cli", "`gemini` CLI on PATH", "warn",
-            "not found — install with `npm i -g @google/gemini-cli` and run "
-            "`gemini /auth login` to use the Gemini backend (Google AI Pro)",
+            "gemini_cli", label, "warn",
+            "not found — install the Antigravity CLI from https://antigravity.google "
+            "and sign in once to use the Gemini backend (Google AI Pro)",
         )
     try:
         r = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=10)
         if r.returncode == 0:
             ver = (r.stdout or r.stderr).strip().splitlines()[0] if (r.stdout or r.stderr) else "ok"
-            return Check("gemini_cli", "`gemini` CLI on PATH", "ok", ver)
-        return Check("gemini_cli", "`gemini` CLI on PATH", "warn",
-                     f"--version exited {r.returncode}")
+            return Check("gemini_cli", label, "ok", ver)
+        return Check("gemini_cli", label, "warn", f"--version exited {r.returncode}")
     except Exception as e:
-        return Check("gemini_cli", "`gemini` CLI on PATH", "warn", str(e))
+        return Check("gemini_cli", label, "warn", str(e))
 
 
 def _check_gpu() -> Check:

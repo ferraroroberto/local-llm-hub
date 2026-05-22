@@ -63,24 +63,28 @@ models:
     backend: claude
     aliases: ["claude_opus"]
 
-  # --- Gemini subscription path (Google AI Pro via `gemini` CLI) ---
-  # Same pattern as the Claude rows: a stable short alias per row, and
-  # the actual CLI model name as display_name. AI Pro / AI Ultra
-  # subscribers get higher daily quotas through the browser-login path
-  # (`gemini /auth login`); Pro models require a paid subscription as
-  # of 2026-03-25. Falls back to GEMINI_API_KEY env if set.
+  # --- Gemini subscription path (Google AI Pro via the Antigravity CLI) ---
+  # Google deprecated the standalone `gemini` CLI (service ends
+  # 2026-06-18); the hub now drives the Antigravity CLI (`agy`). `agy`
+  # has no per-call model flag — `display_name` is the exact label from
+  # its interactive `/model` picker, and src/gemini_cli.py switches the
+  # globally-selected model to that label before each call.
+  #
+  # Same contract as the Claude rows: a stable short alias per row. The
+  # aliases never change, so downstream callers keep working when the
+  # display_name underneath is repointed to a newer picker entry.
   gemini_pro:
-    display_name: gemini-3.1-pro-preview
+    display_name: "Gemini 3.1 Pro (High)"
     backend: gemini
     aliases: ["gemini_pro"]
 
   gemini_flash:
-    display_name: gemini-3-flash-preview
+    display_name: "Gemini 3.5 Flash (High)"
     backend: gemini
     aliases: ["gemini_flash"]
 
   gemini_flash_lite:
-    display_name: gemini-3.1-flash-lite-preview
+    display_name: "Gemini 3.5 Flash (Medium)"
     backend: gemini
     aliases: ["gemini_lite"]
 

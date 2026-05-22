@@ -1,100 +1,96 @@
-"""Unit tests for src.gemini_cli — subprocess fully mocked."""
+"""Unit tests for src.gemini_cli — the Antigravity CLI (`agy`) wrapper.
+
+The ConPTY interaction (`_switch_model`, `_print_call`) is mocked; these
+tests cover the envelope shape, prompt assembly, model-switch gating,
+and the pure picker/ANSI parsing helpers. No real `agy` process runs.
+"""
 
 from __future__ import annotations
-
-import subprocess
-from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
 from src import gemini_cli
 
 
-def _fake_proc(stdout: str = "pong", stderr: str = "", returncode: int = 0):
-    return SimpleNamespace(stdout=stdout, stderr=stderr, returncode=returncode)
-
-
 @pytest.fixture(autouse=True)
-def _stub_which(monkeypatch):
-    """Pretend `gemini` is on PATH so call_gemini reaches subprocess.
+def _reset_state(monkeypatch):
+    """Pretend `agy` is on PATH and reset the remembered model per test."""
+    monkeypatch.setattr(gemini_cli.shutil, "which", lambda name: "/fake/agy")
+    gemini_cli._current_model = None
+    yield
+    gemini_cli._current_model = None
 
-    Tests that exercise the missing-CLI branch override this with their
-    own monkeypatch.
-    """
-    monkeypatch.setattr(gemini_cli.shutil, "which", lambda name: "/fake/gemini")
+
+def _stub_calls(monkeypatch, captured, reply="hi there"):
+    """Replace the ConPTY-driven helpers with capturing fakes."""
+    def fake_switch(exe, target, timeout=120.0):
+        captured.setdefault("switches", []).append(target)
+
+    def fake_print(exe, prompt, cwd, timeout):
+        captured["prompt"] = prompt
+        captured["cwd"] = cwd
+        captured["exe"] = exe
+        return reply
+
+    monkeypatch.setattr(gemini_cli, "_switch_model", fake_switch)
+    monkeypatch.setattr(gemini_cli, "_print_call", fake_print)
 
 
-def test_call_gemini_passes_model_and_stdin(monkeypatch):
+def test_call_gemini_switches_model_and_returns_envelope(monkeypatch):
     captured = {}
+    _stub_calls(monkeypatch, captured)
 
-    def fake_run(args, **kw):
-        captured["args"] = args
-        captured["input"] = kw.get("input")
-        return _fake_proc(stdout="hi there")
+    env = gemini_cli.call_gemini("ping", model="Gemini 3.1 Pro (High)")
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
-
-    env = gemini_cli.call_gemini("ping", model="gemini-3.1-pro")
     assert env["result"] == "hi there"
     assert env["is_error"] is False
     assert env["stop_reason"] == "end_turn"
+    assert env["usage"] == {"input_tokens": 0, "output_tokens": 0}
+    # First call to a model triggers exactly one switch to that label.
+    assert captured["switches"] == ["Gemini 3.1 Pro (High)"]
+    assert captured["exe"] == "/fake/agy"
+    assert "ping" in captured["prompt"]
 
-    # args[0] is the resolved binary path from shutil.which.
-    assert captured["args"][0] == "/fake/gemini"
-    assert "-p" in captured["args"]
-    assert "-m" in captured["args"]
-    assert captured["args"][captured["args"].index("-m") + 1] == "gemini-3.1-pro"
-    # Prompt goes on stdin (no command-line length limit).
-    assert "ping" in captured["input"]
+
+def test_call_gemini_skips_switch_when_model_unchanged(monkeypatch):
+    captured = {}
+    _stub_calls(monkeypatch, captured)
+
+    gemini_cli.call_gemini("one", model="Gemini 3.5 Flash (High)")
+    gemini_cli.call_gemini("two", model="Gemini 3.5 Flash (High)")
+
+    # The model is global persisted state — switch only on a change.
+    assert captured["switches"] == ["Gemini 3.5 Flash (High)"]
 
 
 def test_call_gemini_folds_system_into_prompt(monkeypatch):
     captured = {}
+    _stub_calls(monkeypatch, captured)
 
-    def fake_run(args, **kw):
-        captured["input"] = kw.get("input")
-        return _fake_proc(stdout="ok")
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
-
-    gemini_cli.call_gemini("the question", model="gemini-3-flash", system="Answer briefly.")
-    # System prompt prepended; gemini CLI has no separate --system flag.
-    assert "[System]" in captured["input"]
-    assert "Answer briefly." in captured["input"]
-    assert "the question" in captured["input"]
+    gemini_cli.call_gemini("the question", model="Gemini 3.5 Flash (High)",
+                           system="Answer briefly.")
+    # `agy -p` has no separate system flag — system is folded in.
+    assert "[System]" in captured["prompt"]
+    assert "Answer briefly." in captured["prompt"]
+    assert "the question" in captured["prompt"]
 
 
 def test_call_gemini_image_refs_use_at_syntax(monkeypatch, tmp_path):
     captured = {}
-
-    def fake_run(args, **kw):
-        captured["input"] = kw.get("input")
-        captured["cwd"] = kw.get("cwd")
-        return _fake_proc(stdout="image described")
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    _stub_calls(monkeypatch, captured, reply="image described")
 
     img = tmp_path / "pic.png"
     img.write_bytes(b"fake-png-bytes")
-    gemini_cli.call_gemini(
-        "what is this?",
-        model="gemini-3.1-pro-preview",
-        images=[img],
-    )
-    body = captured["input"]
-    # Images are referenced by basename and the subprocess runs with
-    # cwd set to their parent dir — absolute paths into %TEMP% hit
-    # Gemini's workspace sandbox and come back as "file path is
-    # inaccessible due to security constraints".
-    assert f"@{img.name}" in body
-    assert "what is this?" in body
+    gemini_cli.call_gemini("what is this?", model="Gemini 3.1 Pro (High)",
+                           images=[img])
+
+    # Images are referenced by basename; cwd is set to their parent dir.
+    assert f"@{img.name}" in captured["prompt"]
+    assert "what is this?" in captured["prompt"]
     assert captured["cwd"] == str(img.resolve().parent)
 
 
 def test_call_gemini_missing_cli_raises(monkeypatch):
-    # Override the autouse fixture: shutil.which now reports the CLI is
-    # missing, which should short-circuit before subprocess.run is called.
     monkeypatch.setattr(gemini_cli.shutil, "which", lambda name: None)
 
     with pytest.raises(gemini_cli.GeminiCLIError) as ei:
@@ -102,23 +98,30 @@ def test_call_gemini_missing_cli_raises(monkeypatch):
     assert "PATH" in str(ei.value)
 
 
-def test_call_gemini_nonzero_exit_raises(monkeypatch):
-    def fake_run(args, **kw):
-        return _fake_proc(stdout="", stderr="quota exceeded", returncode=1)
+def test_parse_picker_reads_labels_and_current():
+    rendered = (
+        "Switch Model\n"
+        "  Gemini 3.5 Flash (High)\n"
+        "  Gemini 3.5 Flash (Medium)\n"
+        "> Gemini 3.1 Pro (High)      (current)\n"
+        "  Claude Opus 4.6 (Thinking)\n"
+        "\n"
+        "Keyboard: arrows Navigate  enter Select\n"
+    )
+    labels, current = gemini_cli._parse_picker(rendered)
+    assert labels == [
+        "Gemini 3.5 Flash (High)",
+        "Gemini 3.5 Flash (Medium)",
+        "Gemini 3.1 Pro (High)",
+        "Claude Opus 4.6 (Thinking)",
+    ]
+    assert current == 2
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
 
-    with pytest.raises(gemini_cli.GeminiCLIError) as ei:
-        gemini_cli.call_gemini("hi")
-    assert "quota exceeded" in str(ei.value)
+def test_parse_picker_empty_when_no_block():
+    assert gemini_cli._parse_picker("no picker here") == ([], 0)
 
 
-def test_call_gemini_empty_stdout_raises(monkeypatch):
-    def fake_run(args, **kw):
-        return _fake_proc(stdout="   \n", stderr="", returncode=0)
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
-
-    with pytest.raises(gemini_cli.GeminiCLIError) as ei:
-        gemini_cli.call_gemini("hi")
-    assert "empty stdout" in str(ei.value)
+def test_strip_ansi_keeps_only_text():
+    raw = "\x1b[1t\x1b[c\x1b[?9001hPONG\r\n"
+    assert gemini_cli._strip_ansi(raw).strip() == "PONG"

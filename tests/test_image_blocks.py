@@ -115,7 +115,7 @@ def test_gemini_path_writes_image_and_passes_to_cli(monkeypatch):
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
-        "model": "gemini-3.1-pro-preview",
+        "model": "Gemini 3.1 Pro (High)",
         "messages": [{
             "role": "user",
             "content": [
@@ -128,7 +128,7 @@ def test_gemini_path_writes_image_and_passes_to_cli(monkeypatch):
         }],
     })
     assert r.status_code == 200, r.text
-    assert captured["model"] == "gemini-3.1-pro-preview"
+    assert captured["model"] == "Gemini 3.1 Pro (High)"
     assert len(captured["images"]) == 1
     assert captured["images"][0].suffix == ".jpg"
     assert captured["exists"] == [True]

@@ -112,7 +112,7 @@ def test_list_models_includes_enabled():
     assert "claude_sonnet" in ids
     assert "claude_opus" in ids
     # Gemini subscription path is always enabled, like Claude.
-    assert "gemini-3.1-pro-preview" in ids
+    assert "Gemini 3.1 Pro (High)" in ids
     assert "gemini_pro" in ids
     assert "gemini_flash" in ids
     assert "gemini_lite" in ids
@@ -139,7 +139,7 @@ def test_messages_routes_gemini_backend(monkeypatch):
     r = client.post(
         "/v1/messages",
         json={
-            "model": "gemini-3.1-pro-preview",
+            "model": "Gemini 3.1 Pro (High)",
             "max_tokens": 64,
             "system": "Answer briefly.",
             "messages": [{"role": "user", "content": "ping"}],
@@ -148,13 +148,13 @@ def test_messages_routes_gemini_backend(monkeypatch):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["content"] == [{"type": "text", "text": "g-pong"}]
-    assert body["model"] == "gemini-3.1-pro-preview"
-    assert captured["model"] == "gemini-3.1-pro-preview"
+    assert body["model"] == "Gemini 3.1 Pro (High)"
+    assert captured["model"] == "Gemini 3.1 Pro (High)"
     assert captured["system"] == "Answer briefly."
 
 
 def test_messages_routes_gemini_alias(monkeypatch):
-    """`gemini_pro` alias resolves to display_name `gemini-3.1-pro-preview`."""
+    """`gemini_pro` alias resolves to display_name `Gemini 3.1 Pro (High)`."""
     captured = {}
 
     def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
@@ -177,7 +177,7 @@ def test_messages_routes_gemini_alias(monkeypatch):
     )
     assert r.status_code == 200
     # Alias → underlying display_name handed to the CLI.
-    assert captured["model"] == "gemini-3.1-pro-preview"
+    assert captured["model"] == "Gemini 3.1 Pro (High)"
 
 
 def test_messages_routes_claude_alias(monkeypatch):
@@ -221,7 +221,7 @@ def test_chat_completions_routes_gemini(monkeypatch):
     r = client.post(
         "/v1/chat/completions",
         json={
-            "model": "gemini-3-flash-preview",
+            "model": "Gemini 3.5 Flash (High)",
             "messages": [{"role": "user", "content": "hello"}],
         },
     )
