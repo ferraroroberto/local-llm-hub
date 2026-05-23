@@ -1,6 +1,6 @@
 # GLM-4.5-Air performance assessment — 2026-04-20
 
-Follow-up to [20260420-hub-with-qwen-and-glm.md](20260420-hub-with-qwen-and-glm.md).
+Follow-up to [hub-with-qwen-and-glm.md](hub-with-qwen-and-glm.md).
 Morning test: ~400 input tokens / ~1000 output tokens in ~120 s on the
 Windows PC (5060 Ti 16 GB + 128 GB RAM), CPU pinned at 100 %, GPU
 barely loaded. Concern: is this fast enough for openclaw, and is the

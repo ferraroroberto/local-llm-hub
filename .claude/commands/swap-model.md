@@ -159,13 +159,12 @@ ex-incumbent.
    identifiers and group the hits:
    ```
    grep -rn "<old_id>\|<old_display_name>" --exclude-dir=.venv \
-     --exclude-dir=models --exclude-dir=docs/changelog \
-     --exclude-dir=docs/frontier/runs
+     --exclude-dir=models --exclude-dir=docs/frontier/runs
    ```
-   Files under `docs/changelog/` and `docs/frontier/runs/<old>/` are
-   **historical snapshots** — leave them. The §10 table in the *current*
-   run's `report.md` was already updated in §5; don't touch it again.
-   Everything else is fair game.
+   Files under `docs/frontier/runs/<old>/` are **historical snapshots**
+   — leave them. The §10 table in the *current* run's `report.md` was
+   already updated in §5; don't touch it again. Everything else is fair
+   game.
 
 2. **README.md.** Update every place that named the old role-holder:
    - the "Active rotation" bullet at the top
@@ -261,7 +260,6 @@ ex-incumbent.
 
 9. **Final grep sweep.** Re-run the audit grep from step 1. Anything
    left should be one of:
-   - `docs/changelog/*` — historical, leave it
    - `docs/frontier/runs/<previous>/…` — historical, leave it
    - the previous role-holder's launcher pair (if kept enabled)
    - explicit "fallback" / "previous role-holder" notes you just wrote
@@ -395,8 +393,8 @@ confirm before stopping anything they might still be using.
     autostart `<new_id>` because `tray.autostart_models` was updated;
     no action needed unless you also want to drop the previous holder
     from `enabled:`."
-- Optionally write a short changelog note under
-  `docs/changelog/<today>-swap-<role>.md`.
+- Optionally summarize the swap in the GitHub issue (or open one)
+  rather than writing a dated changelog file.
 
 Do **not** edit the `claude` row. Do **not** restart or edit the
 tray (its autostart list was already updated in §5; the change takes

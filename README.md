@@ -64,7 +64,7 @@ Local entries in active use as of the May 2026 frontier reading:
 but not in any host's `enabled:` list anymore. Their launchers still
 exist (`launchers/run_qwen.bat`, `launchers/run_glm.bat`) for ad-hoc
 bring-up. Demoted on 2026-05-10 per the May 2026 frontier reading —
-see [docs/changelog/20260510-frontier-via-slash-commands.md](docs/changelog/20260510-frontier-via-slash-commands.md)
+see [docs/frontier-via-slash-commands.md](docs/frontier-via-slash-commands.md)
 for the reasoning.
 
 `gemma4-e4b-it` is the previous `agentic_light` role-holder, replaced
@@ -120,8 +120,7 @@ hardware (e.g. Gemma 4 superseding Gemma 3), the older entry is
 removed — registry, launchers, weights, and docs all go. The current
 lineup and what each model is for live in
 [docs/model-comparison.md](docs/model-comparison.md). Older entries
-survive only in dated changelog notes under `docs/changelog/` for
-historical context.
+survive only in `git log` for historical context.
 
 **Exception — one model per role, not per family.** The whisper
 backend has two slots — `whisper` (turbo, 8090, transcription) and
@@ -203,9 +202,9 @@ Replaced as agentic_light on 2026-05-10 (still enabled on pc-cuda for fallback):
 
 See [docs/project-structure.md](docs/project-structure.md) for the full
 mermaid diagrams (components, modules, request lifecycle),
-[docs/changelog/20260420-hub-with-qwen-and-glm.md](docs/changelog/20260420-hub-with-qwen-and-glm.md)
+[docs/hub-with-qwen-and-glm.md](docs/hub-with-qwen-and-glm.md)
 for the original hub post-mortem, and
-[docs/changelog/20260422-add-whisper-asr.md](docs/changelog/20260422-add-whisper-asr.md) for
+[docs/add-whisper-asr.md](docs/add-whisper-asr.md) for
 how the whisper backend slotted in.
 
 ## Layout
@@ -287,16 +286,14 @@ local-llm-hub/
     ├── project-structure.md
     ├── model-comparison.md
     ├── playbook-cli-backend-migration.md  # reusable method when a vendor CLI changes
-    ├── frontier/                 # monthly efficient-frontier research
-    │   ├── RESEARCH_PROMPT.md    #   canonical brief; read by /frontier-refresh
-    │   └── runs/
-    │       ├── LATEST            #   flat file containing the latest run date
-    │       └── <YYYY-MM-DD>/     #   one dir per run
-    │           ├── report.md     #   didactic markdown report
-    │           ├── frontier.json #   machine-readable run data
-    │           └── frontier.html #   standalone interactive chart
-    └── changelog/                # dated post-mortems / decision notes
-        └── …                     # see ls docs/changelog/ for the current list
+    └── frontier/                 # monthly efficient-frontier research
+        ├── RESEARCH_PROMPT.md    #   canonical brief; read by /frontier-refresh
+        └── runs/
+            ├── LATEST            #   flat file containing the latest run date
+            └── <YYYY-MM-DD>/     #   one dir per run
+                ├── report.md     #   didactic markdown report
+                ├── frontier.json #   machine-readable run data
+                └── frontier.html #   standalone interactive chart
 ```
 
 ## Setup
@@ -682,8 +679,7 @@ Ordered roughly by payoff for API parity / developer experience.
 **High value — closes real compatibility gaps**
 
 - **Streaming (SSE) on `/v1/messages`.** OpenAI-shape streaming on
-  `/v1/chat/completions` already lands as of
-  [docs/changelog/20260510-openai-streaming-and-think-strip.md](docs/changelog/20260510-openai-streaming-and-think-strip.md).
+  `/v1/chat/completions` already lands.
   Still missing: map `claude -p --output-format stream-json` and
   llama-server's native SSE onto the Anthropic event shape
   (`message_start`, `content_block_delta`, `message_delta`,

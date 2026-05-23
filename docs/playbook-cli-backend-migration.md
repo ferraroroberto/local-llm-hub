@@ -6,7 +6,7 @@ one). Vendors rename, deprecate, or restructure their CLIs on their own
 schedule; this hub exists precisely to absorb that churn so downstream
 callers never feel it. This is the procedure that worked for the
 2026-05 `gemini` CLI → Antigravity CLI (`agy`) migration — see
-[changelog/20260522-gemini-to-antigravity-cli.md](changelog/20260522-gemini-to-antigravity-cli.md)
+[changelog/gemini-to-antigravity-cli.md](changelog/gemini-to-antigravity-cli.md)
 and the analysis in GitHub issue #5.
 
 ## The invariant that must survive any migration
@@ -94,12 +94,12 @@ works the way you think."
 
 ## Step 6 — Record it
 
-- Add a dated `docs/changelog/` entry: what changed, files touched,
-  validation run, and a **Known limitations** section for any
-  capability lost in the move.
-- Update `README.md` and `docs/model-comparison.md`.
-- If the analysis was non-trivial, keep a GitHub issue as the durable
-  record of the investigation and the decision.
+- Update `README.md` and `docs/model-comparison.md` if behavior or
+  config surface changed.
+- Keep the GitHub issue + the PR that closes it as the durable record
+  of the investigation and the decision — do not write a dated
+  changelog file. If the migration uncovered a reusable concept,
+  add a topic-named doc under `docs/` instead.
 
 ## Lessons from past migrations
 

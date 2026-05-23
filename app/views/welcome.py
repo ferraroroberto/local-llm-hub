@@ -89,7 +89,7 @@ def render() -> None:
           planned diff, edits `config/models.yaml` + writes a launcher
           + (optionally) downloads the new GGUF.
 
-        See [`docs/changelog/20260510-frontier-via-slash-commands.md`](https://github.com/ferraroroberto/local-llm-hub/blob/main/docs/changelog/20260510-frontier-via-slash-commands.md)
+        See [`docs/frontier-via-slash-commands.md`](https://github.com/ferraroroberto/local-llm-hub/blob/main/docs/frontier-via-slash-commands.md)
         for why the swap path is a slash command and not a button in
         this app.
 

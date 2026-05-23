@@ -189,12 +189,13 @@ flowchart TB
     ROOT --> DOCS["docs/"]
     DOCS --> D1["project-structure.md<br/>(this file)"]
     DOCS --> D2["model-comparison.md<br/>per-model specs + docs links"]
-    DOCS --> CHG["changelog/<br/>dated post-mortems + plan docs"]
-    CHG --> D3["20260420-hub-with-qwen-and-glm.md"]
-    CHG --> D4["20260420-add-gemma-for-action-item-classification.md"]
-    CHG --> D5["20260420-glm-performance-assessment.md"]
-    CHG --> D6["20260422-add-whisper-asr.md"]
-    CHG --> D7["20260424-launchers-and-docs-reorg.md"]
+    DOCS --> D3["hub-with-qwen-and-glm.md<br/>post-mortem"]
+    DOCS --> D4["add-whisper-asr.md<br/>post-mortem"]
+    DOCS --> D5["glm-performance-assessment.md<br/>benchmark"]
+    DOCS --> D6["whisper-turbo-vs-large-v3.md<br/>decision rationale"]
+    DOCS --> D7["frontier-via-slash-commands.md<br/>anti-pattern lesson"]
+    DOCS --> D8["gemini-to-antigravity-cli.md<br/>vendor migration"]
+    DOCS --> D9["playbook-cli-backend-migration.md<br/>playbook"]
 ```
 
 ## Request lifecycle

@@ -106,8 +106,7 @@ models:
       # so the KV cache at 64K FP16 is only ~2.0 GB on top of the ~4.9 GB of
       # weights on GPU — total ~7.5 GB used, ~7.6 GB free on a 16 GB card.
       # Model is trained for 262144; we're using 25% of that and there's
-      # headroom to push further if needed. See
-      # docs/changelog/20260510-bigger-qwen-ctx.md.
+      # headroom to push further if needed.
       - "-c"
       - "65536"
       # Flash attention. Required at 64K — fused attention kernel cuts the
@@ -258,7 +257,7 @@ models:
   # ggml-<size>.bin (tiny / base / small / medium / large-v3 / large-v3-turbo)
   # and re-run `python -m src.install --fix` (or
   # scripts/download_models.py --only whisper). See
-  # docs/changelog/20260422-whisper-turbo-vs-large-v3.md for why turbo is
+  # docs/whisper-turbo-vs-large-v3.md for why turbo is
   # the default on the reference 16 GB GPU.
   whisper:
     display_name: whisper-large-v3-turbo

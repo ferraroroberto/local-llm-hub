@@ -22,8 +22,8 @@ markdown. Where a precise number isn't meaningful for a backend
 | `qwen3.5-4b` | Qwen 3.5 (Alibaba) — hybrid Gated DeltaNet + sparse MoE | 4 B base (sparse-MoE active set) | Q4_K_M | 2.6 GB | 65 536 (262 144 native) | full GPU (`-ngl 99`) + `--flash-attn on` | 8088 | ~110 | [Qwen 3.5 announcement](https://qwen.ai/blog/qwen3.5/) · [official org](https://huggingface.co/Qwen) · [GGUF we ship](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF) |
 | `gemma4-e4b-it` (fallback) | Gemma 4 (Google, edge / multimodal) | 8 B dense (text-only here) | Q4_K_M | 4.7 GB | 16 384 | full GPU (`-ngl 99`) | 8086 | ~92 | [Gemma 4 page](https://deepmind.google/models/gemma/gemma-4/) · [official card](https://huggingface.co/google/gemma-4-E4B-it) · [GGUF we ship](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF) |
 | `gemma4-26b-a4b-it` | Gemma 4 MoE (Google) | 25.2 B / 3.8 B active MoE | IQ4_XS (i-matrix) | 13.0 GB | 8 192 | full GPU (`-ngl 99`) + `--flash-attn on` | 8087 | ~91 | [Gemma 4 page](https://deepmind.google/models/gemma/gemma-4/) · [official card](https://huggingface.co/google/gemma-4-26B-A4B-it) · [GGUF we ship](https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF) |
-| `whisper-large-v3-turbo` | whisper.cpp (OpenAI) | 809 M (ASR, not chat; distilled large-v3 w/ 4 decoder layers) | ggml f16 | 1.62 GB | audio (30 s chunks) | ~2 GB | 8090 | realtime-factor ~4–8× (GPU) | [whisper.cpp](https://github.com/ggerganov/whisper.cpp) · [ggml models](https://huggingface.co/ggerganov/whisper.cpp) · [turbo vs large-v3](changelog/20260422-whisper-turbo-vs-large-v3.md) · [OpenAI paper](https://arxiv.org/abs/2212.04356) |
-| `whisper-medium-translate` | whisper.cpp (OpenAI) — eager CPU sibling | 769 M (medium) | ggml f16 | ~1.5 GB | audio (30 s chunks) | CPU-only | 8091 | ~realtime on 7800X3D | [official medium](https://huggingface.co/openai/whisper-medium) · [ggml models](https://huggingface.co/ggerganov/whisper.cpp) · [why a sibling slot](changelog/20260509-add-whisper-translate-instance.md) · [eager vs lazy](changelog/20260510-whisper-translate-eager-load.md) |
+| `whisper-large-v3-turbo` | whisper.cpp (OpenAI) | 809 M (ASR, not chat; distilled large-v3 w/ 4 decoder layers) | ggml f16 | 1.62 GB | audio (30 s chunks) | ~2 GB | 8090 | realtime-factor ~4–8× (GPU) | [whisper.cpp](https://github.com/ggerganov/whisper.cpp) · [ggml models](https://huggingface.co/ggerganov/whisper.cpp) · [turbo vs large-v3](whisper-turbo-vs-large-v3.md) · [OpenAI paper](https://arxiv.org/abs/2212.04356) |
+| `whisper-medium-translate` | whisper.cpp (OpenAI) — eager CPU sibling | 769 M (medium) | ggml f16 | ~1.5 GB | audio (30 s chunks) | CPU-only | 8091 | ~realtime on 7800X3D | [official medium](https://huggingface.co/openai/whisper-medium) · [ggml models](https://huggingface.co/ggerganov/whisper.cpp) |
 
 > **Demoted candidates** (kept defined in `config/models.yaml` but
 > **not in the active rotation** — see `enabled:` for the active host):
@@ -80,8 +80,7 @@ model was still thinking.
   `gemma3n-e4b-it`) — superseded by the Gemma 4 entries above.
   Per the [latest-only policy](../README.md#latest-only-policy),
   older entries in the same family are removed once a comparable
-  newer one ships. Original rationale for adopting Gemma 3 lives
-  in [changelog/20260420-add-gemma-for-action-item-classification.md](changelog/20260420-add-gemma-for-action-item-classification.md).
+  newer one ships.
 - **Gemma PaliGemma / vision variants** — no image inputs in
   our workloads.
 - **Hugging Face Inference API, OpenRouter, etc.** — the

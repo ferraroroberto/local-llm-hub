@@ -3,8 +3,7 @@
 Post-mortem of adding a local whisper.cpp ASR server to the hub as a
 seventh "model" entry, and renaming the per-backend process manager to
 reflect that it now manages both `llama-server` and `whisper-server`.
-Pairs with [20260420-hub-with-qwen-and-glm.md](20260420-hub-with-qwen-and-glm.md)
-and [20260420-add-gemma-for-action-item-classification.md](20260420-add-gemma-for-action-item-classification.md).
+Pairs with [hub-with-qwen-and-glm.md](hub-with-qwen-and-glm.md).
 
 ---
 
@@ -241,7 +240,7 @@ a distilled variant of large-v3 (4 decoder layers vs 32) — ~2× faster
 than large-v3 at near-identical WER on well-resourced languages like
 Spanish/English, which covers the `transcribe_voice` use case.
 
-See [20260424-whisper-turbo-vs-large-v3.md](20260424-whisper-turbo-vs-large-v3.md)
+See [whisper-turbo-vs-large-v3.md](whisper-turbo-vs-large-v3.md)
 for the rationale and the `small` / `large-v3` / `turbo` / `q5_0`
 trade-off table.
 
