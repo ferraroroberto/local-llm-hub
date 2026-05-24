@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LLM Hub">
+  <meta name="theme-color" content="#0f1115">
+  <link rel="manifest" href="/admin/static/manifest.webmanifest">
+  <link rel="icon" href="/admin/static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/admin/static/icon-180.png">
+  <link rel="stylesheet" href="/admin/static/styles.css">
+  <title>🛰 Local LLM Hub</title>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="topbar-title">🛰 <strong>Local LLM Hub</strong></div>
+      <div class="topbar-status">
+        <span id="hubStatusDot" class="dot"></span>
+        <span id="hubStatusText" class="muted">checking…</span>
+      </div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button id="tabHub" type="button" class="tab active" role="tab" data-tab="hub">🛰 Hub</button>
+      <button id="tabModels" type="button" class="tab" role="tab" data-tab="models">🧠 Models</button>
+      <button id="tabPlayground" type="button" class="tab" role="tab" data-tab="playground">🧪 Playground</button>
+    </nav>
+
+    <section id="paneHub" class="pane" role="tabpanel">
+      <section class="card">
+        <div class="card-header">
+          <h2>Hub</h2>
+          <div class="card-actions">
+            <button id="hubRestartBtn" type="button" class="btn">🔄 Restart</button>
+            <button id="hubStopBtn" type="button" class="btn danger">■ Stop</button>
+          </div>
+        </div>
+        <div class="kv-grid">
+          <div><span class="muted">Local</span><a id="hubLocalUrl" href="#" target="_blank" rel="noopener">—</a></div>
+          <div><span class="muted">LAN</span><a id="hubLanUrl" href="#" target="_blank" rel="noopener">—</a></div>
+          <div><span class="muted">PID</span><code id="hubPid">—</code></div>
+          <div><span class="muted">Uptime</span><span id="hubUptime">—</span></div>
+        </div>
+        <div class="sparklines" id="hubSparklines"></div>
+      </section>
+
+      <details class="card" id="installCard">
+        <summary><h2>🩺 Health &amp; install</h2><span id="installSummary" class="muted small">checking…</span></summary>
+        <div id="installRows"></div>
+        <div class="card-actions">
+          <button id="installFixAllBtn" type="button" class="btn">🔧 Fix all</button>
+          <button id="installRefreshBtn" type="button" class="btn ghost">↻ Re-check</button>
+        </div>
+      </details>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>📡 Live requests</h2>
+          <span id="liveRequestsBadge" class="badge">0</span>
+        </div>
+        <ul id="liveRequestsList" class="card-list dense" aria-label="Live request stream"></ul>
+        <p id="liveRequestsEmpty" class="muted small">No requests yet — the ring fills as clients call the hub.</p>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>📊 Per-backend counters</h2>
+          <span class="muted small">since hub start</span>
+        </div>
+        <table id="countersTable" class="counters"><thead><tr><th>Backend</th><th>Req</th><th>Err</th><th>p50</th><th>p95</th><th>In tok</th><th>Out tok</th></tr></thead><tbody></tbody></table>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>⚠️ Recent errors</h2>
+          <span id="recentErrorsBadge" class="badge danger">0</span>
+        </div>
+        <ul id="recentErrorsList" class="card-list dense" aria-label="Recent errors"></ul>
+        <p id="recentErrorsEmpty" class="muted small">No non-2xx responses in the ring.</p>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>📜 Hub log</h2>
+          <button id="hubLogPauseBtn" type="button" class="btn ghost small">⏸ Pause</button>
+        </div>
+        <pre id="hubLog" class="logpane" aria-label="Hub server log"></pre>
+      </section>
+    </section>
+
+    <section id="paneModels" class="pane" hidden role="tabpanel">
+      <p class="muted small">One card per backend enabled for this host. Local <code>llama-server</code>
+        and <code>whisper-server</code> backends can be started or stopped individually; the
+        Claude and Gemini rows are subscription-backed and don't have a managed process.</p>
+      <div id="modelsList" class="models-grid"></div>
+      <p id="modelsEmpty" class="muted" hidden>No models enabled for this host — check <code>config/models.yaml</code>.</p>
+    </section>
+
+    <section id="panePlayground" class="pane" hidden role="tabpanel">
+      <section class="card">
+        <div class="card-header"><h2>🧪 Playground</h2></div>
+        <div class="opt-row">
+          <span class="opt-name">Model</span>
+          <select id="playgroundModel" class="select-native" aria-label="Model"></select>
+        </div>
+        <div class="opt-row">
+          <span class="opt-name">System</span>
+          <textarea id="playgroundSystem" rows="2" placeholder="optional system prompt"></textarea>
+        </div>
+        <div class="opt-row">
+          <span class="opt-name">Prompt</span>
+          <textarea id="playgroundPrompt" rows="6" placeholder="Hello"></textarea>
+        </div>
+        <div class="opt-row">
+          <span class="opt-name">Image</span>
+          <input id="playgroundImage" type="file" accept="image/*" aria-label="Attach image (claude/gemini only)">
+        </div>
+        <div class="opt-row">
+          <span class="opt-name">Max tokens</span>
+          <input id="playgroundMaxTokens" type="number" min="1" max="32000" value="512">
+        </div>
+        <div class="card-actions">
+          <button id="playgroundSendBtn" type="button" class="btn primary">▶ Send</button>
+          <button id="playgroundClearBtn" type="button" class="btn ghost">Clear</button>
+          <span id="playgroundLatency" class="muted small"></span>
+        </div>
+        <h3 class="opt-group-title">Reply</h3>
+        <pre id="playgroundReply" class="logpane" aria-label="Model reply"></pre>
+        <h3 class="opt-group-title">Usage</h3>
+        <div id="playgroundUsage" class="kv-grid usage"></div>
+      </section>
+    </section>
+
+    <footer class="footer">
+      <a href="https://github.com/ferraroroberto/local-llm-hub#readme" target="_blank" rel="noopener">📖 README</a>
+      <a href="https://github.com/ferraroroberto/local-llm-hub/blob/main/docs/model-comparison.md" target="_blank" rel="noopener">📊 Model comparison</a>
+      <a href="/admin/frontier" target="_blank" rel="noopener">📈 Frontier</a>
+      <span class="muted small">tests: <code>pytest -q</code></span>
+      <span id="buildReadout" class="muted small footer-build"></span>
+    </footer>
+
+    <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
+
+    <div id="loginOverlay" class="overlay" hidden role="dialog" aria-modal="true" aria-label="Login">
+      <form id="loginForm" class="login-card">
+        <h2>🔒 Sign in</h2>
+        <p class="muted small">This hub is locked. Enter the configured password to receive a bearer token.</p>
+        <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" required>
+        <button type="submit" class="btn primary">Sign in</button>
+        <p id="loginError" class="error" hidden></p>
+      </form>
+    </div>
+  </main>
+
+  <script type="module" src="/admin/static/main.js"></script>
+</body>
+</html>

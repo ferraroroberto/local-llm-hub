@@ -50,9 +50,9 @@ OWNERSHIP_EXTERNAL = "external"
 OWNERSHIP_NONE = "none"
 
 # On Windows, give the child its own process group so CTRL_BREAK_EVENT
-# during stop() doesn't propagate to Streamlit / launch_app.bat, and
-# suppress the console so silent parents (pythonw, e.g. the tray) don't
-# spawn a stray cmd window.
+# during stop() doesn't propagate to the tray launcher, and suppress the
+# console so silent parents (pythonw, e.g. the tray) don't spawn a
+# stray cmd window.
 _WIN_NEW_GROUP = (
     subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
     if sys.platform == "win32" else 0
@@ -200,6 +200,80 @@ def pid() -> Optional[int]:
     return p.pid
 
 
+def snapshot_listening_pids() -> dict[int, list[int]]:
+    """One-shot map of every listening TCP port → PID list.
+
+    The legacy :func:`find_port_pids` shells out per-port. The admin
+    webapp's Models tab queries ownership + pid for every backend on
+    every poll — O(N) ``netstat`` invocations at ~1 s each adds up
+    fast. This consolidates the lookup into a single in-process call
+    via :func:`psutil.net_connections` (~2 ms for ~70 sockets), with
+    netstat / lsof kept as the fallback if psutil refuses (Windows
+    sometimes denies access without admin for system-wide queries).
+
+    Returns an empty dict if all paths fail — callers must tolerate
+    that and treat it as "no information; fall back to ``[]``".
+    """
+    try:
+        import psutil
+
+        result: dict[int, set[int]] = {}
+        for conn in psutil.net_connections(kind="tcp"):
+            if conn.status != psutil.CONN_LISTEN:
+                continue
+            if conn.laddr is None or not conn.pid:
+                continue
+            result.setdefault(conn.laddr.port, set()).add(conn.pid)
+        if result:
+            return {p: sorted(pids) for p, pids in result.items()}
+    except (psutil.AccessDenied, RuntimeError, ImportError):  # type: ignore[name-defined]
+        pass
+    except Exception:  # noqa: BLE001 — never let observability poison the hub
+        pass
+
+    # Fallback: shell out. ~1 s on Windows; only triggered if psutil
+    # refused (admin denial on a locked-down box) or hit an OS error.
+    result_fb: dict[int, set[int]] = {}
+    try:
+        if sys.platform == "win32":
+            out = subprocess.run(
+                ["netstat", "-ano", "-p", "TCP"],
+                capture_output=True, text=True, timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            ).stdout
+            line_re = re.compile(
+                r"\s*TCP\s+\S+:(\d+)\s+\S+\s+LISTENING\s+(\d+)"
+            )
+            for line in out.splitlines():
+                m = line_re.match(line)
+                if not m:
+                    continue
+                result_fb.setdefault(int(m.group(1)), set()).add(int(m.group(2)))
+        else:
+            out = subprocess.run(
+                ["lsof", "-nP", "-iTCP", "-sTCP:LISTEN", "-FpPn"],
+                capture_output=True, text=True, timeout=5,
+            ).stdout
+            pid: int | None = None
+            for line in out.splitlines():
+                if line.startswith("p"):
+                    try:
+                        pid = int(line[1:])
+                    except ValueError:
+                        pid = None
+                elif line.startswith("n") and pid is not None:
+                    tail = line[1:]
+                    if ":" in tail:
+                        try:
+                            port = int(tail.rsplit(":", 1)[-1])
+                        except ValueError:
+                            continue
+                        result_fb.setdefault(port, set()).add(pid)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return {}
+    return {p: sorted(pids) for p, pids in result_fb.items()}
+
+
 def find_port_pids(port: int) -> list[int]:
     """Return PIDs of processes listening on `port`, if any.
 
@@ -208,9 +282,9 @@ def find_port_pids(port: int) -> list[int]:
 
     Note: under ``pythonw`` (e.g. when called from the tray) Windows
     Terminal will spawn a fresh window for any console child unless we
-    pass ``CREATE_NO_WINDOW``. The Streamlit menu render path calls
-    :func:`ownership` → :func:`find_port_pids` once per enabled model,
-    so without the flag every menu open spawns N Terminal windows.
+    pass ``CREATE_NO_WINDOW``. Callers that need ports for *many*
+    sockets in one tick should prefer :func:`snapshot_listening_pids`
+    to avoid spawning N netstat / lsof processes.
     """
     try:
         if sys.platform == "win32":

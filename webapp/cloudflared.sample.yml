@@ -1,0 +1,38 @@
+# Sample cloudflared named-tunnel config for the local LLM hub.
+#
+# This repo does NOT ship cloudflared.yml — copy this file to
+# `webapp/cloudflared.yml` and fill in your own values. The tray reads
+# the first `ingress[].hostname` to surface "📋 Copy Cloudflare URL" in
+# the menu (with `?token=<bearer>` appended, so a fresh phone tab can
+# authenticate without typing the password again).
+#
+# Pre-flight (one time per machine):
+#   1. Install `cloudflared` (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/install-and-setup/installation/).
+#   2. `cloudflared tunnel login`           — opens browser, picks the zone.
+#   3. `cloudflared tunnel create local-llm-hub`
+#      Note the tunnel UUID it prints.
+#   4. `cloudflared tunnel route dns local-llm-hub llm.example.com`
+#   5. Copy this file to `webapp/cloudflared.yml` and fill in `tunnel:`
+#      and `credentials-file:` from step 3.
+#
+# Run cloudflared (any of these works — pick one):
+#   `cloudflared tunnel --config webapp/cloudflared.yml run`
+#   `cloudflared service install --config webapp/cloudflared.yml`   (Windows: persistent service)
+#
+# The hub itself does NOT spawn cloudflared. The user owns the tunnel
+# lifecycle. The tray only *reads* this file for the hostname.
+
+# Tunnel UUID printed by `cloudflared tunnel create`.
+tunnel: 00000000-0000-0000-0000-000000000000
+
+# Credentials JSON cloudflared wrote under %USERPROFILE%\.cloudflared\
+credentials-file: C:\Users\YOU\.cloudflared\00000000-0000-0000-0000-000000000000.json
+
+# Routes — the tray surfaces the first hostname here.
+ingress:
+  - hostname: llm.example.com
+    service: http://127.0.0.1:8000
+
+  # Catch-all: required by cloudflared. Anything not routed by the rules
+  # above gets a clean 404 instead of leaking to a default service.
+  - service: http_status:404

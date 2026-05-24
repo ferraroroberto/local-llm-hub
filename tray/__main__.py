@@ -20,9 +20,6 @@ CRASH_FILE = PROJECT_ROOT / "tray-crash.log"
 
 
 def _setup_logging() -> None:
-    # Discard routine logs — pythonw has no stdout to print to anyway, and
-    # the user explicitly doesn't want a always-on log file. Crashes are
-    # captured separately in main()'s except block.
     root = logging.getLogger()
     root.setLevel(logging.WARNING)
     root.addHandler(logging.NullHandler())
@@ -41,13 +38,13 @@ def main() -> int:
     _setup_logging()
     try:
         from .single_instance import acquire_lock
+
         if not acquire_lock():
             return 0
-        from .app import TrayApp
-        from .config import load as load_config
+        from .tray import main as tray_main
 
-        return TrayApp(load_config()).run()
-    except Exception as exc:
+        return tray_main()
+    except Exception as exc:  # noqa: BLE001
         _write_crash(exc)
         return 1
 
