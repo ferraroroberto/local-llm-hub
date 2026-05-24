@@ -51,6 +51,7 @@ config/webauthn_devices.json
 webapp/cloudflared.yml
 webapp/auth.log
 webapp/last_tunnel_url.txt
+webapp/certificates/
 app_web/static/icon-180.png
 app_web/static/icon-512.png
 

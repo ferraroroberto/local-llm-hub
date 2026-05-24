@@ -459,18 +459,6 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
   color: var(--muted);
   word-break: break-all;
 }
-/* Inline log pane appears as a sibling <li> below an .app-item. Mirrors
- * app-launcher's `.jobs-history-li` pattern. */
-.model-log-li {
-  list-style: none;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-top: 0;
-  border-radius: 0 0 var(--radius) var(--radius);
-  margin-top: -1px;
-  padding: 10px 12px;
-  overflow: hidden;
-}
 
 /* ---------- playground ---------- */
 .opt-stack {

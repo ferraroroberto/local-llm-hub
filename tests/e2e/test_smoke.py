@@ -176,3 +176,82 @@ def test_live_request_ring(admin_url: str):
     assert first["status"] == 400
     assert first["model"] == "definitely-not-a-real-model"
     assert first["latency_ms"] > 0
+
+
+def test_live_requests_stream_rolls_forward(page, admin_url):
+    """Regression guard for the live-stream pane.
+
+    The bug this catches (issue #10 item 2): SSE seed fills the list,
+    but subsequent frames never reach the UI, so the pane freezes at
+    its initial snapshot. Boot the page, take a baseline count of
+    #liveRequestsList rows, fire two distinct /v1/messages from this
+    test process, and assert both rows show up within a short window.
+    """
+    base = admin_url.rsplit("/admin/", 1)[0]
+    page.goto(admin_url, wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHub", state="visible", timeout=5000)
+    page.wait_for_selector("#liveRequestsList", state="attached", timeout=3000)
+    # Let the EventSource open + the initial seed drain. We don't rely
+    # on baseline counts because earlier tests in the same session may
+    # have left records in the server-side ring.
+    page.wait_for_timeout(700)
+
+    # Use distinguishable model names so each marker is a unique row.
+    marker_a = "e2e-rolls-forward-A"
+    marker_b = "e2e-rolls-forward-B"
+    for marker in (marker_a, marker_b):
+        r = httpx.post(
+            f"{base}/v1/messages",
+            json={"model": marker, "messages": [{"role": "user", "content": "hi"}]},
+            timeout=5.0,
+        )
+        assert r.status_code == 400, r.text
+
+    # Both markers must arrive in the live list within a couple of seconds.
+    page.wait_for_function(
+        "(args) => {"
+        "  const ul = document.getElementById('liveRequestsList');"
+        "  if (!ul) return false;"
+        "  const text = ul.textContent || '';"
+        "  return text.indexOf(args.a) !== -1 && text.indexOf(args.b) !== -1;"
+        "}",
+        arg={"a": marker_a, "b": marker_b},
+        timeout=4000,
+    )
+
+    def _marker_counts():
+        return page.evaluate(
+            "(markers) => {"
+            "  const ul = document.getElementById('liveRequestsList');"
+            "  const items = Array.from(ul ? ul.children : []);"
+            "  const out = {};"
+            "  for (const m of markers) {"
+            "    out[m] = items.filter(li => (li.textContent || '').includes(m)).length;"
+            "  }"
+            "  return out;"
+            "}",
+            [marker_a, marker_b],
+        )
+
+    counts = _marker_counts()
+    assert counts[marker_a] == 1, f"marker_a duplicated on first delivery: {counts}"
+    assert counts[marker_b] == 1, f"marker_b duplicated on first delivery: {counts}"
+
+    # Bounce the SSE: switch away from Hub and back. main.js stops the
+    # stream on tab-out and starts it again on tab-in — the server then
+    # replays its 20-record seed, which used to duplicate every visible
+    # row in the pane.
+    page.click("#tabModels")
+    page.wait_for_selector("#paneModels", state="visible", timeout=2000)
+    page.wait_for_timeout(300)
+    page.click("#tabHub")
+    page.wait_for_selector("#paneHub", state="visible", timeout=2000)
+    # Give the fresh EventSource time to receive the replayed seed.
+    page.wait_for_timeout(900)
+    counts_after = _marker_counts()
+    assert counts_after[marker_a] == 1, (
+        f"marker_a duplicated after SSE reconnect: {counts_after}"
+    )
+    assert counts_after[marker_b] == 1, (
+        f"marker_b duplicated after SSE reconnect: {counts_after}"
+    )

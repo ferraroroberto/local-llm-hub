@@ -83,15 +83,17 @@
           <div class="card-header"><h2>Live requests</h2><span id="liveRequestsBadge" class="badge">0</span></div>
           <ul id="liveRequestsList" class="card-list dense" aria-label="Live request stream"></ul>
           <div id="liveRequestsEmpty" class="empty">No requests yet — the ring fills as clients call the hub.</div>
+          <p class="muted small" style="margin: 8px 0 0;">Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and don't show here.</p>
         </div>
         <div class="compact-section" data-section="counters">
-          <div class="card-header"><h2>Per-backend counters</h2><span class="muted small">since hub start</span></div>
+          <div class="card-header"><h2>Per-backend counters</h2><span class="muted small">since hub start · resets on restart</span></div>
           <div class="counters-wrap">
             <table id="countersTable" class="counters">
               <thead><tr><th>Backend</th><th>Req</th><th>Err</th><th>p50</th><th>p95</th><th>In tok</th><th>Out tok</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
+          <p class="muted small" style="margin: 8px 0 0;">Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and aren't counted.</p>
         </div>
         <div class="compact-section" data-section="errors">
           <div class="card-header"><h2>Recent errors</h2><span id="recentErrorsBadge" class="badge danger">0</span></div>
@@ -116,12 +118,13 @@
         </div>
         <ul id="liveRequestsListExp" class="card-list dense" aria-label="Live request stream (expanded)"></ul>
         <div id="liveRequestsEmptyExp" class="empty">No requests yet — the ring fills as clients call the hub.</div>
+        <p class="muted small" style="margin: 8px 0 0;">Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and don't show here.</p>
       </section>
 
       <section class="card hub-expanded-only">
         <div class="card-header">
           <h2>📊 Per-backend counters</h2>
-          <span class="muted small">since hub start</span>
+          <span class="muted small">since hub start · resets on restart</span>
         </div>
         <div class="counters-wrap">
           <table id="countersTableExp" class="counters">
@@ -129,6 +132,7 @@
             <tbody></tbody>
           </table>
         </div>
+        <p class="muted small" style="margin: 8px 0 0;">Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and aren't counted.</p>
       </section>
 
       <section class="card hub-expanded-only">

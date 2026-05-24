@@ -1,16 +1,13 @@
-"""Models tab API — per-backend tile state, start/stop/log/ping."""
+"""Models tab API — per-backend tile state + start/stop/force-stop/ping."""
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
-from pathlib import Path
-from typing import Any, AsyncIterator, Dict, List
+from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException
 
 from src import backend_process as bp
 from src.model_registry import Model, enabled_models, resolve as resolve_model
@@ -23,12 +20,6 @@ from src.server_process import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _sse_pack(data: Any, event: str = "") -> str:
-    body = data if isinstance(data, str) else json.dumps(data)
-    head = f"event: {event}\n" if event else ""
-    return f"{head}data: {body}\n\n"
 
 
 def _ownership_from_snapshot(m: Model, listening: Dict[int, list]) -> tuple[str, Any]:
@@ -148,45 +139,6 @@ async def model_force_stop(model_id: str) -> Dict[str, Any]:
     if not ok:
         raise HTTPException(status_code=409, detail=msg)
     return {"ok": True, "detail": msg}
-
-
-@router.get("/api/models/{model_id}/log/recent")
-async def model_log_recent(model_id: str, limit: int = 200) -> Dict[str, Any]:
-    target = bp.resolve_model_by_id(model_id)
-    if target is None:
-        raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
-    return {"lines": bp.log_lines(model_id)[-max(1, min(limit, 2000)) :]}
-
-
-@router.get("/api/models/{model_id}/log/tail")
-async def model_log_tail(model_id: str, request: Request) -> StreamingResponse:
-    target = bp.resolve_model_by_id(model_id)
-    if target is None:
-        raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
-
-    async def _gen() -> AsyncIterator[str]:
-        # Simple polling-based tail — backend_process logs land in a
-        # deque on a background reader thread; this just snapshots it.
-        last_len = 0
-        # Seed with whatever's in the ring already.
-        for line in bp.log_lines(model_id)[-200:]:
-            yield _sse_pack(line)
-            last_len += 1
-        while True:
-            if await request.is_disconnected():
-                break
-            lines = bp.log_lines(model_id)
-            if len(lines) > last_len:
-                for line in lines[last_len:]:
-                    yield _sse_pack(line)
-                last_len = len(lines)
-            await asyncio.sleep(0.5)
-
-    return StreamingResponse(_gen(), media_type="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-        "Connection": "keep-alive",
-    })
 
 
 @router.post("/api/models/{model_id}/ping")
