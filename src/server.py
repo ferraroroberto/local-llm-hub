@@ -32,14 +32,15 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from .claude_cli import ClaudeCLIError, call_claude
 from .gemini_cli import GeminiCLIError, call_gemini
 from .host_profile import hub_bind_host, hub_port
-from .landing import LANDING_HTML
+from .hub_log import HUB_LOG, install_root_handler
+from .hub_observability import OBS, ObservatoryMiddleware
 from .model_registry import Model, enabled_models, resolve as resolve_model
 from .openai_upstream import (
     UpstreamError,
@@ -56,6 +57,9 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt="%H:%M:%S",
 )
+# Wire the in-memory ring handler so the admin webapp's Hub tab can tail
+# both our logs and uvicorn's (access + error) without re-reading stdout.
+install_root_handler()
 logger = logging.getLogger(__name__)
 
 
@@ -299,12 +303,144 @@ def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
 
 # ---- FastAPI app ----
 
-app = FastAPI(title="Local LLM Hub", version="0.2.0")
+app = FastAPI(title="Local LLM Hub", version="0.3.0")
+# Observability middleware records every /v1/messages + /v1/chat/completions
+# call into an in-memory ring read by the admin webapp's Hub tab. Volatile
+# by design — the durable telemetry layer is issue #4 (Langfuse).
+app.add_middleware(ObservatoryMiddleware)
 
 
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
-def root() -> HTMLResponse:
-    return HTMLResponse(LANDING_HTML)
+# Bearer-token gate on the parent app. Loopback callers bypass; non-
+# loopback callers must present the token (or be in the configured
+# extra_allowlist). The /admin sub-app has its own copy of this
+# middleware — its prefix is exempted here so a single auth boundary
+# governs the whole process.
+def _hub_get_token() -> str:
+    """Resolve the bearer token from config/webapp_config.json on every
+    check so the user can edit it without restarting the hub."""
+    try:
+        from .webapp_config import load_webapp_config
+        return getattr(load_webapp_config(), "auth_token", "") or ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+from app_web.middleware import ParentBearerTokenMiddleware  # noqa: E402
+
+app.add_middleware(ParentBearerTokenMiddleware, get_token=_hub_get_token)
+
+
+# Expose the same WebappConfig to the parent app so the middleware can
+# read ``extra_allowlist`` without re-loading on every request. Note the
+# token itself is *not* cached — we always re-read so the user can
+# rotate without restarting.
+try:
+    from .webapp_config import load_webapp_config as _load_wcfg
+    app.state.webapp_config = _load_wcfg()
+except Exception as _exc:  # noqa: BLE001
+    logger.warning("⚠️ could not load webapp_config: %s", _exc)
+
+
+@app.on_event("shutdown")
+async def _stop_backend_children() -> None:
+    """Tear down every model subprocess the hub spawned.
+
+    The hub owns its backend children (since the tray drives them via
+    the admin API). Without this, a clean ``CTRL+C`` would leave
+    orphan ``llama-server`` / ``whisper-server`` processes holding
+    their ports until the user logged out.
+    """
+    from . import backend_process as bp
+
+    for model_id in list(bp.running_backends().keys()):
+        try:
+            ok, msg = bp.stop(model_id)
+            logger.info("shutdown: stop %s -> %s %s", model_id, ok, msg)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("shutdown: stop %s raised: %s", model_id, exc)
+
+
+@app.on_event("startup")
+async def _wire_observatory_loop() -> None:
+    """Capture the running event loop so the synchronous middleware can
+    fan out SSE events from non-async callers."""
+    import asyncio as _asyncio
+
+    loop = _asyncio.get_running_loop()
+    OBS.attach_loop(loop)
+    HUB_LOG.attach_loop(loop)
+    # Start the resource sampler. 2s tick × 150 samples = 5 min ring.
+    loop.create_task(_resource_sampler())
+
+    # Inherit any backend process left running on one of our ports by a
+    # previous hub instance. Without this, every hub restart shows the
+    # surviving model backends as "adopted" rather than "running".
+    try:
+        from . import backend_process as bp
+        inherited = await _asyncio.to_thread(bp.inherit_running_backends)
+        if inherited:
+            logger.info("📎 Inherited %d running backend(s) from a previous hub", inherited)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("inherit_running_backends failed: %s", exc)
+
+
+async def _resource_sampler() -> None:
+    """Background task that samples RAM + GPU usage every 2 s."""
+    import asyncio as _asyncio
+
+    from . import system_stats
+    from .hub_observability import StatSample
+
+    while True:
+        try:
+            ram = system_stats.ram_stats()
+            gpus = system_stats.gpu_stats()
+            gpu0_vram = None
+            gpu0_util = None
+            if gpus:
+                first = gpus[0]
+                gpu0_vram = first.get("vram_percent")
+                gpu0_util = first.get("util_percent")
+            OBS.record_stat(
+                StatSample(
+                    ts=time.time(),
+                    ram_percent=float(ram.get("percent", 0.0)),
+                    gpu0_vram_percent=gpu0_vram,
+                    gpu0_util_percent=gpu0_util,
+                )
+            )
+        except Exception:  # noqa: BLE001 — sampler must not die
+            pass
+        await _asyncio.sleep(2.0)
+
+
+# Mount the admin sub-app at /admin. Done at import time so a fresh
+# uvicorn workers picks it up; the sub-app has its own bearer-token
+# middleware, separate from the parent hub.
+def _mount_admin() -> None:
+    # Guard against double-mount when the module is imported twice (e.g.
+    # `python -m src.server` loads us as ``__main__`` and uvicorn then
+    # re-imports as ``src.server`` to resolve the ``src.server:app``
+    # spec).
+    if any(getattr(r, "name", None) == "admin" for r in app.routes):
+        return
+    try:
+        from app_web import create_app as _create_admin
+        admin_app = _create_admin()
+        admin_app.state.parent = app
+        app.mount("/admin", admin_app, name="admin")
+        logger.info("ℹ️ /admin sub-app mounted")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("⚠️ /admin sub-app failed to mount: %s", exc)
+
+
+_mount_admin()
+
+
+@app.get("/", include_in_schema=False)
+def root() -> Response:
+    # Old landing page is gone — / now redirects to the admin webapp.
+    return RedirectResponse(url="/admin/", status_code=307)
 
 
 @app.get("/info", include_in_schema=False)
@@ -349,11 +485,14 @@ def list_models() -> Dict[str, Any]:
 
 
 @app.post("/v1/messages")
-def messages(req: MessagesRequest) -> JSONResponse:
+def messages(req: MessagesRequest, request: Request) -> JSONResponse:
     if req.stream:
         logger.warning("stream=true requested - returning non-streaming response")
 
     model = _resolve(req.model)
+    ctx = getattr(request.state, "obs_ctx", None)
+    if ctx is not None:
+        ctx.backend = model.backend
     logger.info("/v1/messages model=%s backend=%s", req.model, model.backend)
 
     if model.backend == "claude":
@@ -375,6 +514,12 @@ def messages(req: MessagesRequest) -> JSONResponse:
 
     payload = _envelope_to_anthropic(env, req.model)
     u = payload["usage"]
+    if ctx is not None:
+        ctx.in_tok = int(u["input_tokens"])
+        ctx.out_tok = int(u["output_tokens"])
+        ctx.cache_read_tok = int(u["cache_read_input_tokens"])
+        ctx.cache_write_tok = int(u["cache_creation_input_tokens"])
+        ctx.stop_reason = str(payload.get("stop_reason") or "")
     logger.info(
         "<- in=%d out=%d (cache_r=%d cache_w=%d) stop=%s backend=%s",
         u["input_tokens"], u["output_tokens"],
@@ -474,8 +619,11 @@ def _stream_openai_passthrough(model: Model, req: "ChatCompletionRequest") -> St
 
 
 @app.post("/v1/chat/completions")
-def chat_completions(req: ChatCompletionRequest) -> Response:
+def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
     model = _resolve(req.model)
+    ctx = getattr(request.state, "obs_ctx", None)
+    if ctx is not None:
+        ctx.backend = model.backend
     logger.info(
         "/v1/chat/completions model=%s backend=%s stream=%s",
         req.model, model.backend, req.stream,
@@ -558,6 +706,135 @@ def chat_completions(req: ChatCompletionRequest) -> Response:
         return JSONResponse(clean_openai_response(raw))
 
     raise HTTPException(status_code=500, detail=f"unknown backend {model.backend!r}")
+
+
+# ---- Audio proxy (whisper backends speak OpenAI's audio API natively) ----
+
+
+def _whisper_port_for_model(model_name: str, *, default_role: str) -> Optional[int]:
+    """Pick a whisper backend port for a request.
+
+    If the caller passed ``model=...`` in the multipart form, try to
+    resolve it through the registry first. Otherwise fall back to a
+    heuristic based on the endpoint's role:
+
+      * ``audio_transcribe`` → first whisper backend whose id does NOT
+        contain "translate" (the turbo / GPU one).
+      * ``audio_translate`` → first whisper backend whose id DOES
+        contain "translate" (the medium / CPU sibling).
+
+    Returns ``None`` if no whisper backend is enabled on this host —
+    the caller surfaces that as 503.
+    """
+    from .model_registry import enabled_models, resolve as _resolve_model
+
+    if model_name:
+        m = _resolve_model(model_name)
+        if m and m.backend == "whisper" and m.port:
+            return m.port
+
+    whispers = [m for m in enabled_models() if m.backend == "whisper" and m.port]
+    if not whispers:
+        return None
+
+    if default_role == "audio_translate":
+        for m in whispers:
+            if "translate" in m.id.lower():
+                return m.port
+    else:  # audio_transcribe — anything that isn't the translate sibling
+        for m in whispers:
+            if "translate" not in m.id.lower():
+                return m.port
+
+    return whispers[0].port
+
+
+async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) -> Response:
+    """Stream a multipart audio request through to a whisper backend.
+
+    The whisper-server already speaks the OpenAI ``/v1/audio/*`` shape,
+    so we just forward the bytes + headers and pass the response back.
+    The hub's observability middleware records the request in the live
+    ring — that's the whole point of going through us instead of
+    hitting :8090 / :8091 directly.
+    """
+    import httpx as _httpx
+
+    body = await request.body()
+
+    # Peek the ``model`` field out of the multipart body to choose a
+    # backend. python-multipart parsing is overkill — the field shows
+    # up as ``Content-Disposition: form-data; name="model"`` followed
+    # by a couple of CRLF lines and the value. Best-effort regex.
+    model_name = ""
+    try:
+        import re as _re
+        match = _re.search(
+            rb'name="model"\r?\n\r?\n([^\r\n]+)', body[: 16 * 1024]
+        )
+        if match:
+            model_name = match.group(1).decode("ascii", errors="ignore").strip()
+    except Exception:  # noqa: BLE001
+        pass
+
+    port = _whisper_port_for_model(model_name, default_role=default_role)
+    if port is None:
+        raise HTTPException(
+            status_code=503,
+            detail="no whisper backend enabled on this host",
+        )
+
+    ctx = getattr(request.state, "obs_ctx", None)
+    if ctx is not None:
+        ctx.model = model_name
+        ctx.backend = "whisper"
+
+    upstream_url = f"http://127.0.0.1:{port}{ctx_path}"
+    headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() in {"content-type", "accept"}
+    }
+
+    try:
+        async with _httpx.AsyncClient(timeout=300.0) as client:
+            upstream = await client.post(upstream_url, content=body, headers=headers)
+    except _httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"whisper upstream error: {exc}")
+
+    out_headers = {
+        k: v for k, v in upstream.headers.items()
+        if k.lower() not in {"content-length", "transfer-encoding", "connection"}
+    }
+    return Response(
+        content=upstream.content,
+        status_code=upstream.status_code,
+        media_type=upstream.headers.get("content-type"),
+        headers=out_headers,
+    )
+
+
+@app.post("/v1/audio/transcriptions")
+async def audio_transcriptions(request: Request) -> Response:
+    """Proxy transcription requests through the hub so they land in the
+    observability ring. Clients that point directly at :8090 still
+    work but are invisible to the admin UI — pointing at :8000 here
+    makes them visible without changing the request shape.
+    """
+    return await _proxy_audio(
+        request, default_role="audio_transcribe",
+        ctx_path="/v1/audio/transcriptions",
+    )
+
+
+@app.post("/v1/audio/translations")
+async def audio_translations(request: Request) -> Response:
+    """Companion to :func:`audio_transcriptions` for the ``task=translate``
+    case. Routes to the ``audio_translate`` role's port (medium, CPU).
+    """
+    return await _proxy_audio(
+        request, default_role="audio_translate",
+        ctx_path="/v1/audio/translations",
+    )
 
 
 def main() -> None:

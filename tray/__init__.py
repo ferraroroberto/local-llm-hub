@@ -1,7 +1,6 @@
-"""System-tray launcher for the local-LLM hub.
+"""Local LLM Hub system tray — single-file implementation in ``tray.py``.
 
-Thin wrapper around :mod:`src.server_process` and :mod:`src.backend_process`:
-the tray itself owns no business logic — it only drives those modules from
-a pystray menu and a tkinter log window. Entry point is :mod:`tray.__main__`,
-launched silently from ``tray.bat`` via ``pythonw.exe``.
+Replaces the old multi-file (``app.py`` + ``log_window.py`` + ``config.py``)
+layout. The tk log window is gone — logs now live in the /admin webapp's
+Hub tab inside the hub's own FastAPI process.
 """

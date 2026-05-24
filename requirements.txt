@@ -5,16 +5,22 @@ pydantic>=2.5
 httpx>=0.27
 pytest>=8.0
 anthropic>=0.40
-streamlit>=1.37
 pyyaml>=6.0
 huggingface_hub>=0.24
 psutil>=5.9
 
-# Tray launcher (system tray icon + tk log window). Pillow renders the
-# tray glyph at runtime; winotify gives WinRT toast fallback on Windows.
+# Tray launcher + admin SPA placeholder icons. Pillow renders both the
+# pystray glyph and the `/admin/static/icon-180.png` family at runtime;
+# winotify gives WinRT toast fallback on Windows.
 pystray>=0.19
 Pillow>=10.0
 winotify>=1.1; platform_system == "Windows"
+
+# Passkey gate for /admin (issue #7). Optional at runtime — when
+# absent, WebAuthnGate.available() returns False and the bearer-token
+# alone protects the webapp. Install to enable platform-passkey
+# enrollment from the iOS PWA.
+webauthn>=2.1
 
 # Gemini backend drives the Antigravity CLI (`agy`) under a ConPTY,
 # since `agy -p` print mode renders to a console rather than stdout.

@@ -96,9 +96,10 @@ human-in-the-loop, both edit files directly:
   then edits `config/models.yaml` + writes a launcher pair + (optionally)
   shells out to `scripts/download_models.py`.
 
-The Streamlit **🛰 Frontier** tab is read-only: run picker, current
-role decisions, report markdown, embedded chart. To act on a run, run
-`/swap-model` from the CLI.
+To browse a run interactively, open
+`docs/frontier/runs/LATEST/frontier.html` in a browser — it's a
+standalone interactive chart, no admin UI involved. To act on a run,
+run `/swap-model` from Claude Code.
 
 Side-by-side technical specs + docs links for all active models live in
 [docs/model-comparison.md](docs/model-comparison.md). The latest research
@@ -218,9 +219,9 @@ local-llm-hub/
 │       ├── swap-model.md         # interactive role swap (yaml + launcher + download)
 │       └── system-specs.md       # collect Windows hardware specs
 ├── requirements.txt
+├── requirements-dev.txt      # e2e + passkey deps (Playwright, pytest-playwright, webauthn)
 ├── tray.bat                  # Windows-only system-tray launcher (silent)
 ├── run_hub.bat / .sh         # start the FastAPI hub on :8000
-├── launch_app.bat / .sh      # Streamlit control panel
 ├── launchers/                # per-model backends (.bat + .sh)
 │   ├── run_qwen.*               # demoted candidate; ad-hoc only
 │   ├── run_glm.*                # demoted candidate; ad-hoc only
@@ -231,48 +232,57 @@ local-llm-hub/
 │   ├── run_whisper_translate.*  # audio_translate role on :8091 (eager CPU)
 │   └── run_all.*                # start everything enabled on this host
 ├── config/
-│   └── models.yaml           # hosts + models + roles + tray autostart
+│   ├── models.yaml           # hosts + models + roles + tray autostart
+│   └── webapp_config.json    # admin auth: bearer token, optional password, webauthn rp (gitignored)
+├── webapp/                   # runtime data dir written by the /admin webapp
+│   ├── cloudflared.sample.yml  # sample named-tunnel config (copy to cloudflared.yml)
+│   ├── cloudflared.yml         # your own tunnel config — gitignored
+│   └── auth.log                # /admin/api/login attempts (gitignored)
 ├── src/
-│   ├── server.py             # FastAPI hub (both shapes) + router
-│   ├── landing.py            # HTML landing page served at GET /
+│   ├── server.py             # FastAPI hub (both shapes) + /admin sub-app mount
 │   ├── claude_cli.py         # subprocess wrapper around `claude -p`
 │   ├── gemini_cli.py         # Antigravity CLI (`agy`) wrapper via ConPTY (Google AI Pro)
 │   ├── openai_upstream.py    # httpx client + SSE think-strip pipeline
 │   ├── model_registry.py     # YAML loader (resolves display_name + aliases)
 │   ├── host_profile.py       # pick active host row
 │   ├── machine_specs.py      # parse config/machine_specs.yaml
-│   ├── fit_estimator.py      # back-end for the 🧮 Fit tab (HF model fit)
-│   ├── system_stats.py       # live RAM/GPU readings for the Server tab
+│   ├── fit_estimator.py      # HF model fit estimator
+│   ├── system_stats.py       # live RAM/GPU readings (consumed by Hub tab sparklines)
 │   ├── install.py            # first-run checks + --fix
 │   ├── run_backend.py        # hub|qwen35_4b|gemma4_26b|whisper|… dispatcher
-│   ├── server_process.py     # hub Popen + ownership / adopt-or-spawn
+│   ├── server_process.py     # hub Popen + ownership / adopt-or-spawn (used by the tray)
 │   ├── backend_process.py    # per-model Popen (llama-server + whisper-server)
-│   └── whisper_translate_proxy.py  # FastAPI shim for optional lazy-load mode (dormant; whisper_translate is eager)
+│   ├── whisper_translate_proxy.py  # FastAPI shim for optional lazy-load mode
+│   ├── webapp_config.py      # admin webapp config loader (bearer token, webauthn, allowlist)
+│   ├── webauthn_gate.py      # passkey gate (optional — needs `webauthn` package)
+│   ├── static_versioning.py  # ?v=<hash> stamping for /admin/static assets
+│   ├── hub_log.py            # in-memory log ring buffer (admin Hub tab streams it)
+│   └── hub_observability.py  # live request ring, per-backend counters, SSE fan-out
+├── app_web/                  # FastAPI sub-app at /admin (HTML/JS SPA — no bundler)
+│   ├── server.py             #   create_app() — middleware, routers, static mount
+│   ├── middleware.py         #   bearer-token gate (loopback bypasses)
+│   ├── icons.py              #   render placeholder PNG icons at first boot
+│   ├── routers/              #   misc / version / auth / webauthn / hub / models / playground
+│   └── static/               #   index.html + main.js + state.js + tabs.js + api.js +
+│                             #   hub.js + models.js + playground.js + styles.css +
+│                             #   manifest.webmanifest + placeholder icons
 ├── tray/                     # Windows system-tray launcher (silent pythonw)
-│   ├── app.py                #   pystray menu + tk event pump
-│   ├── log_window.py         #   tk Notebook tailing hub + per-model logs
-│   ├── config.py             #   reads tray: section from models.yaml
-│   ├── icon.py               #   PIL hub glyph (no image file in repo)
-│   └── single_instance.py    #   .tray.pid lock validated with psutil
-├── app/                      # Streamlit UI
-│   ├── app.py                #   page nav (Welcome / Install / Server / …)
-│   └── views/                #   one module per tab
-│       ├── welcome.py
-│       ├── install.py
-│       ├── server.py
-│       ├── comparison.py
-│       ├── models.py
-│       ├── testing.py
-│       ├── playground.py
-│       └── frontier.py       # NEW — read-only viewer for monthly runs
+│   ├── tray.py               #   single-file pystray + hub lifecycle owner
+│   ├── icon.py               #   PIL hub glyph
+│   ├── single_instance.py    #   .tray.pid lock validated with psutil
+│   └── __main__.py           #   `python -m tray` entry, writes one-shot crash log
 ├── scripts/
 │   ├── smoke_test.py
 │   ├── download_models.py    # huggingface_hub → models/
 │   ├── detect_machine_specs.py   # populate config/machine_specs.yaml
 │   ├── install_llama_cpp.py      # CUDA-Windows / Metal-macOS release
-│   └── install_whisper_cpp.py    # whisper.cpp CUDA/Metal release → vendor/whisper.cpp/
+│   ├── install_whisper_cpp.py    # whisper.cpp CUDA/Metal release → vendor/whisper.cpp/
+│   └── verify-before-ship.ps1    # byte-compile + pytest + Playwright on Chromium+WebKit
 ├── tests/                    # test_server / test_router / test_model_registry /
-│                             # test_install / test_streaming
+│   │                         # test_install / test_streaming
+│   └── e2e/                  # Playwright smoke tests (Chromium + WebKit projections)
+├── .github/workflows/
+│   └── e2e.yml               # CI: unit tests + e2e gate on windows-latest
 ├── vendor/
 │   ├── llama.cpp/            # prebuilt llama-server binary (gitignored)
 │   └── whisper.cpp/          # prebuilt whisper-server binary (gitignored)
@@ -329,8 +339,9 @@ Plain check (no changes):
 .venv\Scripts\python -m src.install
 ```
 
-Or use the **Install** tab in the Streamlit UI — same checks, same
-fixes, one button per row.
+Or open the **🩺 Health & install** panel on the admin webapp's
+**🛰 Hub** tab (`http://127.0.0.1:8000/admin/`) — same checks, same
+fixes, one button per row plus a **Fix-all**.
 
 Requires the `claude` CLI on `PATH` (Claude Code) if any `claude-*`
 model is enabled for your host.
@@ -374,8 +385,8 @@ itself runs fine without it.
 ## Run
 
 ```bat
-run_hub.bat                      :: FastAPI hub on :8000
-launch_app.bat                   :: Streamlit control panel
+run_hub.bat                      :: FastAPI hub on :8000 (the admin
+                                 :: webapp lives inside it at /admin)
 
 :: Active rotation
 launchers\run_qwen35_4b.bat      :: agentic_light  on :8088
@@ -392,7 +403,11 @@ launchers\run_qwen.bat           :: llama-server for Qwen on :8081
 launchers\run_glm.bat            :: llama-server for GLM on :8082
 ```
 
-(macOS / Linux: `./run_hub.sh`, `./launch_app.sh`, `./launchers/run_all.sh`, etc.)
+(macOS / Linux: `./run_hub.sh`, `./launchers/run_all.sh`, etc.)
+
+Once the hub is running, open `http://127.0.0.1:8000/admin/` for the
+admin webapp — three tabs (Hub / Models / Playground) covering every
+operational concern. Going to `http://127.0.0.1:8000/` redirects there.
 
 ### Tray launcher (Windows)
 
@@ -408,9 +423,15 @@ Starts a resident system-tray icon (silent — no terminal window) that:
   model autostart, or change the list to any subset of enabled model
   ids.
 - Lets you toggle any other enabled local model on/off from the
-  **Models** submenu (multiple may run concurrently).
-- Streams hub + per-model logs in a tk window via **Open log window**.
-- Opens the Streamlit admin UI on demand via **Open Streamlit admin**.
+  **🧠 Models** submenu (multiple may run concurrently).
+- Surfaces the admin webapp via **🚀 Open admin** — same `:8000/admin/`
+  URL, opened in your default browser. Live logs, per-backend counters,
+  live request stream, sparklines, and a 🩺 health/install panel all
+  live there now.
+- Surfaces the **local URL**, the **LAN URL**, and (when configured)
+  the **Cloudflare tunnel URL** as one-tap clipboard copies — the
+  Cloudflare one comes with `?token=<bearer>` appended, so a phone
+  loading a fresh tab can hand it back to the SPA without typing.
 
 Drop a shortcut to `tray.bat` in the Windows Startup folder
 (`shell:startup`) so the box behaves as an always-on local-LLM
@@ -418,6 +439,20 @@ endpoint after login. Routine tray activity is silent; if the tray
 ever crashes, a single-shot `tray-crash.log` is written at the repo
 root with the traceback (delete it any time — it's only recreated on
 the next crash).
+
+### Cloudflare tunnel (optional)
+
+For phone-side access from outside the LAN, run cloudflared with a
+named tunnel. The repo ships `webapp/cloudflared.sample.yml` — copy it
+to `webapp/cloudflared.yml`, fill in your tunnel UUID + hostname, and
+the tray will pick the hostname up automatically and surface
+**📋 Copy Cloudflare URL** in its menu. The hub itself doesn't spawn
+cloudflared (you own its lifecycle); the tray only *reads* the config.
+
+The admin webapp's bearer token is generated on first tray boot and
+persisted to `config/webapp_config.json`. Loopback callers bypass it;
+anyone reaching the hub over the tunnel must present
+`Authorization: Bearer <token>` or `?token=…` on the URL.
 
 ### Server adoption between launchers
 
@@ -431,17 +466,15 @@ Streamlit Server/Models tabs coexist, every launcher follows the same
   process (no second spawn, no error) and treats it as up.
 - Each launcher only stops what it spawned itself. Closing the tray
   doesn't stop a hub that `run_hub.bat` started, and vice versa.
-- The Streamlit Server/Models tabs distinguish managed vs. adopted
-  processes and offer a **Stop external (PID xxx)** button when you
-  explicitly want to reclaim a port.
+- The admin webapp's **🧠 Models** tab distinguishes managed vs.
+  adopted processes and surfaces the foreign PID so you can decide
+  whether to take over.
 
-One known limitation: **logs aren't available for adopted processes**.
-Windows can't attach to another process's stdout after the fact, so
-the in-process ring buffer in the tray's log window or the Streamlit
-Server tab stays empty for an adopted hub. The launcher that actually
-spawned the process still has its log; check there. If you need cross-
-process log tail badly, the future fix is to add a small file or
-HTTP tail endpoint to the hub itself — out of scope for now.
+The admin webapp's **🛰 Hub** tab streams the hub log over SSE — even
+for an adopted hub, since the log lines come from the *current*
+process's in-memory ring rather than a captured stdout. The
+Streamlit-era caveat about adopted processes having no log tail no
+longer applies.
 
 Equivalent Python entrypoints (run from the project root):
 
@@ -470,12 +503,12 @@ The hub binds on `0.0.0.0:8000`, so any machine on the same network
 (another laptop, a VM, an agent like openclaw running next to you) can
 use it.
 
-1. **Start the hub** (either `run_hub.bat` / `.sh` at the repo root, or
-   the Streamlit *Server* tab, or `tray.bat` on Windows). Start any
-   local backends you need from `launchers/run_qwen.*` /
-   `launchers/run_glm.*` or the *Models* tab.
-2. **Find your LAN IP.** The Streamlit *Server* page shows it as a
-   clickable **LAN** link. From a terminal:
+1. **Start the hub** (either `run_hub.bat` / `.sh` at the repo root,
+   or `tray.bat` on Windows — the tray autostarts the hub). Start any
+   local backends you need from `launchers/run_*.bat` or the admin
+   webapp's **🧠 Models** tab.
+2. **Find your LAN IP.** The admin webapp's **🛰 Hub** tab shows it
+   as a clickable **LAN** link. From a terminal:
 
    ```bat
    ipconfig | findstr IPv4

@@ -1,0 +1,11 @@
+# Development-only deps — install with `pip install -r requirements-dev.txt`
+# after the main requirements.txt. Not shipped by the main install.
+
+# End-to-end browser tests. We run on Chromium + WebKit projections to
+# catch Safari-only regressions (the iOS PWA cache class).
+pytest-playwright>=0.5
+playwright>=1.45
+
+# Passkey gate is optional in `requirements.txt`; here it's required so
+# the webauthn router gets exercised in the e2e gate.
+webauthn>=2.1

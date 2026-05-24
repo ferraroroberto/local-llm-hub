@@ -48,9 +48,9 @@ VENDOR_WHISPER = PROJECT_ROOT / "vendor" / "whisper.cpp"
 RING_MAX = 1000
 
 # On Windows, give the child its own process group so CTRL_BREAK_EVENT
-# during stop() doesn't propagate to Streamlit / launch_app.bat, and
-# suppress the console so silent parents (pythonw, e.g. the tray) don't
-# spawn a stray cmd window for native binaries like llama-server.exe.
+# during stop() doesn't propagate to the tray launcher, and suppress the
+# console so silent parents (pythonw, e.g. the tray) don't spawn a
+# stray cmd window for native binaries like llama-server.exe.
 _WIN_NEW_GROUP = (
     subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
     if sys.platform == "win32" else 0
@@ -86,6 +86,12 @@ def _vendor_dir_for(model: Model) -> Path:
 class _BackendState:
     def __init__(self) -> None:
         self.proc: Optional[subprocess.Popen] = None
+        # PID of a backend the hub inherited at startup — a process the
+        # hub didn't itself spawn but recognises as one of its model
+        # binaries listening on the right port. ``stop`` taskkill's it
+        # instead of calling ``proc.terminate``; ``log_lines`` returns
+        # empty since we never captured its stdout.
+        self.inherited_pid: Optional[int] = None
         self.log: Deque[str] = deque(maxlen=RING_MAX)
         self.lock = threading.Lock()
         self.reader: Optional[threading.Thread] = None
@@ -103,15 +109,49 @@ def _state_for(model_id: str) -> _BackendState:
 
 
 def is_running(model_id: str) -> bool:
-    p = _state_for(model_id).proc
-    return p is not None and p.poll() is None
+    state = _state_for(model_id)
+    p = state.proc
+    if p is not None and p.poll() is None:
+        return True
+    return _inherited_alive(state)
+
+
+def is_inherited(model_id: str) -> bool:
+    """True iff this model is alive via an inherited PID (not a Popen we own)."""
+    state = _state_for(model_id)
+    return state.proc is None and _inherited_alive(state)
 
 
 def pid(model_id: str) -> Optional[int]:
-    p = _state_for(model_id).proc
-    if p is None or p.poll() is not None:
-        return None
-    return p.pid
+    state = _state_for(model_id)
+    p = state.proc
+    if p is not None and p.poll() is None:
+        return p.pid
+    if _inherited_alive(state):
+        return state.inherited_pid
+    return None
+
+
+def _inherited_alive(state: "_BackendState") -> bool:
+    pid_ = state.inherited_pid
+    if pid_ is None:
+        return False
+    try:
+        import psutil
+
+        if not psutil.pid_exists(pid_):
+            state.inherited_pid = None
+            return False
+        # Verify it's still the same process — PID reuse on Windows is
+        # aggressive; if the create-time has changed, our PID is stale.
+        proc = psutil.Process(pid_)
+        if proc.status() in (psutil.STATUS_ZOMBIE, psutil.STATUS_DEAD):
+            state.inherited_pid = None
+            return False
+        return True
+    except Exception:  # noqa: BLE001
+        state.inherited_pid = None
+        return False
 
 
 def is_reachable(model: Model, timeout: float = 1.5) -> bool:
@@ -270,7 +310,16 @@ def start(model_id: str) -> tuple[bool, str]:
 def stop(model_id: str) -> tuple[bool, str]:
     state = _state_for(model_id)
     p = state.proc
-    if p is None or p.poll() is not None:
+    # Inherited backend: we don't hold a Popen handle, so polite shutdown
+    # isn't an option — taskkill the PID directly.
+    if p is None:
+        if _inherited_alive(state):
+            pid_ = state.inherited_pid
+            state.inherited_pid = None
+            ok, msg = kill_pid(int(pid_))
+            return ok, msg
+        return False, "not running"
+    if p.poll() is not None:
         state.proc = None
         return False, "not running"
     try:
@@ -289,6 +338,67 @@ def stop(model_id: str) -> tuple[bool, str]:
         return False, f"error stopping: {e}"
     state.proc = None
     return True, "stopped"
+
+
+def inherit_running_backends() -> int:
+    """Adopt any model-backend process the hub finds on one of its ports.
+
+    Called once at hub startup. Without this, a hub restart leaves the
+    previous hub's children alive on their ports — the new hub sees
+    them as "external" (adopted) and the UI shows the disabled-Stop
+    state. With inheritance, the new hub treats them as ours, the UI
+    shows them as running, and Stop force-kills the PID directly.
+
+    Returns the number of backends inherited.
+    """
+    from .server_process import snapshot_listening_pids
+
+    try:
+        import psutil
+    except ImportError:
+        return 0
+
+    listening = snapshot_listening_pids()
+    count = 0
+    for m in enabled_models():
+        if m.backend not in ("openai", "whisper"):
+            continue
+        if not m.port:
+            continue
+        if is_running(m.id):
+            continue  # already ours (Popen or earlier-inherited)
+        pids = listening.get(m.port) or []
+        if not pids:
+            continue
+        candidate = pids[0]
+        try:
+            proc = psutil.Process(candidate)
+            exe = (proc.exe() or "").lower()
+        except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
+            continue
+        if _looks_like_backend_binary(exe, m):
+            state = _state_for(m.id)
+            state.inherited_pid = candidate
+            count += 1
+            import logging
+            logging.getLogger(__name__).info(
+                "📎 Inherited %s on :%s (PID %s) — log tail unavailable",
+                m.id, m.port, candidate,
+            )
+    return count
+
+
+def _looks_like_backend_binary(exe: str, model: "Model") -> bool:
+    """Heuristic: does this executable look like the binary we'd spawn for ``model``?"""
+    exe = (exe or "").lower()
+    if model.engine in ("whisper-server", "whisper-server-lazy") or model.backend == "whisper":
+        return "whisper-server" in exe or exe.endswith("whisper-server.exe")
+    # Default: llama.cpp's llama-server. The lazy-whisper proxy runs as
+    # ``python -m src.whisper_translate_proxy`` — recognise pythonw too.
+    return (
+        "llama-server" in exe
+        or "python" in exe  # whisper_translate_proxy.py path
+    )
 
 
 def resolve_model_by_id(model_id: str) -> Optional[Model]:

@@ -43,3 +43,18 @@ config/machine_specs.yaml
 
 # Tray single-instance lock
 .tray.pid
+
+# /admin webapp runtime data — bearer token, webauthn devices, auth.log,
+# user cloudflared config, placeholder PNG icons generated at boot.
+config/webapp_config.json
+config/webauthn_devices.json
+webapp/cloudflared.yml
+webapp/auth.log
+webapp/last_tunnel_url.txt
+app_web/static/icon-180.png
+app_web/static/icon-512.png
+
+# Playwright autoboot log + caches
+tests/e2e/autoboot-hub.log
+playwright-report/
+test-results/
