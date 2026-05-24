@@ -1,16 +1,14 @@
 /* Models tab — per-backend .app-item row (canonical pattern).
  *
- * Layout: left .app-main with title + meta + status badge; right
- * .row-actions column with icon-buttons (start / stop / log / ping).
- * Log pane opens as a sibling <li> below the row, mirroring app-
- * launcher's .jobs-history-li trick — keeps the row's flex context
- * intact while letting the log claim full width.
+ * Process control only: start / stop / ping / force-stop. Per-model log
+ * tailing was tried in #10 but pulled back — adopted backends have no
+ * captured stdout, and the central Hub log tab already shows every
+ * request that flows through the hub. Detailed per-backend telemetry
+ * belongs in a future dedicated tab (#4: OpenTelemetry + Langfuse).
  */
 
 import { els, state } from './state.js';
-import { jsonApi, postJson, eventStream, toast } from './api.js';
-
-const logStreams = {}; // id -> EventSource
+import { jsonApi, postJson, toast } from './api.js';
 
 export async function fetchModels() {
   try {
@@ -23,25 +21,48 @@ export async function fetchModels() {
 function renderModels() {
   const root = els.modelsList;
   if (!root) return;
-  root.innerHTML = '';
   const models = state.models || [];
   if (els.modelsEmpty) els.modelsEmpty.hidden = models.length > 0;
-  models.forEach(function (m) {
-    const item = buildItem(m);
-    root.appendChild(item);
+
+  // Diff-update so the row identity survives the 5 s poll. Reusing the
+  // existing <li> per model id avoids the DOM churn (and any focus /
+  // selection loss) of a full innerHTML rebuild.
+  const existing = {};
+  Array.prototype.forEach.call(root.children, function (node) {
+    if (node.classList && node.classList.contains('app-item') && node.dataset.id) {
+      existing[node.dataset.id] = node;
+    }
   });
+
+  const frag = document.createDocumentFragment();
+  models.forEach(function (m) {
+    const prev = existing[m.id];
+    if (prev) {
+      fillItem(prev, m);
+      frag.appendChild(prev);
+    } else {
+      frag.appendChild(buildItem(m));
+    }
+  });
+  root.replaceChildren(frag);
 }
 
 function buildItem(m) {
   const li = document.createElement('li');
   li.className = 'app-item';
   li.dataset.id = m.id;
+  fillItem(li, m);
+  return li;
+}
 
+function fillItem(li, m) {
   const glyph = pickGlyph(m);
   const ownership = m.ownership || 'none';
   const reachable = !!m.reachable;
   const adopted = ownership === 'external';
   const pidNote = m.pid && adopted ? ' <span class="muted small">PID ' + m.pid + '</span>' : '';
+
+  li.replaceChildren();
 
   const main = document.createElement('div');
   main.className = 'app-main';
@@ -62,9 +83,6 @@ function buildItem(m) {
     act: 'ping', glyph: '📶', label: 'Ping',
     disabled: !reachable && m.backend !== 'claude' && m.backend !== 'gemini',
   });
-  if (m.controllable) {
-    buttons.push({ act: 'log', glyph: '📜', label: 'Log' });
-  }
   if (adopted) {
     buttons.push({ act: 'force-stop', glyph: '💀', label: 'Force stop', danger: true });
   }
@@ -77,7 +95,7 @@ function buildItem(m) {
     btn.title = b.label;
     btn.setAttribute('aria-label', b.label);
     btn.textContent = b.glyph;
-    btn.addEventListener('click', function () { handleAction(m, b.act, li); });
+    btn.addEventListener('click', function () { handleAction(m, b.act); });
     icons.appendChild(btn);
   });
   titleRow.appendChild(icons);
@@ -92,7 +110,6 @@ function buildItem(m) {
   main.appendChild(meta);
 
   li.appendChild(main);
-  return li;
 }
 
 function badge(m) {
@@ -109,7 +126,7 @@ function pickGlyph(m) {
   return '🦙';
 }
 
-async function handleAction(m, act, item) {
+async function handleAction(m, act) {
   if (act === 'start') {
     try {
       await postJson('/admin/api/models/' + encodeURIComponent(m.id) + '/start', {});
@@ -137,40 +154,7 @@ async function handleAction(m, act, item) {
       const body = await postJson('/admin/api/models/' + encodeURIComponent(m.id) + '/ping', {});
       toast(m.display_name + ' · ' + body.status + ' · ' + body.latency_ms + ' ms', body.ok ? 'good' : 'error');
     } catch (exc) { toast(String(exc.message || exc), 'error'); }
-  } else if (act === 'log') {
-    toggleLog(m, item);
   }
-}
-
-function toggleLog(m, item) {
-  // Find the sibling <li class="model-log-li"> right after this row.
-  let logLi = item.nextElementSibling;
-  if (logLi && !logLi.classList.contains('model-log-li')) logLi = null;
-
-  if (logLi) {
-    logLi.remove();
-    if (logStreams[m.id]) { try { logStreams[m.id].close(); } catch (_) {} delete logStreams[m.id]; }
-    return;
-  }
-
-  logLi = document.createElement('li');
-  logLi.className = 'model-log-li';
-  const pre = document.createElement('pre');
-  pre.className = 'logpane';
-  pre.dataset.id = m.id;
-  logLi.appendChild(pre);
-  item.insertAdjacentElement('afterend', logLi);
-
-  const lines = [];
-  logStreams[m.id] = eventStream('/admin/api/models/' + encodeURIComponent(m.id) + '/log/tail', {
-    message: function (data) {
-      if (typeof data !== 'string') return;
-      lines.push(data);
-      if (lines.length > 400) lines.shift();
-      pre.textContent = lines.join('\n');
-      pre.scrollTop = pre.scrollHeight;
-    },
-  });
 }
 
 function escapeHtml(s) {

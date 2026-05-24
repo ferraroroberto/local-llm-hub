@@ -75,9 +75,20 @@ function renderCounters() {
 
 // --------------------------------------------------------- live requests
 function prependRequest(rec) {
-  state.liveRequests = [rec].concat(state.liveRequests).slice(0, 50);
-  renderRequests();
-  if (rec.status >= 400) {
+  // Dedup by ts. The SSE seed (20 most-recent records) is re-sent every
+  // time the EventSource (re)connects — and the browser auto-reconnects
+  // after network blips, a tab-switch round-trip, or any uvicorn keepalive
+  // drop. Without dedup each reconnect duplicates whatever's still in the
+  // server-side ring. `ts` is the middleware's wall-clock float seconds,
+  // unique per request because the recording `finally` only fires once.
+  const isDup = function (arr) {
+    return rec && rec.ts != null && arr.some(function (r) { return r.ts === rec.ts; });
+  };
+  if (!isDup(state.liveRequests)) {
+    state.liveRequests = [rec].concat(state.liveRequests).slice(0, 50);
+    renderRequests();
+  }
+  if (rec.status >= 400 && !isDup(state.recentErrors)) {
     state.recentErrors = [rec].concat(state.recentErrors).slice(0, 50);
     renderErrors();
   }
