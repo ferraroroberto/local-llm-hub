@@ -41,7 +41,14 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
 .app {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 12px 14px 80px;
+  /* viewport-fit=cover + black-translucent status bar (see index.html <head>)
+   * let content render under the iOS notch — reserve room via safe-area insets
+   * so the topbar isn't clipped by the OS status bar. Falls back to the
+   * original 12/14/80 padding on platforms that report zero insets. */
+  padding-top:    max(12px, env(safe-area-inset-top));
+  padding-right:  max(14px, env(safe-area-inset-right));
+  padding-bottom: max(80px, env(safe-area-inset-bottom));
+  padding-left:   max(14px, env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -184,6 +191,10 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
 .opt-row > .opt-name { min-width: 90px; color: var(--muted); padding-top: 6px; font-size: 13px; }
 .opt-row > textarea, .opt-row > input, .opt-row > select {
   flex: 1;
+  /* min-width: 0 lets flex children shrink below their intrinsic content size.
+   * Without it, the native file input's "Choose File" button + filename
+   * pushed the Image row wider than its siblings on narrow viewports. */
+  min-width: 0;
   background: var(--code-bg); color: var(--text);
   border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px;
   font: inherit; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
