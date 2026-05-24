@@ -56,5 +56,6 @@ app_web/static/icon-512.png
 
 # Playwright autoboot log + caches
 tests/e2e/autoboot-hub.log
+tests/e2e/snapshots/
 playwright-report/
 test-results/

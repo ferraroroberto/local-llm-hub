@@ -1,7 +1,9 @@
-/* Playground tab — prompt + reply + token breakdown + image attach. */
+/* Playground tab — stacked label/input pairs, More-options details,
+ * segmented max-tokens with a numeric override, full-width Send.
+ */
 
 import { els, state } from './state.js';
-import { api, jsonApi, toast, readToken } from './api.js';
+import { api, jsonApi, toast } from './api.js';
 
 export async function fetchPlaygroundModels() {
   try {
@@ -28,6 +30,31 @@ export function wirePlayground() {
       els.playgroundReply.textContent = '';
       els.playgroundUsage.innerHTML = '';
       els.playgroundLatency.textContent = '';
+    });
+  }
+  // Segmented max-tokens — clicking a preset highlights it AND mirrors
+  // the value into the numeric override. Typing into the override clears
+  // the active preset highlight (numeric override wins).
+  if (els.playgroundMaxTokensSeg) {
+    els.playgroundMaxTokensSeg.addEventListener('click', function (ev) {
+      const btn = ev.target.closest('button[data-value]');
+      if (!btn) return;
+      const val = parseInt(btn.dataset.value, 10) || 512;
+      els.playgroundMaxTokensSeg.querySelectorAll('button').forEach(function (b) {
+        b.classList.toggle('active', b === btn);
+      });
+      if (els.playgroundMaxTokens) els.playgroundMaxTokens.value = String(val);
+    });
+  }
+  if (els.playgroundMaxTokens) {
+    els.playgroundMaxTokens.addEventListener('input', function () {
+      // User typed into the override — clear preset highlights so it's
+      // visually clear the value comes from the input, not a preset.
+      if (!els.playgroundMaxTokensSeg) return;
+      const current = String(parseInt(els.playgroundMaxTokens.value, 10) || 0);
+      els.playgroundMaxTokensSeg.querySelectorAll('button').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.value === current);
+      });
     });
   }
 }
