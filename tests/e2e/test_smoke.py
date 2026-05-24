@@ -8,6 +8,8 @@ What the gate proves:
     bad model lands as a row in the live-request ring (SSE arrives).
   * Static assets carry the ?v=<hash> stamp (cache-busting wired up).
   * GET /admin/api/version returns a non-empty git_sha + asset_hash.
+  * Phone-viewport (390 x 844) screenshot of each tab is captured for
+    visual review — files land in ``tests/e2e/snapshots/`` (gitignored).
 
 Runs under Chromium *and* WebKit projections — WebKit catches the
 iOS-Safari class of cache / SSE bugs Chromium will silently paper over.
@@ -17,11 +19,15 @@ from __future__ import annotations
 
 import re
 import time
+from pathlib import Path
 
 import httpx
 import pytest
 
 pytestmark = pytest.mark.usefixtures("admin_url")
+
+SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
+PHONE_VIEWPORT = {"width": 390, "height": 844}
 
 
 @pytest.fixture(autouse=True)
@@ -100,6 +106,55 @@ def test_version_endpoint(admin_url: str):
     assert body["git_sha"]
     assert body["built_at"]
     assert body["asset_hash"]
+
+
+def _snapshot(page, name: str, browser_name: str) -> None:
+    """Save a phone-viewport screenshot of the current page to a
+    deterministic path under ``tests/e2e/snapshots/``. The sparklines
+    region is masked because it re-renders every 2.5 s from live
+    RAM/GPU readings — masking keeps the snapshot useful for human
+    visual review without false diffs.
+    """
+    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    out = SNAPSHOT_DIR / f"{name}-{browser_name}.png"
+    spark = page.locator("#hubSparklines")
+    mask = [spark] if spark.count() > 0 else []
+    page.screenshot(path=str(out), full_page=True, mask=mask)
+    assert out.exists() and out.stat().st_size > 0, f"empty screenshot at {out}"
+
+
+def test_hub_tab_phone_screenshot(page, admin_url, browser_name):
+    page.set_viewport_size(PHONE_VIEWPORT)
+    page.goto(admin_url, wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHub", state="visible", timeout=5000)
+    # Let the first poll settle so the snapshot reflects the populated
+    # UI rather than the "checking…" placeholder in the Hub card header.
+    page.wait_for_function(
+        "document.getElementById('hubLiveStatusText') && "
+        "document.getElementById('hubLiveStatusText').textContent.indexOf('checking') === -1",
+        timeout=8000,
+    )
+    _snapshot(page, "hub-390x844", browser_name)
+
+
+def test_models_tab_phone_screenshot(page, admin_url, browser_name):
+    page.set_viewport_size(PHONE_VIEWPORT)
+    page.goto(admin_url, wait_until="domcontentloaded")
+    page.click("#tabModels")
+    page.wait_for_selector("#paneModels", state="visible", timeout=3000)
+    _snapshot(page, "models-390x844", browser_name)
+
+
+def test_playground_tab_phone_screenshot(page, admin_url, browser_name):
+    page.set_viewport_size(PHONE_VIEWPORT)
+    page.goto(admin_url, wait_until="load")
+    page.click("#tabPlayground")
+    page.wait_for_selector("#panePlayground", state="visible", timeout=3000)
+    page.wait_for_function(
+        "document.getElementById('playgroundModel').options.length > 0",
+        timeout=10000,
+    )
+    _snapshot(page, "playground-390x844", browser_name)
 
 
 def test_live_request_ring(admin_url: str):

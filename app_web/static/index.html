@@ -6,127 +6,204 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="LLM Hub">
-  <meta name="theme-color" content="#0f1115">
+  <meta name="theme-color" content="#0a0a0a">
   <link rel="manifest" href="/admin/static/manifest.webmanifest">
   <link rel="icon" href="/admin/static/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/admin/static/icon-180.png">
   <link rel="stylesheet" href="/admin/static/styles.css">
-  <title>🛰 Local LLM Hub</title>
+  <title>🌐 Local LLM Hub</title>
 </head>
 <body>
-  <main class="app">
-    <header class="topbar">
-      <div class="topbar-title">🛰 <strong>Local LLM Hub</strong></div>
-      <div class="topbar-status">
-        <span id="hubStatusDot" class="dot"></span>
-        <span id="hubStatusText" class="muted">checking…</span>
-      </div>
-    </header>
-
+  <main class="app density-compact">
     <nav class="tabs" role="tablist">
-      <button id="tabHub" type="button" class="tab active" role="tab" data-tab="hub">🛰 Hub</button>
+      <button id="tabHub" type="button" class="tab active" role="tab" data-tab="hub">🌐 Hub</button>
       <button id="tabModels" type="button" class="tab" role="tab" data-tab="models">🧠 Models</button>
       <button id="tabPlayground" type="button" class="tab" role="tab" data-tab="playground">🧪 Playground</button>
     </nav>
 
     <section id="paneHub" class="pane" role="tabpanel">
+      <!-- Hub card: title + inline live status, PID + Uptime (one line),
+           sparklines. Stop + Restart sit in the header as direct icons. -->
       <section class="card">
         <div class="card-header">
-          <h2>Hub</h2>
-          <div class="card-actions">
-            <button id="hubRestartBtn" type="button" class="btn">🔄 Restart</button>
-            <button id="hubStopBtn" type="button" class="btn danger">■ Stop</button>
+          <div class="hub-title-block">
+            <h2>Hub</h2>
+            <span id="hubLiveStatus" class="hub-live-status" aria-live="polite">
+              <span class="dot"></span>
+              <span id="hubLiveStatusText">checking…</span>
+            </span>
+          </div>
+          <div class="card-header-actions">
+            <button id="hubRestartBtn" type="button" class="icon-header-btn" aria-label="Restart hub" title="Restart hub">🔄</button>
           </div>
         </div>
-        <div class="kv-grid">
-          <div><span class="muted">Local</span><a id="hubLocalUrl" href="#" target="_blank" rel="noopener">—</a></div>
-          <div><span class="muted">LAN</span><a id="hubLanUrl" href="#" target="_blank" rel="noopener">—</a></div>
-          <div><span class="muted">PID</span><code id="hubPid">—</code></div>
-          <div><span class="muted">Uptime</span><span id="hubUptime">—</span></div>
+        <div class="hub-meta-row">
+          <span><span>PID</span><code id="hubPid">—</code></span>
+          <span><span>Uptime</span><span id="hubUptime">—</span></span>
         </div>
         <div class="sparklines" id="hubSparklines"></div>
       </section>
 
+      <!-- Health & install -->
       <details class="card" id="installCard">
-        <summary><h2>🩺 Health &amp; install</h2><span id="installSummary" class="muted small">checking…</span></summary>
-        <div id="installRows"></div>
+        <summary>
+          <div class="card-header" style="margin-bottom: 0;">
+            <h2>🩺 Health &amp; install</h2>
+            <span id="installSummary" class="muted small">checking…</span>
+          </div>
+        </summary>
+        <div id="installRows" style="margin-top: 10px;"></div>
         <div class="card-actions">
-          <button id="installFixAllBtn" type="button" class="btn">🔧 Fix all</button>
-          <button id="installRefreshBtn" type="button" class="btn ghost">↻ Re-check</button>
+          <button id="installFixAllBtn" type="button" class="launch-btn">🔧 Fix all</button>
+          <button id="installRefreshBtn" type="button" class="ghost-btn">↻ Re-check</button>
         </div>
       </details>
 
-      <section class="card">
-        <div class="card-header">
-          <h2>📡 Live requests</h2>
-          <span id="liveRequestsBadge" class="badge">0</span>
+      <!-- Density toggle -->
+      <div class="card" id="hubDensityCard">
+        <div class="card-header" style="margin-bottom: 8px;">
+          <h2>Layout</h2>
+          <div id="hubDensity" class="segmented" role="tablist" aria-label="Hub density">
+            <button type="button" data-density="compact" class="active">Compact</button>
+            <button type="button" data-density="expanded">Expanded</button>
+          </div>
         </div>
-        <ul id="liveRequestsList" class="card-list dense" aria-label="Live request stream"></ul>
-        <p id="liveRequestsEmpty" class="muted small">No requests yet — the ring fills as clients call the hub.</p>
+        <p class="muted small" style="margin: 0;">Compact merges live requests, counters, errors, and log into one tabbed pane.</p>
+      </div>
+
+      <!-- Compact mode: a single card with sub-tabs -->
+      <section class="card compact-card" id="hubCompactCard">
+        <div id="hubCompactTabs" class="segmented stretch" role="tablist" aria-label="Hub details">
+          <button type="button" data-section="live" class="active">📡 Live</button>
+          <button type="button" data-section="counters">📊 Counters</button>
+          <button type="button" data-section="errors">⚠️ Errors</button>
+          <button type="button" data-section="log">📜 Log</button>
+        </div>
+        <div class="compact-section active" data-section="live">
+          <div class="card-header"><h2>Live requests</h2><span id="liveRequestsBadge" class="badge">0</span></div>
+          <ul id="liveRequestsList" class="card-list dense" aria-label="Live request stream"></ul>
+          <div id="liveRequestsEmpty" class="empty">No requests yet — the ring fills as clients call the hub.</div>
+        </div>
+        <div class="compact-section" data-section="counters">
+          <div class="card-header"><h2>Per-backend counters</h2><span class="muted small">since hub start</span></div>
+          <div class="counters-wrap">
+            <table id="countersTable" class="counters">
+              <thead><tr><th>Backend</th><th>Req</th><th>Err</th><th>p50</th><th>p95</th><th>In tok</th><th>Out tok</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="compact-section" data-section="errors">
+          <div class="card-header"><h2>Recent errors</h2><span id="recentErrorsBadge" class="badge danger">0</span></div>
+          <ul id="recentErrorsList" class="card-list dense" aria-label="Recent errors"></ul>
+          <div id="recentErrorsEmpty" class="empty">No non-2xx responses in the ring.</div>
+        </div>
+        <div class="compact-section" data-section="log">
+          <div class="card-header">
+            <h2>Hub log</h2>
+            <button id="hubLogPauseBtn" type="button" class="ghost-btn">⏸ Pause</button>
+          </div>
+          <pre id="hubLog" class="logpane" aria-label="Hub server log"></pre>
+        </div>
       </section>
 
-      <section class="card">
+      <!-- Expanded mode: the six classic cards (Live / Counters / Errors / Log) -->
+      <!-- The Hub status card + Health card above are shared between modes. -->
+      <section class="card hub-expanded-only">
+        <div class="card-header">
+          <h2>📡 Live requests</h2>
+          <span id="liveRequestsBadgeExp" class="badge">0</span>
+        </div>
+        <ul id="liveRequestsListExp" class="card-list dense" aria-label="Live request stream (expanded)"></ul>
+        <div id="liveRequestsEmptyExp" class="empty">No requests yet — the ring fills as clients call the hub.</div>
+      </section>
+
+      <section class="card hub-expanded-only">
         <div class="card-header">
           <h2>📊 Per-backend counters</h2>
           <span class="muted small">since hub start</span>
         </div>
-        <table id="countersTable" class="counters"><thead><tr><th>Backend</th><th>Req</th><th>Err</th><th>p50</th><th>p95</th><th>In tok</th><th>Out tok</th></tr></thead><tbody></tbody></table>
+        <div class="counters-wrap">
+          <table id="countersTableExp" class="counters">
+            <thead><tr><th>Backend</th><th>Req</th><th>Err</th><th>p50</th><th>p95</th><th>In tok</th><th>Out tok</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </section>
 
-      <section class="card">
+      <section class="card hub-expanded-only">
         <div class="card-header">
           <h2>⚠️ Recent errors</h2>
-          <span id="recentErrorsBadge" class="badge danger">0</span>
+          <span id="recentErrorsBadgeExp" class="badge danger">0</span>
         </div>
-        <ul id="recentErrorsList" class="card-list dense" aria-label="Recent errors"></ul>
-        <p id="recentErrorsEmpty" class="muted small">No non-2xx responses in the ring.</p>
+        <ul id="recentErrorsListExp" class="card-list dense" aria-label="Recent errors (expanded)"></ul>
+        <div id="recentErrorsEmptyExp" class="empty">No non-2xx responses in the ring.</div>
       </section>
 
-      <section class="card">
+      <section class="card hub-expanded-only">
         <div class="card-header">
           <h2>📜 Hub log</h2>
-          <button id="hubLogPauseBtn" type="button" class="btn ghost small">⏸ Pause</button>
+          <button id="hubLogPauseBtnExp" type="button" class="ghost-btn">⏸ Pause</button>
         </div>
-        <pre id="hubLog" class="logpane" aria-label="Hub server log"></pre>
+        <pre id="hubLogExp" class="logpane" aria-label="Hub server log (expanded)"></pre>
       </section>
     </section>
 
     <section id="paneModels" class="pane" hidden role="tabpanel">
-      <p class="muted small">One card per backend enabled for this host. Local <code>llama-server</code>
+      <p class="muted small">One row per backend enabled for this host. Local <code>llama-server</code>
         and <code>whisper-server</code> backends can be started or stopped individually; the
         Claude and Gemini rows are subscription-backed and don't have a managed process.</p>
-      <div id="modelsList" class="models-grid"></div>
-      <p id="modelsEmpty" class="muted" hidden>No models enabled for this host — check <code>config/models.yaml</code>.</p>
+      <ul id="modelsList" class="models-list"></ul>
+      <div id="modelsEmpty" class="empty" hidden>No models enabled for this host — check <code>config/models.yaml</code>.</div>
     </section>
 
     <section id="panePlayground" class="pane" hidden role="tabpanel">
       <section class="card">
         <div class="card-header"><h2>🧪 Playground</h2></div>
-        <div class="opt-row">
-          <span class="opt-name">Model</span>
-          <select id="playgroundModel" class="select-native" aria-label="Model"></select>
+
+        <div class="opt-stack">
+          <label for="playgroundModel">Model</label>
+          <select id="playgroundModel" aria-label="Model"></select>
         </div>
-        <div class="opt-row">
-          <span class="opt-name">System</span>
+
+        <div class="opt-stack">
+          <label for="playgroundSystem">System</label>
           <textarea id="playgroundSystem" rows="2" placeholder="optional system prompt"></textarea>
         </div>
-        <div class="opt-row">
-          <span class="opt-name">Prompt</span>
+
+        <div class="opt-stack">
+          <label for="playgroundPrompt">Prompt</label>
           <textarea id="playgroundPrompt" rows="6" placeholder="Hello"></textarea>
         </div>
-        <div class="opt-row">
-          <span class="opt-name">Image</span>
-          <input id="playgroundImage" type="file" accept="image/*" aria-label="Attach image (claude/gemini only)">
+
+        <details class="opt-stack" id="playgroundMore">
+          <summary class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
+
+          <div class="opt-stack">
+            <label for="playgroundImage">Image (claude/gemini only)</label>
+            <input id="playgroundImage" type="file" accept="image/*" aria-label="Attach image (claude/gemini only)">
+          </div>
+
+          <div class="opt-stack">
+            <label>Max tokens</label>
+            <div class="maxtokens-row">
+              <div id="playgroundMaxTokensSeg" class="segmented stretch" role="tablist" aria-label="Max tokens preset">
+                <button type="button" data-value="256">256</button>
+                <button type="button" data-value="512" class="active">512</button>
+                <button type="button" data-value="2048">2048</button>
+                <button type="button" data-value="8192">8192</button>
+              </div>
+              <input id="playgroundMaxTokens" type="number" min="1" max="32000" value="512" aria-label="Max tokens override">
+            </div>
+          </div>
+        </details>
+
+        <div class="playground-send-row">
+          <button id="playgroundSendBtn" type="button" class="ghost-btn primary">▶ Send</button>
+          <button id="playgroundClearBtn" type="button" class="ghost-btn">Clear</button>
         </div>
-        <div class="opt-row">
-          <span class="opt-name">Max tokens</span>
-          <input id="playgroundMaxTokens" type="number" min="1" max="32000" value="512">
-        </div>
-        <div class="card-actions">
-          <button id="playgroundSendBtn" type="button" class="btn primary">▶ Send</button>
-          <button id="playgroundClearBtn" type="button" class="btn ghost">Clear</button>
-          <span id="playgroundLatency" class="muted small"></span>
-        </div>
+        <p id="playgroundLatency" class="muted small" style="margin: 8px 0 0;"></p>
+
         <h3 class="opt-group-title">Reply</h3>
         <pre id="playgroundReply" class="logpane" aria-label="Model reply"></pre>
         <h3 class="opt-group-title">Usage</h3>
@@ -135,11 +212,15 @@
     </section>
 
     <footer class="footer">
-      <a href="https://github.com/ferraroroberto/local-llm-hub#readme" target="_blank" rel="noopener">📖 README</a>
-      <a href="https://github.com/ferraroroberto/local-llm-hub/blob/main/docs/model-comparison.md" target="_blank" rel="noopener">📊 Model comparison</a>
-      <a href="/admin/frontier" target="_blank" rel="noopener">📈 Frontier</a>
-      <span class="muted small">tests: <code>pytest -q</code></span>
-      <span id="buildReadout" class="muted small footer-build"></span>
+      <div class="footer-row">
+        <a href="https://github.com/ferraroroberto/local-llm-hub#readme" target="_blank" rel="noopener">📖 README</a>
+        <a href="https://github.com/ferraroroberto/local-llm-hub/blob/main/docs/model-comparison.md" target="_blank" rel="noopener">📊 Model comparison</a>
+        <a href="/admin/frontier" target="_blank" rel="noopener">📈 Frontier</a>
+      </div>
+      <div class="footer-row">
+        <span class="small">tests: <code>pytest -q</code></span>
+        <span id="buildReadout" class="small footer-build"></span>
+      </div>
     </footer>
 
     <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
@@ -149,7 +230,7 @@
         <h2>🔒 Sign in</h2>
         <p class="muted small">This hub is locked. Enter the configured password to receive a bearer token.</p>
         <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" required>
-        <button type="submit" class="btn primary">Sign in</button>
+        <button type="submit" class="launch-btn">Sign in</button>
         <p id="loginError" class="error" hidden></p>
       </form>
     </div>

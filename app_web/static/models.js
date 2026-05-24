@@ -1,4 +1,11 @@
-/* Models tab — per-backend tile with start/stop/health/log/ping. */
+/* Models tab — per-backend .app-item row (canonical pattern).
+ *
+ * Layout: left .app-main with title + meta + status badge; right
+ * .row-actions column with icon-buttons (start / stop / log / ping).
+ * Log pane opens as a sibling <li> below the row, mirroring app-
+ * launcher's .jobs-history-li trick — keeps the row's flex context
+ * intact while letting the log claim full width.
+ */
 
 import { els, state } from './state.js';
 import { jsonApi, postJson, eventStream, toast } from './api.js';
@@ -19,52 +26,80 @@ function renderModels() {
   root.innerHTML = '';
   const models = state.models || [];
   if (els.modelsEmpty) els.modelsEmpty.hidden = models.length > 0;
-  models.forEach(function (m) { root.appendChild(buildCard(m)); });
+  models.forEach(function (m) {
+    const item = buildItem(m);
+    root.appendChild(item);
+  });
 }
 
-function buildCard(m) {
-  const card = document.createElement('div');
-  card.className = 'model-card';
-  card.dataset.id = m.id;
+function buildItem(m) {
+  const li = document.createElement('li');
+  li.className = 'app-item';
+  li.dataset.id = m.id;
 
   const glyph = pickGlyph(m);
   const ownership = m.ownership || 'none';
   const reachable = !!m.reachable;
-  const stateBadge = badge(m);
-
-  // Build the action button row. "Force stop" only shows when the
-  // process is adopted — clicking it taskkill's whoever holds the port.
   const adopted = ownership === 'external';
   const pidNote = m.pid && adopted ? ' <span class="muted small">PID ' + m.pid + '</span>' : '';
 
-  card.innerHTML =
-    '<div class="model-title">' + glyph + '<span>' + escapeHtml(m.display_name) + '</span>' + stateBadge + pidNote + '</div>' +
-    '<div class="model-meta">' +
-      escapeHtml(m.backend) + (m.port ? ' · :' + m.port : '') +
-      (m.aliases && m.aliases.length ? ' · ' + escapeHtml(m.aliases.join(', ')) : '') +
-    '</div>' +
-    '<div class="model-actions">' +
-      (m.controllable ? (
-        '<button type="button" class="btn small primary" data-act="start" ' + (ownership !== 'none' ? 'disabled' : '') + '>▶ Start</button>' +
-        '<button type="button" class="btn small" data-act="stop" ' + (ownership !== 'ours' ? 'disabled' : '') + '>■ Stop</button>' +
-        (adopted ? '<button type="button" class="btn small danger" data-act="force-stop">💀 Force stop</button>' : '')
-      ) : '') +
-      '<button type="button" class="btn small" data-act="ping" ' + (!reachable && m.backend !== 'claude' && m.backend !== 'gemini' ? 'disabled' : '') + '>📶 Ping</button>' +
-      (m.controllable ? '<button type="button" class="btn small ghost" data-act="log">📜 Log</button>' : '') +
-    '</div>' +
-    '<pre class="logpane model-log" data-id="' + m.id + '" hidden></pre>';
+  const main = document.createElement('div');
+  main.className = 'app-main';
 
-  card.querySelectorAll('button[data-act]').forEach(function (btn) {
-    btn.addEventListener('click', function () { handleAction(m, btn.dataset.act, card); });
+  const titleRow = document.createElement('div');
+  titleRow.className = 'app-title-row';
+  titleRow.innerHTML =
+    '<span class="app-title">' + glyph + '<span>' + escapeHtml(m.display_name) + '</span>' + badge(m) + pidNote + '</span>';
+
+  const icons = document.createElement('div');
+  icons.className = 'app-icons';
+  const buttons = [];
+  if (m.controllable) {
+    buttons.push({ act: 'start', glyph: '▶', label: 'Start', disabled: ownership !== 'none' });
+    buttons.push({ act: 'stop',  glyph: '■', label: 'Stop',  disabled: ownership !== 'ours', danger: true });
+  }
+  buttons.push({
+    act: 'ping', glyph: '📶', label: 'Ping',
+    disabled: !reachable && m.backend !== 'claude' && m.backend !== 'gemini',
   });
-  return card;
+  if (m.controllable) {
+    buttons.push({ act: 'log', glyph: '📜', label: 'Log' });
+  }
+  if (adopted) {
+    buttons.push({ act: 'force-stop', glyph: '💀', label: 'Force stop', danger: true });
+  }
+  buttons.forEach(function (b) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'icon-btn' + (b.danger ? ' danger' : '');
+    btn.dataset.act = b.act;
+    btn.disabled = !!b.disabled;
+    btn.title = b.label;
+    btn.setAttribute('aria-label', b.label);
+    btn.textContent = b.glyph;
+    btn.addEventListener('click', function () { handleAction(m, b.act, li); });
+    icons.appendChild(btn);
+  });
+  titleRow.appendChild(icons);
+  main.appendChild(titleRow);
+
+  const meta = document.createElement('div');
+  meta.className = 'app-meta';
+  meta.textContent =
+    m.backend +
+    (m.port ? ' · :' + m.port : '') +
+    (m.aliases && m.aliases.length ? ' · ' + m.aliases.join(', ') : '');
+  main.appendChild(meta);
+
+  li.appendChild(main);
+  return li;
 }
 
 function badge(m) {
-  if (!m.controllable) return '<span class="badge">' + escapeHtml(m.backend) + '</span>';
-  if (m.ownership === 'ours') return '<span class="badge" style="border-color:rgba(74,222,128,.4);color:#4ade80">running</span>';
-  if (m.ownership === 'external') return '<span class="badge" style="border-color:rgba(251,191,36,.4);color:#fbbf24">adopted</span>';
-  return '<span class="badge">stopped</span>';
+  if (!m.controllable) return ' <span class="badge">' + escapeHtml(m.backend) + '</span>';
+  if (m.ownership === 'ours') return ' <span class="badge good">running</span>';
+  if (m.ownership === 'external') return ' <span class="badge warn">adopted</span>';
+  return ' <span class="badge">stopped</span>';
 }
 
 function pickGlyph(m) {
@@ -74,7 +109,7 @@ function pickGlyph(m) {
   return '🦙';
 }
 
-async function handleAction(m, act, card) {
+async function handleAction(m, act, item) {
   if (act === 'start') {
     try {
       await postJson('/admin/api/models/' + encodeURIComponent(m.id) + '/start', {});
@@ -103,28 +138,37 @@ async function handleAction(m, act, card) {
       toast(m.display_name + ' · ' + body.status + ' · ' + body.latency_ms + ' ms', body.ok ? 'good' : 'error');
     } catch (exc) { toast(String(exc.message || exc), 'error'); }
   } else if (act === 'log') {
-    toggleLog(m, card);
+    toggleLog(m, item);
   }
 }
 
-function toggleLog(m, card) {
-  const pane = card.querySelector('pre.model-log');
-  if (!pane) return;
-  if (!pane.hidden) {
-    pane.hidden = true;
+function toggleLog(m, item) {
+  // Find the sibling <li class="model-log-li"> right after this row.
+  let logLi = item.nextElementSibling;
+  if (logLi && !logLi.classList.contains('model-log-li')) logLi = null;
+
+  if (logLi) {
+    logLi.remove();
     if (logStreams[m.id]) { try { logStreams[m.id].close(); } catch (_) {} delete logStreams[m.id]; }
     return;
   }
-  pane.hidden = false;
-  pane.textContent = '';
+
+  logLi = document.createElement('li');
+  logLi.className = 'model-log-li';
+  const pre = document.createElement('pre');
+  pre.className = 'logpane';
+  pre.dataset.id = m.id;
+  logLi.appendChild(pre);
+  item.insertAdjacentElement('afterend', logLi);
+
   const lines = [];
   logStreams[m.id] = eventStream('/admin/api/models/' + encodeURIComponent(m.id) + '/log/tail', {
     message: function (data) {
       if (typeof data !== 'string') return;
       lines.push(data);
       if (lines.length > 400) lines.shift();
-      pane.textContent = lines.join('\n');
-      pane.scrollTop = pane.scrollHeight;
+      pre.textContent = lines.join('\n');
+      pre.scrollTop = pre.scrollHeight;
     },
   });
 }
@@ -137,4 +181,4 @@ function escapeHtml(s) {
 
 function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-export function wireModels() { /* nothing to wire — cards re-render on fetch */ }
+export function wireModels() { /* nothing to wire — rows re-render on fetch */ }
