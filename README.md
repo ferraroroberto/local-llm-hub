@@ -679,10 +679,17 @@ Counters and per-model / per-project breakdowns toggle between **Day /
 Week / Month / All**.  A "Recent sessions" list shows the last 15 sessions
 across every project on this host.
 
-Optional: enable Claude Code's native OpenTelemetry export so host CLI
-traces land in the same Langfuse instance the hub already uses.  See
-[`docs/telemetry-langfuse.md`](docs/telemetry-langfuse.md#enable-host-claude-code-otel-optional-issue-20)
-for the env-var snippet.
+> **Why no host OTEL → Langfuse bridge?**  Issue #20 originally shipped an
+> opt-in path to forward host Claude Code traces into the hub's Langfuse
+> instance.  In practice the JSONL counters above already give the
+> community-standard tokens-in / tokens-out view, and the trace-graph view
+> wasn't worth the wiring cost — Langfuse's OTLP receiver only ingests
+> traces (not metrics/logs), Claude Code traces are still a beta signal,
+> and the per-signal exporter config is fiddly.  We removed the env-var
+> snippet rather than ship something half-working.  Full rationale and
+> diagnostics in [#22](https://github.com/ferraroroberto/local-llm-hub/issues/22) —
+> revisit if Anthropic stabilises tracing or Langfuse adds metrics
+> ingestion.
 
 See [docs/telemetry-langfuse.md](docs/telemetry-langfuse.md) for the
 full architecture, what's captured, the X-Trace-Id contract, and

@@ -361,29 +361,6 @@
         <div id="cldSessionsEmpty" class="empty">No sessions found in <code>~/.claude/projects/</code>.</div>
       </section>
 
-      <!-- Host OTEL hint -->
-      <section class="card" id="cldOtelCard">
-        <div class="card-header">
-          <h2>📡 Host OTEL (optional)</h2>
-        </div>
-        <p class="muted small" id="cldOtelHint">
-          To stream Claude Code traces into the same Langfuse instance the hub uses, set
-          these env vars in your shell profile and restart the terminal:
-        </p>
-        <pre class="cld-otel-snippet" id="cldOtelSnippet"># Enable Claude Code OTEL export → local Langfuse
-CLAUDE_CODE_ENABLE_TELEMETRY=1
-OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:3000/api/public/otel
-OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-# Base64-encode your Langfuse pk:sk pair, then:
-OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic &lt;base64(pk:sk)&gt;</pre>
-        <p class="muted small" style="margin-top: 6px;">
-          After setting them, any new <code>claude</code> session exports traces with
-          <code>service.name=claude-code</code>.  Open the OTel tab → Langfuse 🔗
-          and filter by that service name to see them.  The JSONL-based counters above
-          work regardless of whether OTEL is on.
-        </p>
-      </section>
-
     </section>
 
     <footer class="footer">
