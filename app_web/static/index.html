@@ -12,15 +12,17 @@
   <link rel="apple-touch-icon" href="/admin/static/icon-180.png">
   <link rel="stylesheet" href="/admin/static/styles.css">
   <link rel="stylesheet" href="/admin/static/telemetry.css">
+  <link rel="stylesheet" href="/admin/static/code_usage.css">
   <title>🌐 Local LLM Hub</title>
 </head>
 <body>
   <main class="app density-compact">
     <nav class="tabs" role="tablist">
-      <button id="tabHub" type="button" class="tab active" role="tab" data-tab="hub" aria-label="Hub">🌐 Hub</button>
-      <button id="tabModels" type="button" class="tab" role="tab" data-tab="models" aria-label="Models">🧠 Mod</button>
-      <button id="tabPlayground" type="button" class="tab" role="tab" data-tab="playground" aria-label="Playground">🧪 Ply</button>
-      <button id="tabTelemetry" type="button" class="tab" role="tab" data-tab="telemetry" aria-label="Telemetry">📊 Tel</button>
+      <button id="tabHub" type="button" class="tab active" role="tab" data-tab="hub" aria-label="Hub">Hub</button>
+      <button id="tabModels" type="button" class="tab" role="tab" data-tab="models" aria-label="Models">Models</button>
+      <button id="tabPlayground" type="button" class="tab" role="tab" data-tab="playground" aria-label="Playground">Play</button>
+      <button id="tabTelemetry" type="button" class="tab" role="tab" data-tab="telemetry" aria-label="Telemetry">OTel</button>
+      <button id="tabCodeUsage" type="button" class="tab" role="tab" data-tab="code-usage" aria-label="Claude Code usage">Code</button>
     </nav>
 
     <section id="paneHub" class="pane" role="tabpanel">
@@ -269,6 +271,119 @@
         <div id="telTracesEmpty" class="empty">No traces yet — the ring fills as clients call the hub.</div>
         <p class="muted small" style="margin: 8px 0 0;">Tap a row to expand prompt/completion preview. 👍/👎 sends a Langfuse score; 🔗 opens the full trace.</p>
       </section>
+    </section>
+
+    <section id="paneCodeUsage" class="pane" hidden role="tabpanel">
+
+      <!-- Today / This week counters -->
+      <section class="card">
+        <div class="card-header">
+          <div class="hub-title-block">
+            <h2>Claude Code usage</h2>
+            <span id="cldFreshness" class="muted small"></span>
+          </div>
+        </div>
+
+        <!-- Period toggle -->
+        <div id="cldPeriodSeg" class="segmented stretch" role="tablist" aria-label="Usage period" style="margin-bottom: 12px;">
+          <button type="button" data-period="today" class="active">Day</button>
+          <button type="button" data-period="week">Week</button>
+          <button type="button" data-period="month">Month</button>
+          <button type="button" data-period="all">All</button>
+        </div>
+
+        <!-- Big counter grid -->
+        <div id="cldCounterGrid" class="cld-counter-grid">
+          <div class="cld-counter">
+            <div class="cld-counter-value" id="cldRequests">—</div>
+            <div class="cld-counter-label">requests</div>
+          </div>
+          <div class="cld-counter">
+            <div class="cld-counter-value" id="cldInputTok">—</div>
+            <div class="cld-counter-label">input tokens</div>
+          </div>
+          <div class="cld-counter">
+            <div class="cld-counter-value" id="cldOutputTok">—</div>
+            <div class="cld-counter-label">output tokens</div>
+          </div>
+          <div class="cld-counter">
+            <div class="cld-counter-value" id="cldCacheRead">—</div>
+            <div class="cld-counter-label">cache reads</div>
+          </div>
+        </div>
+        <p class="muted small" style="margin: 6px 0 0;">Input tokens = net new + cache creation (both billed).
+          Cache reads are served from the 5-min/1-hr prompt cache.</p>
+      </section>
+
+      <!-- Per-model breakdown -->
+      <section class="card">
+        <div class="card-header">
+          <h2>📈 Per-model</h2>
+        </div>
+        <div class="counters-wrap">
+          <table id="cldModelTable" class="counters">
+            <thead>
+              <tr>
+                <th>Model</th><th>Req</th><th>In tok</th><th>Out tok</th><th>Cache rd</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="cldModelEmpty" class="empty" hidden>No model data for today.</div>
+      </section>
+
+      <!-- Per-project breakdown -->
+      <section class="card">
+        <div class="card-header">
+          <h2>📁 Per-project</h2>
+        </div>
+        <div class="counters-wrap">
+          <table id="cldProjectTable" class="counters">
+            <thead>
+              <tr>
+                <th>Project</th><th>Req</th><th>In tok</th><th>Out tok</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="cldProjectEmpty" class="empty" hidden>No project data for today.</div>
+      </section>
+
+      <!-- Recent sessions -->
+      <section class="card">
+        <div class="card-header">
+          <h2>🕒 Recent sessions</h2>
+          <span id="cldSessionsBadge" class="badge">0</span>
+        </div>
+        <ul id="cldSessionsList" class="card-list dense cld-sessions" aria-label="Recent Claude Code sessions"></ul>
+        <div id="cldSessionsEmpty" class="empty">No sessions found in <code>~/.claude/projects/</code>.</div>
+      </section>
+
+      <!-- Host OTEL hint -->
+      <section class="card" id="cldOtelCard">
+        <div class="card-header">
+          <h2>📡 Host OTEL (optional)</h2>
+        </div>
+        <p class="muted small" id="cldOtelHint">
+          To stream Claude Code traces into the same Langfuse instance the hub uses, set
+          these env vars in your shell profile and restart the terminal:
+        </p>
+        <pre class="cld-otel-snippet" id="cldOtelSnippet"># Enable Claude Code OTEL export → local Langfuse
+CLAUDE_CODE_ENABLE_TELEMETRY=1
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:3000/api/public/otel
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+# Base64-encode your Langfuse pk:sk pair, then:
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic &lt;base64(pk:sk)&gt;</pre>
+        <p class="muted small" style="margin-top: 6px;">
+          After setting them, any new <code>claude</code> session exports traces with
+          <code>service.name=claude-code</code>.  Open the OTel tab → Langfuse 🔗
+          and filter by that service name to see them.  The JSONL-based counters above
+          work regardless of whether OTEL is on.
+        </p>
+      </section>
+
     </section>
 
     <footer class="footer">

@@ -406,7 +406,7 @@ launchers\run_glm.bat            :: llama-server for GLM on :8082
 (macOS / Linux: `./run_hub.sh`, `./launchers/run_all.sh`, etc.)
 
 Once the hub is running, open `http://127.0.0.1:8000/admin/` for the
-admin webapp — three tabs (Hub / Models / Playground) covering every
+admin webapp — five tabs (Hub / Models / Play / OTel / Code) covering every
 operational concern. Going to `http://127.0.0.1:8000/` redirects there.
 
 ### Tray launcher (Windows)
@@ -660,13 +660,29 @@ print(r.text)
 
 The hub emits OpenTelemetry traces + metrics via OTLP/gRPC into a local
 Langfuse stack started by `start_langfuse.bat`. The admin SPA's
-**📊 Telem** tab shows stack health, a per-model leaderboard, and a
+**OTel** tab shows stack health, a per-model leaderboard, and a
 live trace feed with deep-links into the Langfuse UI for inspection.
 
 Default mode captures raw prompts and completions — fine on a personal
 localhost hub, but flip `OTEL_HASH_PROMPTS=true` (in `.env`) any time
 the hub binds beyond loopback. `OTEL_SDK_DISABLED=true` turns
 telemetry off entirely.
+
+## Claude Code usage (issue #20)
+
+The **Code** tab is a passive view of host-side Claude Code activity.  It
+parses the JSONL session logs Claude Code writes to
+`~/.claude/projects/<encoded-path>/*.jsonl` server-side — zero subprocesses,
+no wrapper around the `claude` binary, no impact on the running CLI.
+
+Counters and per-model / per-project breakdowns toggle between **Day /
+Week / Month / All**.  A "Recent sessions" list shows the last 15 sessions
+across every project on this host.
+
+Optional: enable Claude Code's native OpenTelemetry export so host CLI
+traces land in the same Langfuse instance the hub already uses.  See
+[`docs/telemetry-langfuse.md`](docs/telemetry-langfuse.md#enable-host-claude-code-otel-optional-issue-20)
+for the env-var snippet.
 
 See [docs/telemetry-langfuse.md](docs/telemetry-langfuse.md) for the
 full architecture, what's captured, the X-Trace-Id contract, and

@@ -251,6 +251,62 @@ Same endpoint works for clients — see the client contract doc.
 | `app_web/static/telemetry.{js,css}` | SPA Telemetry tab |
 | `docs/clients-telemetry-contract.md` | Client-side recipe |
 
+## Enable host Claude Code OTEL (optional, issue #20)
+
+Claude Code CLI (v2+) supports exporting traces via OpenTelemetry to any OTLP/HTTP
+receiver.  Because this hub already runs a local Langfuse stack with an OTLP endpoint,
+you can land host-CLI traces in the **same Langfuse project** the hub uses — no second
+observability stack needed.
+
+### 1. Generate the Basic-auth header
+
+Langfuse's OTLP endpoint authenticates with a Base64-encoded `pk:sk` pair.
+Run this once (replace with your actual keys from `.env`):
+
+```powershell
+$pk = "pk-lf-..."   # LANGFUSE_PUBLIC_KEY
+$sk = "sk-lf-..."   # LANGFUSE_SECRET_KEY
+[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("${pk}:${sk}"))
+# → prints e.g. cGstbGYtLi4uOnNrLWxmLS4uLg==
+```
+
+### 2. Set env vars permanently
+
+Add to your Windows user environment (System Properties → Environment Variables,
+or the `[Environment]::SetEnvironmentVariable` snippet below):
+
+```powershell
+[Environment]::SetEnvironmentVariable('CLAUDE_CODE_ENABLE_TELEMETRY', '1',           'User')
+[Environment]::SetEnvironmentVariable('OTEL_EXPORTER_OTLP_ENDPOINT',
+  'http://localhost:3000/api/public/otel', 'User')
+[Environment]::SetEnvironmentVariable('OTEL_EXPORTER_OTLP_PROTOCOL', 'http/protobuf', 'User')
+[Environment]::SetEnvironmentVariable('OTEL_EXPORTER_OTLP_HEADERS',
+  'Authorization=Basic <your-base64-pk-sk-here>', 'User')
+```
+
+> **Note:** The `Cld` tab's OTEL hint card shows the same snippet without the keys.
+
+### 3. Restart your terminal (and Claude Code if already running)
+
+New `claude` sessions will export traces tagged with `service.name=claude-code`.
+
+### 4. Verify in Langfuse
+
+Open the **📊 Tel** tab → Langfuse 🔗 → filter traces by `service.name = claude-code`.
+You should see one trace per Claude Code session (or per tool call, depending on the
+telemetry level Claude Code reports).
+
+### Notes
+
+- The **🤖 Cld** tab's JSONL-based counters (requests, tokens) work regardless of
+  whether OTEL is on — they read the session logs Claude Code always writes locally.
+- OTEL adds the trace-graph view inside Langfuse; the token counters in the `Cld`
+  tab are the primary usage surface and require no setup.
+- Claude Code currently exports at the session / tool-call granularity.  The exact
+  metric names are `claude_code.token.usage`, `claude_code.cost.usage` (theoretical
+  API-equivalent, **not** Pro subscription cost), and `claude_code.lines_of_code.*`.
+- If you later want to disable host OTEL, delete the four env vars and restart.
+
 ## Limitations / known gaps
 
 - **No streaming on `/v1/messages`** — the hub still returns a single
