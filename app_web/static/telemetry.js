@@ -120,6 +120,11 @@ export function startTelemetryStream() {
       error: function () { /* EventSource auto-reconnects */ },
     });
     state.telStreamCtl = es;
+    // Exposed on window so the e2e suite can probe the stream's
+    // readyState (== 1 once OPEN) before firing test requests —
+    // otherwise the request can race ahead of the subscription on
+    // slow CI runners.
+    try { window.__telStream = es; } catch (_) {}
   } catch (exc) {
     console.warn('telemetry stream failed:', exc);
   }
@@ -129,6 +134,7 @@ export function stopTelemetryStream() {
   if (state.telStreamCtl) {
     try { state.telStreamCtl.close(); } catch (_) {}
     state.telStreamCtl = null;
+    try { window.__telStream = null; } catch (_) {}
   }
 }
 

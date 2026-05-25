@@ -72,14 +72,27 @@ def test_telemetry_health_renders(page, admin_url):
 
 def test_telemetry_picks_up_new_request(page, admin_url):
     """After a /v1/messages call, the trace ring on the Telemetry tab
-    shows a row for it. SSE drives this — same pattern as the Hub tab."""
+    shows a row for it. SSE drives this — same pattern as the Hub tab.
+
+    Timing note: unlike the Hub tab (which opens its SSE on boot), the
+    Telemetry tab opens its EventSource only after the tab-switch
+    callback fires. We wait until the stream is actually open before
+    firing the marker request — without that the request can race
+    ahead of the subscription and the dispatched record is dropped on
+    the floor instead of reaching the client.
+    """
     base = admin_url.rsplit("/admin/", 1)[0]
     page.goto(admin_url, wait_until="domcontentloaded")
     page.click("#tabTelemetry")
     page.wait_for_selector("#paneTelemetry", state="visible", timeout=3000)
     page.wait_for_selector("#telTracesList", state="attached", timeout=3000)
-    # Let the SSE seed settle.
-    page.wait_for_timeout(700)
+    # Wait until the EventSource is actually OPEN (readyState === 1)
+    # rather than picking a magic-number sleep that's racy on slow CI
+    # runners.
+    page.wait_for_function(
+        "() => window.__telStream && window.__telStream.readyState === 1",
+        timeout=5000,
+    )
 
     marker = "e2e-tel-tab-marker"
     r = httpx.post(
@@ -95,7 +108,7 @@ def test_telemetry_picks_up_new_request(page, admin_url):
         "  return ul && (ul.textContent || '').indexOf(m) !== -1;"
         "}",
         arg=marker,
-        timeout=4000,
+        timeout=8000,
     )
 
 
