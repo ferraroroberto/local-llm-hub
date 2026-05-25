@@ -25,12 +25,26 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
 import tempfile
 import time
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+
+# Load .env *before* importing anything that reads env at module-import
+# time (observability.py reads OTEL_* / LANGFUSE_* immediately on
+# init_otel()). Soft-fails when python-dotenv isn't installed — the
+# hub still runs, just without auto-loading the project .env file.
+try:
+    from dotenv import load_dotenv as _load_dotenv
+
+    _env_path = Path(__file__).resolve().parent.parent / ".env"
+    if _env_path.exists():
+        _load_dotenv(_env_path, override=False)
+except ImportError:
+    pass
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
@@ -42,6 +56,15 @@ from .host_profile import hub_bind_host, hub_port
 from .hub_log import HUB_LOG, install_root_handler
 from .hub_observability import OBS, ObservatoryMiddleware
 from .model_registry import Model, enabled_models, resolve as resolve_model
+from .observability import (
+    genai_meters,
+    init_otel,
+    instrument_fastapi_app,
+    record_genai_metrics,
+    set_genai_payload,
+    set_genai_request_attrs,
+    set_genai_response_attrs,
+)
 from .openai_upstream import (
     UpstreamError,
     anthropic_to_openai_messages,
@@ -51,6 +74,7 @@ from .openai_upstream import (
     iter_cleaned_sse,
     openai_to_anthropic_envelope,
 )
+from .trace_id_middleware import TraceIdHeaderMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,6 +85,11 @@ logging.basicConfig(
 # both our logs and uvicorn's (access + error) without re-reading stdout.
 install_root_handler()
 logger = logging.getLogger(__name__)
+
+# Bring up OpenTelemetry (issue #4). Soft-fails if the SDK or the OTLP
+# endpoint is unreachable — the hub keeps serving traffic and the SPA's
+# Telemetry tab shows "stack offline" until Langfuse comes up.
+init_otel("local-llm-hub")
 
 
 # ---- shared content-block helpers (unchanged shape) ----
@@ -306,7 +335,8 @@ def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
 app = FastAPI(title="Local LLM Hub", version="0.3.0")
 # Observability middleware records every /v1/messages + /v1/chat/completions
 # call into an in-memory ring read by the admin webapp's Hub tab. Volatile
-# by design — the durable telemetry layer is issue #4 (Langfuse).
+# by design; the durable telemetry layer is the OTel + Langfuse stack
+# bootstrapped by init_otel() above.
 app.add_middleware(ObservatoryMiddleware)
 
 
@@ -328,6 +358,16 @@ def _hub_get_token() -> str:
 from app_web.middleware import ParentBearerTokenMiddleware  # noqa: E402
 
 app.add_middleware(ParentBearerTokenMiddleware, get_token=_hub_get_token)
+
+# OTel ASGI instrumentation — added before the X-Trace-Id outer middleware
+# so the OTel layer creates spans first; the X-Trace-Id wrapper then sees
+# a live span context and can echo its trace ID to the client.
+instrument_fastapi_app(app)
+
+# X-Trace-Id contract — accept client-supplied UUID4 / hex in, always
+# emit the current span's trace ID out. Pure-ASGI middleware; added last
+# so it sits OUTERMOST.
+app.add_middleware(TraceIdHeaderMiddleware)
 
 
 # Expose the same WebappConfig to the parent app so the middleware can
@@ -484,6 +524,34 @@ def list_models() -> Dict[str, Any]:
     return {"object": "list", "data": data}
 
 
+def _client_id_from(request: Request) -> str:
+    """Read ``X-Client-Id`` for telemetry attribution; empty string when absent."""
+    return (request.headers.get("x-client-id") or "").strip()
+
+
+def _current_otel_span():
+    """Return the active OTel span (or None when the SDK is disabled)."""
+    try:
+        from opentelemetry import trace as _trace
+
+        return _trace.get_current_span()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _stash_trace_id_on_ctx(ctx, span) -> None:
+    """Copy the span's trace ID onto the live-ring obs context so the
+    /admin Hub tab can deep-link into Langfuse."""
+    if ctx is None or span is None:
+        return
+    try:
+        sctx = span.get_span_context()
+        if sctx and sctx.trace_id:
+            ctx.trace_id = format(sctx.trace_id, "032x")
+    except Exception:  # noqa: BLE001
+        pass
+
+
 @app.post("/v1/messages")
 def messages(req: MessagesRequest, request: Request) -> JSONResponse:
     if req.stream:
@@ -495,22 +563,46 @@ def messages(req: MessagesRequest, request: Request) -> JSONResponse:
         ctx.backend = model.backend
     logger.info("/v1/messages model=%s backend=%s", req.model, model.backend)
 
-    if model.backend == "claude":
-        env = _run_claude_backend(model, req)
-    elif model.backend == "gemini":
-        env = _run_gemini_backend(model, req)
-    elif model.backend == "openai":
-        env = _run_openai_backend(model, req)
-    elif model.backend == "whisper":
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"{req.model!r} is an ASR backend, not a chat model. "
-                f"POST audio to http://127.0.0.1:{model.port}/v1/audio/transcriptions instead."
-            ),
+    client_id = _client_id_from(request)
+    span = _current_otel_span()
+    set_genai_request_attrs(
+        span,
+        model=req.model,
+        backend=model.backend,
+        operation="chat",
+        temperature=req.temperature,
+        max_tokens=req.max_tokens,
+        client_id=client_id,
+    )
+    _stash_trace_id_on_ctx(ctx, span)
+
+    error_type = ""
+    start_ns = time.monotonic_ns()
+    try:
+        if model.backend == "claude":
+            env = _run_claude_backend(model, req)
+        elif model.backend == "gemini":
+            env = _run_gemini_backend(model, req)
+        elif model.backend == "openai":
+            env = _run_openai_backend(model, req)
+        elif model.backend == "whisper":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{req.model!r} is an ASR backend, not a chat model. "
+                    f"POST audio to http://127.0.0.1:{model.port}/v1/audio/transcriptions instead."
+                ),
+            )
+        else:
+            raise HTTPException(status_code=500, detail=f"unknown backend {model.backend!r}")
+    except HTTPException as exc:
+        error_type = f"http_{exc.status_code}"
+        record_genai_metrics(
+            model=req.model, backend=model.backend, route="/v1/messages",
+            client_id=client_id, duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
+            error_type=error_type,
         )
-    else:
-        raise HTTPException(status_code=500, detail=f"unknown backend {model.backend!r}")
+        raise
 
     payload = _envelope_to_anthropic(env, req.model)
     u = payload["usage"]
@@ -520,6 +612,28 @@ def messages(req: MessagesRequest, request: Request) -> JSONResponse:
         ctx.cache_read_tok = int(u["cache_read_input_tokens"])
         ctx.cache_write_tok = int(u["cache_creation_input_tokens"])
         ctx.stop_reason = str(payload.get("stop_reason") or "")
+    set_genai_response_attrs(
+        span,
+        input_tokens=int(u["input_tokens"]),
+        output_tokens=int(u["output_tokens"]),
+        finish_reason=str(payload.get("stop_reason") or ""),
+        response_id=str(payload.get("id") or ""),
+    )
+    # Attach prompt/completion bodies for Langfuse inspection. Prompt is
+    # the flattened text representation we actually sent upstream; for
+    # multi-turn this captures the full conversation. Completion is the
+    # final assistant text.
+    try:
+        prompt_preview = _flatten_messages(req.messages)
+    except Exception:  # noqa: BLE001
+        prompt_preview = ""
+    completion_preview = payload["content"][0].get("text", "") if payload.get("content") else ""
+    set_genai_payload(span, prompt_preview, completion_preview)
+    record_genai_metrics(
+        model=req.model, backend=model.backend, route="/v1/messages",
+        client_id=client_id, duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
+        input_tokens=int(u["input_tokens"]), output_tokens=int(u["output_tokens"]),
+    )
     logger.info(
         "<- in=%d out=%d (cache_r=%d cache_w=%d) stop=%s backend=%s",
         u["input_tokens"], u["output_tokens"],
@@ -560,7 +674,14 @@ def _wrap_as_openai(text: str, *, model_name: str, in_toks: int, out_toks: int, 
     }
 
 
-def _stream_openai_passthrough(model: Model, req: "ChatCompletionRequest") -> StreamingResponse:
+def _stream_openai_passthrough(
+    model: Model,
+    req: "ChatCompletionRequest",
+    *,
+    span=None,
+    client_id: str = "",
+    start_ns: Optional[int] = None,
+) -> StreamingResponse:
     """Proxy llama-server SSE through the hub, stripping ``<think>`` blocks.
 
     The upstream already speaks OpenAI-compatible SSE. We re-emit each
@@ -568,6 +689,10 @@ def _stream_openai_passthrough(model: Model, req: "ChatCompletionRequest") -> St
     to fold ``reasoning_content`` and remove ``<think>...</think>``
     spans (using a per-stream :class:`ThinkStripper` so a tag split
     across chunks is still recognised).
+
+    Telemetry: the generator records ``first_token`` / ``last_token``
+    span events to expose time-to-first-token and tokens-per-second on
+    the active span, and updates the GenAI metrics on stream close.
     """
     if not model.url:
         raise HTTPException(status_code=500, detail="model has no url")
@@ -577,7 +702,17 @@ def _stream_openai_passthrough(model: Model, req: "ChatCompletionRequest") -> St
     if req.tool_choice is not None:
         extra["tool_choice"] = req.tool_choice
 
+    if start_ns is None:
+        start_ns = time.monotonic_ns()
+
     def event_stream() -> Any:
+        import json as _json
+
+        first_token_ns: Optional[int] = None
+        chunk_count = 0
+        usage_in = 0
+        usage_out = 0
+        error_type = ""
         try:
             raw = call_openai_chat_stream(
                 model.url,
@@ -588,12 +723,62 @@ def _stream_openai_passthrough(model: Model, req: "ChatCompletionRequest") -> St
                 extra=extra or None,
             )
             for cleaned in iter_cleaned_sse(raw):
+                # Detect first non-empty content delta to record TTFT.
+                if first_token_ns is None and cleaned.startswith("data:"):
+                    payload = cleaned[len("data:"):].strip()
+                    if payload and payload != "[DONE]":
+                        try:
+                            obj = _json.loads(payload)
+                            delta = (obj.get("choices") or [{}])[0].get("delta") or {}
+                            if delta.get("content"):
+                                first_token_ns = time.monotonic_ns()
+                                if span is not None and hasattr(span, "add_event"):
+                                    try:
+                                        ttft_ms = (first_token_ns - start_ns) / 1e6
+                                        span.add_event(
+                                            "first_token",
+                                            attributes={"latency_ms": ttft_ms},
+                                        )
+                                        span.set_attribute(
+                                            "gen_ai.response.time_to_first_token_ms",
+                                            ttft_ms,
+                                        )
+                                    except Exception:  # noqa: BLE001
+                                        pass
+                            # Some llama-server builds emit a final usage chunk.
+                            u = obj.get("usage") or {}
+                            usage_in = max(usage_in, int(u.get("prompt_tokens", 0) or 0))
+                            usage_out = max(usage_out, int(u.get("completion_tokens", 0) or 0))
+                            chunk_count += 1
+                        except Exception:  # noqa: BLE001
+                            pass
                 yield cleaned + "\n"
             # SSE record terminator after the final line. llama-server
             # already sends ``data: [DONE]``; the trailing blank line
             # closes the last event for strict SSE parsers.
             yield "\n"
+
+            # Stream finished cleanly — close out telemetry.
+            last_ns = time.monotonic_ns()
+            if span is not None and hasattr(span, "add_event"):
+                try:
+                    span.add_event(
+                        "last_token",
+                        attributes={"latency_ms": (last_ns - start_ns) / 1e6},
+                    )
+                    if first_token_ns is not None and usage_out > 0:
+                        seconds = max(1e-6, (last_ns - first_token_ns) / 1e9)
+                        span.set_attribute(
+                            "gen_ai.response.tokens_per_second",
+                            usage_out / seconds,
+                        )
+                    set_genai_response_attrs(
+                        span, input_tokens=usage_in, output_tokens=usage_out,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
         except UpstreamError as e:
+            error_type = "upstream_http_error"
             logger.error("upstream stream error: %s", e)
             err = {
                 "error": {
@@ -602,9 +787,16 @@ def _stream_openai_passthrough(model: Model, req: "ChatCompletionRequest") -> St
                     "code": "upstream_error",
                 }
             }
-            import json as _json
             yield "data: " + _json.dumps(err) + "\n\n"
             yield "data: [DONE]\n\n"
+        finally:
+            record_genai_metrics(
+                model=req.model, backend=model.backend,
+                route="/v1/chat/completions", client_id=client_id,
+                duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
+                input_tokens=usage_in, output_tokens=usage_out,
+                error_type=error_type,
+            )
 
     headers = {
         "Cache-Control": "no-cache",
@@ -629,8 +821,30 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
         req.model, model.backend, req.stream,
     )
 
+    client_id = _client_id_from(request)
+    span = _current_otel_span()
+    set_genai_request_attrs(
+        span,
+        model=req.model,
+        backend=model.backend,
+        operation="chat",
+        temperature=req.temperature,
+        max_tokens=req.max_tokens,
+        client_id=client_id,
+    )
+    _stash_trace_id_on_ctx(ctx, span)
+    start_ns = time.monotonic_ns()
+
     if req.stream and model.backend == "openai":
-        return _stream_openai_passthrough(model, req)
+        # The streaming response object closes the span itself once the
+        # SSE generator hits [DONE]; record_genai_metrics is called from
+        # inside the wrapped generator (see _stream_openai_passthrough).
+        return _stream_openai_passthrough(
+            model, req,
+            span=span,
+            client_id=client_id,
+            start_ns=start_ns,
+        )
     if req.stream:
         # Non-openai backends don't have an SSE source; fall back to a
         # single non-streaming response. Logged so it's visible.
@@ -639,73 +853,136 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
             model.backend,
         )
 
-    if model.backend in ("claude", "gemini"):
-        # Flatten OpenAI messages into a single prompt for the CLI path.
-        sys_text: Optional[str] = None
-        turns: List[str] = []
-        for m in req.messages:
+    error_type = ""
+    try:
+        if model.backend in ("claude", "gemini"):
+            # Flatten OpenAI messages into a single prompt for the CLI path.
+            sys_text: Optional[str] = None
+            turns: List[str] = []
+            for m in req.messages:
+                role = m.get("role", "user")
+                content = m.get("content", "")
+                if isinstance(content, list):
+                    content = "\n".join(
+                        p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"
+                    )
+                if role == "system":
+                    sys_text = content
+                elif role == "user":
+                    turns.append(f"User: {content}")
+                else:
+                    turns.append(f"Assistant: {content}")
+            prompt = "\n".join(turns) if len(turns) > 1 else (turns[0].split(": ", 1)[-1] if turns else "")
+            try:
+                if model.backend == "claude":
+                    env = call_claude(prompt, model=model.display_name, system=sys_text)
+                else:
+                    env = call_gemini(prompt, model=model.display_name, system=sys_text)
+            except (ClaudeCLIError, GeminiCLIError) as e:
+                error_type = "upstream_cli_error"
+                raise HTTPException(status_code=502, detail=str(e))
+            text = env.get("result", "")
+            usage = env.get("usage") or {}
+            in_t = int(usage.get("input_tokens", 0) or 0)
+            out_t = int(usage.get("output_tokens", 0) or 0)
+            set_genai_response_attrs(
+                span, input_tokens=in_t, output_tokens=out_t,
+                finish_reason=str(env.get("stop_reason") or ""),
+            )
+            set_genai_payload(span, prompt, text)
+            record_genai_metrics(
+                model=req.model, backend=model.backend,
+                route="/v1/chat/completions", client_id=client_id,
+                duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
+                input_tokens=in_t, output_tokens=out_t,
+            )
+            return JSONResponse(_wrap_as_openai(
+                text, model_name=req.model, in_toks=in_t, out_toks=out_t,
+            ))
+
+        if model.backend == "whisper":
+            error_type = "http_400"
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{req.model!r} is an ASR backend, not a chat model. "
+                    f"POST audio to http://127.0.0.1:{model.port}/v1/audio/transcriptions instead."
+                ),
+            )
+
+        if model.backend == "openai":
+            if not model.url:
+                error_type = "config_error"
+                raise HTTPException(status_code=500, detail="model has no url")
+            extra: Dict[str, Any] = {}
+            if req.tools is not None:
+                extra["tools"] = req.tools
+            if req.tool_choice is not None:
+                extra["tool_choice"] = req.tool_choice
+            try:
+                raw = call_openai_chat(
+                    model.url,
+                    model=model.display_name,
+                    messages=req.messages,
+                    max_tokens=req.max_tokens,
+                    temperature=req.temperature,
+                    extra=extra or None,
+                )
+            except UpstreamError as e:
+                error_type = "upstream_http_error"
+                raise HTTPException(status_code=502, detail=str(e))
+            cleaned = clean_openai_response(raw)
+            usage = cleaned.get("usage") or {}
+            in_t = int(usage.get("prompt_tokens", 0) or 0)
+            out_t = int(usage.get("completion_tokens", 0) or 0)
+            set_genai_response_attrs(span, input_tokens=in_t, output_tokens=out_t)
+            try:
+                completion_text = (cleaned.get("choices") or [{}])[0].get(
+                    "message", {}
+                ).get("content") or ""
+            except Exception:  # noqa: BLE001
+                completion_text = ""
+            set_genai_payload(span, _flatten_openai_prompt(req.messages), completion_text)
+            record_genai_metrics(
+                model=req.model, backend=model.backend,
+                route="/v1/chat/completions", client_id=client_id,
+                duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
+                input_tokens=in_t, output_tokens=out_t,
+            )
+            # Passthrough of upstream response (already OpenAI-shape), with
+            # <think>...</think> stripped from message.content and
+            # reasoning_content folded into content when content is empty.
+            return JSONResponse(cleaned)
+
+        error_type = "unknown_backend"
+        raise HTTPException(status_code=500, detail=f"unknown backend {model.backend!r}")
+    finally:
+        if error_type:
+            record_genai_metrics(
+                model=req.model, backend=model.backend,
+                route="/v1/chat/completions", client_id=client_id,
+                duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
+                error_type=error_type,
+            )
+
+
+def _flatten_openai_prompt(messages: List[Dict[str, Any]]) -> str:
+    """Cheap flattener for telemetry capture only — best-effort, never raises."""
+    try:
+        parts: List[str] = []
+        for m in messages:
             role = m.get("role", "user")
             content = m.get("content", "")
             if isinstance(content, list):
                 content = "\n".join(
-                    p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"
+                    p.get("text", "")
+                    for p in content
+                    if isinstance(p, dict) and p.get("type") == "text"
                 )
-            if role == "system":
-                sys_text = content
-            elif role == "user":
-                turns.append(f"User: {content}")
-            else:
-                turns.append(f"Assistant: {content}")
-        prompt = "\n".join(turns) if len(turns) > 1 else (turns[0].split(": ", 1)[-1] if turns else "")
-        try:
-            if model.backend == "claude":
-                env = call_claude(prompt, model=model.display_name, system=sys_text)
-            else:
-                env = call_gemini(prompt, model=model.display_name, system=sys_text)
-        except (ClaudeCLIError, GeminiCLIError) as e:
-            raise HTTPException(status_code=502, detail=str(e))
-        text = env.get("result", "")
-        usage = env.get("usage") or {}
-        return JSONResponse(_wrap_as_openai(
-            text, model_name=req.model,
-            in_toks=int(usage.get("input_tokens", 0) or 0),
-            out_toks=int(usage.get("output_tokens", 0) or 0),
-        ))
-
-    if model.backend == "whisper":
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"{req.model!r} is an ASR backend, not a chat model. "
-                f"POST audio to http://127.0.0.1:{model.port}/v1/audio/transcriptions instead."
-            ),
-        )
-
-    if model.backend == "openai":
-        if not model.url:
-            raise HTTPException(status_code=500, detail="model has no url")
-        extra: Dict[str, Any] = {}
-        if req.tools is not None:
-            extra["tools"] = req.tools
-        if req.tool_choice is not None:
-            extra["tool_choice"] = req.tool_choice
-        try:
-            raw = call_openai_chat(
-                model.url,
-                model=model.display_name,
-                messages=req.messages,
-                max_tokens=req.max_tokens,
-                temperature=req.temperature,
-                extra=extra or None,
-            )
-        except UpstreamError as e:
-            raise HTTPException(status_code=502, detail=str(e))
-        # Passthrough of upstream response (already OpenAI-shape), with
-        # <think>...</think> stripped from message.content and
-        # reasoning_content folded into content when content is empty.
-        return JSONResponse(clean_openai_response(raw))
-
-    raise HTTPException(status_code=500, detail=f"unknown backend {model.backend!r}")
+            parts.append(f"{role}: {content}")
+        return "\n".join(parts)
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 # ---- Audio proxy (whisper backends speak OpenAI's audio API natively) ----
@@ -788,6 +1065,18 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
     if ctx is not None:
         ctx.model = model_name
         ctx.backend = "whisper"
+
+    span = _current_otel_span()
+    if span is not None and hasattr(span, "set_attribute"):
+        try:
+            span.set_attribute("gen_ai.system", "whisper")
+            span.set_attribute("gen_ai.operation.name", default_role)
+            if model_name:
+                span.set_attribute("gen_ai.request.model", model_name)
+            span.set_attribute("whisper.port", int(port))
+        except Exception:  # noqa: BLE001
+            pass
+    _stash_trace_id_on_ctx(ctx, span)
 
     upstream_url = f"http://127.0.0.1:{port}{ctx_path}"
     headers = {

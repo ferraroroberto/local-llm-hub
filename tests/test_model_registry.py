@@ -214,6 +214,65 @@ def test_whisper_translate_lazy_entry(tmp_path, monkeypatch):
     assert lazy.url == "http://127.0.0.1:8091/v1"
 
 
+def test_resolve_by_registry_id(tmp_path, monkeypatch):
+    """Regression: the SPA Playground dropdown sends ``m.id`` (the YAML
+    key), not ``display_name``. resolve() must accept it — otherwise
+    rows whose id is not also listed under aliases (qwen35_4b,
+    gemma4_e4b, gemma4_26b, gemini_flash_lite in the real registry)
+    400 on the Playground.
+    """
+    cfg = _write_config(tmp_path, {
+        "hub": {"port": 8000},
+        "hosts": {
+            "pc": {"platform": "win32", "default": True,
+                   "enabled": ["qwen35_4b", "gemma4_26b"]},
+        },
+        "models": {
+            # id != display_name, and id NOT in aliases — same shape as
+            # the real qwen35_4b / gemma4_26b rows.
+            "qwen35_4b": {
+                "display_name": "qwen3.5-4b",
+                "backend": "openai",
+                "port": 8088,
+                "aliases": ["agentic_light"],
+            },
+            "gemma4_26b": {
+                "display_name": "gemma4-26b-a4b-it",
+                "backend": "openai",
+                "port": 8087,
+                "aliases": ["agentic_heavy"],
+            },
+            "claude_haiku": {
+                "display_name": "claude-haiku-4-5",
+                "backend": "claude",
+                "aliases": ["claude_haiku"],
+            },
+        },
+    })
+    _patch_config_path(monkeypatch, cfg)
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "pc")
+
+    # Resolve via every channel: id, display_name, alias — all three
+    # land on the same model.
+    by_id = model_registry.resolve("qwen35_4b")
+    by_display = model_registry.resolve("qwen3.5-4b")
+    by_alias = model_registry.resolve("agentic_light")
+    assert by_id is not None and by_display is not None and by_alias is not None
+    assert by_id.id == by_display.id == by_alias.id == "qwen35_4b"
+
+    # The gemma row's id also resolves, even though it's not in aliases.
+    assert model_registry.resolve("gemma4_26b").id == "gemma4_26b"
+
+    # Claude row keeps working — its id is already in aliases.
+    assert model_registry.resolve("claude_haiku").id == "claude_haiku"
+
+    # ``all_names`` now includes the id so /v1/models lists every handle.
+    qwen = model_registry.resolve("qwen35_4b")
+    assert "qwen35_4b" in qwen.all_names
+    assert "qwen3.5-4b" in qwen.all_names
+    assert "agentic_light" in qwen.all_names
+
+
 def test_model_url_from_port(tmp_path, monkeypatch):
     cfg = _write_config(tmp_path, {
         "hub": {"port": 8000},

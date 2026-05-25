@@ -1,0 +1,108 @@
+/* Telemetry tab — tab-scoped additions. Inherits .card, .counters,
+ * .hub-live-status, .ghost-btn, .badge, .empty from styles.css. */
+
+/* Live trace list: 4-col header line + meta line + actions row. */
+ul.tel-traces.card-list.dense > li {
+  /* Header row stays 4 columns to align with the Hub tab's live list. */
+  display: grid;
+  grid-template-columns: 60px 1fr auto auto;
+  gap: 8px;
+  padding: 8px 0;
+  /* Allow the per-row meta + actions divs to span the full width. */
+  grid-template-areas:
+    'time model latency status'
+    'meta meta  meta    meta'
+    'actions actions actions actions'
+    'err err err err';
+}
+ul.tel-traces > li > .req-time    { grid-area: time;    color: var(--muted); }
+ul.tel-traces > li > .req-model   {
+  grid-area: model;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+ul.tel-traces > li > .req-latency { grid-area: latency; color: var(--muted); }
+ul.tel-traces > li > .req-status  { grid-area: status; }
+ul.tel-traces > li > .tel-trace-meta {
+  grid-area: meta;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 2px;
+}
+ul.tel-traces > li > .tel-trace-meta code {
+  color: var(--fg);
+  background: var(--bg-elev-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+ul.tel-traces > li > .tel-trace-actions {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+ul.tel-traces > li > .tel-trace-actions .ghost-btn {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+ul.tel-traces > li > .tel-trace-err {
+  grid-area: err;
+  color: var(--danger);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+/* Click-to-expand affordance */
+ul.tel-traces > li.clickable { cursor: pointer; }
+ul.tel-traces > li.clickable:hover { background: var(--bg-elev-2); }
+ul.tel-traces > li.expanded { background: var(--bg-elev-2); }
+ul.tel-traces > li .tel-expand-hint { color: var(--accent); }
+
+/* Inline detail panel (row expand) */
+ul.tel-traces > li > .tel-trace-detail {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+ul.tel-traces > li > .tel-trace-detail .tel-detail-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 11px;
+}
+ul.tel-traces > li > .tel-trace-detail .tel-detail-row code {
+  color: var(--fg);
+  background: var(--bg-elev-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+ul.tel-traces > li > .tel-trace-detail .tel-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+ul.tel-traces > li > .tel-trace-detail .tel-detail-pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #cdd6e4;
+}

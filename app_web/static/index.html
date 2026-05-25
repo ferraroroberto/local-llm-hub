@@ -11,6 +11,7 @@
   <link rel="icon" href="/admin/static/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/admin/static/icon-180.png">
   <link rel="stylesheet" href="/admin/static/styles.css">
+  <link rel="stylesheet" href="/admin/static/telemetry.css">
   <title>🌐 Local LLM Hub</title>
 </head>
 <body>
@@ -18,7 +19,8 @@
     <nav class="tabs" role="tablist">
       <button id="tabHub" type="button" class="tab active" role="tab" data-tab="hub">🌐 Hub</button>
       <button id="tabModels" type="button" class="tab" role="tab" data-tab="models">🧠 Models</button>
-      <button id="tabPlayground" type="button" class="tab" role="tab" data-tab="playground">🧪 Playground</button>
+      <button id="tabPlayground" type="button" class="tab" role="tab" data-tab="playground" aria-label="Playground">🧪 Play</button>
+      <button id="tabTelemetry" type="button" class="tab" role="tab" data-tab="telemetry" aria-label="Telemetry">📊 Telem</button>
     </nav>
 
     <section id="paneHub" class="pane" role="tabpanel">
@@ -212,6 +214,60 @@
         <pre id="playgroundReply" class="logpane" aria-label="Model reply"></pre>
         <h3 class="opt-group-title">Usage</h3>
         <div id="playgroundUsage" class="kv-grid usage"></div>
+      </section>
+    </section>
+
+    <section id="paneTelemetry" class="pane" hidden role="tabpanel">
+      <!-- Stack health strip: OTel SDK state + Langfuse reachability + PII mode -->
+      <section class="card">
+        <div class="card-header">
+          <div class="hub-title-block">
+            <h2>Telemetry</h2>
+            <span id="telHealth" class="hub-live-status" aria-live="polite">
+              <span class="dot"></span>
+              <span id="telHealthText">checking…</span>
+            </span>
+          </div>
+          <div class="card-header-actions">
+            <a id="telOpenLangfuse" class="icon-header-btn" href="http://localhost:3000" target="_blank" rel="noopener" aria-label="Open Langfuse UI" title="Open Langfuse UI">🔗</a>
+          </div>
+        </div>
+        <div id="telHealthMeta" class="hub-meta-row">
+          <span><span>OTel</span><code id="telOtelState">—</code></span>
+          <span><span>PII</span><code id="telHashMode">—</code></span>
+          <span><span>Endpoint</span><code id="telEndpoint">—</code></span>
+        </div>
+        <p id="telOfflineHint" class="muted small" style="margin: 4px 0 0;" hidden>
+          Langfuse stack offline — run <code>start_langfuse.bat</code>, open
+          <a href="http://localhost:3000" target="_blank" rel="noopener">localhost:3000</a>,
+          create a project, copy the keys into <code>.env</code>, then restart the hub.
+        </p>
+      </section>
+
+      <!-- Per-model leaderboard (reuses .counters table style) -->
+      <section class="card">
+        <div class="card-header">
+          <h2>📈 Per-model leaderboard</h2>
+          <span id="telSummary" class="muted small">—</span>
+        </div>
+        <div class="counters-wrap">
+          <table id="telCountersTable" class="counters">
+            <thead><tr><th>Model</th><th>Req</th><th>Err</th><th>p50</th><th>p95</th><th>In tok</th><th>Out tok</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="muted small" style="margin: 8px 0 0;">Window resets on hub restart. Open Langfuse for long-window analytics.</p>
+      </section>
+
+      <!-- Live trace feed -->
+      <section class="card">
+        <div class="card-header">
+          <h2>📡 Live traces</h2>
+          <span id="telTracesBadge" class="badge">0</span>
+        </div>
+        <ul id="telTracesList" class="card-list dense tel-traces" aria-label="Live trace feed"></ul>
+        <div id="telTracesEmpty" class="empty">No traces yet — the ring fills as clients call the hub.</div>
+        <p class="muted small" style="margin: 8px 0 0;">Tap a row to expand prompt/completion preview. 👍/👎 sends a Langfuse score; 🔗 opens the full trace.</p>
       </section>
     </section>
 
