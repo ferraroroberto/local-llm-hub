@@ -9,6 +9,7 @@ import { wireTabs, setTab, onTabChange } from './tabs.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchInstallStatus } from './hub.js';
 import { wireModels, fetchModels } from './models.js';
 import { wirePlayground, fetchPlaygroundModels } from './playground.js';
+import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls } from './telemetry.js';
 
 async function fetchVersion() {
   try {
@@ -31,12 +32,18 @@ async function boot() {
   wireHub();
   wireModels();
   wirePlayground();
+  wireTelemetry();
 
   onTabChange(function (tab) {
     if (tab === 'hub') {
       startHubStreams();
     } else {
       stopHubStreams();
+    }
+    if (tab === 'telemetry') {
+      startTelemetryPolls();
+    } else {
+      stopTelemetryPolls();
     }
   });
 

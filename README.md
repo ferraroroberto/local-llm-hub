@@ -656,6 +656,23 @@ with open("clip.wav", "rb") as f:
 print(r.text)
 ```
 
+## Observability (issue #4)
+
+The hub emits OpenTelemetry traces + metrics via OTLP/gRPC into a local
+Langfuse stack started by `start_langfuse.bat`. The admin SPA's
+**📊 Telem** tab shows stack health, a per-model leaderboard, and a
+live trace feed with deep-links into the Langfuse UI for inspection.
+
+Default mode captures raw prompts and completions — fine on a personal
+localhost hub, but flip `OTEL_HASH_PROMPTS=true` (in `.env`) any time
+the hub binds beyond loopback. `OTEL_SDK_DISABLED=true` turns
+telemetry off entirely.
+
+See [docs/telemetry-langfuse.md](docs/telemetry-langfuse.md) for the
+full architecture, what's captured, the X-Trace-Id contract, and
+limitations. For client-side trace correlation + feedback posting see
+[docs/clients-telemetry-contract.md](docs/clients-telemetry-contract.md).
+
 ## Test
 
 Unit tests (fast, no real `claude` / GPU calls):
@@ -770,8 +787,6 @@ Ordered roughly by payoff for API parity / developer experience.
 - **`/v1/messages/batches`** (batch API).
 - **Prompt-cache-control honoring** on system/message blocks.
 - **Rate-limit response headers** (`anthropic-ratelimit-*`).
-- **Structured logging + `/metrics`** for Prometheus-style
-  observability.
 - **Auto-start enabled backends with the hub.** Deliberately not done
   today so a 60 GB RAM model doesn't load when someone only wants
   Claude.

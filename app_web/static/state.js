@@ -31,6 +31,13 @@ export const state = {
   hubLogStreamCtl: null,
   density: 'compact',     // 'compact' | 'expanded' — set by main.js from localStorage
   compactSection: 'live', // active sub-tab inside the compact card
+
+  // Telemetry tab — its own state slice (issue #4).
+  telHealth: null,
+  telCounters: [],
+  telTraces: [],
+  telStreamCtl: null,
+  telExpandedTraceId: '',
 };
 
 // ES modules are deferred; document.getElementById is safe at top level.
@@ -39,9 +46,25 @@ export const els = {
   tabHub: document.getElementById('tabHub'),
   tabModels: document.getElementById('tabModels'),
   tabPlayground: document.getElementById('tabPlayground'),
+  tabTelemetry: document.getElementById('tabTelemetry'),
   paneHub: document.getElementById('paneHub'),
   paneModels: document.getElementById('paneModels'),
   panePlayground: document.getElementById('panePlayground'),
+  paneTelemetry: document.getElementById('paneTelemetry'),
+
+  // Telemetry tab — health strip + leaderboard + live trace feed (issue #4)
+  telHealth: document.getElementById('telHealth'),
+  telHealthText: document.getElementById('telHealthText'),
+  telOtelState: document.getElementById('telOtelState'),
+  telHashMode: document.getElementById('telHashMode'),
+  telEndpoint: document.getElementById('telEndpoint'),
+  telOfflineHint: document.getElementById('telOfflineHint'),
+  telOpenLangfuse: document.getElementById('telOpenLangfuse'),
+  telSummary: document.getElementById('telSummary'),
+  telCountersTable: document.getElementById('telCountersTable'),
+  telTracesList: document.getElementById('telTracesList'),
+  telTracesBadge: document.getElementById('telTracesBadge'),
+  telTracesEmpty: document.getElementById('telTracesEmpty'),
 
   // Hub card — live status indicator lives inside the card header
   // (replaces the old always-on status strip).

@@ -38,6 +38,10 @@ def hub_url() -> Iterator[str]:
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
+    # Disable OTel for the autobooted hub — otherwise it tries to push
+    # spans to a non-existent localhost:4317 OTLP collector and logs
+    # connect-refused noise into the test log on every routed request.
+    env.setdefault("OTEL_SDK_DISABLED", "true")
     # The autostart sampler hits nvidia-smi every 2s. On a CI runner
     # without an NVIDIA GPU that's noisy but harmless.
     creationflags = 0

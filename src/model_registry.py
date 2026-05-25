@@ -37,7 +37,10 @@ class Model:
 
     @property
     def all_names(self) -> List[str]:
-        names = [self.display_name, *self.aliases]
+        # The registry ``id`` is the canonical handle used by tools that
+        # walk the YAML (the SPA Playground dropdown, swap-model, etc.).
+        # Include it so /v1/models lists every name a client can send.
+        names = [self.id, self.display_name, *self.aliases]
         return [n for n in dict.fromkeys(names) if n]
 
     @property
@@ -89,10 +92,17 @@ def enabled_models(host: Optional[HostProfile] = None) -> List[Model]:
 
 
 def resolve(name: str, host: Optional[HostProfile] = None) -> Optional[Model]:
-    """Look up a model by any of its names (display_name or aliases)."""
+    """Look up a model by any of its names — registry id, display_name, or alias.
+
+    Accepting ``id`` matters for tools that drive the hub off the YAML
+    directly: the SPA Playground dropdown sends ``m.id`` (the YAML key),
+    swap-model references ids when rewiring roles, and the hub's own
+    ``run_backend`` picks the entry by id. Without this, every model
+    whose id is not also listed in ``aliases`` 400'd on the Playground.
+    """
     name = name.strip()
     for m in enabled_models(host):
-        if name == m.display_name or name in m.aliases:
+        if name == m.id or name == m.display_name or name in m.aliases:
             return m
     return None
 

@@ -35,6 +35,9 @@ models/
 .env
 .env.local
 
+# Langfuse local stack secrets (issue #4) — schema in .env.example.
+docker/langfuse/.env
+
 # Host-specific machine specs (real values; example file is committed)
 config/machine_specs.yaml
 

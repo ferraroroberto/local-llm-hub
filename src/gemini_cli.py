@@ -34,6 +34,7 @@ unchanged from the old `gemini` CLI path.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
 import shutil
@@ -42,6 +43,15 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+
+def _tracer():
+    try:
+        from opentelemetry import trace
+
+        return trace.get_tracer("local_llm_hub.gemini_cli")
+    except Exception:  # noqa: BLE001
+        return None
 
 logger = logging.getLogger(__name__)
 
@@ -310,23 +320,51 @@ def call_gemini(
     global _current_model
     exe = _resolve_agy()
 
-    with _LOCK:
-        if model and model != _current_model:
-            _switch_model(exe, model)
-            _current_model = model
+    tracer = _tracer()
+    cm = (
+        tracer.start_as_current_span("gemini_cli.invoke")
+        if tracer is not None
+        else contextlib.nullcontext(None)
+    )
+    with cm as span:
+        if span is not None and hasattr(span, "set_attribute"):
+            try:
+                if model:
+                    span.set_attribute("gemini_cli.model", model)
+                span.set_attribute("gemini_cli.images", len(images or []))
+            except Exception:  # noqa: BLE001
+                pass
 
-        pieces: List[str] = []
-        if system:
-            pieces.append(f"[System]\n{system}\n")
-        run_cwd: Optional[str] = None
-        if images:
-            image_paths = [Path(p).resolve() for p in images]
-            run_cwd = str(image_paths[0].parent)
-            pieces.append(" ".join(f"@{p.name}" for p in image_paths))
-        pieces.append(prompt)
-        full_prompt = "\n".join(pieces)
+        with _LOCK:
+            model_switched = bool(model and model != _current_model)
+            if model_switched:
+                if span is not None and hasattr(span, "add_event"):
+                    try:
+                        span.add_event("model_switch", attributes={"target": model})
+                    except Exception:  # noqa: BLE001
+                        pass
+                _switch_model(exe, model)
+                _current_model = model
 
-        reply = _print_call(exe, full_prompt, run_cwd, timeout)
+            pieces: List[str] = []
+            if system:
+                pieces.append(f"[System]\n{system}\n")
+            run_cwd: Optional[str] = None
+            if images:
+                image_paths = [Path(p).resolve() for p in images]
+                run_cwd = str(image_paths[0].parent)
+                pieces.append(" ".join(f"@{p.name}" for p in image_paths))
+            pieces.append(prompt)
+            full_prompt = "\n".join(pieces)
+
+            reply = _print_call(exe, full_prompt, run_cwd, timeout)
+
+        if span is not None and hasattr(span, "set_attribute"):
+            try:
+                span.set_attribute("gemini_cli.reply_bytes", len(reply))
+                span.set_attribute("gemini_cli.model_switched", model_switched)
+            except Exception:  # noqa: BLE001
+                pass
 
     return {
         "type": "result",
