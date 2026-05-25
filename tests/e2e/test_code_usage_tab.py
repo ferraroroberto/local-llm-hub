@@ -53,11 +53,11 @@ def test_code_usage_tab_loads(page, admin_url):
     page.wait_for_selector("#tabCodeUsage", state="visible", timeout=5000)
     page.click("#tabCodeUsage")
     page.wait_for_selector("#paneCodeUsage", state="visible", timeout=3000)
-    # Other panes must be hidden.
-    assert page.is_hidden("#paneHub")
-    assert page.is_hidden("#paneModels")
-    assert page.is_hidden("#panePlayground")
-    assert page.is_hidden("#paneTelemetry")
+    # Other panes must be hidden — wait for state, don't race the DOM.
+    page.wait_for_selector("#paneHub", state="hidden", timeout=3000)
+    page.wait_for_selector("#paneModels", state="hidden", timeout=3000)
+    page.wait_for_selector("#panePlayground", state="hidden", timeout=3000)
+    page.wait_for_selector("#paneTelemetry", state="hidden", timeout=3000)
     # All four counter elements must be present (content may be "—" or a value).
     assert page.locator("#cldRequests").count() == 1
     assert page.locator("#cldInputTok").count() == 1

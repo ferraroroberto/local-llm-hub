@@ -60,18 +60,18 @@ def _no_console_errors(page):
 def test_admin_loads(page, admin_url):
     page.goto(admin_url, wait_until="domcontentloaded")
     page.wait_for_selector("#tabHub", state="visible", timeout=5000)
-    # Hub tab is the default
-    assert page.is_visible("#paneHub")
-    assert page.is_hidden("#paneModels")
-    assert page.is_hidden("#panePlayground")
+    # Hub tab is the default — wait for state, don't race.
+    page.wait_for_selector("#paneHub", state="visible", timeout=3000)
+    page.wait_for_selector("#paneModels", state="hidden", timeout=3000)
+    page.wait_for_selector("#panePlayground", state="hidden", timeout=3000)
 
 
 def test_models_tab(page, admin_url):
     page.goto(admin_url, wait_until="domcontentloaded")
     page.click("#tabModels")
+    # wait_for_selector(state="visible") already verifies the pane is visible —
+    # the redundant assert was racy; this single wait is the real check.
     page.wait_for_selector("#paneModels", state="visible", timeout=3000)
-    # Either some model cards rendered or the empty-state is shown.
-    assert page.is_visible("#paneModels")
 
 
 def test_playground_tab(page, admin_url):

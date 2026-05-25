@@ -39,21 +39,6 @@
   letter-spacing: 0.4px;
 }
 
-/* OTEL env-var snippet */
-.cld-otel-snippet {
-  background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin: 8px 0;
-  font-size: 11px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: #cdd6e4;
-  overflow-x: auto;
-}
-
 /* Session list rows */
 ul.cld-sessions.card-list.dense > li {
   display: grid;

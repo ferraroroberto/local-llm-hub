@@ -46,13 +46,13 @@ def test_telemetry_tab_loads(page, admin_url):
     page.wait_for_selector("#tabTelemetry", state="visible", timeout=5000)
     page.click("#tabTelemetry")
     page.wait_for_selector("#paneTelemetry", state="visible", timeout=3000)
-    # Other panes hidden.
-    assert page.is_hidden("#paneHub")
-    assert page.is_hidden("#paneModels")
-    assert page.is_hidden("#panePlayground")
+    # Other panes hidden — wait for state, don't snapshot mid-transition.
+    page.wait_for_selector("#paneHub", state="hidden", timeout=3000)
+    page.wait_for_selector("#paneModels", state="hidden", timeout=3000)
+    page.wait_for_selector("#panePlayground", state="hidden", timeout=3000)
     # Health strip + leaderboard table rendered.
-    assert page.is_visible("#telHealth")
-    assert page.is_visible("#telCountersTable")
+    page.wait_for_selector("#telHealth", state="visible", timeout=3000)
+    page.wait_for_selector("#telCountersTable", state="visible", timeout=3000)
 
 
 def test_telemetry_health_renders(page, admin_url):
