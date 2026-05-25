@@ -67,10 +67,13 @@ def test_admin_loads(page, admin_url):
 
 
 def test_models_tab(page, admin_url):
-    page.goto(admin_url, wait_until="domcontentloaded")
+    # wait_until="load" — not "domcontentloaded" — so the module-script
+    # boot() has finished and wireTabs() has attached its #tabModels
+    # listener before we click. Otherwise the click lands on a button
+    # with no handler, setTab('models') never runs, and the pane stays
+    # hidden (issue #19).
+    page.goto(admin_url, wait_until="load")
     page.click("#tabModels")
-    # wait_for_selector(state="visible") already verifies the pane is visible —
-    # the redundant assert was racy; this single wait is the real check.
     page.wait_for_selector("#paneModels", state="visible", timeout=3000)
 
 
@@ -139,7 +142,8 @@ def test_hub_tab_phone_screenshot(page, admin_url, browser_name):
 
 def test_models_tab_phone_screenshot(page, admin_url, browser_name):
     page.set_viewport_size(PHONE_VIEWPORT)
-    page.goto(admin_url, wait_until="domcontentloaded")
+    # See test_models_tab — wait_until="load" defeats the issue #19 race.
+    page.goto(admin_url, wait_until="load")
     page.click("#tabModels")
     page.wait_for_selector("#paneModels", state="visible", timeout=3000)
     _snapshot(page, "models-390x844", browser_name)
@@ -188,7 +192,9 @@ def test_live_requests_stream_rolls_forward(page, admin_url):
     test process, and assert both rows show up within a short window.
     """
     base = admin_url.rsplit("/admin/", 1)[0]
-    page.goto(admin_url, wait_until="domcontentloaded")
+    # wait_until="load" — consistent with test_models_tab (issue #19);
+    # the later #tabModels click then can't race wireTabs() either.
+    page.goto(admin_url, wait_until="load")
     page.wait_for_selector("#paneHub", state="visible", timeout=5000)
     page.wait_for_selector("#liveRequestsList", state="attached", timeout=3000)
     # Let the EventSource open + the initial seed drain. We don't rely
