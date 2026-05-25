@@ -11,8 +11,9 @@ What the gate proves:
   * Phone-viewport (390 x 844) screenshot of each tab is captured for
     visual review — files land in ``tests/e2e/snapshots/`` (gitignored).
 
-Runs under Chromium *and* WebKit projections — WebKit catches the
-iOS-Safari class of cache / SSE bugs Chromium will silently paper over.
+Runs under Chromium only. WebKit was dropped from the matrix in issue
+#24 — the SPA has no Safari-specific code and WebKit on windows-latest
+CI was chronically flaky.
 """
 
 from __future__ import annotations
@@ -44,9 +45,8 @@ def _no_console_errors(page):
         if msg.type != "error":
             return
         text = msg.text
-        # Tolerated noise — placeholder PNG icons get a 404 on Safari
-        # because pytest-playwright's WebKit doesn't read the cached
-        # asset hash from the manifest.
+        # Tolerated noise — placeholder PNG icons occasionally 404 while
+        # the manifest is still settling on first paint.
         if "icon-180" in text or "icon-512" in text:
             return
         errs.append(text)

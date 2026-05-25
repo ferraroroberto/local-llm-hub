@@ -277,10 +277,10 @@ local-llm-hub/
 │   ├── detect_machine_specs.py   # populate config/machine_specs.yaml
 │   ├── install_llama_cpp.py      # CUDA-Windows / Metal-macOS release
 │   ├── install_whisper_cpp.py    # whisper.cpp CUDA/Metal release → vendor/whisper.cpp/
-│   └── verify-before-ship.ps1    # byte-compile + pytest + Playwright on Chromium+WebKit
+│   └── verify-before-ship.ps1    # byte-compile + pytest + Playwright on Chromium
 ├── tests/                    # test_server / test_router / test_model_registry /
 │   │                         # test_install / test_streaming
-│   └── e2e/                  # Playwright smoke tests (Chromium + WebKit projections)
+│   └── e2e/                  # Playwright smoke tests (Chromium)
 ├── .github/workflows/
 │   └── e2e.yml               # CI: unit tests + e2e gate on windows-latest
 ├── vendor/

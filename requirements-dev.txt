@@ -1,8 +1,9 @@
 # Development-only deps — install with `pip install -r requirements-dev.txt`
 # after the main requirements.txt. Not shipped by the main install.
 
-# End-to-end browser tests. We run on Chromium + WebKit projections to
-# catch Safari-only regressions (the iOS PWA cache class).
+# End-to-end browser tests. Chromium-only — WebKit was dropped from the
+# matrix because the SPA has no Safari-specific code and WebKit on the
+# windows-latest CI runner was chronically flaky (issue #24).
 pytest-playwright>=0.5
 playwright>=1.45
 

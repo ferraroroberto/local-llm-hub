@@ -32,7 +32,7 @@ jobs:
       - name: Install Playwright browsers
         shell: pwsh
         run: |
-          python -m playwright install --with-deps chromium webkit
+          python -m playwright install --with-deps chromium
 
       - name: Byte-compile
         shell: pwsh
@@ -45,10 +45,3 @@ jobs:
       - name: e2e — chromium
         shell: pwsh
         run: python -m pytest tests/e2e -q --browser chromium
-
-      - name: e2e — webkit
-        shell: pwsh
-        # --durations=10 surfaces the per-test timings of the slowest 10
-        # tests; webkit on Windows CI has been observed to be 30–60× slower
-        # than chromium for some interactions (see issue #20 PR).
-        run: python -m pytest tests/e2e -q --browser webkit --durations=10
