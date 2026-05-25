@@ -10,6 +10,7 @@ import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams
 import { wireModels, fetchModels } from './models.js';
 import { wirePlayground, fetchPlaygroundModels } from './playground.js';
 import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls } from './telemetry.js';
+import { wireCodeUsage, startCodeUsagePolls, stopCodeUsagePolls } from './code_usage.js';
 
 async function fetchVersion() {
   try {
@@ -33,6 +34,7 @@ async function boot() {
   wireModels();
   wirePlayground();
   wireTelemetry();
+  wireCodeUsage();
 
   onTabChange(function (tab) {
     if (tab === 'hub') {
@@ -44,6 +46,11 @@ async function boot() {
       startTelemetryPolls();
     } else {
       stopTelemetryPolls();
+    }
+    if (tab === 'code-usage') {
+      startCodeUsagePolls();
+    } else {
+      stopCodeUsagePolls();
     }
   });
 

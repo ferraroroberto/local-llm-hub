@@ -1,0 +1,88 @@
+/* Claude Code usage tab (issue #20).
+ * Inherits .card, .counters, .card-list.dense, .badge, .empty from styles.css.
+ */
+
+/* Big counter grid — 4 cells on desktop, 2×2 on narrow screens. */
+.cld-counter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 480px) {
+  .cld-counter-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.cld-counter {
+  background: var(--bg-elev-2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cld-counter-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.5px;
+}
+
+.cld-counter-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* OTEL env-var snippet */
+.cld-otel-snippet {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #cdd6e4;
+  overflow-x: auto;
+}
+
+/* Session list rows */
+ul.cld-sessions.card-list.dense > li {
+  display: grid;
+  grid-template-columns: 50px 1fr auto;
+  grid-template-areas:
+    'time project model'
+    'meta meta    meta';
+  gap: 6px;
+  padding: 8px 0;
+}
+
+ul.cld-sessions > li > .cld-sess-time    { grid-area: time;    color: var(--muted); font-size: 12px; }
+ul.cld-sessions > li > .cld-sess-project {
+  grid-area: project;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+ul.cld-sessions > li > .cld-sess-model  { grid-area: model;   color: var(--muted); font-size: 12px; }
+ul.cld-sessions > li > .cld-sess-meta  {
+  grid-area: meta;
+  color: var(--muted);
+  font-size: 11px;
+}
+ul.cld-sessions > li > .cld-sess-meta code {
+  color: var(--fg);
+  background: var(--bg-elev-2);
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 11px;
+}

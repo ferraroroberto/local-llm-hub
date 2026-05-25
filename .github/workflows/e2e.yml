@@ -11,7 +11,7 @@ on:
 jobs:
   e2e:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
 
     steps:
       - uses: actions/checkout@v4
@@ -48,4 +48,7 @@ jobs:
 
       - name: e2e — webkit
         shell: pwsh
-        run: python -m pytest tests/e2e -q --browser webkit
+        # --durations=10 surfaces the per-test timings of the slowest 10
+        # tests; webkit on Windows CI has been observed to be 30–60× slower
+        # than chromium for some interactions (see issue #20 PR).
+        run: python -m pytest tests/e2e -q --browser webkit --durations=10

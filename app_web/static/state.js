@@ -38,6 +38,10 @@ export const state = {
   telTraces: [],
   telStreamCtl: null,
   telExpandedTraceId: '',
+
+  // Code-usage tab — host Claude Code session data (issue #20).
+  cldSummary: null,
+  cldPeriod: 'today',   // 'today' | 'week'
 };
 
 // ES modules are deferred; document.getElementById is safe at top level.
@@ -47,10 +51,12 @@ export const els = {
   tabModels: document.getElementById('tabModels'),
   tabPlayground: document.getElementById('tabPlayground'),
   tabTelemetry: document.getElementById('tabTelemetry'),
+  tabCodeUsage: document.getElementById('tabCodeUsage'),
   paneHub: document.getElementById('paneHub'),
   paneModels: document.getElementById('paneModels'),
   panePlayground: document.getElementById('panePlayground'),
   paneTelemetry: document.getElementById('paneTelemetry'),
+  paneCodeUsage: document.getElementById('paneCodeUsage'),
 
   // Telemetry tab — health strip + leaderboard + live trace feed (issue #4)
   telHealth: document.getElementById('telHealth'),
@@ -126,6 +132,21 @@ export const els = {
   playgroundLatency: document.getElementById('playgroundLatency'),
   playgroundReply: document.getElementById('playgroundReply'),
   playgroundUsage: document.getElementById('playgroundUsage'),
+
+  // Code-usage tab (issue #20)
+  cldFreshness: document.getElementById('cldFreshness'),
+  cldPeriodSeg: document.getElementById('cldPeriodSeg'),
+  cldRequests: document.getElementById('cldRequests'),
+  cldInputTok: document.getElementById('cldInputTok'),
+  cldOutputTok: document.getElementById('cldOutputTok'),
+  cldCacheRead: document.getElementById('cldCacheRead'),
+  cldModelTable: document.getElementById('cldModelTable'),
+  cldModelEmpty: document.getElementById('cldModelEmpty'),
+  cldProjectTable: document.getElementById('cldProjectTable'),
+  cldProjectEmpty: document.getElementById('cldProjectEmpty'),
+  cldSessionsList: document.getElementById('cldSessionsList'),
+  cldSessionsBadge: document.getElementById('cldSessionsBadge'),
+  cldSessionsEmpty: document.getElementById('cldSessionsEmpty'),
 
   // Misc
   toast: document.getElementById('toast'),
