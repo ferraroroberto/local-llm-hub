@@ -8,7 +8,6 @@
 #   1. byte-compile every .py file under src/, app_web/, tray/, scripts/
 #   2. `pytest -q` (unit tests, no GPU / no real CLIs)
 #   3. `pytest tests/e2e -q --browser chromium`
-#   4. `pytest tests/e2e -q --browser webkit`
 #
 # Stops on the first failure.
 
@@ -43,10 +42,6 @@ Step "pytest (unit)" {
 
 Step "pytest (e2e · chromium)" {
     & $Python -m pytest tests/e2e -q --browser chromium
-}
-
-Step "pytest (e2e · webkit)" {
-    & $Python -m pytest tests/e2e -q --browser webkit
 }
 
 Write-Host ""

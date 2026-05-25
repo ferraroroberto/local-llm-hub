@@ -8,7 +8,7 @@ The /admin/api/code/usage/summary endpoint is expected to return a valid
 JSON dict even when no JSONL files are present (empty-state path).
 
 Checks:
-  - Tab button is visible and clickable (Chromium + WebKit via conftest).
+  - Tab button is visible and clickable.
   - Switching to the tab hides the other panes.
   - The four counter elements are rendered (may show "—" when empty).
   - The summary API returns a well-formed JSON response.
