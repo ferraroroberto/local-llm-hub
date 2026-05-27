@@ -538,6 +538,29 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
 .badge.warn   { color: var(--warn);   border-color: rgba(240, 161, 0, 0.45); }
 .badge.danger { color: var(--danger); border-color: rgba(204, 51, 68, 0.45); }
 
+/* ---------- services card (Docker + Langfuse) ---------- */
+.services-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+.services-row {
+  display: grid;
+  grid-template-columns: minmax(110px, auto) auto 1fr;
+  align-items: baseline;
+  gap: 4px 12px;
+  font-size: 13px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.services-row:last-child { border-bottom: 0; }
+.services-label { font-weight: 500; }
+.services-detail {
+  word-break: break-word;
+  min-width: 0;
+}
+
 /* ---------- install panel rows ---------- */
 .install-row {
   display: grid;

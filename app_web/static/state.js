@@ -42,6 +42,10 @@ export const state = {
   // Code-usage tab — host Claude Code session data (issue #20).
   cldSummary: null,
   cldPeriod: 'today',   // 'today' | 'week'
+
+  // Services card — Docker + Langfuse status (issue #27).
+  services: null,
+  servicesLaunching: false,
 };
 
 // ES modules are deferred; document.getElementById is safe at top level.
@@ -80,6 +84,20 @@ export const els = {
   hubPid: document.getElementById('hubPid'),
   hubUptime: document.getElementById('hubUptime'),
   hubSparklines: document.getElementById('hubSparklines'),
+
+  // Services card — Docker + Langfuse (issue #27)
+  servicesCard: document.getElementById('servicesCard'),
+  servicesOverall: document.getElementById('servicesOverall'),
+  servicesOverallText: document.getElementById('servicesOverallText'),
+  dockerStatus: document.getElementById('dockerStatus'),
+  dockerStatusText: document.getElementById('dockerStatusText'),
+  dockerDetail: document.getElementById('dockerDetail'),
+  langfuseStatus: document.getElementById('langfuseStatus'),
+  langfuseStatusText: document.getElementById('langfuseStatusText'),
+  langfuseDetail: document.getElementById('langfuseDetail'),
+  servicesActions: document.getElementById('servicesActions'),
+  servicesLaunchBtn: document.getElementById('servicesLaunchBtn'),
+  servicesHint: document.getElementById('servicesHint'),
 
   // Health & install
   installCard: document.getElementById('installCard'),

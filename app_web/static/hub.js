@@ -226,6 +226,111 @@ function renderInstall(body) {
   });
 }
 
+// --------------------------------------------------------- services card (issue #27)
+export async function fetchServicesStatus() {
+  try {
+    const body = await jsonApi('/admin/api/services/status');
+    state.services = body;
+    renderServices();
+  } catch (exc) {
+    if (String(exc.message) === 'auth required') return;
+    // Probe error itself — render an "unreachable" state.
+    state.services = { docker: { running: false, error: String(exc.message || exc) },
+                       langfuse: { reachable: false, error: '' },
+                       launchable: false, platform: '' };
+    renderServices();
+  }
+}
+
+function setStatusPill(rootEl, textEl, kind, text) {
+  if (!rootEl) return;
+  rootEl.classList.remove('good', 'warn', 'danger');
+  if (kind) rootEl.classList.add(kind);
+  if (textEl) textEl.textContent = text;
+}
+
+function renderServices() {
+  const body = state.services;
+  if (!body) return;
+  const docker = body.docker || {};
+  const lf = body.langfuse || {};
+
+  const dockerKind = docker.running ? 'good' : 'danger';
+  const dockerLabel = docker.running ? 'up' : 'down';
+  setStatusPill(els.dockerStatus, els.dockerStatusText, dockerKind, dockerLabel);
+  if (els.dockerDetail) {
+    els.dockerDetail.textContent = docker.running
+      ? (docker.server_version ? 'engine ' + docker.server_version : '')
+      : (docker.error || '');
+  }
+
+  // Langfuse: "up" when reachable, "partial" when Docker is up but Langfuse
+  // isn't (containers starting / never launched), "down" otherwise.
+  let lfKind = 'danger';
+  let lfLabel = 'down';
+  if (lf.reachable) { lfKind = 'good'; lfLabel = 'up'; }
+  else if (docker.running) { lfKind = 'warn'; lfLabel = 'down'; }
+  setStatusPill(els.langfuseStatus, els.langfuseStatusText, lfKind, lfLabel);
+  if (els.langfuseDetail) {
+    els.langfuseDetail.textContent = lf.reachable ? '' : (lf.error || '');
+  }
+
+  // Overall pill summarises both.
+  let overallKind = 'good';
+  let overallText = 'all up';
+  if (!docker.running && !lf.reachable) { overallKind = 'danger'; overallText = 'both down'; }
+  else if (!docker.running) { overallKind = 'danger'; overallText = 'docker down'; }
+  else if (!lf.reachable) { overallKind = 'warn'; overallText = 'langfuse down'; }
+  setStatusPill(els.servicesOverall, els.servicesOverallText, overallKind, overallText);
+
+  // Launch button + hint visibility.
+  const anyDown = !docker.running || !lf.reachable;
+  const showActions = anyDown && body.launchable && !state.servicesLaunching;
+  if (els.servicesActions) els.servicesActions.hidden = !(anyDown && body.launchable);
+  if (els.servicesHint) {
+    if (anyDown && !body.launchable) {
+      const hint = body.platform === 'darwin'
+        ? 'Start Docker manually: `open -a Docker`, then `./start_langfuse.sh`.'
+        : body.platform === 'linux'
+          ? 'Start Docker manually: `sudo systemctl start docker`, then `./start_langfuse.sh`.'
+          : 'Docker Desktop install not found — install from docker.com.';
+      els.servicesHint.textContent = hint;
+      els.servicesHint.hidden = false;
+    } else {
+      els.servicesHint.hidden = true;
+    }
+  }
+  if (els.servicesLaunchBtn) {
+    els.servicesLaunchBtn.disabled = !showActions;
+    els.servicesLaunchBtn.textContent = state.servicesLaunching
+      ? 'Launching… (up to ~90s)'
+      : '🚀 Launch Docker + Langfuse';
+  }
+}
+
+async function onServicesLaunchClick() {
+  if (state.servicesLaunching) return;
+  state.servicesLaunching = true;
+  renderServices();
+  try {
+    const result = await postJson('/admin/api/services/launch', {});
+    const steps = (result && result.steps) || [];
+    const summary = steps.map(function (s) { return s.name + ':' + s.status; }).join(' · ');
+    if (result.ok) {
+      toast('Services launched · ' + summary, 'good');
+    } else {
+      const first = steps.find(function (s) { return s.status === 'error'; });
+      const detail = first ? (first.name + ': ' + first.detail) : summary;
+      toast('Launch failed — ' + detail, 'error');
+    }
+  } catch (exc) {
+    toast('Launch failed: ' + (exc.message || exc), 'error');
+  } finally {
+    state.servicesLaunching = false;
+    await fetchServicesStatus();
+  }
+}
+
 // --------------------------------------------------------- density toggle
 function applyDensity(density) {
   state.density = density;
@@ -323,11 +428,23 @@ export function wireHub() {
     els.installRefreshBtn.addEventListener('click', function () { fetchInstallStatus(); });
   }
 
+  if (els.servicesLaunchBtn) {
+    els.servicesLaunchBtn.addEventListener('click', onServicesLaunchClick);
+  }
+
   // Sparklines: lightweight inline-SVG renderer driven by /admin/api/hub/stats.
   setInterval(function () {
     if (state.tab !== 'hub') return;
     renderSparklines();
   }, 2500);
+
+  // Services card — Docker + Langfuse status. Cheaper than the sparkline
+  // sweep (two small probes, each capped at 2 s) so 5 s is plenty.
+  setInterval(function () {
+    if (state.tab !== 'hub') return;
+    if (state.servicesLaunching) return;
+    fetchServicesStatus().catch(function () {});
+  }, 5000);
 }
 
 async function renderSparklines() {

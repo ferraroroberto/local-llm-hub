@@ -36,7 +36,7 @@ from src.webauthn_gate import WebAuthnGate
 
 from .icons import ensure_placeholders
 from .middleware import BearerTokenMiddleware
-from .routers import auth, code_usage, hub, misc, models, playground, telemetry, version, webauthn
+from .routers import auth, code_usage, hub, misc, models, playground, services, telemetry, version, webauthn
 from .routers._helpers import STATIC_DIR
 
 _log = logging.getLogger(__name__)
@@ -149,6 +149,7 @@ def create_app() -> FastAPI:
     app.include_router(hub.router)
     app.include_router(models.router)
     app.include_router(playground.router)
+    app.include_router(services.router)
     app.include_router(telemetry.router)
     app.include_router(code_usage.router, prefix="/api/code")
 
