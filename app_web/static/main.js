@@ -6,7 +6,7 @@
 import { state, els, STATUS_POLL_MS, COUNTERS_POLL_MS, MODELS_POLL_MS } from './state.js';
 import { jsonApi, tokenFromUrl, writeToken, wireLoginForm, toast } from './api.js';
 import { wireTabs, setTab, onTabChange } from './tabs.js';
-import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchInstallStatus } from './hub.js';
+import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchInstallStatus, fetchServicesStatus } from './hub.js';
 import { wireModels, fetchModels } from './models.js';
 import { wirePlayground, fetchPlaygroundModels } from './playground.js';
 import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls } from './telemetry.js';
@@ -60,6 +60,7 @@ async function boot() {
     fetchCounters(),
     fetchModels(),
     fetchInstallStatus(),
+    fetchServicesStatus(),
     fetchPlaygroundModels(),
   ]);
 
@@ -82,6 +83,7 @@ async function resumeAfterLogin() {
     fetchCounters(),
     fetchModels(),
     fetchInstallStatus(),
+    fetchServicesStatus(),
     fetchPlaygroundModels(),
   ]);
   startHubStreams();

@@ -48,6 +48,39 @@
         <div class="sparklines" id="hubSparklines"></div>
       </section>
 
+      <!-- Services: Docker + Langfuse status with one-click launch (issue #27) -->
+      <section class="card" id="servicesCard">
+        <div class="card-header">
+          <div class="hub-title-block">
+            <h2>Services</h2>
+            <span id="servicesOverall" class="hub-live-status" aria-live="polite">
+              <span class="dot"></span>
+              <span id="servicesOverallText">checking…</span>
+            </span>
+          </div>
+        </div>
+        <div class="services-rows">
+          <div class="services-row">
+            <span class="services-label">🐳 Docker</span>
+            <span id="dockerStatus" class="hub-live-status">
+              <span class="dot"></span><span id="dockerStatusText">—</span>
+            </span>
+            <span id="dockerDetail" class="muted small services-detail"></span>
+          </div>
+          <div class="services-row">
+            <span class="services-label">📡 Langfuse</span>
+            <span id="langfuseStatus" class="hub-live-status">
+              <span class="dot"></span><span id="langfuseStatusText">—</span>
+            </span>
+            <span id="langfuseDetail" class="muted small services-detail"></span>
+          </div>
+        </div>
+        <div class="card-actions" id="servicesActions" hidden>
+          <button id="servicesLaunchBtn" type="button" class="launch-btn">🚀 Launch Docker + Langfuse</button>
+        </div>
+        <p id="servicesHint" class="muted small" style="margin: 6px 0 0;" hidden></p>
+      </section>
+
       <!-- Health & install -->
       <details class="card" id="installCard">
         <summary>
