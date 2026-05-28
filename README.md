@@ -2,7 +2,8 @@
 
 A tiny local HTTP hub that routes `POST /v1/messages` (Anthropic shape) and
 `POST /v1/chat/completions` (OpenAI shape) to several backends by `model` name,
-plus a local whisper.cpp ASR pair that clients hit directly.
+plus a local whisper.cpp ASR pair reachable through the hub's `/v1/audio/*`
+proxy (observable) or directly on their own ports.
 
 ## Active rotation
 
@@ -44,9 +45,10 @@ Local entries in active use as of the May 2026 frontier reading:
 - **`whisper-large-v3-turbo`** — local `whisper-server`
   ([ggerganov/whisper.cpp](https://github.com/ggerganov/whisper.cpp))
   running [ggml-large-v3-turbo.bin](https://huggingface.co/ggerganov/whisper.cpp)
-  on `127.0.0.1:8090`. OpenAI-compatible `/v1/audio/transcriptions`;
-  clients POST to `:8090` directly (the hub does not proxy audio
-  endpoints). Port 8090 is a shared mutual-exclusion lock with
+  on `127.0.0.1:8090`. OpenAI-compatible `/v1/audio/transcriptions`.
+  POST either to the hub's proxy at `:8000/v1/audio/transcriptions`
+  (captured in the observability ring) or directly to `:8090` for lower
+  overhead. Port 8090 is a shared mutual-exclusion lock with
   `E:\automation\automation\audio\transcribe_voice`. Fills the
   `audio_transcribe` role.
 - **`whisper-medium-translate`** — sibling whisper-server on
@@ -186,14 +188,17 @@ openClaw / anthropic SDK / openai SDK / curl
    │    gemini-* / gemini_*    → call_gemini()   (agy CLI via ConPTY)    │
    │    qwen3.5-4b             → llama-server 127.0.0.1:8088             │
    │    gemma4-26b-a4b-it      → llama-server 127.0.0.1:8087             │
-   │    whisper-large-v3-turbo → 400 "POST to :8090 directly" (audio)    │
-   │    whisper-medium-translate → 400 "POST to :8091 directly" (audio)  │
+   │    whisper-* (via chat shape) → 400 "use /v1/audio/* or direct"    │
+   │    POST /v1/audio/transcriptions → proxy to whisper :8090          │
+   │    POST /v1/audio/translations   → proxy to whisper :8091          │
+   │      (the audio proxy lands requests in the observability ring)    │
    └──────────────────────────────────────────────────────────┘
 
-audio clients  ──────►  whisper-server 127.0.0.1:8090           (turbo, transcribe, GPU)
-audio clients  ──────►  whisper-server 127.0.0.1:8091           (medium, translate, CPU)
+audio clients  ──►  hub 127.0.0.1:8000 /v1/audio/*  ──►  whisper-server  (proxied, observable)
+audio clients  ──►  whisper-server 127.0.0.1:8090   (turbo, transcribe, GPU; direct, lower overhead)
+audio clients  ──►  whisper-server 127.0.0.1:8091   (medium, translate, CPU; direct)
                           (both speak OpenAI-compatible /v1/audio/transcriptions;
-                           hub does not proxy /v1/audio/* — clients hit them directly)
+                           POST via the hub proxy for observability, or direct to the port to skip it)
 
 Demoted (defined in config/models.yaml, not in any host's enabled list):
   qwen3.5-9b, glm-4.5-air — bring up via launchers/run_qwen.bat / run_glm.bat
@@ -630,12 +635,18 @@ List enabled models:
 curl -s http://127.0.0.1:8000/v1/models
 ```
 
-Transcribe audio via whisper (direct to :8090 — the hub does not proxy
-audio endpoints):
+Transcribe audio via whisper — through the hub's proxy at
+`:8000/v1/audio/transcriptions` (captured in the observability ring) or
+directly to `:8090` (lower overhead, shown here):
 
 ```bash
+# direct to the whisper server (skips the observability ring)
 curl -s -F file=@clip.wav -F response_format=json \
   http://127.0.0.1:8090/v1/audio/transcriptions
+
+# or through the hub proxy (same shape, lands in the observability ring)
+curl -s -F file=@clip.wav -F response_format=json \
+  http://127.0.0.1:8000/v1/audio/transcriptions
 ```
 
 Translate non-English audio to English via the translate slot
