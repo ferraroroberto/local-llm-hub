@@ -404,13 +404,6 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
   flex-direction: column;
   gap: 10px;
 }
-@media (min-width: 720px) {
-  .models-list {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-  }
-}
 .app-item {
   background: var(--bg-elev);
   border: 1px solid var(--border);
@@ -431,23 +424,30 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
   gap: 8px;
 }
 .app-item .app-title {
-  flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 15px;
   font-weight: 600;
-  /* Title can overflow on narrow viewports — let it ellipsise rather
-   * than push the icon row off the right edge. */
+}
+/* Only the name ellipsises on narrow viewports; the status badge and the
+ * adopted-PID note sit beside .app-title as title-row siblings, so they
+ * are never clipped regardless of display-name length. */
+.app-item .app-name {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.app-item .badge { flex-shrink: 0; }
 .app-item .app-icons {
   display: flex;
   gap: 2px;
   flex-shrink: 0;
+  /* Push the action icons to the right edge now that .app-title no longer
+   * grows to fill the row. */
+  margin-left: auto;
 }
 .app-item .app-icons .icon-btn {
   width: 36px;

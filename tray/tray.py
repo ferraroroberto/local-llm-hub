@@ -402,9 +402,17 @@ class TrayApp:
         if not ok:
             self._notify("Hub", f"⚠️ {msg}")
             return
-        self.hub.wait_ready(self.cfg.hub_ready_timeout_s)
+        if not self.hub.wait_ready(self.cfg.hub_ready_timeout_s):
+            self._notify("Hub", f"⚠️ not reachable after {self.cfg.hub_ready_timeout_s:.0f}s")
+            return
         self._notify("Hub", "✅ restarted")
         self._update_menu()
+        # The tray stops the hub with a normal teardown (CTRL_BREAK), which
+        # kills the model backends — unlike the admin restart, which keeps
+        # them alive for adoption. Re-autostart the configured models so a
+        # tray restart leaves them running again (mirrors _autostart_worker).
+        for model_id in self.cfg.autostart_models:
+            self._start_model_worker(model_id, autostart=True)
 
     def _toggle_model_worker(self, model_id: str) -> None:
         """Toggle a model's lifecycle via the hub's admin API.

@@ -389,8 +389,21 @@ async def _stop_backend_children() -> None:
     the admin API). Without this, a clean ``CTRL+C`` would leave
     orphan ``llama-server`` / ``whisper-server`` processes holding
     their ports until the user logged out.
+
+    Exception: on an admin **restart** the children must survive so the
+    respawned hub re-adopts them (``inherit_running_backends``). The
+    restart endpoint sets ``backend_process.restart_pending()`` before
+    signalling shutdown; we honour it by skipping teardown.
     """
     from . import backend_process as bp
+
+    if bp.restart_pending():
+        survivors = list(bp.running_backends().keys())
+        logger.info(
+            "shutdown: restart in progress — leaving %d backend(s) running for adoption: %s",
+            len(survivors), survivors,
+        )
+        return
 
     for model_id in list(bp.running_backends().keys()):
         try:

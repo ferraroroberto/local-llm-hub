@@ -231,6 +231,12 @@ async def hub_stop() -> Dict[str, Any]:
 @router.post("/api/hub/restart")
 async def hub_restart() -> Dict[str, Any]:
     logger.info("🔄 /admin/api/hub/restart — spawning respawn watchdog")
+    # Tell the shutdown handler to leave the model backends running so the
+    # respawned hub adopts them, instead of killing the survivors that
+    # inherit_running_backends() exists to reclaim.
+    from src import backend_process as bp
+
+    bp.set_restart_pending(True)
     _spawn_respawn_watchdog()
     _delayed_shutdown(delay=0.8)
     return {"ok": True, "detail": "hub will restart shortly"}
