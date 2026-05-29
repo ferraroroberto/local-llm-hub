@@ -115,6 +115,10 @@ async def docker_status(timeout_s: float = DOCKER_PROBE_TIMEOUT_S) -> Dict[str, 
             "docker", "info", "--format", "{{.ServerVersion}}",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            # CREATE_NO_WINDOW on Windows so this poll (fired every few
+            # seconds while the Hub tab is open) doesn't flash a console
+            # window — matching system_stats.gpu_stats / claude_cli.
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
