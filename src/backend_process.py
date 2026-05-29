@@ -176,7 +176,10 @@ def _inherited_alive(state: "_BackendState") -> bool:
 def is_reachable(model: Model, timeout: float = 1.5) -> bool:
     if not model.url:
         return False
-    base = model.url.rstrip("/v1").rstrip("/")
+    # NB: strip the literal "/v1" suffix, not a character set. `str.rstrip`
+    # takes a set of chars, so `"...:8091/v1".rstrip("/v1")` eats the port's
+    # trailing "1" too and yields ":809" — a dead port. removesuffix is exact.
+    base = model.url.removesuffix("/v1").rstrip("/")
     if _is_whisper(model):
         # whisper.cpp server has no /health; GET / returns 200 once loaded.
         try:

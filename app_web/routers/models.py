@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 import time
+import wave
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException
@@ -141,12 +143,48 @@ async def model_force_stop(model_id: str) -> Dict[str, Any]:
     return {"ok": True, "detail": msg}
 
 
+def _silent_wav(seconds: float = 0.1, rate: int = 16000) -> bytes:
+    """A tiny mono 16-bit PCM WAV of silence, built in memory.
+
+    Just enough for whisper-server to decode and return a (blank)
+    transcription — proves the backend can actually run inference, not
+    merely that its port is open.
+    """
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(b"\x00\x00" * int(rate * seconds))
+    return buf.getvalue()
+
+
+def _ping_result(r: Any, latency_ms: float) -> Dict[str, Any]:
+    """Shape a backend probe response into the tile's ping payload."""
+    body: Dict[str, Any] = {}
+    try:
+        body = r.json()
+    except Exception:  # noqa: BLE001
+        body = {"raw": r.text[:300]}
+    usage = body.get("usage") if isinstance(body, dict) else None
+    return {
+        "ok": r.is_success,
+        "status": r.status_code,
+        "latency_ms": round(latency_ms, 1),
+        "usage": usage or {},
+        "error": "" if r.is_success else (body.get("detail") if isinstance(body, dict) else str(r.status_code)),
+    }
+
+
 @router.post("/api/models/{model_id}/ping")
 async def model_ping(model_id: str) -> Dict[str, Any]:
-    """Send a 1-token test prompt through the hub and report latency + tokens.
+    """Probe the backend through the hub and report latency.
 
-    Useful to confirm the backend actually answers, not just that the port
-    is open. For subscription-backed claude/gemini rows the alias resolves
+    Confirms the backend actually answers, not just that the port is open.
+    The probe is protocol-aware: chat/ASR backends speak different APIs, so
+    a chat ping at a whisper row would always 400. Whisper rows get a real
+    audio transcription probe instead; everything else gets a 1-token chat
+    probe. For subscription-backed claude/gemini rows the alias resolves
     inside the hub the same way as any other request.
     """
     target = bp.resolve_model_by_id(model_id)
@@ -160,7 +198,29 @@ async def model_ping(model_id: str) -> Dict[str, Any]:
     import httpx
     from src.host_profile import hub_port
 
-    url = f"http://127.0.0.1:{hub_port()}/v1/messages"
+    port = hub_port()
+    if target.backend == "whisper":
+        # Whisper speaks the OpenAI audio API, not chat — send a tiny silent
+        # clip to the hub's transcription proxy (model=display_name routes it
+        # to this exact backend and keeps the hit in the observability ring).
+        url = f"http://127.0.0.1:{port}/v1/audio/transcriptions"
+        files = {"file": ("ping.wav", _silent_wav(), "audio/wav")}
+        data = {"model": target.display_name}
+        t0 = time.monotonic_ns()
+        try:
+            # Generous timeout: a lazy/CPU whisper backend may cold-load.
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                r = await client.post(url, files=files, data=data)
+        except httpx.HTTPError as exc:
+            return {
+                "ok": False,
+                "status": 0,
+                "latency_ms": (time.monotonic_ns() - t0) / 1e6,
+                "error": str(exc),
+            }
+        return _ping_result(r, (time.monotonic_ns() - t0) / 1e6)
+
+    url = f"http://127.0.0.1:{port}/v1/messages"
     payload = {
         "model": target.display_name,
         "max_tokens": 1,
@@ -177,17 +237,4 @@ async def model_ping(model_id: str) -> Dict[str, Any]:
             "latency_ms": (time.monotonic_ns() - t0) / 1e6,
             "error": str(exc),
         }
-    latency_ms = (time.monotonic_ns() - t0) / 1e6
-    body: Dict[str, Any] = {}
-    try:
-        body = r.json()
-    except Exception:  # noqa: BLE001
-        body = {"raw": r.text[:300]}
-    usage = body.get("usage") if isinstance(body, dict) else None
-    return {
-        "ok": r.is_success,
-        "status": r.status_code,
-        "latency_ms": round(latency_ms, 1),
-        "usage": usage or {},
-        "error": "" if r.is_success else (body.get("detail") if isinstance(body, dict) else str(r.status_code)),
-    }
+    return _ping_result(r, (time.monotonic_ns() - t0) / 1e6)
