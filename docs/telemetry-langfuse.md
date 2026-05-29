@@ -122,6 +122,25 @@ new device (or via a new hostname — `tower.ts.net` vs `localhost`),
 Langfuse will show its sign-in screen rather than the trace. Sign in
 once; the cookie persists.
 
+### Lost your Langfuse UI password
+
+The UI login password is **not stored in plaintext anywhere** — not in
+`.env`, not in the compose file. It's a bcrypt hash in the `users` table
+of the `langfuse-postgres-1` container, so it can't be recovered, only
+reset. The `postgres:16` image ships `pgcrypto`, whose `crypt()` /
+`gen_salt('bf', 12)` produce the exact `$2a$12$…` bcrypt format Langfuse
+verifies against:
+
+```bat
+docker exec langfuse-postgres-1 psql -U postgres -d postgres -c "CREATE EXTENSION IF NOT EXISTS pgcrypto; UPDATE users SET password = crypt('NEW_PASSWORD', gen_salt('bf', 12)) WHERE email='you@example.com';"
+```
+
+Success prints `UPDATE 1`; then log in at `http://localhost:3000` with
+the new password. Avoid a single quote `'` in the password — it breaks
+the SQL quoting. This touches **only** the UI login: the
+`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` API keys in `.env` are
+unaffected, so the hub keeps emitting traces throughout.
+
 ## What's captured
 
 Every routed request creates an OTel span tree:
