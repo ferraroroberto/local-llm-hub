@@ -69,8 +69,12 @@ function fillItem(li, m) {
 
   const titleRow = document.createElement('div');
   titleRow.className = 'app-title-row';
+  // Badge + adopted-PID note live OUTSIDE .app-title: that span ellipsises
+  // long display names (whisper-large-v3-turbo, gemma4-26b-a4b-it), and a
+  // pill nested inside it gets pushed past the clip boundary and vanishes.
+  // As siblings in the title row they are never clipped.
   titleRow.innerHTML =
-    '<span class="app-title">' + glyph + '<span>' + escapeHtml(m.display_name) + '</span>' + badge(m) + pidNote + '</span>';
+    '<span class="app-title">' + glyph + '<span class="app-name">' + escapeHtml(m.display_name) + '</span></span>' + badge(m) + pidNote;
 
   const icons = document.createElement('div');
   icons.className = 'app-icons';

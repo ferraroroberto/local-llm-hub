@@ -99,6 +99,25 @@ class _BackendState:
 
 _STATES: Dict[str, _BackendState] = {}
 
+# Set true by the admin /admin/api/hub/restart endpoint just before it
+# signals the hub to exit. The shutdown handler reads it and SKIPS tearing
+# the backend children down, so they survive the restart and the respawned
+# hub re-adopts them via ``inherit_running_backends`` (shown as "running").
+# Without this, a restart kills the very survivors inheritance exists to
+# reclaim. Process-local: the respawned hub starts with it false.
+_restart_pending = False
+
+
+def set_restart_pending(value: bool = True) -> None:
+    """Mark (or clear) that a hub restart is in flight — see ``_restart_pending``."""
+    global _restart_pending
+    _restart_pending = bool(value)
+
+
+def restart_pending() -> bool:
+    """True while a hub restart is in flight and backends must be left alive."""
+    return _restart_pending
+
 
 def _state_for(model_id: str) -> _BackendState:
     state = _STATES.get(model_id)
