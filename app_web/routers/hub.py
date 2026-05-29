@@ -112,14 +112,42 @@ def _delayed_shutdown(delay: float = 0.4) -> None:
     threading.Thread(target=_runner, daemon=True).start()
 
 
+def _restart_log_path() -> Path:
+    """File the detached watchdog redirects the relaunched server into.
+
+    The respawn is detached and outlives this process, so its stdout has
+    nowhere to go in-process — and under ``pythonw`` there is no console
+    at all. We give it a real file so (a) ``src.server``'s import-time
+    logging write doesn't crash a console-less child, and (b) a failed
+    restart leaves a diagnostic trail instead of vanishing silently.
+    """
+    return PROJECT_ROOT / "data" / "logs" / "restart.log"
+
+
 def _spawn_respawn_watchdog() -> None:
-    """Spawn a detached Python that waits for our PID to die then re-launches us."""
+    """Spawn a detached Python that waits for our PID to die then re-launches us.
+
+    The relaunch is made the way ``src/server_process.start()`` spawns the
+    hub — never a bare ``pythonw`` with no stdout. Two things matter:
+
+    * **Executable.** When the hub is tray-launched ``sys.executable`` is
+      ``pythonw.exe``. A console-less ``pythonw -m src.server`` dies on its
+      first logging write at import, so normalise it to ``python.exe``.
+    * **stdout/stderr.** Redirect the child into a log file (not a pipe —
+      the watchdog exits right after spawning, leaving a pipe with no
+      reader). Then health-check the port and record the outcome.
+    """
     parent_pid = os.getpid()
     port = _hub_port()
+    log_path = _restart_log_path()
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    logger.info("🔄 respawn watchdog: relaunch log → %s", log_path)
     script = (
-        "import os, sys, time, socket, subprocess\n"
+        "import os, sys, time, socket, subprocess, datetime\n"
         f"parent={parent_pid}\n"
         f"port={port}\n"
+        "log_path=" + repr(str(log_path)) + "\n"
+        "root=" + repr(str(PROJECT_ROOT)) + "\n"
         "def alive(pid):\n"
         "    try:\n"
         "        if sys.platform == 'win32':\n"
@@ -139,18 +167,56 @@ def _spawn_respawn_watchdog() -> None:
         "        s.bind(('127.0.0.1', port)); s.close(); break\n"
         "    except OSError:\n"
         "        s.close(); time.sleep(0.3)\n"
-        "subprocess.Popen([sys.executable,'-m','src.server'], cwd=" + repr(str(PROJECT_ROOT)) + ")\n"
+        "# normalise pythonw.exe -> python.exe: a console-less child crashes\n"
+        "# on src.server's import-time logging write.\n"
+        "exe = sys.executable\n"
+        "if exe.lower().endswith('pythonw.exe'):\n"
+        "    cand = exe[:-len('pythonw.exe')] + 'python.exe'\n"
+        "    if os.path.exists(cand):\n"
+        "        exe = cand\n"
+        "env = os.environ.copy()\n"
+        "env['PYTHONIOENCODING'] = 'utf-8'\n"
+        "env['PYTHONUTF8'] = '1'\n"
+        "flags = 0\n"
+        "if sys.platform == 'win32':\n"
+        "    flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW\n"
+        "logf = open(log_path, 'a', encoding='utf-8', errors='replace')\n"
+        "stamp = lambda: datetime.datetime.now().isoformat(timespec='seconds')\n"
+        "logf.write(f'{stamp()} [respawn] relaunching {exe} -m src.server\\n'); logf.flush()\n"
+        "child = subprocess.Popen([exe,'-m','src.server'], cwd=root, env=env,\n"
+        "                         stdin=subprocess.DEVNULL, stdout=logf, stderr=subprocess.STDOUT,\n"
+        "                         creationflags=flags)\n"
+        "ok = False\n"
+        "for _ in range(100):  # ~30s\n"
+        "    time.sleep(0.3)\n"
+        "    if child.poll() is not None:\n"
+        "        break\n"
+        "    c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
+        "    c.settimeout(0.3)\n"
+        "    try:\n"
+        "        c.connect(('127.0.0.1', port)); c.close(); ok = True; break\n"
+        "    except OSError:\n"
+        "        c.close()\n"
+        "if ok:\n"
+        "    logf.write(f'{stamp()} [respawn] hub back up on :{port} (pid={child.pid})\\n')\n"
+        "else:\n"
+        "    logf.write(f'{stamp()} [respawn] FAILED to bring hub up on :{port} (child rc={child.poll()})\\n')\n"
+        "logf.flush()\n"
     )
     creationflags = 0
     if sys.platform == "win32":
         DETACHED = 0x00000008
         creationflags = DETACHED | subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+    # Capture the watchdog script's own stdout/stderr to the same log so a
+    # failure *before* it opens its handle (e.g. a script-level exception)
+    # is still visible rather than swallowed by DEVNULL.
+    wd_log = open(log_path, "a", encoding="utf-8", errors="replace")
     subprocess.Popen(
         [sys.executable, "-c", script],
         cwd=str(PROJECT_ROOT),
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=wd_log,
+        stderr=subprocess.STDOUT,
         creationflags=creationflags,
     )
 
