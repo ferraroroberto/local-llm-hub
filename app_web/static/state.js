@@ -171,6 +171,7 @@ export const els = {
   cldChartInput: document.getElementById('cldChartInput'),
   cldChartOutput: document.getElementById('cldChartOutput'),
   cldChartReqs: document.getElementById('cldChartReqs'),
+  cldChartCache: document.getElementById('cldChartCache'),
   cldSessionsList: document.getElementById('cldSessionsList'),
   cldSessionsBadge: document.getElementById('cldSessionsBadge'),
   cldSessionsEmpty: document.getElementById('cldSessionsEmpty'),

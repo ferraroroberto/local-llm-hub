@@ -284,10 +284,11 @@ def _build_time_series(
             continue
         family = _model_display(r.model)
         if family not in bmap[bk]:
-            bmap[bk][family] = {"input_tokens": 0, "output_tokens": 0, "requests": 0}
+            bmap[bk][family] = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "requests": 0}
         slot = bmap[bk][family]
         slot["input_tokens"] += r.input_tokens + r.cache_creation_tokens
         slot["output_tokens"] += r.output_tokens
+        slot["cache_read_tokens"] += r.cache_read_tokens
         slot["requests"] += 1
 
     result = []

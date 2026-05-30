@@ -33,6 +33,7 @@ const KNOWN_FAMILIES = new Set(['Haiku', 'Sonnet', 'Opus']);
 let _chartInput  = null;
 let _chartOutput = null;
 let _chartReqs   = null;
+let _chartCache  = null;
 
 const POLL_MS = 30_000;
 let _pollHandle = null;
@@ -239,9 +240,10 @@ function renderCharts(body) {
   const norm = _normalizeTs(ts);
   const labels = norm.map(function (b) { return b.label; });
 
-  _chartInput  = _makeChart(els.cldChartInput,  _chartInput,  labels, norm, 'input_tokens',  true);
-  _chartOutput = _makeChart(els.cldChartOutput, _chartOutput, labels, norm, 'output_tokens', true);
-  _chartReqs   = _makeChart(els.cldChartReqs,   _chartReqs,   labels, norm, 'requests',      false);
+  _chartInput  = _makeChart(els.cldChartInput,  _chartInput,  labels, norm, 'input_tokens',      true);
+  _chartOutput = _makeChart(els.cldChartOutput, _chartOutput, labels, norm, 'output_tokens',     true);
+  _chartReqs   = _makeChart(els.cldChartReqs,   _chartReqs,   labels, norm, 'requests',          false);
+  _chartCache  = _makeChart(els.cldChartCache,  _chartCache,  labels, norm, 'cache_read_tokens', true);
 }
 
 function _normalizeTs(ts) {
@@ -250,10 +252,11 @@ function _normalizeTs(ts) {
     Object.entries(b.models).forEach(function (_ref) {
       var k = _ref[0], v = _ref[1];
       var key = KNOWN_FAMILIES.has(k) ? k : 'Other';
-      if (!models[key]) models[key] = { input_tokens: 0, output_tokens: 0, requests: 0 };
-      models[key].input_tokens  += v.input_tokens  || 0;
-      models[key].output_tokens += v.output_tokens || 0;
-      models[key].requests      += v.requests      || 0;
+      if (!models[key]) models[key] = { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, requests: 0 };
+      models[key].input_tokens       += v.input_tokens       || 0;
+      models[key].output_tokens      += v.output_tokens      || 0;
+      models[key].cache_read_tokens  += v.cache_read_tokens  || 0;
+      models[key].requests           += v.requests           || 0;
     });
     return { label: b.label, models: models };
   });
@@ -263,6 +266,7 @@ function _destroyCharts() {
   if (_chartInput)  { _chartInput.destroy();  _chartInput  = null; }
   if (_chartOutput) { _chartOutput.destroy(); _chartOutput = null; }
   if (_chartReqs)   { _chartReqs.destroy();   _chartReqs   = null; }
+  if (_chartCache)  { _chartCache.destroy();  _chartCache  = null; }
 }
 
 function _makeChart(canvas, existing, labels, ts, field, isTok) {
