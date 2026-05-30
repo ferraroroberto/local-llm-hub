@@ -212,9 +212,12 @@ function renderDeltas(body) {
   const prevOut = prev ? (prev.output_tokens || 0) : 0;
   const prevReq = prev ? (prev.requests || 0) : 0;
 
-  apply(els.cldDeltaRequests,  curr.requests || 0,      prevReq);
-  apply(els.cldDeltaInputTok,  currIn,                   prevIn);
-  apply(els.cldDeltaOutputTok, curr.output_tokens || 0,  prevOut);
+  const prevCache = prev ? (prev.cache_read_tokens || 0) : 0;
+
+  apply(els.cldDeltaRequests,  curr.requests || 0,           prevReq);
+  apply(els.cldDeltaInputTok,  currIn,                        prevIn);
+  apply(els.cldDeltaOutputTok, curr.output_tokens || 0,       prevOut);
+  apply(els.cldDeltaCacheRead, curr.cache_read_tokens || 0,   prevCache);
 }
 
 // ---------------------------------------------------------------------------

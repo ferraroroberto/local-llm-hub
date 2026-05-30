@@ -161,6 +161,7 @@ export const els = {
   cldDeltaRequests: document.getElementById('cldDeltaRequests'),
   cldDeltaInputTok: document.getElementById('cldDeltaInputTok'),
   cldDeltaOutputTok: document.getElementById('cldDeltaOutputTok'),
+  cldDeltaCacheRead: document.getElementById('cldDeltaCacheRead'),
   cldModelTable: document.getElementById('cldModelTable'),
   cldModelEmpty: document.getElementById('cldModelEmpty'),
   cldProjectTable: document.getElementById('cldProjectTable'),
