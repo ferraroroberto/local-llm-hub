@@ -687,7 +687,12 @@ parses the JSONL session logs Claude Code writes to
 no wrapper around the `claude` binary, no impact on the running CLI.
 
 Counters and per-model / per-project breakdowns toggle between **Day /
-Week / Month / All**.  A "Recent sessions" list shows the last 15 sessions
+Week / Month / All**.  Each counter card shows a delta badge (green ↑ / red ↓)
+vs. the previous comparable period.  A **Usage trend** card (issue #50) sits
+below the breakdowns with four stacked area charts — input tokens, output
+tokens, requests, and cache reads — coloured by model family (Haiku / Sonnet /
+Opus).  Day → last 14 days; Week → last 12 weeks; Month → last 12 months;
+All → charts hidden.  A "Recent sessions" list shows the last 15 sessions
 across every project on this host.
 
 > **Why no host OTEL → Langfuse bridge?**  Issue #20 originally shipped an
