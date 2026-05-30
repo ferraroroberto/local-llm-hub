@@ -113,6 +113,10 @@ function renderCounters(body) {
   ));
   set(els.cldOutputTok, fmtTok(bucket.output_tokens));
   set(els.cldCacheRead, fmtTok(bucket.cache_read_tokens));
+  // Equivalent metered-API cost under the three token tiles (issue #52).
+  set(els.cldInputCost, fmtCost(bucket.input_cost));
+  set(els.cldOutputCost, fmtCost(bucket.output_cost));
+  set(els.cldCacheCost, fmtCost(bucket.cache_read_cost));
 }
 
 function renderModelTable(rows) {
@@ -362,6 +366,14 @@ function fmtTok(n) {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
   return String(n);
+}
+
+function fmtCost(n) {
+  // Equivalent metered-API dollar cost (issue #52). Empty when zero/absent.
+  if (!n) return '';
+  if (n < 0.01) return '≈ <$0.01';
+  if (n >= 1000) return '≈ $' + Math.round(n).toLocaleString();
+  return '≈ $' + n.toFixed(2);
 }
 
 function fmtTs(iso) {

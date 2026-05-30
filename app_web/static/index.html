@@ -334,22 +334,27 @@
           </div>
           <div class="cld-counter">
             <div class="cld-counter-value" id="cldInputTok">—</div>
+            <div class="cld-counter-cost" id="cldInputCost" title="Equivalent metered Anthropic API cost"></div>
             <div class="cld-counter-label">input tokens</div>
             <span class="cld-delta" id="cldDeltaInputTok" hidden></span>
           </div>
           <div class="cld-counter">
             <div class="cld-counter-value" id="cldOutputTok">—</div>
+            <div class="cld-counter-cost" id="cldOutputCost" title="Equivalent metered Anthropic API cost"></div>
             <div class="cld-counter-label">output tokens</div>
             <span class="cld-delta" id="cldDeltaOutputTok" hidden></span>
           </div>
           <div class="cld-counter">
             <div class="cld-counter-value" id="cldCacheRead">—</div>
+            <div class="cld-counter-cost" id="cldCacheCost" title="Equivalent metered Anthropic API cost"></div>
             <div class="cld-counter-label">cache reads</div>
             <span class="cld-delta" id="cldDeltaCacheRead" hidden></span>
           </div>
         </div>
         <p class="muted small" style="margin: 6px 0 0;">Input tokens = net new + cache creation (both billed).
-          Cache reads are served from the 5-min/1-hr prompt cache.</p>
+          Cache reads are served from the 5-min/1-hr prompt cache.
+          <span class="cld-counter-cost" style="display:inline">≈ $</span> lines show the equivalent
+          metered-API cost these tokens would have billed.</p>
       </section>
 
       <!-- Per-model breakdown -->

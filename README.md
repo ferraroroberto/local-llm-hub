@@ -688,7 +688,11 @@ no wrapper around the `claude` binary, no impact on the running CLI.
 
 Counters and per-model / per-project breakdowns toggle between **Day /
 Week / Month / All**.  Each counter card shows a delta badge (green ↑ / red ↓)
-vs. the previous comparable period.  A **Usage trend** card (issue #50) sits
+vs. the previous comparable period.  The input, output, and cache-read tiles
+also show an **≈ $… equivalent API cost** (issue #52) — what those tokens would
+have billed on the metered Anthropic API, priced per model family from
+`config/claude_pricing.json` (refresh that file when Anthropic changes prices).
+A **Usage trend** card (issue #50) sits
 below the breakdowns with four stacked area charts — input tokens, output
 tokens, requests, and cache reads — coloured by model family (Haiku / Sonnet /
 Opus).  Day → last 14 days; Week → last 12 weeks; Month → last 12 months;
