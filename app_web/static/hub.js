@@ -5,6 +5,7 @@
 
 import { els, state, DENSITY_KEY } from './state.js';
 import { jsonApi, postJson, eventStream, toast } from './api.js';
+import { langfuseTraceUrl, fetchTelemetryHealth } from './telemetry.js';
 
 // --------------------------------------------------------- status / urls
 export async function fetchHubStatus() {
@@ -94,8 +95,21 @@ function prependRequest(rec) {
   }
 }
 
+// A trace deep-link should only render when clicking it would actually
+// reach a Langfuse trace: the hub itself up, Docker up, and Langfuse
+// reachable. Otherwise the link would land on a connection error — so we
+// hide it (the row still shows tokens, just no `trace` affordance). Same
+// signals the Services card uses (issue #27).
+function traceLinkReady() {
+  const svc = state.services || {};
+  const docker = svc.docker || {};
+  const lf = svc.langfuse || {};
+  return !!state.status && docker.running === true && lf.reachable === true;
+}
+
 function renderRequests() {
   const items = state.liveRequests || [];
+  const traceUp = traceLinkReady();
   const lists = [
     { list: els.liveRequestsList, badge: els.liveRequestsBadge, empty: els.liveRequestsEmpty },
     { list: els.liveRequestsListExp, badge: els.liveRequestsBadgeExp, empty: els.liveRequestsEmptyExp },
@@ -108,7 +122,13 @@ function renderRequests() {
     items.forEach(function (r) {
       const li = document.createElement('li');
       const cls = r.status >= 500 ? 'err' : r.status >= 400 ? 'warn' : 'ok';
-      const traceCol = r.trace_id ? ('<a href="#trace/' + r.trace_id + '" title="' + r.trace_id + '">trace</a>') : '';
+      // Identical deep-link to the Telemetry tab: shared langfuseTraceUrl()
+      // derives the client-reachable Langfuse host (Tailscale/LAN/localhost
+      // transparent) + project_id, opened in a new tab. Only shown when the
+      // stack is up (see traceLinkReady).
+      const traceCol = (r.trace_id && traceUp)
+        ? ('<a href="' + langfuseTraceUrl(r.trace_id) + '" target="_blank" rel="noopener" title="' + escapeHtml(r.trace_id) + '">trace</a>')
+        : '';
       li.innerHTML =
         '<span class="muted">' + fmtClock(r.ts) + '</span>' +
         '<span>' + escapeHtml(r.model || '(no model)') + ' <span class="muted">' + escapeHtml(r.backend || '') + '</span></span>' +
@@ -440,10 +460,14 @@ export function wireHub() {
 
   // Services card — Docker + Langfuse status. Cheaper than the sparkline
   // sweep (two small probes, each capped at 2 s) so 5 s is plenty.
+  // Also refresh telemetry health here so the live-request trace links can
+  // resolve Langfuse's project_id without the user first visiting the
+  // Telemetry tab — the deep-link URL is then byte-identical across tabs.
   setInterval(function () {
     if (state.tab !== 'hub') return;
     if (state.servicesLaunching) return;
     fetchServicesStatus().catch(function () {});
+    fetchTelemetryHealth().catch(function () {});
   }, 5000);
 }
 

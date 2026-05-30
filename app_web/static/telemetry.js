@@ -267,7 +267,7 @@ function langfuseUiBase() {
   return loc.protocol + '//' + loc.hostname + ':' + port;
 }
 
-function langfuseTraceUrl(traceId) {
+export function langfuseTraceUrl(traceId) {
   const h = state.telHealth || {};
   const base = langfuseUiBase();
   const pid = h.langfuse_project_id || '';

@@ -9,7 +9,7 @@ import { wireTabs, setTab, onTabChange } from './tabs.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchInstallStatus, fetchServicesStatus } from './hub.js';
 import { wireModels, fetchModels } from './models.js';
 import { wirePlayground, fetchPlaygroundModels } from './playground.js';
-import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls } from './telemetry.js';
+import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls, fetchTelemetryHealth } from './telemetry.js';
 import { wireCodeUsage, startCodeUsagePolls, stopCodeUsagePolls } from './code_usage.js';
 
 async function fetchVersion() {
@@ -61,6 +61,7 @@ async function boot() {
     fetchModels(),
     fetchInstallStatus(),
     fetchServicesStatus(),
+    fetchTelemetryHealth(),
     fetchPlaygroundModels(),
   ]);
 
@@ -84,6 +85,7 @@ async function resumeAfterLogin() {
     fetchModels(),
     fetchInstallStatus(),
     fetchServicesStatus(),
+    fetchTelemetryHealth(),
     fetchPlaygroundModels(),
   ]);
   startHubStreams();
