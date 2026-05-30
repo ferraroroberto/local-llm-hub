@@ -41,7 +41,7 @@ export const state = {
 
   // Code-usage tab — host Claude Code session data (issue #20).
   cldSummary: null,
-  cldPeriod: 'today',   // 'today' | 'week'
+  cldPeriod: 'today',   // 'today' | 'week' | 'month' | 'all'
 
   // Services card — Docker + Langfuse status (issue #27).
   services: null,
@@ -158,10 +158,18 @@ export const els = {
   cldInputTok: document.getElementById('cldInputTok'),
   cldOutputTok: document.getElementById('cldOutputTok'),
   cldCacheRead: document.getElementById('cldCacheRead'),
+  cldDeltaRequests: document.getElementById('cldDeltaRequests'),
+  cldDeltaInputTok: document.getElementById('cldDeltaInputTok'),
+  cldDeltaOutputTok: document.getElementById('cldDeltaOutputTok'),
   cldModelTable: document.getElementById('cldModelTable'),
   cldModelEmpty: document.getElementById('cldModelEmpty'),
   cldProjectTable: document.getElementById('cldProjectTable'),
   cldProjectEmpty: document.getElementById('cldProjectEmpty'),
+  // Charts (issue #50)
+  cldChartsCard: document.getElementById('cldChartsCard'),
+  cldChartInput: document.getElementById('cldChartInput'),
+  cldChartOutput: document.getElementById('cldChartOutput'),
+  cldChartReqs: document.getElementById('cldChartReqs'),
   cldSessionsList: document.getElementById('cldSessionsList'),
   cldSessionsBadge: document.getElementById('cldSessionsBadge'),
   cldSessionsEmpty: document.getElementById('cldSessionsEmpty'),

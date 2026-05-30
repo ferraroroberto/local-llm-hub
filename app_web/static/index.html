@@ -330,14 +330,17 @@
           <div class="cld-counter">
             <div class="cld-counter-value" id="cldRequests">—</div>
             <div class="cld-counter-label">requests</div>
+            <span class="cld-delta" id="cldDeltaRequests" hidden></span>
           </div>
           <div class="cld-counter">
             <div class="cld-counter-value" id="cldInputTok">—</div>
             <div class="cld-counter-label">input tokens</div>
+            <span class="cld-delta" id="cldDeltaInputTok" hidden></span>
           </div>
           <div class="cld-counter">
             <div class="cld-counter-value" id="cldOutputTok">—</div>
             <div class="cld-counter-label">output tokens</div>
+            <span class="cld-delta" id="cldDeltaOutputTok" hidden></span>
           </div>
           <div class="cld-counter">
             <div class="cld-counter-value" id="cldCacheRead">—</div>
@@ -384,6 +387,25 @@
         <div id="cldProjectEmpty" class="empty" hidden>No project data for today.</div>
       </section>
 
+      <!-- Usage trend charts (hidden in "All" mode) -->
+      <section class="card" id="cldChartsCard" hidden>
+        <div class="card-header">
+          <h2>📊 Usage trend</h2>
+        </div>
+        <div class="cld-chart-wrap">
+          <div class="cld-chart-label">Input tokens</div>
+          <div class="cld-chart-inner"><canvas id="cldChartInput"></canvas></div>
+        </div>
+        <div class="cld-chart-wrap">
+          <div class="cld-chart-label">Output tokens</div>
+          <div class="cld-chart-inner"><canvas id="cldChartOutput"></canvas></div>
+        </div>
+        <div class="cld-chart-wrap">
+          <div class="cld-chart-label">Requests</div>
+          <div class="cld-chart-inner"><canvas id="cldChartReqs"></canvas></div>
+        </div>
+      </section>
+
       <!-- Recent sessions -->
       <section class="card">
         <div class="card-header">
@@ -421,6 +443,7 @@
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script type="module" src="/admin/static/main.js"></script>
 </body>
 </html>
