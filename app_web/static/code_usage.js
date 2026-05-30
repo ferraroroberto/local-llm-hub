@@ -1,4 +1,4 @@
-/* Claude Code usage tab (issue #20).
+/* Claude Code usage tab (issues #20, #50).
  *
  * Polls /admin/api/code/usage/summary?period=<period> every 30 s while
  * the tab is visible.  Data comes from ~/.claude/projects/**\/*.jsonl —
@@ -6,10 +6,34 @@
  *
  * Reuses: jsonApi from api.js, els + state from state.js,
  *         .card, .counters, .card-list.dense, .badge, .empty from styles.css
+ *
+ * Charts (issue #50): requires Chart.js 4.x loaded globally via CDN before
+ * this module executes (see the <script> tag just before main.js in index.html).
  */
 
 import { els, state } from './state.js';
 import { jsonApi } from './api.js';
+
+// ---------------------------------------------------------------------------
+// Chart constants (issue #50)
+// ---------------------------------------------------------------------------
+
+// Fixed order and colours for model families. Colours match CSS variables
+// (--accent, --good, --warn, --muted) hardcoded here because Chart.js canvas
+// cannot read CSS custom properties.
+const MODEL_PALETTE = [
+  { key: 'Haiku',  bg: 'rgba(74,138,243,0.50)',  border: 'rgba(74,138,243,0.85)'  },
+  { key: 'Sonnet', bg: 'rgba(76,175,80,0.50)',   border: 'rgba(76,175,80,0.85)'   },
+  { key: 'Opus',   bg: 'rgba(240,161,0,0.50)',   border: 'rgba(240,161,0,0.85)'   },
+  { key: 'Other',  bg: 'rgba(154,154,154,0.30)', border: 'rgba(154,154,154,0.65)' },
+];
+const KNOWN_FAMILIES = new Set(['Haiku', 'Sonnet', 'Opus']);
+
+// Retained Chart.js instances — destroyed before each recreation to prevent leaks.
+let _chartInput  = null;
+let _chartOutput = null;
+let _chartReqs   = null;
+let _chartCache  = null;
 
 const POLL_MS = 30_000;
 let _pollHandle = null;
@@ -72,6 +96,8 @@ async function fetchSummary() {
 function render(body) {
   if (!body) return;
   renderCounters(body);
+  renderDeltas(body);
+  renderCharts(body);
   renderModelTable(body.by_model || []);
   renderProjectTable(body.by_project || []);
   renderSessions(body.recent_sessions || []);
@@ -162,6 +188,156 @@ function renderSessions(sessions) {
       '</div>' +
       '</li>';
   }).join('');
+}
+
+// ---------------------------------------------------------------------------
+// Delta badges (issue #50)
+// ---------------------------------------------------------------------------
+
+function renderDeltas(body) {
+  const prev = body.prev_totals;        // absent when period === 'all'
+  const curr = body.totals || {};
+  const hide = state.cldPeriod === 'all' || !prev;
+
+  function apply(el, c, p) {
+    if (!el) return;
+    if (hide || p === 0) { el.hidden = true; return; }
+    el.hidden = false;
+    const pct = Math.round((c - p) / p * 100);
+    el.className = pct > 0 ? 'cld-delta up' : pct < 0 ? 'cld-delta down' : 'cld-delta';
+    el.textContent = pct > 0 ? '+' + pct + '% ↑' : pct < 0 ? pct + '% ↓' : '±0%';
+  }
+
+  const prevIn  = prev ? (prev.input_tokens || 0) + (prev.cache_creation_tokens || 0) : 0;
+  const currIn  = (curr.input_tokens || 0) + (curr.cache_creation_tokens || 0);
+  const prevOut = prev ? (prev.output_tokens || 0) : 0;
+  const prevReq = prev ? (prev.requests || 0) : 0;
+
+  const prevCache = prev ? (prev.cache_read_tokens || 0) : 0;
+
+  apply(els.cldDeltaRequests,  curr.requests || 0,           prevReq);
+  apply(els.cldDeltaInputTok,  currIn,                        prevIn);
+  apply(els.cldDeltaOutputTok, curr.output_tokens || 0,       prevOut);
+  apply(els.cldDeltaCacheRead, curr.cache_read_tokens || 0,   prevCache);
+}
+
+// ---------------------------------------------------------------------------
+// Trend charts (issue #50)
+// ---------------------------------------------------------------------------
+
+function renderCharts(body) {
+  const card = els.cldChartsCard;
+  if (!card) return;
+
+  const ts = body.time_series;
+  if (!ts || !ts.length || state.cldPeriod === 'all') {
+    card.hidden = true;
+    _destroyCharts();
+    return;
+  }
+
+  card.hidden = false;
+  const norm = _normalizeTs(ts);
+  const labels = norm.map(function (b) { return b.label; });
+
+  _chartInput  = _makeChart(els.cldChartInput,  _chartInput,  labels, norm, 'input_tokens',      true);
+  _chartOutput = _makeChart(els.cldChartOutput, _chartOutput, labels, norm, 'output_tokens',     true);
+  _chartReqs   = _makeChart(els.cldChartReqs,   _chartReqs,   labels, norm, 'requests',          false);
+  _chartCache  = _makeChart(els.cldChartCache,  _chartCache,  labels, norm, 'cache_read_tokens', true);
+}
+
+function _normalizeTs(ts) {
+  return ts.map(function (b) {
+    var models = {};
+    Object.entries(b.models).forEach(function (_ref) {
+      var k = _ref[0], v = _ref[1];
+      var key = KNOWN_FAMILIES.has(k) ? k : 'Other';
+      if (!models[key]) models[key] = { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, requests: 0 };
+      models[key].input_tokens       += v.input_tokens       || 0;
+      models[key].output_tokens      += v.output_tokens      || 0;
+      models[key].cache_read_tokens  += v.cache_read_tokens  || 0;
+      models[key].requests           += v.requests           || 0;
+    });
+    return { label: b.label, models: models };
+  });
+}
+
+function _destroyCharts() {
+  if (_chartInput)  { _chartInput.destroy();  _chartInput  = null; }
+  if (_chartOutput) { _chartOutput.destroy(); _chartOutput = null; }
+  if (_chartReqs)   { _chartReqs.destroy();   _chartReqs   = null; }
+  if (_chartCache)  { _chartCache.destroy();  _chartCache  = null; }
+}
+
+function _makeChart(canvas, existing, labels, ts, field, isTok) {
+  if (!canvas) return existing;
+
+  var datasets = [];
+  MODEL_PALETTE.forEach(function (p) {
+    var values = ts.map(function (b) { return (b.models[p.key] || {})[field] || 0; });
+    if (values.every(function (v) { return v === 0; })) return;
+    datasets.push({
+      label: p.key,
+      data: values,
+      fill: true,
+      backgroundColor: p.bg,
+      borderColor: p.border,
+      borderWidth: 1,
+      tension: 0.2,
+      pointRadius: ts.length > 10 ? 0 : 3,
+      pointHoverRadius: 4,
+    });
+  });
+
+  if (existing) { existing.destroy(); }
+
+  /* global Chart */
+  return new Chart(canvas, {
+    type: 'line',
+    data: { labels: labels, datasets: datasets },
+    options: _chartOptions(isTok),
+  });
+}
+
+function _chartOptions(isTok) {
+  var gridColor  = 'rgba(42,47,66,0.8)';  // --border
+  var tickColor  = '#9a9a9a';              // --muted
+  var fgColor    = '#f3f3f3';              // --fg
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    scales: {
+      x: {
+        stacked: true,
+        grid: { color: gridColor },
+        ticks: { color: tickColor, font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
+      },
+      y: {
+        stacked: true,
+        beginAtZero: true,
+        grid: { color: gridColor },
+        ticks: {
+          color: tickColor,
+          font: { size: 11 },
+          callback: isTok ? function (v) { return fmtTok(v); } : undefined,
+        },
+      },
+    },
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { color: fgColor, boxWidth: 12, padding: 12, font: { size: 11 } },
+      },
+      tooltip: {
+        callbacks: isTok ? {
+          label: function (ctx) {
+            return ' ' + ctx.dataset.label + ': ' + fmtTok(ctx.parsed.y);
+          },
+        } : {},
+      },
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------

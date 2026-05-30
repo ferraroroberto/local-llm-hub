@@ -39,6 +39,33 @@
   letter-spacing: 0.4px;
 }
 
+/* Delta badge — sits below the counter label, coloured green/red (issue #50). */
+.cld-delta {
+  font-size: 11px;
+  font-weight: 500;
+  min-height: 14px;
+  color: var(--muted);
+}
+.cld-delta.up   { color: var(--good); }
+.cld-delta.down { color: var(--danger); }
+
+/* Chart wrappers (issue #50). */
+.cld-chart-wrap { margin-bottom: 20px; }
+.cld-chart-wrap:last-child { margin-bottom: 0; }
+
+.cld-chart-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+}
+
+.cld-chart-inner {
+  position: relative;
+  height: 140px;
+}
+
 /* Session list rows */
 ul.cld-sessions.card-list.dense > li {
   display: grid;

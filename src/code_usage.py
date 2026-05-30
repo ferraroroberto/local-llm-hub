@@ -49,6 +49,10 @@ _MAX_RECENT_SESSIONS = 15
 # How many days of daily history to return.
 _MAX_DAILY_DAYS = 14
 
+# How many weeks / months of history to return for the trend charts.
+_MAX_CHART_WEEKS = 12
+_MAX_CHART_MONTHS = 12
+
 
 # ---------------------------------------------------------------------------
 # Internal types
@@ -226,6 +230,113 @@ def _model_display(model: str) -> str:
     return model
 
 
+def _week_start(d: date) -> date:
+    """Return the Monday of the ISO week containing d."""
+    from datetime import timedelta
+    return d - timedelta(days=d.weekday())
+
+
+def _month_start(d: date) -> date:
+    return date(d.year, d.month, 1)
+
+
+def _build_time_series(
+    records: List[_UsageRecord], period: str, today: date
+) -> list:
+    """Build oldest-first time-series buckets with per-model breakdown for the chart.
+
+    Returned list is empty for ``period == "all"`` (unbounded x-axis is not useful).
+    Each bucket: ``{"label": str, "models": {family: {input_tokens, output_tokens, requests}}}``.
+    ``input_tokens`` already folds in ``cache_creation_tokens`` so the chart shows billed in.
+    """
+    from datetime import timedelta
+
+    if period == "all":
+        return []
+
+    if period == "today":
+        buckets = [today - timedelta(days=i) for i in range(_MAX_DAILY_DAYS - 1, -1, -1)]
+    elif period == "week":
+        this_mon = _week_start(today)
+        buckets = [this_mon - timedelta(weeks=i) for i in range(_MAX_CHART_WEEKS - 1, -1, -1)]
+    else:  # month
+        ym: List[tuple] = []
+        y, m = today.year, today.month
+        for _ in range(_MAX_CHART_MONTHS):
+            ym.append((y, m))
+            m -= 1
+            if m == 0:
+                m, y = 12, y - 1
+        buckets = [date(yr, mo, 1) for yr, mo in reversed(ym)]
+
+    bucket_set = set(buckets)
+    bmap: Dict[date, Dict[str, dict]] = {b: {} for b in buckets}
+
+    for r in records:
+        rd = r.ts.astimezone(timezone.utc).date()
+        if period == "today":
+            bk = rd
+        elif period == "week":
+            bk = _week_start(rd)
+        else:
+            bk = _month_start(rd)
+        if bk not in bucket_set:
+            continue
+        family = _model_display(r.model)
+        if family not in bmap[bk]:
+            bmap[bk][family] = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "requests": 0}
+        slot = bmap[bk][family]
+        slot["input_tokens"] += r.input_tokens + r.cache_creation_tokens
+        slot["output_tokens"] += r.output_tokens
+        slot["cache_read_tokens"] += r.cache_read_tokens
+        slot["requests"] += 1
+
+    result = []
+    for b in buckets:
+        lbl = b.strftime("%b %Y") if period == "month" else b.strftime("%b ") + str(b.day)
+        result.append({"label": lbl, "models": bmap[b]})
+    return result
+
+
+def _build_prev_totals(
+    records: List[_UsageRecord], period: str, today: date
+) -> Optional[dict]:
+    """Return aggregate counts for the period immediately preceding the current window.
+
+    today  → yesterday
+    week   → 7 days ending last Sunday (today−13 .. today−7)
+    month  → 30-day window ending 30 days ago (today−59 .. today−30)
+    all    → None (omitted from response)
+    """
+    from datetime import timedelta
+
+    if period == "all":
+        return None
+
+    if period == "today":
+        lo = hi = today - timedelta(days=1)
+    elif period == "week":
+        lo, hi = today - timedelta(days=13), today - timedelta(days=7)
+    else:  # month
+        lo, hi = today - timedelta(days=59), today - timedelta(days=30)
+
+    acc = {
+        "input_tokens": 0, "output_tokens": 0,
+        "cache_creation_tokens": 0, "cache_read_tokens": 0, "requests": 0,
+    }
+    found = False
+    for r in records:
+        d = r.ts.astimezone(timezone.utc).date()
+        if lo <= d <= hi:
+            acc["input_tokens"] += r.input_tokens
+            acc["output_tokens"] += r.output_tokens
+            acc["cache_creation_tokens"] += r.cache_creation_tokens
+            acc["cache_read_tokens"] += r.cache_read_tokens
+            acc["requests"] += 1
+            found = True
+    return acc if found else None
+
+
 _VALID_PERIODS = {"today", "week", "month", "all"}
 
 
@@ -357,14 +468,21 @@ def get_summary(period: str = "today") -> dict:
     )
     recent_sessions = sessions_sorted[:_MAX_RECENT_SESSIONS]
 
-    return {
+    time_series = _build_time_series(records, period, today)
+    prev_totals = _build_prev_totals(records, period, today)
+
+    result: dict = {
         "period": period,
         "totals": totals,
         "daily": daily_list,
         "by_model": by_model,
         "by_project": by_project,
         "recent_sessions": recent_sessions,
+        "time_series": time_series,
     }
+    if prev_totals is not None:
+        result["prev_totals"] = prev_totals
+    return result
 
 
 def get_today_totals_for_project(project_dir: str) -> Optional[dict]:
