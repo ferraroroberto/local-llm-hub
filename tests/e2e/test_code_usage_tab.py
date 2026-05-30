@@ -77,6 +77,10 @@ def test_code_usage_api_returns_valid_json(admin_url):
             assert key in body, f"period={period}: missing key {key!r}"
         assert body["period"] == period
         assert isinstance(body["totals"], dict)
+        # Equivalent-API-cost fields (issue #52) — present and numeric.
+        for cost_key in ("input_cost", "output_cost", "cache_read_cost"):
+            assert cost_key in body["totals"], f"period={period}: missing {cost_key!r}"
+            assert isinstance(body["totals"][cost_key], (int, float))
         assert isinstance(body["daily"], list)
         assert isinstance(body["by_model"], list)
         assert isinstance(body["by_project"], list)

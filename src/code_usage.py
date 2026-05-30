@@ -43,6 +43,18 @@ _log = logging.getLogger(__name__)
 
 _CLAUDE_PROJECTS_DIR: Path = Path.home() / ".claude" / "projects"
 
+# Anthropic API list prices (USD per million tokens), keyed by model family.
+# Loaded once from config/claude_pricing.json; this dict is the fallback used
+# when that file is missing or unreadable, so cost display degrades gracefully.
+_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
+_PRICING_PATH: Path = _PROJECT_ROOT / "config" / "claude_pricing.json"
+_PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
+    "Opus":   {"input": 5.0, "output": 25.0, "cache_write": 6.25, "cache_read": 0.50},
+    "Sonnet": {"input": 3.0, "output": 15.0, "cache_write": 3.75, "cache_read": 0.30},
+    "Haiku":  {"input": 1.0, "output": 5.0,  "cache_write": 1.25, "cache_read": 0.10},
+}
+_pricing_cache: Optional[Dict[str, Dict[str, float]]] = None
+
 # How many recent sessions to return in the summary.
 _MAX_RECENT_SESSIONS = 15
 
@@ -230,6 +242,56 @@ def _model_display(model: str) -> str:
     return model
 
 
+def _load_pricing() -> Dict[str, Dict[str, float]]:
+    """Return the per-family price table, loaded once from config and cached.
+
+    Falls back to the built-in ``_PRICING_FALLBACK`` (same current list prices)
+    when ``config/claude_pricing.json`` is missing or malformed, so the cost
+    display never hard-fails on a fresh checkout.
+    """
+    global _pricing_cache
+    if _pricing_cache is not None:
+        return _pricing_cache
+
+    pricing: Dict[str, Dict[str, float]] = dict(_PRICING_FALLBACK)
+    try:
+        raw = json.loads(_PRICING_PATH.read_text(encoding="utf-8"))
+        families = raw.get("families") or {}
+        if isinstance(families, dict) and families:
+            pricing = {
+                fam: {k: float(v) for k, v in rates.items()}
+                for fam, rates in families.items()
+                if isinstance(rates, dict)
+            }
+    except (OSError, ValueError, TypeError) as exc:
+        _log.warning(
+            "⚠️ code_usage: using fallback pricing (%s unreadable): %s",
+            _PRICING_PATH, exc,
+        )
+    _pricing_cache = pricing
+    return pricing
+
+
+def _record_costs(r: "_UsageRecord") -> Tuple[float, float, float]:
+    """Return ``(input_cost, output_cost, cache_read_cost)`` in USD for one record.
+
+    Priced against the record's own model family, so a mixed-model period is
+    summed correctly.  The input-tile cost folds in cache-creation tokens
+    (charged at the 5-minute cache-write rate) to mirror the tile, which shows
+    ``input_tokens + cache_creation_tokens``.  Unknown families price at zero.
+    """
+    rates = _load_pricing().get(_model_display(r.model))
+    if not rates:
+        return 0.0, 0.0, 0.0
+    input_cost = (
+        r.input_tokens * rates.get("input", 0.0)
+        + r.cache_creation_tokens * rates.get("cache_write", 0.0)
+    ) / 1_000_000
+    output_cost = r.output_tokens * rates.get("output", 0.0) / 1_000_000
+    cache_read_cost = r.cache_read_tokens * rates.get("cache_read", 0.0) / 1_000_000
+    return input_cost, output_cost, cache_read_cost
+
+
 def _week_start(d: date) -> date:
     """Return the Monday of the ISO week containing d."""
     from datetime import timedelta
@@ -394,11 +456,17 @@ def get_summary(period: str = "today") -> dict:
     def in_period(r: _UsageRecord) -> bool:
         return since is None or r.ts.astimezone(timezone.utc).date() >= since
 
-    # ---- totals for the requested period ----
+    # ---- totals for the requested period (with equivalent API cost) ----
     totals = blank_counts()
+    cost_acc = {"input_cost": 0.0, "output_cost": 0.0, "cache_read_cost": 0.0}
     for r in records:
         if in_period(r):
             add_record(totals, r)
+            ic, oc, crc = _record_costs(r)
+            cost_acc["input_cost"] += ic
+            cost_acc["output_cost"] += oc
+            cost_acc["cache_read_cost"] += crc
+    totals.update(cost_acc)
 
     # ---- daily buckets (always last _MAX_DAILY_DAYS calendar days) ----
     daily_map: Dict[date, dict] = {}

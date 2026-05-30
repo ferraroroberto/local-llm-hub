@@ -39,6 +39,15 @@
   letter-spacing: 0.4px;
 }
 
+/* Equivalent metered-API cost, sits just under the token value (issue #52). */
+.cld-counter-cost {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--good);
+  min-height: 15px;
+  letter-spacing: -0.2px;
+}
+
 /* Delta badge — sits below the counter label, coloured green/red (issue #50). */
 .cld-delta {
   font-size: 11px;
