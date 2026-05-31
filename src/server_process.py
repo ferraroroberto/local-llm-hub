@@ -57,7 +57,7 @@ OWNERSHIP_NONE = "none"
 # during stop() doesn't propagate to the tray launcher, and suppress the
 # console so silent parents (pythonw, e.g. the tray) don't spawn a
 # stray cmd window.
-_WIN_NEW_GROUP = (
+WIN_NEW_GROUP = (
     subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
     if sys.platform == "win32" else 0
 )
@@ -155,7 +155,7 @@ def start() -> tuple[bool, str]:
             errors="replace",
             bufsize=1,
             env=env,
-            creationflags=_WIN_NEW_GROUP,
+            creationflags=WIN_NEW_GROUP,
         )
     except Exception as e:
         return False, f"failed to launch: {e}"

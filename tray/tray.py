@@ -43,6 +43,7 @@ import yaml
 
 from src.host_profile import CONFIG_PATH, hub_port
 from src.model_registry import Model, enabled_models
+from src.server_process import WIN_NEW_GROUP
 from src.webapp_config import append_auth_token, ensure_auth_token, load_webapp_config
 
 from .icon import COLOR_RUNNING, COLOR_STARTING, COLOR_STOPPED, make_icon_image
@@ -137,11 +138,7 @@ class HubProcess:
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
-        creationflags = 0
-        if sys.platform == "win32":
-            creationflags = (
-                subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
-            )
+        creationflags = WIN_NEW_GROUP
         try:
             with self._lock:
                 self.proc = subprocess.Popen(

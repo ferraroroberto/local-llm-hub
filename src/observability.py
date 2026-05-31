@@ -240,7 +240,7 @@ def langfuse_otlp_metrics_endpoint() -> str:
     return langfuse_host() + LANGFUSE_OTLP_METRICS_PATH
 
 
-def _langfuse_auth_header() -> Optional[str]:
+def langfuse_basic_auth() -> Optional[str]:
     """Build the ``Authorization: Basic ...`` header value from env vars.
 
     Returns ``None`` when either key is missing — the caller logs a
@@ -263,7 +263,7 @@ def langfuse_otlp_headers() -> Dict[str, str]:
     Authorization when the project keys are present.
     """
     headers = {"Content-Type": "application/x-protobuf"}
-    auth = _langfuse_auth_header()
+    auth = langfuse_basic_auth()
     if auth:
         headers["Authorization"] = auth
     return headers

@@ -17,7 +17,6 @@ background task so the client gets a 202 in <50 ms.
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 import logging
 import os
@@ -35,6 +34,7 @@ from src.hub_observability import OBS, _rec_to_dict
 from src.observability import (
     hash_prompts_enabled,
     is_sdk_disabled,
+    langfuse_basic_auth,
     langfuse_host as _langfuse_host_url,
     service_instance_id,
 )
@@ -58,15 +58,6 @@ def _langfuse_host() -> str:
     return _langfuse_host_url()
 
 
-def _langfuse_basic_auth() -> Optional[str]:
-    """Return ``Basic <base64(pk:sk)>`` from env, or None when missing."""
-    pk = (os.environ.get("LANGFUSE_PUBLIC_KEY") or "").strip()
-    sk = (os.environ.get("LANGFUSE_SECRET_KEY") or "").strip()
-    if not pk or not sk:
-        return None
-    return "Basic " + base64.b64encode(f"{pk}:{sk}".encode("utf-8")).decode("ascii")
-
-
 async def _resolve_project_id(client: httpx.AsyncClient) -> str:
     """Hit Langfuse's /api/public/projects to find the project tied to
     the current key pair. Caches the result process-wide.
@@ -78,7 +69,7 @@ async def _resolve_project_id(client: httpx.AsyncClient) -> str:
         if _CACHED_PROJECT_ID:
             return _CACHED_PROJECT_ID
 
-    auth = _langfuse_basic_auth()
+    auth = langfuse_basic_auth()
     if not auth:
         return ""
     try:
@@ -125,7 +116,7 @@ async def telemetry_health() -> Dict[str, Any]:
     """
     sdk_disabled = is_sdk_disabled()
     otel_endpoint = _langfuse_host() + "/api/public/otel/v1/traces"
-    auth_configured = _langfuse_basic_auth() is not None
+    auth_configured = langfuse_basic_auth() is not None
     langfuse_reachable = False
     langfuse_error = ""
     project_id = ""
@@ -279,7 +270,7 @@ async def telemetry_trace_detail(trace_id: str) -> Dict[str, Any]:
         "output": None,
         "fetch_error": "",
     }
-    auth = _langfuse_basic_auth()
+    auth = langfuse_basic_auth()
     if auth:
         try:
             async with httpx.AsyncClient(timeout=_HEALTH_TIMEOUT_S * 2) as client:
