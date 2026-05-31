@@ -121,7 +121,7 @@ def test_list_models_includes_enabled():
 def test_messages_routes_gemini_backend(monkeypatch):
     captured = {}
 
-    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         captured["prompt"] = prompt
         captured["model"] = model
         captured["system"] = system
@@ -157,7 +157,7 @@ def test_messages_routes_gemini_alias(monkeypatch):
     """`gemini_pro` alias resolves to display_name `Gemini 3.1 Pro (High)`."""
     captured = {}
 
-    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         captured["model"] = model
         return {
             "type": "result", "is_error": False, "result": "ok",
@@ -184,7 +184,7 @@ def test_messages_routes_claude_alias(monkeypatch):
     """`claude_sonnet` alias resolves to display_name `claude-sonnet-4-6`."""
     captured = {}
 
-    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         captured["model"] = model
         return {
             "type": "result", "is_error": False, "result": "ok",
@@ -208,7 +208,7 @@ def test_messages_routes_claude_alias(monkeypatch):
 
 
 def test_chat_completions_routes_gemini(monkeypatch):
-    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         return {
             "type": "result", "is_error": False, "result": "chat-ok",
             "stop_reason": "end_turn",

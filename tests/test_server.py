@@ -32,7 +32,7 @@ def test_health():
 def test_messages_single_turn(monkeypatch):
     seen = {}
 
-    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         seen["prompt"] = prompt
         seen["model"] = model
         seen["system"] = system
@@ -66,7 +66,7 @@ def test_messages_single_turn(monkeypatch):
 def test_messages_multi_turn_flattens(monkeypatch):
     captured = {}
 
-    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         captured["prompt"] = prompt
         return _fake_envelope("ok")
 
@@ -95,7 +95,7 @@ def test_messages_multi_turn_flattens(monkeypatch):
 def test_messages_cli_error_returns_502(monkeypatch):
     from src.claude_cli import ClaudeCLIError
 
-    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         raise ClaudeCLIError("boom")
 
     monkeypatch.setattr(server_mod, "call_claude", fake_call)

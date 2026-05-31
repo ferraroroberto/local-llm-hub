@@ -304,6 +304,7 @@ the envelope into OpenAI shape; for the local llama-server backends
 - **Intentional gaps.** No streaming. No tool-use translation between
   Anthropic ↔ OpenAI shapes (OpenAI-shape callers get tool calls
   natively from `llama-server --jinja`; Anthropic-shape callers to
-  qwen/glm are text-only for now). Extended thinking, images, and
-  multi-part content blocks are dropped at the shape boundary. See
+  qwen/glm are text-only for now). Image and document content blocks
+  (PDF plus text/data files) land on the `claude-*` / `gemini-*` paths;
+  extended-thinking blocks are still dropped at the shape boundary. See
   the README backlog for the ordered list.

@@ -155,40 +155,60 @@ _EXT_BY_MEDIA_TYPE = {
     "image/jpg": "jpg",
     "image/webp": "webp",
     "image/gif": "gif",
+    "application/pdf": "pdf",
+    # Text/data document types — the CLI paths can attach any file, so a
+    # caller may send a `document` block carrying one of these. Unknown
+    # media types fall back to `.bin`, which the CLIs still read as bytes.
+    "text/plain": "txt",
+    "text/markdown": "md",
+    "application/json": "json",
+    "text/csv": "csv",
+    "application/xml": "xml",
+    "text/xml": "xml",
+    "text/html": "html",
+    "application/x-yaml": "yaml",
+    "text/yaml": "yaml",
+}
+
+# Content-block types extracted to temp files for the multimodal CLI paths,
+# mapped to (filename stem, default media_type when the block omits one).
+_MEDIA_BLOCK_TYPES = {
+    "image": ("img", "image/png"),
+    "document": ("doc", "application/pdf"),
 }
 
 
 @contextmanager
-def _extract_image_blocks(
+def _extract_media_blocks(
     messages: List[Message],
 ) -> Iterator[Tuple[List[Message], List[Path]]]:
-    """Pull image content blocks out of messages, write them to a temp dir.
+    """Pull media content blocks out of messages, write them to a temp dir.
 
-    Yields ``(stripped_messages, image_paths)``. Stripped messages keep
-    only text blocks so the existing flattener works unchanged. The temp
-    dir and its contents are removed when the context exits, which must
-    not happen until after the backend subprocess returns.
+    Handles Anthropic-style ``image`` and ``document`` (PDF) blocks. Yields
+    ``(stripped_messages, attachment_paths)``. Stripped messages keep only
+    text blocks so the existing flattener works unchanged. The temp dir and
+    its contents are removed when the context exits, which must not happen
+    until after the backend subprocess returns.
 
-    Only Anthropic-style ``{"type": "image", "source": {"type": "base64",
-    ...}}`` blocks are extracted today. ``source.type == "url"`` is
-    forwarded as a text reference to the URL since neither CLI fetches
-    remote URLs on our behalf — image-by-URL needs `httpx.get` first,
-    which we can add later if a caller actually needs it.
+    Only ``source.type == "base64"`` blocks are written to disk.
+    ``source.type == "url"`` is forwarded as a text reference to the URL
+    since neither CLI fetches remote URLs on our behalf — fetching needs
+    `httpx.get` first, which we can add later if a caller actually needs it.
     """
-    image_paths: List[Path] = []
+    attachment_paths: List[Path] = []
     stripped: List[Message] = []
-    has_images = any(
+    has_media = any(
         isinstance(m.content, list)
-        and any(b.type == "image" for b in m.content)
+        and any(b.type in _MEDIA_BLOCK_TYPES for b in m.content)
         for m in messages
     )
 
-    if not has_images:
+    if not has_media:
         # Fast path — no temp dir at all when there's nothing to extract.
         yield messages, []
         return
 
-    with tempfile.TemporaryDirectory(prefix="hub-img-") as td:
+    with tempfile.TemporaryDirectory(prefix="hub-media-") as td:
         td_path = Path(td)
         for msg in messages:
             if isinstance(msg.content, str):
@@ -196,38 +216,41 @@ def _extract_image_blocks(
                 continue
             kept: List[ContentBlock] = []
             for block in msg.content:
-                if block.type != "image" or not block.source:
+                if block.type not in _MEDIA_BLOCK_TYPES or not block.source:
                     kept.append(block)
                     continue
+                stem, default_media = _MEDIA_BLOCK_TYPES[block.type]
                 src = block.source
                 stype = src.get("type")
                 if stype == "base64":
                     data_b64 = src.get("data") or ""
-                    media = src.get("media_type", "image/png")
+                    media = src.get("media_type", default_media)
                     ext = _EXT_BY_MEDIA_TYPE.get(media, "bin")
-                    fname = f"img_{len(image_paths)}.{ext}"
+                    fname = f"{stem}_{len(attachment_paths)}.{ext}"
                     fpath = td_path / fname
                     try:
                         fpath.write_bytes(base64.b64decode(data_b64))
                     except Exception as e:
                         raise HTTPException(
                             status_code=400,
-                            detail=f"bad image block: {e}",
+                            detail=f"bad {block.type} block: {e}",
                         )
-                    image_paths.append(fpath)
+                    attachment_paths.append(fpath)
                 elif stype == "url":
                     url = src.get("url", "")
-                    kept.append(ContentBlock(type="text", text=f"[image url: {url}]"))
+                    kept.append(
+                        ContentBlock(type="text", text=f"[{block.type} url: {url}]")
+                    )
                 else:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"unsupported image source.type {stype!r}",
+                        detail=f"unsupported {block.type} source.type {stype!r}",
                     )
             # Keep at least an empty text block so flatteners don't crash.
             if not kept:
                 kept = [ContentBlock(type="text", text="")]
             stripped.append(Message(role=msg.role, content=kept))
-        yield stripped, image_paths
+        yield stripped, attachment_paths
 
 
 def _flatten_messages(messages: List[Message]) -> str:
@@ -286,14 +309,14 @@ def _resolve(model_name: str) -> Model:
 
 def _run_claude_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     system = _system_to_text(req.system)
-    with _extract_image_blocks(req.messages) as (msgs, images):
+    with _extract_media_blocks(req.messages) as (msgs, attachments):
         prompt = _flatten_messages(msgs)
         try:
             return call_claude(
                 # Use resolved display_name so version-free aliases
                 # (e.g. `claude_haiku`) hit the right CLI model.
                 prompt, model=model.display_name, system=system,
-                images=images or None,
+                attachments=attachments or None,
             )
         except ClaudeCLIError as e:
             raise HTTPException(status_code=502, detail=str(e))
@@ -301,12 +324,12 @@ def _run_claude_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
 
 def _run_gemini_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     system = _system_to_text(req.system)
-    with _extract_image_blocks(req.messages) as (msgs, images):
+    with _extract_media_blocks(req.messages) as (msgs, attachments):
         prompt = _flatten_messages(msgs)
         try:
             return call_gemini(
                 prompt, model=model.display_name, system=system,
-                images=images or None,
+                attachments=attachments or None,
             )
         except GeminiCLIError as e:
             raise HTTPException(status_code=502, detail=str(e))
@@ -316,14 +339,16 @@ def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     if not model.url:
         raise HTTPException(status_code=500, detail=f"model {model.id} has no url")
     if any(
-        isinstance(m.content, list) and any(b.type == "image" for b in m.content)
+        isinstance(m.content, list)
+        and any(b.type in ("image", "document") for b in m.content)
         for m in req.messages
     ):
         raise HTTPException(
             status_code=400,
             detail=(
                 f"backend {model.id!r} ({model.display_name}) is text-only. "
-                "Route image requests to a claude-* or gemini-* model instead."
+                "Route image/document requests to a claude-* or gemini-* "
+                "model instead."
             ),
         )
     messages = anthropic_to_openai_messages(

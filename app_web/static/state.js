@@ -142,7 +142,7 @@ export const els = {
   playgroundSystem: document.getElementById('playgroundSystem'),
   playgroundPrompt: document.getElementById('playgroundPrompt'),
   playgroundMore: document.getElementById('playgroundMore'),
-  playgroundImage: document.getElementById('playgroundImage'),
+  playgroundAttachment: document.getElementById('playgroundAttachment'),
   playgroundMaxTokens: document.getElementById('playgroundMaxTokens'),
   playgroundMaxTokensSeg: document.getElementById('playgroundMaxTokensSeg'),
   playgroundSendBtn: document.getElementById('playgroundSendBtn'),
