@@ -10,16 +10,46 @@ then adopts the survivors.
 
 from __future__ import annotations
 
+import asyncio
 import os
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
-
-import asyncio
 
 import pytest
 
 from src import backend_process as bp
 from src import server as server_mod
+
+
+def _run(coro):
+    """Run a coroutine on a fresh thread+loop.
+
+    ``asyncio.run()`` (and ``loop.run_until_complete()`` on the main
+    thread) raise ``RuntimeError`` when an outer loop is already running —
+    which happens in the full suite after other tests have started one,
+    making these tests flaky in isolation-vs-suite ordering. Running on a
+    worker thread guarantees a clean asyncio context. Mirrors the helper
+    in ``tests/test_services_router.py``.
+    """
+    import threading
+
+    bucket: dict = {}
+
+    def _worker() -> None:
+        loop = asyncio.new_event_loop()
+        try:
+            bucket["value"] = loop.run_until_complete(coro)
+        except BaseException as exc:  # noqa: BLE001 — re-raised in caller
+            bucket["error"] = exc
+        finally:
+            loop.close()
+
+    t = threading.Thread(target=_worker)
+    t.start()
+    t.join()
+    if "error" in bucket:
+        raise bucket["error"]
+    return bucket.get("value")
 
 
 @pytest.fixture(autouse=True)
@@ -44,7 +74,7 @@ def test_restart_pending_defaults_false():
 def test_shutdown_tears_down_backends_normally(monkeypatch):
     stopped = _patch_backends(monkeypatch)
 
-    asyncio.run(server_mod._stop_backend_children())
+    _run(server_mod._stop_backend_children())
 
     assert sorted(stopped) == ["qwen", "whisper"]
 
@@ -53,7 +83,7 @@ def test_shutdown_skips_teardown_during_restart(monkeypatch):
     stopped = _patch_backends(monkeypatch)
 
     bp.set_restart_pending(True)
-    asyncio.run(server_mod._stop_backend_children())
+    _run(server_mod._stop_backend_children())
 
     # Survivors are left alive for the respawned hub to adopt.
     assert stopped == []
