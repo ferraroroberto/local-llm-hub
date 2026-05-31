@@ -1,16 +1,20 @@
-"""Manage the FastAPI server as a subprocess, for the Streamlit UI and tray.
+"""Manage the FastAPI hub as a subprocess, for the tray and the admin SPA.
 
 Keeps a singleton `Popen` + a background reader thread that drains
-stdout/stderr into a thread-safe ring buffer the UI can poll on each
-rerun. Streamlit reruns the script on every interaction, so we stash
-state on a module-level singleton rather than `st.session_state`
-(which is per-session and would break if the browser tab reloads).
+stdout/stderr into a thread-safe ring buffer. State lives on a
+module-level singleton so it survives across calls: the tray imports
+this module once and drives the hub for its whole lifetime, and the
+admin SPA — mounted in-process at ``/admin`` inside the hub — imports
+it to read ownership state and adopt/force-stop the running hub across
+many requests. There is no per-interaction script rerun; one long-lived
+import owns one handle.
 
 **Ownership model.** A single hub process binds :8000; whoever spawned
-it owns it. Other observers (a second Streamlit session, the tray,
-``run_hub.bat`` invoked while the tray is up) can *adopt* the running
-hub: they see it as reachable but don't try to start a duplicate and
-don't tear it down on their own exit. Three states:
+it owns it. Other observers (the SPA's own hub router talking to the
+hub it lives inside, the tray, ``run_hub.bat`` invoked while the tray
+is up) can *adopt* the running hub: they see it as reachable but don't
+try to start a duplicate and don't tear it down on their own exit.
+Three states:
 
 * ``OWNERSHIP_OURS`` — we hold a live ``Popen``; ``stop()`` will tear
   it down and our log ring has its stdout.

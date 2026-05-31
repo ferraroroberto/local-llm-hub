@@ -1,21 +1,34 @@
 """Local multi-model hub: Anthropic-compatible and OpenAI-compatible endpoints.
 
-Routes each request by the `model` field to one of the backends in
-`config/models.yaml`:
+Each request resolves its `model` field against `config/models.yaml`
+(by registry id, display_name, or alias) and routes by the resolved
+row's `backend`. The active routes on the reference CUDA host:
 
-- claude-*                -> `claude -p` subprocess (Anthropic subscription)
-- gemini-*                -> `gemini -p` subprocess (Google AI Pro subscription)
-- qwen3.5-9b / qwen*      -> llama-server at 127.0.0.1:8081 (/v1)
-- glm-4.5-air / glm*      -> llama-server at 127.0.0.1:8082 (/v1)
+- claude_haiku / claude_sonnet / claude_opus
+                          -> `claude -p` subprocess (Anthropic subscription)
+- gemini_pro / gemini_flash / gemini_lite
+                          -> `agy` Antigravity CLI (Google AI Pro subscription)
+- agentic_light / qwen3.5-4b
+                          -> llama-server at 127.0.0.1:8088 (/v1)
+- agentic_heavy / gemma4-26b-a4b-it
+                          -> llama-server at 127.0.0.1:8087 (/v1)
+- whisper-large-v3-turbo / whisper-medium-translate
+                          -> whisper-server on :8090 / :8091 (/v1/audio/*)
+
+(qwen3.5-9b on :8081, glm-4.5-air on :8082 and gemma4-e4b-it on :8086
+remain defined as ad-hoc / fallback candidates but are out of the
+active rotation — not in any host's `enabled:` list.)
 
 Two shapes exposed:
   * POST /v1/messages          - Anthropic shape (drop-in for the SDK)
   * POST /v1/chat/completions  - OpenAI shape (passthrough/translation)
   * GET  /v1/models            - union of enabled names (both shapes)
 
-Caveats: text-only content; no tool_use round-trip on the Anthropic
-shape for non-claude backends (OpenAI-shape callers get tool use
-natively from llama-server). Streaming: ``/v1/chat/completions``
+Caveats: image content blocks work on the claude-* and gemini-* paths
+(decoded to a per-request temp dir); local llama-server backends are
+text-only and 400 on image input. No tool_use round-trip on the
+Anthropic shape for non-claude backends (OpenAI-shape callers get tool
+use natively from llama-server). Streaming: ``/v1/chat/completions``
 proxies upstream SSE through (with ``<think>`` blocks stripped for
 reasoning models); ``/v1/messages`` still returns a single JSON for
 ``stream=true`` until the Anthropic event translation lands.

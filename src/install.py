@@ -1,4 +1,4 @@
-"""First-run and health checks shared by the CLI and the Streamlit UI.
+"""First-run and health checks shared by the CLI and the admin SPA.
 
 Each check inspects state and returns a `Check` row with a status of
 `ok` | `missing` | `warn` | `error`. Fix functions are separate and do

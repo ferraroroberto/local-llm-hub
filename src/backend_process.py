@@ -2,7 +2,7 @@
 
 Each enabled local model in the registry gets its own singleton process +
 log ring buffer here. Keyed by model id ("qwen", "glm", "whisper"). Used
-by the Streamlit Models view, the tray, and the per-model launcher
+by the admin SPA's Models tab, the tray, and the per-model launcher
 scripts to start/stop individual backends and tail their output without
 global-state entanglement.
 

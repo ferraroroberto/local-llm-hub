@@ -1,6 +1,6 @@
 """Local LLM Hub admin webapp — FastAPI sub-app mounted at /admin.
 
-Replaces the Streamlit control panel. Three tabs: Hub, Models, Playground.
+Replaces the Streamlit control panel. Tabs: Hub, Models, Play, OTel, Code.
 Lives inside the hub's own FastAPI process; no second port, no second
 Python process.
 
