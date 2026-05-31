@@ -22,7 +22,6 @@ import json
 import logging
 import os
 import signal
-import socket
 import subprocess
 import sys
 import time
@@ -35,6 +34,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.hub_log import HUB_LOG
 from src.hub_observability import OBS
+from src.server_process import lan_ip
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -51,19 +51,6 @@ def _hub_port() -> int:
     return int(hub_port())
 
 
-def _lan_ip() -> str:
-    """Best-effort outbound interface IP — same UDP-connect trick the
-    legacy server_process module uses."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("8.8.8.8", 80))
-        return s.getsockname()[0]
-    except OSError:
-        return ""
-    finally:
-        s.close()
-
-
 def _sse_pack(data: Any, event: str = "") -> str:
     body = data if isinstance(data, str) else json.dumps(data)
     head = f"event: {event}\n" if event else ""
@@ -75,7 +62,7 @@ def _sse_pack(data: Any, event: str = "") -> str:
 @router.get("/api/hub/status")
 async def hub_status(request: Request) -> Dict[str, Any]:
     port = _hub_port()
-    lan = _lan_ip()
+    lan = lan_ip()
     uptime_s = max(0.0, time.time() - OBS.started_at())
     return {
         "running": True,  # we ARE the hub — if you can read this, it's up
@@ -142,6 +129,11 @@ def _spawn_respawn_watchdog() -> None:
     log_path = _restart_log_path()
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logger.info("🔄 respawn watchdog: relaunch log → %s", log_path)
+    # The inline ``creationflags`` below (and the watchdog spawn further
+    # down) intentionally re-derive the Windows flags rather than import
+    # ``WIN_NEW_GROUP`` from src.server_process: this is the *source* of a
+    # standalone script run by a fresh, detached interpreter that must not
+    # depend on the hub's own modules.
     script = (
         "import os, sys, time, socket, subprocess, datetime\n"
         f"parent={parent_pid}\n"

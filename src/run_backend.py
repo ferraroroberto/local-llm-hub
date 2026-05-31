@@ -18,12 +18,11 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 from .backend_process import (
-    VENDOR_LLAMA,
-    VENDOR_WHISPER,
     build_command,
     external_pid as backend_external_pid,
     is_reachable as backend_is_reachable,
     resolve_model_by_id,
+    vendor_dir_for,
 )
 from .host_profile import resolve as resolve_host
 from .model_registry import enabled_models
@@ -75,8 +74,7 @@ def _run_backend(model_id: str) -> int:
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
     if sys.platform == "win32":
-        vendor = VENDOR_WHISPER if model.engine == "whisper-server" else VENDOR_LLAMA
-        env["PATH"] = str(vendor) + os.pathsep + env.get("PATH", "")
+        env["PATH"] = str(vendor_dir_for(model)) + os.pathsep + env.get("PATH", "")
     log.info("-> %s", " ".join(cmd))
     # Foreground execution so Ctrl+C works.
     return subprocess.call(cmd, env=env, cwd=str(PROJECT_ROOT))

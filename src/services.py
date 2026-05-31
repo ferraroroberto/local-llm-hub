@@ -19,7 +19,6 @@ lifecycle).
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
 import os
 import shutil
@@ -81,21 +80,6 @@ def langfuse_start_script() -> Path:
     if sys.platform == "win32":
         return PROJECT_ROOT / "start_langfuse.bat"
     return PROJECT_ROOT / "start_langfuse.sh"
-
-
-def _langfuse_basic_auth() -> Optional[str]:
-    """Return ``Basic <base64(pk:sk)>`` from env, or None when missing.
-
-    Duplicates the helper in ``app_web/routers/telemetry.py`` — kept
-    separate so this module has no import dependency on the admin
-    sub-app (which would create a cycle: services router imports this,
-    this imports telemetry).
-    """
-    pk = (os.environ.get("LANGFUSE_PUBLIC_KEY") or "").strip()
-    sk = (os.environ.get("LANGFUSE_SECRET_KEY") or "").strip()
-    if not pk or not sk:
-        return None
-    return "Basic " + base64.b64encode(f"{pk}:{sk}".encode("utf-8")).decode("ascii")
 
 
 # ---------------------------------------------------------------- docker

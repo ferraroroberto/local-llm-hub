@@ -38,6 +38,7 @@ from .server_process import (
     OWNERSHIP_EXTERNAL,
     OWNERSHIP_NONE,
     OWNERSHIP_OURS,
+    WIN_NEW_GROUP,
     find_port_pids,
     kill_pid,
 )
@@ -46,15 +47,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 VENDOR_LLAMA = PROJECT_ROOT / "vendor" / "llama.cpp"
 VENDOR_WHISPER = PROJECT_ROOT / "vendor" / "whisper.cpp"
 RING_MAX = 1000
-
-# On Windows, give the child its own process group so CTRL_BREAK_EVENT
-# during stop() doesn't propagate to the tray launcher, and suppress the
-# console so silent parents (pythonw, e.g. the tray) don't spawn a
-# stray cmd window for native binaries like llama-server.exe.
-_WIN_NEW_GROUP = (
-    subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
-    if sys.platform == "win32" else 0
-)
 
 
 def _llama_server_binary() -> Path:
@@ -79,7 +71,7 @@ def _is_lazy_whisper(model: Model) -> bool:
     return model.engine == "whisper-server-lazy"
 
 
-def _vendor_dir_for(model: Model) -> Path:
+def vendor_dir_for(model: Model) -> Path:
     return VENDOR_WHISPER if _is_whisper(model) else VENDOR_LLAMA
 
 
@@ -304,7 +296,7 @@ def start(model_id: str) -> tuple[bool, str]:
     env["PYTHONUTF8"] = "1"
     # Help the server find the cudart DLLs shipped next to its binary.
     if sys.platform == "win32":
-        env["PATH"] = str(_vendor_dir_for(model)) + os.pathsep + env.get("PATH", "")
+        env["PATH"] = str(vendor_dir_for(model)) + os.pathsep + env.get("PATH", "")
 
     try:
         proc = subprocess.Popen(
@@ -317,7 +309,7 @@ def start(model_id: str) -> tuple[bool, str]:
             errors="replace",
             bufsize=1,
             env=env,
-            creationflags=_WIN_NEW_GROUP,
+            creationflags=WIN_NEW_GROUP,
         )
     except Exception as e:
         return False, f"failed to launch: {e}"

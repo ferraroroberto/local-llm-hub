@@ -52,6 +52,7 @@ from .backend_process import (
     resolve_model_by_id,
 )
 from .model_registry import Model
+from .server_process import WIN_NEW_GROUP
 
 log = logging.getLogger("whisper_translate_proxy")
 
@@ -61,11 +62,6 @@ DEFAULT_INTERNAL_PORT = 18091
 DEFAULT_IDLE_SECONDS = 300
 STARTUP_DEADLINE_S = 60.0  # cold-load on CPU for medium can take ~15-30s
 SHUTDOWN_GRACE_S = 8.0
-
-_WIN_NEW_GROUP = (
-    subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
-    if sys.platform == "win32" else 0
-)
 
 
 class _ChildSupervisor:
@@ -133,7 +129,7 @@ class _ChildSupervisor:
             errors="replace",
             bufsize=1,
             env=env,
-            creationflags=_WIN_NEW_GROUP,
+            creationflags=WIN_NEW_GROUP,
         )
         self.proc = proc
         t = threading.Thread(target=self._forward_stdout, args=(proc,), daemon=True)
