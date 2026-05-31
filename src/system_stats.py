@@ -1,4 +1,4 @@
-"""Lightweight system resource probes for the Streamlit UI.
+"""Lightweight system resource probes for the admin SPA's Hub tab sparklines.
 
 Exposes RAM and per-GPU snapshots cheap enough to call on a 5-second tick
 without caching. Errors are swallowed and surfaced as empty/None values

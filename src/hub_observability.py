@@ -1,10 +1,12 @@
 """In-memory live-ops surface for the hub.
 
-This is **not** the durable telemetry stack — that's #4 (OpenTelemetry +
-Langfuse). This module is the complementary "is the kitchen on fire"
-pane that lives in-process, in-memory, and answers "what's happening
-right now?". Once #4 lands, each record here will carry a Langfuse
-``trace_id`` for cross-linking; until then the field is empty.
+This is **not** the durable telemetry stack — that's the OpenTelemetry +
+Langfuse export in :mod:`src.observability`. This module is the
+complementary "is the kitchen on fire" pane that lives in-process,
+in-memory, and answers "what's happening right now?". Each record here
+carries the request's Langfuse ``trace_id`` (stashed by
+``_stash_trace_id_on_ctx`` in :mod:`src.server`) so the live-ops view
+cross-links to the durable trace.
 
 Holds:
   * a ring buffer of the last ~200 routed requests
@@ -46,7 +48,7 @@ class RequestRecord:
     stop_reason: str = ""
     client: str = ""          # client IP (best-effort)
     error_detail: str = ""    # filled when status >= 400
-    trace_id: str = ""        # reserved for #4 (Langfuse)
+    trace_id: str = ""        # Langfuse trace id (set per routed request)
 
 
 @dataclass

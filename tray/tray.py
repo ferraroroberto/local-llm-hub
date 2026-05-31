@@ -108,7 +108,7 @@ def load_tray_config() -> TrayConfig:
 class HubProcess:
     """Owns the hub subprocess. Adopt-or-spawn semantics — same as the
     legacy :mod:`src.server_process` but here in the tray so the hub
-    *is* a child of the tray (no separate Streamlit owner)."""
+    *is* a child of the tray."""
 
     def __init__(self) -> None:
         self.proc: Optional[subprocess.Popen] = None
