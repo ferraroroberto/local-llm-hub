@@ -44,15 +44,16 @@ def call_claude(
     *,
     model: Optional[str] = None,
     system: Optional[str] = None,
-    images: Optional[Sequence[Path]] = None,
+    attachments: Optional[Sequence[Path]] = None,
     timeout: float = 600.0,
 ) -> Dict[str, Any]:
     """Invoke `claude -p --output-format json` and return the parsed envelope.
 
-    Prompt is fed via stdin to avoid command-line length limits. ``images``
-    are passed via ``--add-dir`` (the temp dir holding them is added to
-    Claude's allowed filesystem set) and their absolute paths are prepended
-    to the prompt so Claude knows to read them.
+    Prompt is fed via stdin to avoid command-line length limits.
+    ``attachments`` (images and/or PDF documents) are passed via
+    ``--add-dir`` (the temp dir holding them is added to Claude's allowed
+    filesystem set) and their absolute paths are prepended to the prompt so
+    Claude knows to read them.
     """
     args: List[str] = ["claude", "-p", "--output-format", "json"]
     if model:
@@ -60,15 +61,15 @@ def call_claude(
     if system:
         args += ["--system-prompt", system]
 
-    if images:
-        # All images live under a single per-request temp dir today; pass
-        # that one parent dir via --add-dir and reference each file by
+    if attachments:
+        # All attachments live under a single per-request temp dir today;
+        # pass that one parent dir via --add-dir and reference each file by
         # absolute path in the prompt.
-        parents = {Path(p).resolve().parent for p in images}
+        parents = {Path(p).resolve().parent for p in attachments}
         for d in parents:
             args += ["--add-dir", str(d)]
-        refs = "\n".join(f"- {Path(p).resolve()}" for p in images)
-        prompt = f"Attached images:\n{refs}\n\n{prompt}"
+        refs = "\n".join(f"- {Path(p).resolve()}" for p in attachments)
+        prompt = f"Attached files:\n{refs}\n\n{prompt}"
 
     tracer = _tracer()
     cm = (
@@ -82,7 +83,7 @@ def call_claude(
                 span.set_attribute("claude_cli.argv_hash", _argv_hash(args))
                 if model:
                     span.set_attribute("claude_cli.model", model)
-                span.set_attribute("claude_cli.images", len(images or []))
+                span.set_attribute("claude_cli.attachments", len(attachments or []))
             except Exception:  # noqa: BLE001
                 pass
         try:

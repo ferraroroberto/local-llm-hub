@@ -81,8 +81,8 @@ async function sendPrompt() {
   fd.append('max_tokens', String(parseInt(els.playgroundMaxTokens.value, 10) || 512));
   const system = (els.playgroundSystem.value || '').trim();
   if (system) fd.append('system', system);
-  if (els.playgroundImage && els.playgroundImage.files && els.playgroundImage.files[0]) {
-    fd.append('image', els.playgroundImage.files[0]);
+  if (els.playgroundAttachment && els.playgroundAttachment.files && els.playgroundAttachment.files[0]) {
+    fd.append('attachment', els.playgroundAttachment.files[0]);
   }
 
   const t0 = performance.now();

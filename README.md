@@ -750,13 +750,17 @@ whose port isn't reachable, and reports per-model pass/fail.
   from llama-server's `--jinja` templates; Anthropic-shape callers to
   qwen/glm are text-only for now. Claude tool use passes through
   unchanged.
-- **Image content blocks are supported on the `claude-*` and `gemini-*`
-  subscription paths** — the hub base64-decodes each block to a
-  per-request temp dir and passes the files via `claude --add-dir` /
-  `agy`'s `@path` reference. Local `llama-server` backends (`qwen3.5-*`,
-  `gemma4-*`) are text-only and return 400 with a hint to retry on a
-  subscription model. Documents and extended-thinking blocks are still
-  dropped at the shape boundary.
+- **Image and document content blocks are supported on the `claude-*`
+  and `gemini-*` subscription paths** — the hub base64-decodes each
+  `image` / `document` block to a per-request temp dir and passes the
+  files via `claude --add-dir` / `agy`'s `@path` reference. `document`
+  blocks accept any file the CLI can read: PDF, plus text/data/code
+  files (JSON, CSV, Markdown, …); the `media_type` picks the temp-file
+  extension and unknown types fall back to `.bin` (still read as bytes).
+  Local `llama-server` backends (`qwen3.5-*`, `gemma4-*`) are text-only
+  and return 400 with a hint to retry on a subscription model. URL
+  sources degrade to a text reference (not fetched). Extended-thinking
+  blocks are still dropped at the shape boundary.
 - Token counts reflect what each backend reports in its response. The
   `agy` CLI does not surface token counts, so usage on the `gemini-*`
   path is reported as zero.
@@ -793,10 +797,11 @@ Ordered roughly by payoff for API parity / developer experience.
   into logs for traceability.
 - **CORS.** Enable it so browser-based clients and local webapps can
   call the hub directly.
-- **Document content blocks** (PDFs, text files). Image blocks already
-  land — see Limitations above — but document content blocks are still
-  dropped at the shape boundary. Decode-and-`--add-dir` would lift
-  them too.
+- **OpenAI-shape document input.** Anthropic-shape `document` blocks (PDF
+  and text/data files) already land on the `claude-*` / `gemini-*` paths —
+  see Limitations above. Still missing: document input on the OpenAI-shape
+  `/v1/chat/completions` route, which would reuse the same
+  decode-and-`--add-dir` plumbing.
 - **Multimodal local backends.** Image blocks work on the cloud routes
   (`claude-*`, `gemini-*`); local routing is text-only until a
   multimodal llama-server build (qwen-VL, gemma-vision) is wired in.

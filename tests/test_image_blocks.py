@@ -1,9 +1,9 @@
-"""Image content-block routing for the claude-* and gemini-* CLI paths.
+"""Media content-block routing for the claude-* and gemini-* CLI paths.
 
-Covers the per-request temp-dir lifecycle, base64 decoding, URL fallback,
-and the 400 raised when an image is routed at a text-only local backend.
-The CLIs themselves are fully mocked — we just assert what the hub
-hands them.
+Covers image and document (PDF) blocks: the per-request temp-dir
+lifecycle, base64 decoding, URL fallback, and the 400 raised when a media
+block is routed at a text-only local backend. The CLIs themselves are
+fully mocked — we just assert what the hub hands them.
 """
 
 from __future__ import annotations
@@ -25,6 +25,16 @@ _RED_PIXEL_B64 = (
     "AAAABJRU5ErkJggg=="
 )
 
+# Minimal valid single-page PDF, base64-encoded for transport.
+_TINY_PDF_B64 = base64.b64encode(
+    b"%PDF-1.4\n"
+    b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+    b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+    b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\n"
+    b"trailer<</Root 1 0 R>>\n"
+    b"%%EOF\n"
+).decode("ascii")
+
 
 def _stub_envelope(text: str = "described"):
     return {
@@ -37,9 +47,9 @@ def _stub_envelope(text: str = "described"):
 def test_claude_path_writes_image_and_passes_to_cli(monkeypatch):
     captured = {}
 
-    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         captured["prompt"] = prompt
-        captured["images"] = [Path(p) for p in (images or [])]
+        captured["images"] = [Path(p) for p in (attachments or [])]
         # File must exist while the CLI is running.
         captured["image_bytes"] = [p.read_bytes() for p in captured["images"]]
         return _stub_envelope("ok")
@@ -75,9 +85,9 @@ def test_claude_path_temp_dir_cleaned_up_after_call(monkeypatch):
     """The per-request temp dir must not survive the response."""
     seen_path: dict = {}
 
-    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
-        assert images and len(images) == 1
-        seen_path["path"] = Path(images[0])
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
+        assert attachments and len(attachments) == 1
+        seen_path["path"] = Path(attachments[0])
         assert seen_path["path"].exists()
         return _stub_envelope()
 
@@ -105,9 +115,9 @@ def test_claude_path_temp_dir_cleaned_up_after_call(monkeypatch):
 def test_gemini_path_writes_image_and_passes_to_cli(monkeypatch):
     captured = {}
 
-    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         captured["model"] = model
-        captured["images"] = [Path(p) for p in (images or [])]
+        captured["images"] = [Path(p) for p in (attachments or [])]
         captured["exists"] = [p.exists() for p in captured["images"]]
         return _stub_envelope("g-described")
 
@@ -137,8 +147,8 @@ def test_gemini_path_writes_image_and_passes_to_cli(monkeypatch):
 def test_multiple_images_extracted_in_order(monkeypatch):
     captured = {}
 
-    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
-        captured["images"] = list(images or [])
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
+        captured["images"] = list(attachments or [])
         return _stub_envelope()
 
     monkeypatch.setattr(server_mod, "call_claude", fake_call)
@@ -167,9 +177,9 @@ def test_multiple_images_extracted_in_order(monkeypatch):
 def test_url_image_falls_back_to_text_reference(monkeypatch):
     captured = {}
 
-    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         captured["prompt"] = prompt
-        captured["images"] = images
+        captured["images"] = attachments
         return _stub_envelope()
 
     monkeypatch.setattr(server_mod, "call_claude", fake_call)
@@ -240,8 +250,8 @@ def test_no_images_skips_temp_dir(monkeypatch):
     """Text-only request should not pay the temp-dir cost."""
     captured = {}
 
-    def fake_call(prompt, *, model=None, system=None, images=None, timeout=600.0):
-        captured["images"] = images
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
+        captured["images"] = attachments
         return _stub_envelope()
 
     monkeypatch.setattr(server_mod, "call_claude", fake_call)
@@ -254,3 +264,141 @@ def test_no_images_skips_temp_dir(monkeypatch):
     assert r.status_code == 200
     # `images` arrives as None (or falsy) — no temp dir was created.
     assert not captured["images"]
+
+
+# ---- document (PDF) blocks ---------------------------------------------
+
+
+def test_gemini_path_writes_pdf_and_passes_to_cli(monkeypatch):
+    captured = {}
+
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
+        captured["model"] = model
+        captured["paths"] = [Path(p) for p in (attachments or [])]
+        captured["bytes"] = [p.read_bytes() for p in captured["paths"]]
+        return _stub_envelope("g-extracted")
+
+    monkeypatch.setattr(server_mod, "call_gemini", fake_call)
+
+    client = TestClient(server_mod.app)
+    r = client.post("/v1/messages", json={
+        "model": "Gemini 3.1 Pro (High)",
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "summarize"},
+                {"type": "document", "source": {
+                    "type": "base64", "media_type": "application/pdf",
+                    "data": _TINY_PDF_B64,
+                }},
+            ],
+        }],
+    })
+    assert r.status_code == 200, r.text
+    assert captured["model"] == "Gemini 3.1 Pro (High)"
+    assert len(captured["paths"]) == 1
+    assert captured["paths"][0].suffix == ".pdf"
+    assert captured["bytes"][0] == base64.b64decode(_TINY_PDF_B64)
+
+
+def test_claude_path_pdf_temp_dir_cleaned_up_after_call(monkeypatch):
+    """The per-request temp dir must not survive the response."""
+    seen_path: dict = {}
+
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
+        assert attachments and len(attachments) == 1
+        seen_path["path"] = Path(attachments[0])
+        assert seen_path["path"].exists()
+        return _stub_envelope()
+
+    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+
+    client = TestClient(server_mod.app)
+    r = client.post("/v1/messages", json={
+        "model": "claude-haiku-4-5",
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "document", "source": {
+                    "type": "base64", "media_type": "application/pdf",
+                    "data": _TINY_PDF_B64,
+                }},
+            ],
+        }],
+    })
+    assert r.status_code == 200
+    assert not seen_path["path"].exists()
+    assert not seen_path["path"].parent.exists()
+
+
+def test_url_document_falls_back_to_text_reference(monkeypatch):
+    captured = {}
+
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
+        captured["prompt"] = prompt
+        captured["attachments"] = attachments
+        return _stub_envelope()
+
+    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+
+    client = TestClient(server_mod.app)
+    r = client.post("/v1/messages", json={
+        "model": "claude-haiku-4-5",
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "read this"},
+                {"type": "document", "source": {
+                    "type": "url",
+                    "url": "https://example.com/report.pdf",
+                }},
+            ],
+        }],
+    })
+    assert r.status_code == 200
+    # URL documents aren't downloaded; they become a text reference.
+    assert captured["attachments"] in (None, [], ())
+    assert "https://example.com/report.pdf" in captured["prompt"]
+
+
+def test_bad_pdf_base64_returns_400(monkeypatch):
+    monkeypatch.setattr(
+        server_mod, "call_claude",
+        lambda *a, **k: _stub_envelope(),
+    )
+    client = TestClient(server_mod.app)
+    r = client.post("/v1/messages", json={
+        "model": "claude-haiku-4-5",
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "document", "source": {
+                    "type": "base64", "media_type": "application/pdf",
+                    "data": "!!!not-base64!!!",
+                }},
+            ],
+        }],
+    })
+    assert r.status_code == 400
+    assert "bad document block" in r.json()["detail"]
+
+
+def test_local_backend_rejects_document_with_helpful_400():
+    client = TestClient(server_mod.app)
+    r = client.post("/v1/messages", json={
+        "model": "qwen3.5-4b",
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "summarize"},
+                {"type": "document", "source": {
+                    "type": "base64", "media_type": "application/pdf",
+                    "data": _TINY_PDF_B64,
+                }},
+            ],
+        }],
+    })
+    assert r.status_code == 400
+    detail = r.json()["detail"]
+    assert "text-only" in detail
+    assert "claude-*" in detail or "gemini-*" in detail

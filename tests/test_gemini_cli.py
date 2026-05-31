@@ -82,9 +82,9 @@ def test_call_gemini_image_refs_use_at_syntax(monkeypatch, tmp_path):
     img = tmp_path / "pic.png"
     img.write_bytes(b"fake-png-bytes")
     gemini_cli.call_gemini("what is this?", model="Gemini 3.1 Pro (High)",
-                           images=[img])
+                           attachments=[img])
 
-    # Images are referenced by basename; cwd is set to their parent dir.
+    # Attachments are referenced by basename; cwd is set to their parent dir.
     assert f"@{img.name}" in captured["prompt"]
     assert "what is this?" in captured["prompt"]
     assert captured["cwd"] == str(img.resolve().parent)

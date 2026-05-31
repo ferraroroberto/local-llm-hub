@@ -303,7 +303,7 @@ def call_gemini(
     *,
     model: Optional[str] = None,
     system: Optional[str] = None,
-    images: Optional[Sequence[Path]] = None,
+    attachments: Optional[Sequence[Path]] = None,
     timeout: float = 600.0,
 ) -> Dict[str, Any]:
     """Invoke `agy` and return an envelope matching the Claude shape.
@@ -312,10 +312,10 @@ def call_gemini(
     ``"Gemini 3.1 Pro (High)"``). When it differs from the model last
     selected, the globally-persisted model is switched first. ``system``
     is folded into the prompt as a leading instruction block — `agy`
-    print mode has no separate system-prompt argument. Images are
-    referenced inline as ``@<basename>`` tokens and the subprocess runs
-    with ``cwd`` set to their parent dir, since the CLI resolves file
-    references against its workspace.
+    print mode has no separate system-prompt argument. Attachments
+    (images and/or PDF documents) are referenced inline as ``@<basename>``
+    tokens and the subprocess runs with ``cwd`` set to their parent dir,
+    since the CLI resolves file references against its workspace.
     """
     global _current_model
     exe = _resolve_agy()
@@ -331,7 +331,7 @@ def call_gemini(
             try:
                 if model:
                     span.set_attribute("gemini_cli.model", model)
-                span.set_attribute("gemini_cli.images", len(images or []))
+                span.set_attribute("gemini_cli.attachments", len(attachments or []))
             except Exception:  # noqa: BLE001
                 pass
 
@@ -350,10 +350,10 @@ def call_gemini(
             if system:
                 pieces.append(f"[System]\n{system}\n")
             run_cwd: Optional[str] = None
-            if images:
-                image_paths = [Path(p).resolve() for p in images]
-                run_cwd = str(image_paths[0].parent)
-                pieces.append(" ".join(f"@{p.name}" for p in image_paths))
+            if attachments:
+                attachment_paths = [Path(p).resolve() for p in attachments]
+                run_cwd = str(attachment_paths[0].parent)
+                pieces.append(" ".join(f"@{p.name}" for p in attachment_paths))
             pieces.append(prompt)
             full_prompt = "\n".join(pieces)
 
