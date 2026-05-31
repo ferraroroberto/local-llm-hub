@@ -278,20 +278,22 @@ models:
       - "--inference-path"
       - "/v1/audio/transcriptions"
 
-  # --- Lazy-loaded translate-capable whisper instance (CPU, medium) ---
+  # --- Eager-loaded translate-capable whisper instance (CPU, medium) ---
   # Sibling slot to `whisper`. Turbo (above) is transcription-only — the
   # decoder distill drops translation training. This second slot fills
   # the translate role with `ggml-medium.bin`, a non-distilled model.
   #
-  # Engine `whisper-server-lazy` runs a tiny FastAPI proxy on `port`
-  # (8091) that spawns whisper-server on `internal_port` only when a
-  # request arrives, and unloads it after `idle_seconds` of no traffic.
-  # This is deliberate: translate is rare-use, we don't want medium
-  # sitting in RAM permanently. Cold-start latency on first call is
-  # ~3-5s while medium loads.
+  # Engine `whisper-server` runs medium eagerly on `port` (8091) —
+  # always resident (~1.5 GB RAM), always ready, no cold-start latency.
   #
   # CPU-only (`-ng`) by design — leaves VRAM for gemma4_26b. Medium on
   # CPU is real-time-ish for short dictation clips.
+  #
+  # To switch to lazy mode (spawn-on-request, idle-unload after
+  # `idle_seconds`): set `engine: whisper-server-lazy`, add
+  # `internal_port` (the real whisper-server port), and `idle_seconds`.
+  # Requests will route through `src/whisper_translate_proxy.py`.
+  # Use on RAM-constrained hosts; the active rotation runs eager.
   #
   # Sister project (transcribe_voice / voice-transcriber) hits this on
   # 8091 with `task=translate` form-field. Same OpenAI-compatible shape.
