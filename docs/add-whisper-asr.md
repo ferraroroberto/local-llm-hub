@@ -28,7 +28,7 @@ Pairs with [hub-with-qwen-and-glm.md](hub-with-qwen-and-glm.md).
 
 Add a single new model id `whisper` to the existing scaffolding. CUDA-
 backed, Windows-first, fully reusing the llama-server pattern (model
-registry + backend-process manager + Streamlit Models view + `src.install`
+registry + backend-process manager + admin SPA Models tab + `src.install`
 + `src.run_backend`). No parallel app, no new UI surface.
 
 ## Decisions (and the options we rejected)

@@ -71,8 +71,9 @@ separate step driven by `/swap-model`.
 - `docs/frontier/runs/<today>/{report.md,frontier.json,frontier.html}`
   all present and self-consistent
 - `docs/frontier/runs/LATEST` resolves to today
-- The Streamlit Frontier tab picks up the new run on next refresh
-  (cached for 60s) and shows the new report + chart with the unchanged
-  `roles:` decisions panel
+- The generated `frontier.html` for today (and
+  `docs/frontier/runs/LATEST/report.md`) opens cleanly and shows the new
+  report + chart with the unchanged `roles:` decisions; the admin SPA
+  footer's 📈 Frontier link points at the latest run
 - Zero changes to `config/models.yaml`, `launchers/`, `models/`,
   `tray/`, `src/`, `tests/`

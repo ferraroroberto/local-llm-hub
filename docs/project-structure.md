@@ -23,22 +23,16 @@ flowchart LR
         LAN["LAN clients<br/>(other machines, openclaw)"]
     end
 
-    subgraph UI["Streamlit UI (app/)"]
-        APP["app/app.py<br/>nav + CSS"]
-        V_WELCOME["views/welcome.py"]
-        V_INSTALL["views/install.py<br/>check + fix rows"]
-        V_SERVER["views/server.py<br/>hub control + log"]
-        V_CMP["views/comparison.py<br/>renders docs/model-comparison.md"]
-        V_MODELS["views/models.py<br/>per-backend start/stop/log"]
-        V_TEST["views/testing.py<br/>pytest + smoke"]
-        V_PLAY["views/playground.py<br/>prompt → hub"]
+    subgraph UI["Admin SPA (app_web/) — sub-app mounted at /admin"]
+        WSRV["app_web/server.py<br/>create_app() sub-app<br/>versioned static + bearer auth"]
+        WROUT["app_web/routers/<br/>hub · models · playground · services<br/>telemetry · code_usage<br/>auth · webauthn · version · misc"]
+        WSTATIC["app_web/static/<br/>index.html SPA + per-tab JS<br/>tabs: Hub · Models · Play · OTel · Code"]
     end
 
     subgraph Hub["FastAPI hub (src/)"]
-        SRV["src/server.py<br/>POST /v1/messages<br/>POST /v1/chat/completions<br/>GET /v1/models /health /info /"]
+        SRV["src/server.py<br/>POST /v1/messages<br/>POST /v1/chat/completions<br/>GET /v1/models /health /info<br/>GET / → 307 /admin/<br/>mounts /admin sub-app"]
         REG["src/model_registry.py<br/>YAML → Model rows"]
         HP["src/host_profile.py<br/>resolve active host"]
-        LAND["src/landing.py<br/>HTML for GET /"]
         CLI_WRAP["src/claude_cli.py<br/>call_claude()"]
         OAI_UP["src/openai_upstream.py<br/>call_openai_chat()<br/>+ shape translators"]
     end
@@ -49,10 +43,11 @@ flowchart LR
     end
 
     CLAUDE["claude -p CLI<br/>(Claude Code subscription)"]
-    QWEN["llama-server :8081<br/>Qwen3.5-9B GGUF<br/>all layers on GPU"]
-    GLM["llama-server :8082<br/>GLM-4.5-Air GGUF<br/>MoE experts on CPU"]
-    GEMMA4E["llama-server :8086<br/>Gemma 4 E4B IT GGUF<br/>all layers on GPU"]
-    GEMMA426["llama-server :8087<br/>Gemma 4 26B-A4B IT GGUF (MoE)<br/>all layers on GPU (IQ4_XS)"]
+    QWEN4B["llama-server :8088<br/>Qwen3.5-4B GGUF (agentic_light)<br/>all layers on GPU"]
+    GEMMA426["llama-server :8087<br/>Gemma 4 26B-A4B IT GGUF (MoE, agentic_heavy)<br/>all layers on GPU (IQ4_XS)"]
+    QWEN["llama-server :8081<br/>Qwen3.5-9B GGUF (ad-hoc)<br/>all layers on GPU"]
+    GLM["llama-server :8082<br/>GLM-4.5-Air GGUF (ad-hoc)<br/>MoE experts on CPU"]
+    GEMMA4E["llama-server :8086<br/>Gemma 4 E4B IT GGUF (fallback)<br/>all layers on GPU"]
 
     subgraph Dev["Dev / tests / scripts"]
         SMOKE["scripts/smoke_test.py<br/>iterate enabled_models()"]
@@ -70,10 +65,9 @@ flowchart LR
     OAI -->|POST /v1/chat/completions| SRV
     CURL -->|both shapes| SRV
     LAN -->|both shapes<br/>(0.0.0.0:8000)| SRV
-    V_PLAY -->|httpx POST| SRV
     SMOKE -->|HTTP + SDK| SRV
 
-    SRV --> LAND
+    SRV -.->|mounts /admin| WSRV
     SRV --> REG
     REG --> HP
     REG -.reads.-> CFG
@@ -82,29 +76,24 @@ flowchart LR
     SRV -->|backend=claude| CLI_WRAP
     SRV -->|backend=openai| OAI_UP
     CLI_WRAP -->|subprocess.run<br/>--output-format json| CLAUDE
+    OAI_UP -->|POST /v1/chat/completions| QWEN4B
+    OAI_UP -->|POST /v1/chat/completions| GEMMA426
     OAI_UP -->|POST /v1/chat/completions| QWEN
     OAI_UP -->|POST /v1/chat/completions| GLM
     OAI_UP -->|POST /v1/chat/completions| GEMMA4E
-    OAI_UP -->|POST /v1/chat/completions| GEMMA426
 
-    APP --> V_WELCOME
-    APP --> V_INSTALL
-    APP --> V_SERVER
-    APP --> V_CMP
-    APP --> V_MODELS
-    APP --> V_TEST
-    APP --> V_PLAY
-    V_SERVER -->|start/stop/logs<br/>kill stray PID| SP
-    V_MODELS -->|start/stop/logs per model| LP
-    V_TEST -->|pytest / smoke| SP
-    V_PLAY -->|reachable? BASE_URL| SP
-    V_INSTALL -->|run_all_checks / fix_fn_for| INSTALL_CLI
+    WSRV --> WROUT
+    WSRV --> WSTATIC
+    WROUT -->|hub tab: start/stop/logs<br/>kill stray PID| SP
+    WROUT -->|models tab: start/stop/logs per model| LP
+    WROUT -.->|play tab: httpx to /v1/messages| SRV
 
     SP -->|Popen python -m src.server| SRV
+    LP -->|Popen llama-server --model ...| QWEN4B
+    LP -->|Popen llama-server --model ...| GEMMA426
     LP -->|Popen llama-server --model ...| QWEN
     LP -->|Popen llama-server --model ...| GLM
     LP -->|Popen llama-server --model ...| GEMMA4E
-    LP -->|Popen llama-server --model ...| GEMMA426
     LP -.reads.-> LLAMA_BIN
     LP -.reads.-> YAML_CACHE
 
@@ -120,7 +109,7 @@ flowchart LR
     classDef ui fill:#2a1d2a,stroke:#a47,color:#eee
     classDef backend fill:#2a281d,stroke:#a94,color:#eee
     class Clients ext
-    class CLAUDE,QWEN,GLM,GEMMA4E,GEMMA426 backend
+    class CLAUDE,QWEN4B,GEMMA426,QWEN,GLM,GEMMA4E backend
     class Hub hub
     class UI ui
 ```
@@ -133,7 +122,8 @@ flowchart TB
     ROOT --> README["README.md"]
     ROOT --> REQ["requirements.txt"]
     ROOT --> LIC["LICENSE"]
-    ROOT --> LAUNCHERS["launchers/<br/>run_hub / run_qwen / run_glm / run_qwen35_4b / run_gemma4_e4b / run_gemma4_26b / run_whisper / run_all<br/>.bat (Windows) + .sh (macOS)<br/>launch_app.bat / .sh"]
+    ROOT --> ROOTBAT["run_hub / tray / start_langfuse<br/>.bat (Windows) + .sh (macOS)<br/>(repo-root launchers)"]
+    ROOT --> LAUNCHERS["launchers/<br/>run_qwen / run_glm / run_qwen35_4b / run_gemma4_e4b / run_gemma4_26b<br/>run_whisper / run_whisper_translate / run_all<br/>.bat (Windows) + .sh (macOS)"]
 
     ROOT --> CFGDIR["config/"]
     CFGDIR --> C1["models.yaml<br/>hosts + models registry"]
@@ -148,20 +138,19 @@ flowchart TB
     SRC --> S7["run_backend.py<br/>hub|qwen|glm|qwen35_4b|gemma4*|whisper dispatcher"]
     SRC --> S8["server_process.py<br/>hub Popen + kill-port"]
     SRC --> S9["backend_process.py<br/>per-model Popen (llama-server + whisper-server)"]
-    SRC --> S10["landing.py<br/>HTML for GET /"]
     SRC --> S11["whisper_translate_proxy.py<br/>FastAPI shim for optional lazy-load mode<br/>(dormant; whisper_translate runs eager)"]
 
-    ROOT --> APPDIR["app/"]
-    APPDIR --> A1["app.py<br/>Streamlit nav"]
-    APPDIR --> A2["styles/light.css"]
-    APPDIR --> A3["views/"]
-    A3 --> V1["welcome.py"]
-    A3 --> V2["install.py"]
-    A3 --> V3["server.py"]
-    A3 --> V4["comparison.py"]
-    A3 --> V5["models.py"]
-    A3 --> V6["testing.py"]
-    A3 --> V7["playground.py"]
+    ROOT --> APPDIR["app_web/<br/>admin SPA sub-app (mounted at /admin)"]
+    APPDIR --> A1["server.py<br/>create_app() + versioned static"]
+    APPDIR --> A2["middleware.py / icons.py"]
+    APPDIR --> A3["routers/"]
+    A3 --> V1["hub.py / models.py / playground.py"]
+    A3 --> V2["services.py / telemetry.py / code_usage.py"]
+    A3 --> V3["auth.py / webauthn.py / version.py / misc.py"]
+    APPDIR --> A4["static/"]
+    A4 --> ST1["index.html<br/>SPA shell (Hub/Models/Play/OTel/Code)"]
+    A4 --> ST2["main.js + per-tab JS<br/>(hub · models · playground · telemetry · code_usage)"]
+    A4 --> ST3["styles.css + manifest + icons"]
 
     ROOT --> SCDIR["scripts/"]
     SCDIR --> SC1["smoke_test.py"]
@@ -232,11 +221,11 @@ sequenceDiagram
     participant F as FastAPI hub (src/server.py)
     participant R as model_registry.resolve
     participant U as openai_upstream.call_openai_chat
-    participant L as llama-server :8081/:8082/:8086/:8087
+    participant L as llama-server :8088/:8087 (active) · :8081/:8082/:8086 (ad-hoc)
 
-    C->>F: POST /v1/messages<br/>{model:"qwen3.5-9b", messages, ...}
-    F->>R: resolve("qwen3.5-9b")
-    R-->>F: Model(backend="openai", url="http://127.0.0.1:8081/v1")
+    C->>F: POST /v1/messages<br/>{model:"qwen3.5-4b", messages, ...}
+    F->>R: resolve("qwen3.5-4b")
+    R-->>F: Model(backend="openai", url="http://127.0.0.1:8088/v1")
     F->>F: anthropic_to_openai_messages()<br/>(flatten content blocks to strings)
     F->>U: call_openai_chat(url, model, messages, ...)
     U->>L: POST /v1/chat/completions
@@ -286,21 +275,26 @@ the envelope into OpenAI shape; for the local llama-server backends
     spawns/unloads the child around an idle window — but the active
     rotation runs eager.
   - `python -m src.install [--fix]` — runs every health check, fixes
-    the fixable; shared with the Streamlit Install tab.
-  - `streamlit run app/app.py` (or `launch_app.bat` / `.sh` at the
-    repo root) — UI.
+    the fixable (CLI-only).
+  - **Admin UI** — the `app_web/` SPA is a FastAPI sub-app mounted at
+    `/admin` inside the hub process, so it comes up with the hub on
+    `:8000`. Browse `http://127.0.0.1:8000/admin/` (`GET /` redirects
+    there); no separate launcher.
 - **Only two places shell out.**
   [`src/claude_cli.py`](../src/claude_cli.py) owns
   `subprocess.run(["claude", "-p", ...])`.
   [`src/backend_process.py`](../src/backend_process.py) owns the
   `subprocess.Popen(["llama-server", ...])` / `subprocess.Popen(["whisper-server", ...])`
   for each local model.
-  Everything else is pure Python / FastAPI / httpx / Streamlit.
-- **UI ↔ processes isolation.** The Streamlit app never imports the
-  FastAPI app or the `llama-server` binary directly; it launches each
-  as a child process and polls `/health` or `/v1/models`. That's why
-  both process modules use module-level singletons (Streamlit reruns
-  the script every interaction).
+  Everything else is pure Python / FastAPI / httpx.
+- **Admin SPA runs inside the hub.** The `app_web/` sub-app is mounted
+  at `/admin` in the same process as the public `/v1` surface, so its
+  routers call the process managers in-process: `app_web/routers/hub.py`
+  drives `src/server_process.py` and `app_web/routers/models.py` drives
+  `src/backend_process.py` to start/stop/tail each backend, while the
+  Play tab proxies through the hub's own `/v1/messages`. Both process
+  modules expose module-level singletons so the long-lived hub keeps
+  one handle per child across requests.
 - **Tests don't touch Claude or the GPU.**
   [`tests/test_server.py`](../tests/test_server.py) and
   [`tests/test_router.py`](../tests/test_router.py) monkeypatch both

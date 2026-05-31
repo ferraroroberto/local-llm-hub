@@ -464,7 +464,7 @@ anyone reaching the hub over the tunnel must present
 The hub on :8000 (and each per-model port :808x) is single-owner — TCP
 allows only one process to bind a port. To make `tray.bat`,
 `run_hub.bat`, the per-model `launchers/run_*.bat` scripts, and the
-Streamlit Server/Models tabs coexist, every launcher follows the same
+admin SPA's Hub/Models tabs coexist, every launcher follows the same
 **adopt-or-spawn** rule:
 
 - If the port is already reachable, the launcher *adopts* the running
@@ -584,7 +584,7 @@ msg = client.messages.create(
 )
 
 # Image content blocks work on both subscription paths (claude-* and gemini-*).
-# The Streamlit Playground tab grows a file uploader automatically when the
+# The admin SPA's Play tab grows a file uploader automatically when the
 # selected model resolves to a claude/gemini backend.
 import base64
 with open("photo.png", "rb") as f:

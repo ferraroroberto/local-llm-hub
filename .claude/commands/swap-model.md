@@ -30,7 +30,7 @@ they want; ask. Plan-mode rules apply throughout.
   the swap. Audio roles do not currently use this pattern.
 - After every `upgrade` or `retire` action, **the swap is not done
   until the rest of the repo agrees with the new role pointer**.
-  README, the Streamlit welcome page, `docs/model-comparison.md`,
+  README, `docs/model-comparison.md`,
   the tests that name the active fast-lane / deep-lane model, and
   `launchers/run_all.{bat,sh}` all carry copies of the role-bound
   ids and display names. Step §5b enforces this sync — it is part
@@ -109,7 +109,6 @@ Will sync code + docs (§5b — required for upgrade/retire):
   ~ README.md                (active-rotation bullet, role table, ASCII
                               diagram, autostart default, launcher list,
                               run_backend examples, Python SDK example)
-  ~ app/views/welcome.py     (role table + Python example)
   ~ docs/model-comparison.md (registry table row + role row)
   ~ docs/project-structure.md (mermaid launcher list, models/ contents,
                               run_backend dispatcher line, key-facts
@@ -185,20 +184,9 @@ ex-incumbent.
    silently delete it — readers need to know the row in `enabled:`
    isn't a bug.
 
-3. **Streamlit `app/views/welcome.py`.**
-   - The "Active roles right now" markdown table — flip the role's
-     model name to the new display_name.
-   - The "Local … models go through `llama-server` …" bullet — make
-     sure the new model family is named (replacing or alongside the old
-     family).
-   - The Python SDK code example that uses the old display_name
-     (`model="..."`) — switch to the new display_name.
-   - The "ad-hoc candidates" sentence — list the previous role-holder
-     here if it is kept in `enabled:`.
-
-4. **`docs/model-comparison.md`.** This file is rendered verbatim by
-   the Streamlit Comparison tab via `app/views/comparison.py` — edit
-   the markdown, the tab updates on next refresh.
+3. **`docs/model-comparison.md`.** This is the canonical per-model
+   reference; the admin SPA links to it on GitHub from its footer
+   (there is no in-app Comparison view) — edit the markdown directly.
    - The big registry table: insert a row for the new model
      (Family · Params · Quant · GGUF size · Context · VRAM fit · Hub
      port · tok/s · References). Pull numbers from the latest
@@ -208,7 +196,7 @@ ex-incumbent.
    - If the previous holder is kept as fallback, mark its row in the
      registry table with a "(fallback)" tag rather than removing it.
 
-5. **`docs/project-structure.md`.** Carries role-bound names in
+4. **`docs/project-structure.md`.** Carries role-bound names in
    several mermaid blocks and the "Key facts for LLM context" prose:
    - The `launchers/` node in the **Module diagram** — add the new
      launcher in family-grouped order.
@@ -228,14 +216,14 @@ ex-incumbent.
      as the active rotation and the fallback / ad-hoc rows are clearly
      labelled.
 
-6. **`launchers/run_all.{bat,sh}`.** Add a `start … run_backend
+5. **`launchers/run_all.{bat,sh}`.** Add a `start … run_backend
    <new_id>` line in family-grouped order. Update the trailing
    `echo Launched …` summary string to include the new id. Leave the
    ex-incumbent's line in (it's still in `enabled:` for fallback);
    `run_all` deliberately fires every backend in `enabled:` for the
    host and disabled rows exit immediately.
 
-7. **Tests.** The unit tests carry the active fast-lane and
+6. **Tests.** The unit tests carry the active fast-lane and
    deep-lane display names as in-test fixtures so the registry and
    router code paths exercise *the actual rotation*, not a stale name.
    - `tests/test_router.py` — for `agentic_light` swaps, replace
@@ -249,7 +237,7 @@ ex-incumbent.
      **retired** outright. The registry test uses synthetic configs;
      it doesn't depend on the role pointer.
 
-8. **Run the unit tests** to prove nothing regressed:
+7. **Run the unit tests** to prove nothing regressed:
    ```
    $env:LOCAL_LLM_HUB_HOST = "pc-cuda"
    & .\.venv\Scripts\python.exe -m pytest -q
@@ -258,7 +246,7 @@ ex-incumbent.
    If anything fails, fix it before moving on; do not declare the swap
    done with red tests.
 
-9. **Final grep sweep.** Re-run the audit grep from step 1. Anything
+8. **Final grep sweep.** Re-run the audit grep from step 1. Anything
    left should be one of:
    - `docs/frontier/runs/<previous>/…` — historical, leave it
    - the previous role-holder's launcher pair (if kept enabled)
@@ -302,7 +290,7 @@ confirm before stopping anything they might still be using.
      binds a different port, so the old one *can* keep running. But
      leaving it loaded steals VRAM from the new model and creates
      the false impression that the old model is still the active
-     role. Stop it. Use the Streamlit Models tab's *Stop* button when
+     role. Stop it. Use the admin SPA's Models tab's *Stop* button when
      possible (it stops cleanly via `src.backend_process.stop`); if
      the process is adopted (no log tail), use *Stop external (PID
      xxx)* on the same tab, or `Stop-Process -Id <pid>` as a last
@@ -419,17 +407,15 @@ requires it.
 - (If requested) weights downloaded to `models/`
 - `docs/frontier/runs/<latest>/report.md` §10 reflects the new
   decision with today's date
-- README.md, `app/views/welcome.py`, `docs/model-comparison.md`, and
+- README.md, `docs/model-comparison.md`, and
   `docs/project-structure.md` describe the new role-holder as the
   *current* role-holder, and the previous one (if kept) is clearly
   labelled as fallback / ad-hoc
 - `tests/test_router.py` and `tests/test_streaming.py` reference the
   new model display_name and port; full pytest suite passes
-- Streamlit Frontier tab's "Current role decisions" panel shows the
-  new id on next refresh
-- Streamlit Comparison tab (rendered from `docs/model-comparison.md`)
-  shows the new model in the registry table and the new role-row
-  rationale
+- `docs/model-comparison.md` (linked from the admin SPA footer on
+  GitHub) shows the new model in the registry table and the new
+  role-row rationale
 - Smoke test passes for the new backend (claude row + the new
   role-holder both green; previous holder either green if kept
   running, or skipped if stopped per §6.2)
