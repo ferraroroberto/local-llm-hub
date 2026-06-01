@@ -355,6 +355,7 @@
           Cache reads are served from the 5-min/1-hr prompt cache.
           <span class="cld-counter-cost" style="display:inline">≈ $</span> lines show the equivalent
           metered-API cost these tokens would have billed.</p>
+        <p class="muted small" style="margin: 4px 0 0;">⚠️ <strong>Sub-agent (Task tool) calls are not captured</strong> — Claude Code does not write them to the JSONL session transcripts, so figures here undercount whenever sub-agents run. The OTel tab gives accurate per-model totals. (<a href="https://github.com/ferraroroberto/local-llm-hub/issues/68" target="_blank" rel="noopener">#68</a>, <a href="https://github.com/anthropics/claude-code/issues/22625" target="_blank" rel="noopener">upstream #22625</a>)</p>
       </section>
 
       <!-- Per-model breakdown -->
