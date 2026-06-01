@@ -699,6 +699,8 @@ Opus).  Day → last 14 days; Week → last 12 weeks; Month → last 12 months;
 All → charts hidden.  A "Recent sessions" list shows the last 15 sessions
 across every project on this host.
 
+> **⚠️ Sub-agent (Task tool) usage is not captured.** Claude Code does not write sub-agent API calls to the JSONL session transcripts, so per-model and per-project counts here silently undercount whenever sub-agents run. The **OTel tab** gives accurate per-model totals: Claude Code emits the `claude_code.token.usage` metric after every API request — including sub-agent ones — broken down by model, token type, and cost. Note: OTel gives accurate per-model totals but not per-individual-subagent attribution; that finer breakdown is tracked upstream in [anthropics/claude-code#22625](https://github.com/anthropics/claude-code/issues/22625). Full OTel wiring is tracked in [#68](https://github.com/ferraroroberto/local-llm-hub/issues/68).
+
 > **Why no host OTEL → Langfuse bridge?**  Issue #20 originally shipped an
 > opt-in path to forward host Claude Code traces into the hub's Langfuse
 > instance.  In practice the JSONL counters above already give the
