@@ -752,8 +752,12 @@ whose port isn't reachable, and reports per-model pass/fail.
   unchanged.
 - **Image and document content blocks are supported on the `claude-*`
   and `gemini-*` subscription paths** — the hub base64-decodes each
-  `image` / `document` block to a per-request temp dir and passes the
-  files via `claude --add-dir` / `agy`'s `@path` reference. `document`
+  `image` / `document` block to a per-request temp dir, adds that dir to
+  the CLI workspace (`claude --add-dir` / `agy --add-dir`) and references
+  the files inline (`@<basename>` for `agy`). Adding the dir to the
+  workspace is what makes `agy` resolve the reference deterministically
+  instead of searching the filesystem (which read attachments only
+  intermittently — issue #63). `document`
   blocks accept any file the CLI can read: PDF, plus text/data/code
   files (JSON, CSV, Markdown, …); the `media_type` picks the temp-file
   extension and unknown types fall back to `.bin` (still read as bytes).

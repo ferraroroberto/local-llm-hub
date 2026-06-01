@@ -277,14 +277,24 @@ def _switch_model(exe: str, target: str, timeout: float = 120.0) -> None:
 
 
 def _print_call(exe: str, prompt: str, cwd: Optional[str],
-                 timeout: float) -> str:
-    """Run `agy -p` print mode under a ConPTY and return the cleaned reply."""
+                 timeout: float,
+                 add_dirs: Optional[Sequence[str]] = None) -> str:
+    """Run `agy -p` print mode under a ConPTY and return the cleaned reply.
+
+    ``add_dirs`` are passed as repeated ``--add-dir`` flags so the
+    attachment directory is part of `agy`'s workspace and ``@<basename>``
+    references resolve against it deterministically. Without this `agy`
+    treats ``@<basename>`` as a filesystem search and intermittently fails
+    to read the file (or scans the whole drive) — see issue #63.
+    """
     print_timeout = max(30, int(timeout))
     args = [
         exe, "-p", prompt,
         "--dangerously-skip-permissions",
         "--print-timeout", f"{print_timeout}s",
     ]
+    for d in add_dirs or ():
+        args += ["--add-dir", d]
     pty = _Pty(args, cwd=cwd)
     if not pty.wait_exit(timeout + 30):
         pty.kill()
@@ -314,8 +324,10 @@ def call_gemini(
     is folded into the prompt as a leading instruction block — `agy`
     print mode has no separate system-prompt argument. Attachments
     (images and/or PDF documents) are referenced inline as ``@<basename>``
-    tokens and the subprocess runs with ``cwd`` set to their parent dir,
-    since the CLI resolves file references against its workspace.
+    tokens; their parent dir is both set as the subprocess ``cwd`` and
+    added to `agy`'s workspace via ``--add-dir`` so the CLI resolves the
+    references against the trusted workspace instead of searching the
+    filesystem (the latter is unreliable — see issue #63).
     """
     global _current_model
     exe = _resolve_agy()
@@ -350,14 +362,24 @@ def call_gemini(
             if system:
                 pieces.append(f"[System]\n{system}\n")
             run_cwd: Optional[str] = None
+            add_dirs: List[str] = []
             if attachments:
                 attachment_paths = [Path(p).resolve() for p in attachments]
                 run_cwd = str(attachment_paths[0].parent)
+                # Add each distinct attachment dir to agy's workspace so the
+                # `@<basename>` references below resolve there deterministically.
+                seen: set = set()
+                for p in attachment_paths:
+                    d = str(p.parent)
+                    if d not in seen:
+                        seen.add(d)
+                        add_dirs.append(d)
                 pieces.append(" ".join(f"@{p.name}" for p in attachment_paths))
             pieces.append(prompt)
             full_prompt = "\n".join(pieces)
 
-            reply = _print_call(exe, full_prompt, run_cwd, timeout)
+            reply = _print_call(
+                exe, full_prompt, run_cwd, timeout, add_dirs=add_dirs or None)
 
         if span is not None and hasattr(span, "set_attribute"):
             try:
