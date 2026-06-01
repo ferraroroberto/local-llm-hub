@@ -772,6 +772,7 @@ whose port isn't reachable, and reports per-model pass/fail.
   persisted state, so the hub holds a lock across the model switch and
   the print call. Concurrent `gemini-*` requests run one at a time;
   switching model between calls adds a one-time interactive step.
+- **The `agy` attachment path can only be verified locally.** GitHub CI (`windows-latest`) has no authenticated `agy` / Gemini subscription. `tests/test_gemini_attachments_live.py` is the live regression guard for the `--add-dir` fix from #63 — it is skipped by default and must be run manually on the Windows reference box after any change to `src/gemini_cli.py`'s attachment handling: `$env:HUB_LIVE_GEMINI = "1"; .venv/Scripts/python.exe -m pytest tests/test_gemini_attachments_live.py -v`.
 
 ## Backlog for improvement
 

@@ -84,6 +84,15 @@ POSIX:
 
 If no checker exists for a project, say so explicitly. Don't claim "tests pass" when there are no tests.
 
+**Gemini attachment path — local-only live gate:** `pytest -q` and GitHub CI cannot cover the real `agy` subprocess (no auth on `windows-latest`). After any change to `src/gemini_cli.py` that touches attachment handling, run the live integration test on the Windows reference box:
+
+```powershell
+$env:HUB_LIVE_GEMINI = "1"
+.venv/Scripts/python.exe -m pytest tests/test_gemini_attachments_live.py -v
+```
+
+This sends a real PNG and a real PDF (each with a distinct random token) through the actual `agy` path N=5 times each and asserts the model echoes the token back every time. It is skipped unless both `agy` is on PATH and `HUB_LIVE_GEMINI=1` is set. See `tests/test_gemini_attachments_live.py` and issue #65.
+
 ## Documentation discipline
 The `docs/` folder is for **durable reference material** a future reader (you, or a cold LLM) will actually re-open — design records, architecture overviews, integration guides, shared playbooks. Filenames describe the topic, not a date.
 
