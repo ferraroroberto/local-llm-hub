@@ -26,10 +26,11 @@ def _stub_calls(monkeypatch, captured, reply="hi there"):
     def fake_switch(exe, target, timeout=120.0):
         captured.setdefault("switches", []).append(target)
 
-    def fake_print(exe, prompt, cwd, timeout):
+    def fake_print(exe, prompt, cwd, timeout, add_dirs=None):
         captured["prompt"] = prompt
         captured["cwd"] = cwd
         captured["exe"] = exe
+        captured["add_dirs"] = add_dirs
         return reply
 
     monkeypatch.setattr(gemini_cli, "_switch_model", fake_switch)
@@ -84,10 +85,13 @@ def test_call_gemini_image_refs_use_at_syntax(monkeypatch, tmp_path):
     gemini_cli.call_gemini("what is this?", model="Gemini 3.1 Pro (High)",
                            attachments=[img])
 
-    # Attachments are referenced by basename; cwd is set to their parent dir.
+    # Attachments are referenced by basename; cwd is set to their parent dir;
+    # that dir is also added to agy's workspace via --add-dir (issue #63) so
+    # the reference resolves in-workspace instead of triggering a disk search.
     assert f"@{img.name}" in captured["prompt"]
     assert "what is this?" in captured["prompt"]
     assert captured["cwd"] == str(img.resolve().parent)
+    assert captured["add_dirs"] == [str(img.resolve().parent)]
 
 
 def test_call_gemini_missing_cli_raises(monkeypatch):
@@ -96,6 +100,61 @@ def test_call_gemini_missing_cli_raises(monkeypatch):
     with pytest.raises(gemini_cli.GeminiCLIError) as ei:
         gemini_cli.call_gemini("hi")
     assert "PATH" in str(ei.value)
+
+
+def test_print_call_passes_add_dir_flags(monkeypatch):
+    """_print_call adds each workspace dir as a repeated --add-dir flag (#63)."""
+    seen = {}
+
+    class _FakePty:
+        def __init__(self, args, cwd=None, cols=160, rows=50):
+            seen["args"] = args
+            seen["cwd"] = cwd
+
+        def wait_exit(self, timeout):
+            return True
+
+        def text(self):
+            return "rendered reply"
+
+        def kill(self):
+            pass
+
+    monkeypatch.setattr(gemini_cli, "_Pty", _FakePty)
+    reply = gemini_cli._print_call(
+        "/fake/agy", "prompt @doc_0.pdf", "/work", 600.0,
+        add_dirs=["/work", "/other"],
+    )
+    assert reply == "rendered reply"
+    args = seen["args"]
+    # Every add-dir is a separate --add-dir <value> pair, after the prompt.
+    assert args.count("--add-dir") == 2
+    for d in ("/work", "/other"):
+        i = args.index(d)
+        assert args[i - 1] == "--add-dir"
+    assert seen["cwd"] == "/work"
+
+
+def test_print_call_no_add_dir_when_none(monkeypatch):
+    """No --add-dir flag is emitted for attachment-free calls."""
+    seen = {}
+
+    class _FakePty:
+        def __init__(self, args, cwd=None, cols=160, rows=50):
+            seen["args"] = args
+
+        def wait_exit(self, timeout):
+            return True
+
+        def text(self):
+            return "ok"
+
+        def kill(self):
+            pass
+
+    monkeypatch.setattr(gemini_cli, "_Pty", _FakePty)
+    gemini_cli._print_call("/fake/agy", "hello", None, 600.0)
+    assert "--add-dir" not in seen["args"]
 
 
 def test_parse_picker_reads_labels_and_current():
