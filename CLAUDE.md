@@ -26,9 +26,6 @@ Ask whenever a decision would be expensive to undo or genuinely ambiguous. One s
 - File or module location for new code
 - Data shape or schema
 - Page placement (new page vs. section in existing page)
-- `st.session_state` key names and scope (Streamlit projects)
-- Caching strategy (`@st.cache_data` TTL vs. `@st.cache_resource`) (Streamlit projects)
-- Widget `key=` names and input sources (Streamlit projects)
 - Data source (upload, local file, DB via secrets)
 - Error and empty-state handling
 - Whether to add tests, and at what level
@@ -54,18 +51,6 @@ If multiple reasonable approaches exist, present them as options with tradeoffs.
 - **Type hints** on all public Python functions. Use `Optional[T]`, never bare `None` returns.
 - Implement only what was asked. No nice-to-haves.
 
-## Streamlit conventions
-*Apply only if this project uses Streamlit.*
-
-- `st.set_page_config(layout="wide", page_title="...")` MUST be the first Streamlit call.
-- Use `width="stretch"` (and `width="content"` where appropriate) in new and modified code. **Never** introduce new `use_container_width=True` — it is deprecated. When you touch existing code that uses `use_container_width`, migrate it.
-- All mutable state in `st.session_state`. No module-level globals.
-- `@st.cache_data` for DataFrames/files; `@st.cache_resource` for DB clients/models.
-- Every widget needs a stable, explicit `key=`.
-- UI code only in the UI directory (e.g. `app/`). Data logic stays in the non-UI package (e.g. `src/`). Never import `streamlit` from non-UI code.
-- User feedback via `st.error()` / `st.warning()` / `st.success()`, not `st.write()`.
-- **App layout:** main file (e.g. `app.py`) handles only page config, shared state, sidebar, and tab/radio routing. Each tab/mode lives in its own file exposing a `main(...)` (or `render_*`) function. Default to `st.tabs()`; use a sidebar radio only when asked.
-
 ## Phased execution for larger work
 Multi-file refactors don't go in a single response. Break into phases of ≤5 files each. Complete phase 1, run verification, wait for my approval, then phase 2. Same rule for any task you'd estimate at >30 minutes of work.
 
@@ -76,7 +61,7 @@ Windows / PowerShell:
 - Syntax: `& .\.venv\Scripts\python.exe -m py_compile <file>`
 - Lint (if configured): `ruff check .`
 - Tests (if any exist): `& .\.venv\Scripts\python.exe -m pytest`
-- Streamlit boot check (UI changes): `& .\.venv\Scripts\python.exe -m streamlit run app/app.py --server.headless true`
+- SPA/UI changes: `& .\scripts\verify-before-ship.ps1` (byte-compiles Python, runs pytest, runs Playwright e2e against the admin SPA)
 
 POSIX:
 - Syntax: `./.venv/bin/python -m py_compile <file>`
@@ -132,5 +117,5 @@ Before finishing, ask: "What would a senior, perfectionist dev reject in review?
 ---
 
 ## This repository
-Local HTTP hub routing Anthropic-shaped and OpenAI-shaped requests to multiple LLM/ASR backends, with a Streamlit admin UI.
+Local HTTP hub routing Anthropic-shaped and OpenAI-shaped requests to multiple LLM/ASR backends, with a FastAPI + static-JS admin SPA mounted at `/admin`.
 See `README.md` for setup, layout, and usage.
