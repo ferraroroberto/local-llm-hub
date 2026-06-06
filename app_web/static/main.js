@@ -4,7 +4,7 @@
  */
 
 import { state, els, STATUS_POLL_MS, COUNTERS_POLL_MS, MODELS_POLL_MS } from './state.js';
-import { jsonApi, tokenFromUrl, writeToken, wireLoginForm, toast } from './api.js';
+import { jsonApi, tokenFromUrl, urlWithToken, writeToken, wireLoginForm, toast } from './api.js';
 import { wireTabs, setTab, onTabChange } from './tabs.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchInstallStatus, fetchServicesStatus } from './hub.js';
 import { wireModels, fetchModels } from './models.js';
@@ -35,6 +35,7 @@ async function boot() {
   wirePlayground();
   wireTelemetry();
   wireCodeUsage();
+  wireFrontierLink();
 
   onTabChange(function (tab) {
     if (tab === 'hub') {
@@ -75,6 +76,13 @@ async function boot() {
   }, MODELS_POLL_MS);
 
   setTab('hub');
+}
+
+function wireFrontierLink() {
+  if (!els.frontierLink) return;
+  els.frontierLink.addEventListener('click', function () {
+    els.frontierLink.href = urlWithToken('/admin/frontier');
+  });
 }
 
 async function resumeAfterLogin() {

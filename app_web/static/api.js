@@ -21,6 +21,14 @@ export function readToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
 export function writeToken(t) { if (t) localStorage.setItem(TOKEN_KEY, t); }
 export function clearToken() { localStorage.removeItem(TOKEN_KEY); }
 
+export function urlWithToken(path) {
+  const token = readToken();
+  if (!token) return path;
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set('token', token);
+  return url.pathname + url.search + url.hash;
+}
+
 // --------------------------------------------------------------- fetch
 export async function api(path, opts) {
   opts = opts || {};
@@ -63,9 +71,7 @@ export function postJson(path, payload) {
 // token via ?token=… (the BearerTokenMiddleware accepts that form).
 // Returns the EventSource — caller is responsible for .close().
 export function eventStream(path, handlers) {
-  const token = readToken();
-  const sep = path.includes('?') ? '&' : '?';
-  const url = token ? path + sep + 'token=' + encodeURIComponent(token) : path;
+  const url = urlWithToken(path);
   const es = new EventSource(url);
   if (handlers && handlers.message) {
     es.onmessage = function (ev) {
