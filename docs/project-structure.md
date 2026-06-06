@@ -2,10 +2,11 @@
 
 An LLM-oriented map of `local-llm-hub`. Three views: a **component
 diagram** showing runtime data flow between clients, the hub, and the
-backends (Claude subscription + local llama-server processes for
-Qwen3.5-9B, GLM-4.5-Air, Gemma 4 E4B, Gemma 4 26B-A4B + whisper.cpp
-ASR for both transcribe (turbo, GPU) and translate (medium, CPU));
-a **module
+backends (Claude subscription via the `claude -p` CLI + Gemini
+subscription via the `agy` Antigravity CLI + local llama-server
+processes for Qwen3.5-9B, GLM-4.5-Air, Gemma 4 E4B, Gemma 4 26B-A4B +
+whisper.cpp ASR for both transcribe (turbo, GPU) and translate
+(medium, CPU)); a **module
 diagram** showing the Python package layout and imports; and a
 **request lifecycle** sequence. Use this file as context when asking
 an LLM to modify the project — it shows which file owns what, and what
@@ -34,6 +35,7 @@ flowchart LR
         REG["src/model_registry.py<br/>YAML → Model rows"]
         HP["src/host_profile.py<br/>resolve active host"]
         CLI_WRAP["src/claude_cli.py<br/>call_claude()"]
+        GEM_WRAP["src/gemini_cli.py<br/>call_gemini()<br/>serialized model switch + ConPTY"]
         OAI_UP["src/openai_upstream.py<br/>call_openai_chat()<br/>+ shape translators"]
     end
 
@@ -43,6 +45,7 @@ flowchart LR
     end
 
     CLAUDE["claude -p CLI<br/>(Claude Code subscription)"]
+    GEMINI["agy Antigravity CLI<br/>(Google AI Pro/Ultra subscription)<br/>ConPTY-hosted · Pro/Flash/Flash-Lite"]
     QWEN4B["llama-server :8088<br/>Qwen3.5-4B GGUF (agentic_light)<br/>all layers on GPU"]
     GEMMA426["llama-server :8087<br/>Gemma 4 26B-A4B IT GGUF (MoE, agentic_heavy)<br/>all layers on GPU (IQ4_XS)"]
     QWEN["llama-server :8081<br/>Qwen3.5-9B GGUF (ad-hoc)<br/>all layers on GPU"]
@@ -74,8 +77,10 @@ flowchart LR
     HP -.reads.-> CFG
 
     SRV -->|backend=claude| CLI_WRAP
+    SRV -->|backend=gemini| GEM_WRAP
     SRV -->|backend=openai| OAI_UP
     CLI_WRAP -->|subprocess.run<br/>--output-format json| CLAUDE
+    GEM_WRAP -->|ConPTY (pywinpty)<br/>agy -p print mode| GEMINI
     OAI_UP -->|POST /v1/chat/completions| QWEN4B
     OAI_UP -->|POST /v1/chat/completions| GEMMA426
     OAI_UP -->|POST /v1/chat/completions| QWEN
@@ -109,7 +114,7 @@ flowchart LR
     classDef ui fill:#2a1d2a,stroke:#a47,color:#eee
     classDef backend fill:#2a281d,stroke:#a94,color:#eee
     class Clients ext
-    class CLAUDE,QWEN4B,GEMMA426,QWEN,GLM,GEMMA4E backend
+    class CLAUDE,GEMINI,QWEN4B,GEMMA426,QWEN,GLM,GEMMA4E backend
     class Hub hub
     class UI ui
 ```
@@ -129,8 +134,9 @@ flowchart TB
     CFGDIR --> C1["models.yaml<br/>hosts + models registry"]
 
     ROOT --> SRC["src/"]
-    SRC --> S1["server.py<br/>FastAPI hub + router (local backends + Claude)"]
+    SRC --> S1["server.py<br/>FastAPI hub + router (local backends + Claude + Gemini)"]
     SRC --> S2["claude_cli.py<br/>claude -p wrapper"]
+    SRC --> S10["gemini_cli.py<br/>agy (Antigravity) CLI wrapper<br/>via ConPTY (pywinpty)"]
     SRC --> S3["openai_upstream.py<br/>llama-server client +<br/>Anthropic ↔ OpenAI shapes"]
     SRC --> S4["model_registry.py<br/>YAML loader + Model class"]
     SRC --> S5["host_profile.py<br/>pick active host row"]
@@ -189,7 +195,7 @@ flowchart TB
 
 ## Request lifecycle
 
-Two paths depending on backend; same entry point.
+Three paths depending on backend; same entry point.
 
 ### Claude backend (model=claude-*)
 
@@ -212,6 +218,35 @@ sequenceDiagram
     F->>F: _envelope_to_anthropic()
     F-->>C: 200 JSON {id, content, usage, stop_reason}
 ```
+
+### Gemini backend (model=gemini_pro / gemini_flash / gemini_lite)
+
+```mermaid
+sequenceDiagram
+    participant C as Client (SDK / curl)
+    participant F as FastAPI hub (src/server.py)
+    participant R as model_registry.resolve
+    participant G as gemini_cli.call_gemini
+    participant A as agy CLI (ConPTY)
+
+    C->>F: POST /v1/messages<br/>{model:"gemini_pro", messages, ...}
+    F->>R: resolve("gemini_pro")
+    R-->>F: Model(backend="gemini")
+    F->>F: _extract_media_blocks()<br/>_flatten_messages() · _system_to_text()
+    F->>G: call_gemini(prompt, model, system, attachments)
+    Note over G,A: all calls serialized behind a lock
+    G->>A: interactive /model switch<br/>(only when requested model differs)
+    G->>A: agy -p print mode<br/>(ConPTY via pywinpty)
+    A-->>G: ANSI-rendered reply<br/>(escape sequences stripped)
+    G-->>F: envelope {result, usage=0, stop_reason}
+    F->>F: _envelope_to_anthropic()
+    F-->>C: 200 JSON {id, content, usage, stop_reason}
+```
+
+`agy` surfaces no token counts, so the Gemini path reports usage as
+zero. The model is global persisted CLI state (no per-call flag), which
+is why a short interactive `/model` switch precedes print mode whenever
+the requested Gemini row differs from the last-selected one.
 
 ### Local backend (model=qwen3.5-4b, gemma4-26b-a4b-it, plus qwen3.5-9b / glm-4.5-air / gemma4-e4b-it ad-hoc)
 
@@ -280,9 +315,12 @@ the envelope into OpenAI shape; for the local llama-server backends
     `/admin` inside the hub process, so it comes up with the hub on
     `:8000`. Browse `http://127.0.0.1:8000/admin/` (`GET /` redirects
     there); no separate launcher.
-- **Only two places shell out.**
+- **Only three places shell out.**
   [`src/claude_cli.py`](../src/claude_cli.py) owns
   `subprocess.run(["claude", "-p", ...])`.
+  [`src/gemini_cli.py`](../src/gemini_cli.py) spawns the `agy`
+  Antigravity CLI under a Windows ConPTY (via `pywinpty`) for the
+  `gemini-*` rows.
   [`src/backend_process.py`](../src/backend_process.py) owns the
   `subprocess.Popen(["llama-server", ...])` / `subprocess.Popen(["whisper-server", ...])`
   for each local model.

@@ -653,7 +653,9 @@ Translate non-English audio to English via the translate slot
 (direct to :8091; medium runs eager on CPU, ~1.5 GB RAM):
 
 ```bash
-curl -s -F file=@spanish.wav -F task=translate \
+# whisper-server honors translate=true (not OpenAI's task=translate) on
+# the direct-to-port path; the hub proxy bridges task=translate → translate=true
+curl -s -F file=@spanish.wav -F translate=true \
   http://127.0.0.1:8091/v1/audio/transcriptions
 ```
 
