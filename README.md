@@ -679,25 +679,58 @@ localhost hub, but flip `OTEL_HASH_PROMPTS=true` (in `.env`) any time
 the hub binds beyond loopback. `OTEL_SDK_DISABLED=true` turns
 telemetry off entirely.
 
-## Claude Code usage (issue #20)
+## Coding agent usage (issues #20, #71)
 
-The **Code** tab is a passive view of host-side Claude Code activity.  It
-parses the JSONL session logs Claude Code writes to
-`~/.claude/projects/<encoded-path>/*.jsonl` server-side — zero subprocesses,
-no wrapper around the `claude` binary, no impact on the running CLI.
+The **Code** tab is a passive, multi-vendor view of host-side coding-agent
+activity.  It parses each agent's local session logs server-side — zero
+subprocesses, no wrapper around any binary, no impact on the running CLIs:
 
-Counters and per-model / per-project breakdowns toggle between **Day /
-Week / Month / All**.  Each counter card shows a delta badge (green ↑ / red ↓)
-vs. the previous comparable period.  The input, output, and cache-read tiles
-also show an **≈ $… equivalent API cost** (issue #52) — what those tokens would
-have billed on the metered Anthropic API, priced per model family from
-`config/claude_pricing.json` (refresh that file when Anthropic changes prices).
-A **Usage trend** card (issue #50) sits
-below the breakdowns with four stacked area charts — input tokens, output
-tokens, requests, and cache reads — coloured by model family (Haiku / Sonnet /
-Opus).  Day → last 14 days; Week → last 12 weeks; Month → last 12 months;
-All → charts hidden.  A "Recent sessions" list shows the last 15 sessions
-across every project on this host.
+- **Claude Code** (`vendor="claude"`) — the JSONL transcripts at
+  `~/.claude/projects/<encoded-path>/*.jsonl` (`src/code_usage.py`).
+- **Codex / OpenAI** (`vendor="codex"`) — the rollout JSONL files at
+  `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` (`src/codex_usage.py`).  One
+  record per `token_count` event, using the per-turn delta `last_token_usage`
+  (never the cumulative `total_token_usage`, which would double-count).
+
+A **vendor selector** (All / Claude / Codex) sits above the period toggle.
+**All** sums every vendor into the headline counters and ≈ $ costs and shows a
+**Per-vendor** breakdown table; picking a single vendor scopes the whole panel
+to it.  The requests tile also shows the grand-total ≈ $ cost.  Counters and
+per-model / per-project breakdowns also toggle between **Day / Week / Month /
+All**, each with a delta badge (green ↑ / red ↓) vs. the previous comparable
+period — or a "new" badge when a metric had no activity in the prior window
+(e.g. a vendor used for the first time this period).
+
+In the per-project table, projects under the `automation` workspace are shown by
+folder name (the `automation-` prefix is stripped; the workspace root itself
+stays `automation`), and long names are truncated with “…” to keep the table
+readable on mobile — hover for the full path.
+
+The input, output, and cache-read tiles show an **≈ $… equivalent API cost**
+(issue #52) — what those tokens would have billed on the metered API, priced
+per model from `config/claude_pricing.json` (Anthropic) and
+`config/openai_pricing.json` (OpenAI); refresh those files when a provider
+changes prices.  Codex usage is subscription-metered, so the ≈ $ figure is an
+*estimate* against OpenAI list prices.
+
+Two cross-vendor token semantics to keep in mind: for **Codex**, `cached_input`
+tokens are a *subset* of input (the cost path prices the non-cached remainder at
+the input rate and the cached portion at the cheaper cached rate), and
+`reasoning_output_tokens` are a *subset* of output — surfaced as an "incl. …
+reasoning" sub-note under the output tile, never added on top.  Claude's
+`cache_read` tokens, by contrast, are reported separately/additively.  The
+OpenAI >272K long-context surcharge (2× input / 1.5× output) is not modelled.
+
+A **Usage trend** card (issue #50) sits below the breakdowns with four stacked
+area charts — input tokens, output tokens, requests, and cache reads — with one
+coloured series per model: the Claude families (Haiku / Sonnet / Opus) keep
+fixed colours, and every other model (e.g. Codex `GPT-5.5`) gets its own series
+colour; only an unattributable model id falls into a grey "Other" band.  Day →
+last 14 days; Week → last 12 weeks; Month → last 12 months; All → charts hidden.  A "Recent sessions" list shows the last 15
+sessions across every project on this host.
+
+GitHub Copilot is intentionally out of scope: it is request-quota metered and
+its local logs carry no token data, so it isn't comparable to the token columns.
 
 > **⚠️ Sub-agent (Task tool) usage is not captured.** Claude Code does not write sub-agent API calls to the JSONL session transcripts, so per-model and per-project counts here silently undercount whenever sub-agents run. The **OTel tab** gives accurate per-model totals: Claude Code emits the `claude_code.token.usage` metric after every API request — including sub-agent ones — broken down by model, token type, and cost. Note: OTel gives accurate per-model totals but not per-individual-subagent attribution; that finer breakdown is tracked upstream in [anthropics/claude-code#22625](https://github.com/anthropics/claude-code/issues/22625). Full OTel wiring is tracked in [#68](https://github.com/ferraroroberto/local-llm-hub/issues/68).
 

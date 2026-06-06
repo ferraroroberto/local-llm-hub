@@ -73,7 +73,7 @@ def test_code_usage_api_returns_valid_json(admin_url):
         r = httpx.get(base, params={"period": period}, timeout=10.0)
         assert r.status_code == 200, f"period={period}: {r.text}"
         body = r.json()
-        for key in ("period", "totals", "daily", "by_model", "by_project", "recent_sessions"):
+        for key in ("period", "vendor", "totals", "daily", "by_model", "by_project", "by_vendor", "recent_sessions"):
             assert key in body, f"period={period}: missing key {key!r}"
         assert body["period"] == period
         assert isinstance(body["totals"], dict)
@@ -84,7 +84,28 @@ def test_code_usage_api_returns_valid_json(admin_url):
         assert isinstance(body["daily"], list)
         assert isinstance(body["by_model"], list)
         assert isinstance(body["by_project"], list)
+        assert isinstance(body["by_vendor"], list)
         assert isinstance(body["recent_sessions"], list)
+
+
+def test_code_usage_api_vendor_param(admin_url):
+    """The vendor query param (claude | codex | all) is accepted and echoed,
+    and by_vendor rows only ever carry the requested vendor(s) (issue #71)."""
+    base = admin_url.rstrip("/") + "/api/code/usage/summary"
+    for vendor in ("all", "claude", "codex"):
+        r = httpx.get(base, params={"period": "all", "vendor": vendor}, timeout=10.0)
+        assert r.status_code == 200, f"vendor={vendor}: {r.text}"
+        body = r.json()
+        assert body["vendor"] == vendor
+        seen = {row["vendor"] for row in body["by_vendor"]}
+        if vendor == "all":
+            assert seen <= {"claude", "codex"}
+        else:
+            assert seen <= {vendor}
+    # Unknown vendor falls back to "all".
+    r = httpx.get(base, params={"period": "all", "vendor": "bogus"}, timeout=10.0)
+    assert r.status_code == 200
+    assert r.json()["vendor"] == "all"
 
 
 def test_period_toggle_changes_counters(page, admin_url):
@@ -107,6 +128,31 @@ def test_period_toggle_changes_counters(page, admin_url):
         "document.querySelector('#cldPeriodSeg button.active')?.dataset.period"
     )
     assert active_period == "week", f"expected 'week', got {active_period!r}"
+
+
+def test_vendor_toggle_changes_selector(page, admin_url):
+    """Clicking 'Codex' toggles the active vendor button and reveals the
+    per-vendor card only in 'All' mode (issue #71)."""
+    page.set_viewport_size({"width": 800, "height": 900})
+    page.goto(admin_url, wait_until="domcontentloaded")
+    page.click("#tabCodeUsage")
+    page.wait_for_selector("#paneCodeUsage", state="visible", timeout=3000)
+    page.wait_for_timeout(2000)
+    # Default is "all" → per-vendor card visible.
+    assert page.evaluate(
+        "document.querySelector('#cldVendorSeg button.active')?.dataset.vendor"
+    ) == "all"
+    # Switch to Codex via JS to avoid viewport clipping.
+    page.evaluate(
+        "document.querySelector('#cldVendorSeg button[data-vendor=\"codex\"]').click()"
+    )
+    active_vendor = page.evaluate(
+        "document.querySelector('#cldVendorSeg button.active')?.dataset.vendor"
+    )
+    assert active_vendor == "codex", f"expected 'codex', got {active_vendor!r}"
+    # Per-vendor card is hidden when a single vendor is selected.
+    page.wait_for_timeout(1500)
+    assert page.locator("#cldVendorCard").is_hidden()
 
 
 def test_code_usage_tab_phone_screenshot(page, admin_url, browser_name):

@@ -42,6 +42,7 @@ export const state = {
   // Code-usage tab — host Claude Code session data (issue #20).
   cldSummary: null,
   cldPeriod: 'today',   // 'today' | 'week' | 'month' | 'all'
+  cldVendor: 'all',     // 'all' | 'claude' | 'codex' (issue #71)
 
   // Services card — Docker + Langfuse status (issue #27).
   services: null,
@@ -153,13 +154,16 @@ export const els = {
 
   // Code-usage tab (issue #20)
   cldFreshness: document.getElementById('cldFreshness'),
+  cldVendorSeg: document.getElementById('cldVendorSeg'),
   cldPeriodSeg: document.getElementById('cldPeriodSeg'),
   cldRequests: document.getElementById('cldRequests'),
+  cldTotalCost: document.getElementById('cldTotalCost'),
   cldInputTok: document.getElementById('cldInputTok'),
   cldOutputTok: document.getElementById('cldOutputTok'),
   cldCacheRead: document.getElementById('cldCacheRead'),
   cldInputCost: document.getElementById('cldInputCost'),
   cldOutputCost: document.getElementById('cldOutputCost'),
+  cldOutputReasoning: document.getElementById('cldOutputReasoning'),
   cldCacheCost: document.getElementById('cldCacheCost'),
   cldDeltaRequests: document.getElementById('cldDeltaRequests'),
   cldDeltaInputTok: document.getElementById('cldDeltaInputTok'),
@@ -169,6 +173,9 @@ export const els = {
   cldModelEmpty: document.getElementById('cldModelEmpty'),
   cldProjectTable: document.getElementById('cldProjectTable'),
   cldProjectEmpty: document.getElementById('cldProjectEmpty'),
+  cldVendorCard: document.getElementById('cldVendorCard'),
+  cldVendorTable: document.getElementById('cldVendorTable'),
+  cldVendorEmpty: document.getElementById('cldVendorEmpty'),
   // Charts (issue #50)
   cldChartsCard: document.getElementById('cldChartsCard'),
   cldChartInput: document.getElementById('cldChartInput'),

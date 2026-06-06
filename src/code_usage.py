@@ -55,6 +55,21 @@ _PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
 }
 _pricing_cache: Optional[Dict[str, Dict[str, float]]] = None
 
+# OpenAI API list prices (USD per million tokens), keyed by display model id
+# (what _model_display returns for a Codex model, e.g. "GPT-5.5").  Used to
+# show the equivalent metered-API cost of host-side Codex usage.  Loaded once
+# from config/openai_pricing.json; this dict is the fallback when that file is
+# missing or unreadable.  Codex's cached_input tokens are a *subset* of input
+# (not additive), so the cost path prices the non-cached remainder at "input"
+# and the cached portion at "cached_input".
+_OPENAI_PRICING_PATH: Path = _PROJECT_ROOT / "config" / "openai_pricing.json"
+_OPENAI_PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
+    "GPT-5.5":     {"input": 5.0,  "cached_input": 0.50, "output": 30.0},
+    "GPT-5.5 Pro": {"input": 30.0, "cached_input": 0.0,  "output": 180.0},
+    "GPT-5.4":     {"input": 2.5,  "cached_input": 0.25, "output": 15.0},
+}
+_openai_pricing_cache: Optional[Dict[str, Dict[str, float]]] = None
+
 # How many recent sessions to return in the summary.
 _MAX_RECENT_SESSIONS = 15
 
@@ -81,17 +96,26 @@ class _FileStats:
 
 @dataclass
 class _UsageRecord:
-    """One aggregated usage record (one assistant API call)."""
+    """One aggregated usage record (one assistant / agent API call).
+
+    Shared across vendors (issue #71): Claude Code records carry
+    ``vendor="claude"``; Codex records (from ``codex_usage.py``) carry
+    ``vendor="codex"``.  The two trailing fields have defaults so the
+    Claude parser, which never sets them, is unaffected.
+    """
 
     session_id: str
     project_key: str       # encoded dir name, e.g. "E--automation-local-llm-hub"
     project_name: str      # pretty-printed project name
     model: str
     ts: datetime
-    input_tokens: int      # net new prompt tokens
+    input_tokens: int      # net new prompt tokens (Codex: incl. cached subset)
     output_tokens: int
     cache_creation_tokens: int
     cache_read_tokens: int
+    # Codex-only: reasoning tokens, a *subset* of output_tokens (never added).
+    reasoning_output_tokens: int = 0
+    vendor: str = "claude"
 
 
 # ---------------------------------------------------------------------------
@@ -101,20 +125,38 @@ class _UsageRecord:
 _file_cache: Dict[str, _FileStats] = {}
 
 
+def _encode_project_key(path: str) -> str:
+    """Encode a raw filesystem path into the project-key form Claude Code uses.
+
+    ``E:\\automation\\local-llm-hub`` → ``E--automation-local-llm-hub``.
+    Shared so Codex records (whose source carries a raw ``cwd``) group under
+    the same key as Claude records for the same project.
+    """
+    return path.replace(":\\", "--").replace("\\", "-").replace("/", "-")
+
+
+_WORKSPACE_ROOT_SEGMENT = "automation"
+
+
 def _project_pretty(key: str) -> str:
     """Turn an encoded project key into a readable name.
 
-    ``E--automation-local-llm-hub`` → ``local-llm-hub``
-    ``C--Users-rober--some-path`` → ``some-path``
+    Drops the drive-letter prefix, then collapses the shared ``automation``
+    workspace-root segment so the per-project table reads as the folder name
+    and fits on mobile without horizontal scroll (issue #71)::
+
+        E--automation-local-llm-hub → local-llm-hub
+        E--automation              → automation   (the workspace root itself)
+        C--Users-rober--some-path  → some-path    (not under automation: unchanged)
     """
-    # Drop the drive-letter prefix (up to and including the first "--")
+    # Drop the drive-letter prefix (up to and including the first "--").
     parts = key.split("--", 1)
     tail = parts[-1] if len(parts) > 1 else key
-    # The last hyphen-segment is the repo/dir name.
-    segments = tail.rsplit("-", 1)
-    # Heuristic: if the tail contains more than one `-` segment AND the last
-    # two segments look like a repo name, just return the original tail
-    # (better to over-include than to mangle names like "local-llm-hub").
+    # Projects live under E:\automation\<name>; show just <name>. The bare
+    # workspace root keeps its own name.
+    prefix = _WORKSPACE_ROOT_SEGMENT + "-"
+    if tail.startswith(prefix):
+        return tail[len(prefix):]
     return tail
 
 
@@ -191,8 +233,8 @@ def _load_file(path: Path, project_key: str) -> List[_UsageRecord]:
     return entries
 
 
-def _all_records() -> List[_UsageRecord]:
-    """Scan all project JSONL files and return every usage record."""
+def _claude_records() -> List[_UsageRecord]:
+    """Scan all Claude Code project JSONL files and return every usage record."""
     records: List[_UsageRecord] = []
 
     if not _CLAUDE_PROJECTS_DIR.exists():
@@ -216,6 +258,24 @@ def _all_records() -> List[_UsageRecord]:
     return records
 
 
+_VALID_VENDORS = {"claude", "codex", "all"}
+
+
+def _gather_records(vendor: str = "all") -> List[_UsageRecord]:
+    """Return usage records for the requested vendor(s).
+
+    ``vendor`` is one of ``claude | codex | all``.  Codex is imported lazily so
+    ``codex_usage`` can import shared helpers from this module without a cycle.
+    """
+    records: List[_UsageRecord] = []
+    if vendor in ("all", "claude"):
+        records.extend(_claude_records())
+    if vendor in ("all", "codex"):
+        from src import codex_usage
+        records.extend(codex_usage.all_records())
+    return records
+
+
 # ---------------------------------------------------------------------------
 # Public API — aggregation helpers
 # ---------------------------------------------------------------------------
@@ -231,7 +291,13 @@ def _tok_k(n: int) -> float:
 
 
 def _model_display(model: str) -> str:
-    """Shorten model IDs to a human-readable label."""
+    """Shorten model IDs to a human-readable label.
+
+    Claude families collapse to Opus / Sonnet / Haiku.  Codex (OpenAI) ids
+    pass through with a readable label (``gpt-5.5`` → ``GPT-5.5``,
+    ``gpt-5.5-pro`` → ``GPT-5.5 Pro``) rather than being forced into a
+    Claude family.  Anything else is returned verbatim.
+    """
     m = model.lower()
     if "opus" in m:
         return "Opus"
@@ -239,6 +305,8 @@ def _model_display(model: str) -> str:
         return "Sonnet"
     if "haiku" in m:
         return "Haiku"
+    if m.startswith("gpt"):
+        return model.upper().replace("-PRO", " Pro")
     return model
 
 
@@ -272,14 +340,65 @@ def _load_pricing() -> Dict[str, Dict[str, float]]:
     return pricing
 
 
+def _load_openai_pricing() -> Dict[str, Dict[str, float]]:
+    """Return the per-model OpenAI price table, loaded once and cached.
+
+    Falls back to the built-in ``_OPENAI_PRICING_FALLBACK`` when
+    ``config/openai_pricing.json`` is missing or malformed, so Codex cost
+    display never hard-fails on a fresh checkout.
+    """
+    global _openai_pricing_cache
+    if _openai_pricing_cache is not None:
+        return _openai_pricing_cache
+
+    pricing: Dict[str, Dict[str, float]] = dict(_OPENAI_PRICING_FALLBACK)
+    try:
+        raw = json.loads(_OPENAI_PRICING_PATH.read_text(encoding="utf-8"))
+        models = raw.get("models") or {}
+        if isinstance(models, dict) and models:
+            pricing = {
+                model: {k: float(v) for k, v in rates.items()}
+                for model, rates in models.items()
+                if isinstance(rates, dict)
+            }
+    except (OSError, ValueError, TypeError) as exc:
+        _log.warning(
+            "⚠️ code_usage: using fallback OpenAI pricing (%s unreadable): %s",
+            _OPENAI_PRICING_PATH, exc,
+        )
+    _openai_pricing_cache = pricing
+    return pricing
+
+
 def _record_costs(r: "_UsageRecord") -> Tuple[float, float, float]:
     """Return ``(input_cost, output_cost, cache_read_cost)`` in USD for one record.
 
-    Priced against the record's own model family, so a mixed-model period is
-    summed correctly.  The input-tile cost folds in cache-creation tokens
-    (charged at the 5-minute cache-write rate) to mirror the tile, which shows
-    ``input_tokens + cache_creation_tokens``.  Unknown families price at zero.
+    Priced against the record's own model, so a mixed-model / mixed-vendor
+    period is summed correctly.  Unknown models price at zero (no fabricated
+    cost).  The cost maps into the same three tiles the SPA shows.
+
+    Claude: input-tile cost folds in cache-creation tokens (5-min cache-write
+    rate) to mirror the tile (``input + cache_creation``).
+
+    Codex: ``cached_input`` tokens are a *subset* of ``input_tokens``, so the
+    non-cached remainder is priced at the input rate and the cached portion at
+    the (cheaper) cached_input rate — no double counting.  Reasoning tokens are
+    already inside ``output_tokens`` and bill at the output rate.  The >272K
+    long-context surcharge (2x input / 1.5x output) is not modelled — this is an
+    estimate, and per-request context size isn't tracked.
     """
+    if r.vendor == "codex":
+        rates = _load_openai_pricing().get(_model_display(r.model))
+        if not rates:
+            return 0.0, 0.0, 0.0
+        non_cached_input = max(r.input_tokens - r.cache_read_tokens, 0)
+        input_cost = non_cached_input * rates.get("input", 0.0) / 1_000_000
+        output_cost = r.output_tokens * rates.get("output", 0.0) / 1_000_000
+        cache_read_cost = (
+            r.cache_read_tokens * rates.get("cached_input", 0.0) / 1_000_000
+        )
+        return input_cost, output_cost, cache_read_cost
+
     rates = _load_pricing().get(_model_display(r.model))
     if not rates:
         return 0.0, 0.0, 0.0
@@ -369,6 +488,11 @@ def _build_prev_totals(
     week   → 7 days ending last Sunday (today−13 .. today−7)
     month  → 30-day window ending 30 days ago (today−59 .. today−30)
     all    → None (omitted from response)
+
+    For a non-"all" period the dict is always returned (zero-filled when the
+    preceding window had no activity), so the SPA can show a "new" badge for a
+    metric whose prior value was 0 instead of hiding the comparison entirely —
+    e.g. a vendor like Codex that has no data in the previous week (issue #71).
     """
     from datetime import timedelta
 
@@ -386,7 +510,6 @@ def _build_prev_totals(
         "input_tokens": 0, "output_tokens": 0,
         "cache_creation_tokens": 0, "cache_read_tokens": 0, "requests": 0,
     }
-    found = False
     for r in records:
         d = r.ts.astimezone(timezone.utc).date()
         if lo <= d <= hi:
@@ -395,8 +518,7 @@ def _build_prev_totals(
             acc["cache_creation_tokens"] += r.cache_creation_tokens
             acc["cache_read_tokens"] += r.cache_read_tokens
             acc["requests"] += 1
-            found = True
-    return acc if found else None
+    return acc
 
 
 _VALID_PERIODS = {"today", "week", "month", "all"}
@@ -416,23 +538,28 @@ def _period_since(period: str) -> Optional[date]:
     return None
 
 
-def get_summary(period: str = "today") -> dict:
+def get_summary(period: str = "today", vendor: str = "all") -> dict:
     """Return a summary dict consumed by the Cld tab.
 
     ``period`` is one of ``today | week | month | all``.
+    ``vendor`` is one of ``claude | codex | all`` (issue #71).
 
     Keys returned:
       period     — echoed back
+      vendor     — echoed back
       totals     — aggregate token counts for the requested period
       daily      — per-day list (last _MAX_DAILY_DAYS days, newest first; all-time)
       by_model   — per-model-family breakdown for the requested period
       by_project — per-project breakdown for the requested period
+      by_vendor  — per-vendor breakdown for the requested period
       recent_sessions — last _MAX_RECENT_SESSIONS sessions (all-time)
     """
     if period not in _VALID_PERIODS:
         period = "today"
+    if vendor not in _VALID_VENDORS:
+        vendor = "all"
 
-    records = _all_records()
+    records = _gather_records(vendor)
     today = _today_utc()
     since = _period_since(period)
 
@@ -443,6 +570,7 @@ def get_summary(period: str = "today") -> dict:
             "output_tokens": 0,
             "cache_creation_tokens": 0,
             "cache_read_tokens": 0,
+            "reasoning_output_tokens": 0,
             "requests": 0,
         }
 
@@ -451,6 +579,7 @@ def get_summary(period: str = "today") -> dict:
         acc["output_tokens"] += r.output_tokens
         acc["cache_creation_tokens"] += r.cache_creation_tokens
         acc["cache_read_tokens"] += r.cache_read_tokens
+        acc["reasoning_output_tokens"] += r.reasoning_output_tokens
         acc["requests"] += 1
 
     def in_period(r: _UsageRecord) -> bool:
@@ -509,6 +638,29 @@ def get_summary(period: str = "today") -> dict:
         proj_map.values(), key=lambda x: x["requests"], reverse=True
     )
 
+    # ---- per-vendor breakdown (period-scoped, with equivalent API cost) ----
+    vendor_map: Dict[str, dict] = {}
+    for r in records:
+        if not in_period(r):
+            continue
+        row = vendor_map.get(r.vendor)
+        if row is None:
+            row = vendor_map[r.vendor] = {
+                "vendor": r.vendor,
+                **blank_counts(),
+                "input_cost": 0.0,
+                "output_cost": 0.0,
+                "cache_read_cost": 0.0,
+            }
+        add_record(row, r)
+        ic, oc, crc = _record_costs(r)
+        row["input_cost"] += ic
+        row["output_cost"] += oc
+        row["cache_read_cost"] += crc
+    by_vendor = sorted(
+        vendor_map.values(), key=lambda x: x["requests"], reverse=True
+    )
+
     # ---- recent sessions (always all-time, newest first) ----
     session_map: Dict[Tuple[str, str], dict] = {}
     for r in records:
@@ -541,10 +693,12 @@ def get_summary(period: str = "today") -> dict:
 
     result: dict = {
         "period": period,
+        "vendor": vendor,
         "totals": totals,
         "daily": daily_list,
         "by_model": by_model,
         "by_project": by_project,
+        "by_vendor": by_vendor,
         "recent_sessions": recent_sessions,
         "time_series": time_series,
     }
@@ -561,9 +715,7 @@ def get_today_totals_for_project(project_dir: str) -> Optional[dict]:
     ``cache_creation_tokens``, ``requests`` for today, or ``None`` if no data.
     """
     # Encode the path the same way Claude Code does.
-    encoded = (
-        project_dir.replace(":\\", "--").replace("\\", "-").replace("/", "-")
-    )
+    encoded = _encode_project_key(project_dir)
     proj_dir = _CLAUDE_PROJECTS_DIR / encoded
     if not proj_dir.is_dir():
         return None

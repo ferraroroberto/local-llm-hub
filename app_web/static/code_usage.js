@@ -18,16 +18,25 @@ import { jsonApi } from './api.js';
 // Chart constants (issue #50)
 // ---------------------------------------------------------------------------
 
-// Fixed order and colours for model families. Colours match CSS variables
-// (--accent, --good, --warn, --muted) hardcoded here because Chart.js canvas
-// cannot read CSS custom properties.
-const MODEL_PALETTE = [
-  { key: 'Haiku',  bg: 'rgba(74,138,243,0.50)',  border: 'rgba(74,138,243,0.85)'  },
-  { key: 'Sonnet', bg: 'rgba(76,175,80,0.50)',   border: 'rgba(76,175,80,0.85)'   },
-  { key: 'Opus',   bg: 'rgba(240,161,0,0.50)',   border: 'rgba(240,161,0,0.85)'   },
-  { key: 'Other',  bg: 'rgba(154,154,154,0.30)', border: 'rgba(154,154,154,0.65)' },
+// Fixed colours for the Claude model families. Hardcoded (not from CSS vars)
+// because the Chart.js canvas cannot read CSS custom properties.
+const CLAUDE_COLORS = {
+  Haiku:  { bg: 'rgba(74,138,243,0.50)',  border: 'rgba(74,138,243,0.85)'  },
+  Sonnet: { bg: 'rgba(76,175,80,0.50)',   border: 'rgba(76,175,80,0.85)'   },
+  Opus:   { bg: 'rgba(240,161,0,0.50)',   border: 'rgba(240,161,0,0.85)'   },
+};
+const CLAUDE_ORDER = ['Haiku', 'Sonnet', 'Opus'];
+// Extra colours assigned in first-seen order to non-Claude families (Codex
+// GPT models, etc.) so each gets its own series instead of collapsing to grey.
+const EXTRA_COLORS = [
+  { bg: 'rgba(186,104,200,0.50)', border: 'rgba(186,104,200,0.85)' }, // purple
+  { bg: 'rgba(0,188,212,0.50)',   border: 'rgba(0,188,212,0.85)'   }, // cyan
+  { bg: 'rgba(233,30,99,0.50)',   border: 'rgba(233,30,99,0.85)'   }, // pink
+  { bg: 'rgba(121,85,72,0.50)',   border: 'rgba(121,85,72,0.85)'   }, // brown
+  { bg: 'rgba(255,112,67,0.50)',  border: 'rgba(255,112,67,0.85)'  }, // deep orange
 ];
-const KNOWN_FAMILIES = new Set(['Haiku', 'Sonnet', 'Opus']);
+// Final fallback for an absent/unattributable model ("unknown").
+const OTHER_COLOR = { bg: 'rgba(154,154,154,0.30)', border: 'rgba(154,154,154,0.65)' };
 
 // Retained Chart.js instances — destroyed before each recreation to prevent leaks.
 let _chartInput  = null;
@@ -58,6 +67,21 @@ export function wireCodeUsage() {
       fetchSummary().catch(function () {});
     });
   }
+
+  // Vendor selector (All / Claude / Codex) — issue #71.
+  if (els.cldVendorSeg) {
+    els.cldVendorSeg.addEventListener('click', function (e) {
+      const btn = e.target.closest('button[data-vendor]');
+      if (!btn) return;
+      const next = btn.dataset.vendor;
+      if (next === state.cldVendor) return;
+      state.cldVendor = next;
+      els.cldVendorSeg.querySelectorAll('button').forEach(function (b) {
+        b.classList.toggle('active', b === btn);
+      });
+      fetchSummary().catch(function () {});
+    });
+  }
 }
 
 export function startCodeUsagePolls() {
@@ -80,7 +104,10 @@ export function stopCodeUsagePolls() {
 
 async function fetchSummary() {
   try {
-    const body = await jsonApi('/admin/api/code/usage/summary?period=' + state.cldPeriod);
+    const body = await jsonApi(
+      '/admin/api/code/usage/summary?period=' + state.cldPeriod +
+      '&vendor=' + state.cldVendor
+    );
     state.cldSummary = body;
     render(body);
   } catch (exc) {
@@ -98,6 +125,7 @@ function render(body) {
   renderCounters(body);
   renderDeltas(body);
   renderCharts(body);
+  renderVendorTable(body.by_vendor || []);
   renderModelTable(body.by_model || []);
   renderProjectTable(body.by_project || []);
   renderSessions(body.recent_sessions || []);
@@ -108,15 +136,52 @@ function renderCounters(body) {
   if (!body) return;
   const bucket = body.totals || {};
   set(els.cldRequests, fmtNum(bucket.requests));
+  // Grand-total equivalent metered cost under the requests tile (issue #71).
+  const totalCost = (bucket.input_cost || 0) + (bucket.output_cost || 0) + (bucket.cache_read_cost || 0);
+  set(els.cldTotalCost, fmtCost(totalCost));
   set(els.cldInputTok, fmtTok(
     (bucket.input_tokens || 0) + (bucket.cache_creation_tokens || 0)
   ));
   set(els.cldOutputTok, fmtTok(bucket.output_tokens));
   set(els.cldCacheRead, fmtTok(bucket.cache_read_tokens));
-  // Equivalent metered-API cost under the three token tiles (issue #52).
+  // Equivalent metered-API cost under the three token tiles (issue #52, #71).
   set(els.cldInputCost, fmtCost(bucket.input_cost));
   set(els.cldOutputCost, fmtCost(bucket.output_cost));
   set(els.cldCacheCost, fmtCost(bucket.cache_read_cost));
+  // Codex reasoning tokens — a subset of output, shown for transparency (#71).
+  const reasoning = bucket.reasoning_output_tokens || 0;
+  set(els.cldOutputReasoning, reasoning ? 'incl. ' + fmtTok(reasoning) + ' reasoning' : '');
+}
+
+function renderVendorTable(rows) {
+  // Per-vendor card only makes sense when viewing every vendor at once.
+  if (els.cldVendorCard) els.cldVendorCard.hidden = state.cldVendor !== 'all';
+  const tbody = els.cldVendorTable && els.cldVendorTable.querySelector('tbody');
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '';
+    if (els.cldVendorEmpty) els.cldVendorEmpty.hidden = false;
+    return;
+  }
+  if (els.cldVendorEmpty) els.cldVendorEmpty.hidden = true;
+  tbody.innerHTML = rows.map(function (r) {
+    const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
+    const cost = (r.input_cost || 0) + (r.output_cost || 0) + (r.cache_read_cost || 0);
+    return '<tr>' +
+      '<td>' + esc(vendorLabel(r.vendor)) + '</td>' +
+      '<td>' + fmtNum(r.requests) + '</td>' +
+      '<td>' + fmtTok(totalIn) + '</td>' +
+      '<td>' + fmtTok(r.output_tokens) + '</td>' +
+      '<td class="muted">' + fmtTok(r.cache_read_tokens) + '</td>' +
+      '<td>' + (fmtCost(cost) || '—') + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function vendorLabel(v) {
+  if (v === 'claude') return 'Claude';
+  if (v === 'codex') return 'Codex';
+  return v || '—';
 }
 
 function renderModelTable(rows) {
@@ -151,8 +216,9 @@ function renderProjectTable(rows) {
   if (els.cldProjectEmpty) els.cldProjectEmpty.hidden = true;
   tbody.innerHTML = rows.map(function (r) {
     const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
+    const name = r.project || r.project_key;
     return '<tr>' +
-      '<td>' + esc(r.project || r.project_key) + '</td>' +
+      '<td class="cld-trunc" title="' + esc(name) + '">' + esc(name) + '</td>' +
       '<td>' + fmtNum(r.requests) + '</td>' +
       '<td>' + fmtTok(totalIn) + '</td>' +
       '<td>' + fmtTok(r.output_tokens) + '</td>' +
@@ -205,7 +271,15 @@ function renderDeltas(body) {
 
   function apply(el, c, p) {
     if (!el) return;
-    if (hide || p === 0) { el.hidden = true; return; }
+    if (hide) { el.hidden = true; return; }
+    // Zero base: percentage is undefined. Show "new" when this metric appeared
+    // this period (e.g. Codex with no prior-week data) instead of hiding the
+    // badge — the comparison window itself is valid (issue #71).
+    if (p === 0) {
+      if (c > 0) { el.hidden = false; el.className = 'cld-delta up'; el.textContent = 'new'; }
+      else { el.hidden = true; }
+      return;
+    }
     el.hidden = false;
     const pct = Math.round((c - p) / p * 100);
     el.className = pct > 0 ? 'cld-delta up' : pct < 0 ? 'cld-delta down' : 'cld-delta';
@@ -241,29 +315,43 @@ function renderCharts(body) {
   }
 
   card.hidden = false;
-  const norm = _normalizeTs(ts);
-  const labels = norm.map(function (b) { return b.label; });
+  const labels = ts.map(function (b) { return b.label; });
+  // Stable family list + colours, shared across all four charts so a model
+  // keeps the same colour everywhere (issue #71: GPT models get own series).
+  const families = _orderedFamilies(ts);
 
-  _chartInput  = _makeChart(els.cldChartInput,  _chartInput,  labels, norm, 'input_tokens',      true);
-  _chartOutput = _makeChart(els.cldChartOutput, _chartOutput, labels, norm, 'output_tokens',     true);
-  _chartReqs   = _makeChart(els.cldChartReqs,   _chartReqs,   labels, norm, 'requests',          false);
-  _chartCache  = _makeChart(els.cldChartCache,  _chartCache,  labels, norm, 'cache_read_tokens', true);
+  _chartInput  = _makeChart(els.cldChartInput,  _chartInput,  labels, ts, families, 'input_tokens',      true);
+  _chartOutput = _makeChart(els.cldChartOutput, _chartOutput, labels, ts, families, 'output_tokens',     true);
+  _chartReqs   = _makeChart(els.cldChartReqs,   _chartReqs,   labels, ts, families, 'requests',          false);
+  _chartCache  = _makeChart(els.cldChartCache,  _chartCache,  labels, ts, families, 'cache_read_tokens', true);
 }
 
-function _normalizeTs(ts) {
-  return ts.map(function (b) {
-    var models = {};
-    Object.entries(b.models).forEach(function (_ref) {
-      var k = _ref[0], v = _ref[1];
-      var key = KNOWN_FAMILIES.has(k) ? k : 'Other';
-      if (!models[key]) models[key] = { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, requests: 0 };
-      models[key].input_tokens       += v.input_tokens       || 0;
-      models[key].output_tokens      += v.output_tokens      || 0;
-      models[key].cache_read_tokens  += v.cache_read_tokens  || 0;
-      models[key].requests           += v.requests           || 0;
-    });
-    return { label: b.label, models: models };
+// Build the ordered list of chart series from the time-series buckets: Claude
+// families first (fixed colours), then every other model (e.g. Codex GPT-5.5)
+// each with its own colour, and finally a grey "Other" for unattributable ids.
+function _orderedFamilies(ts) {
+  const seen = new Set();
+  ts.forEach(function (b) {
+    Object.keys(b.models || {}).forEach(function (k) { seen.add(k); });
   });
+
+  const series = [];
+  CLAUDE_ORDER.forEach(function (k) {
+    if (seen.has(k)) series.push({ key: k, label: k, bg: CLAUDE_COLORS[k].bg, border: CLAUDE_COLORS[k].border });
+  });
+
+  const rest = Array.from(seen).filter(function (k) {
+    return CLAUDE_ORDER.indexOf(k) === -1 && k !== 'unknown';
+  }).sort();
+  rest.forEach(function (k, i) {
+    const c = EXTRA_COLORS[i % EXTRA_COLORS.length];
+    series.push({ key: k, label: k, bg: c.bg, border: c.border });
+  });
+
+  if (seen.has('unknown')) {
+    series.push({ key: 'unknown', label: 'Other', bg: OTHER_COLOR.bg, border: OTHER_COLOR.border });
+  }
+  return series;
 }
 
 function _destroyCharts() {
@@ -273,19 +361,19 @@ function _destroyCharts() {
   if (_chartCache)  { _chartCache.destroy();  _chartCache  = null; }
 }
 
-function _makeChart(canvas, existing, labels, ts, field, isTok) {
+function _makeChart(canvas, existing, labels, ts, families, field, isTok) {
   if (!canvas) return existing;
 
   var datasets = [];
-  MODEL_PALETTE.forEach(function (p) {
-    var values = ts.map(function (b) { return (b.models[p.key] || {})[field] || 0; });
+  families.forEach(function (fam) {
+    var values = ts.map(function (b) { return ((b.models || {})[fam.key] || {})[field] || 0; });
     if (values.every(function (v) { return v === 0; })) return;
     datasets.push({
-      label: p.key,
+      label: fam.label,
       data: values,
       fill: true,
-      backgroundColor: p.bg,
-      borderColor: p.border,
+      backgroundColor: fam.bg,
+      borderColor: fam.border,
       borderWidth: 1,
       tension: 0.2,
       pointRadius: ts.length > 10 ? 0 : 3,
