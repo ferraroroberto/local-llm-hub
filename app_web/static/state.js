@@ -187,6 +187,7 @@ export const els = {
   cldSessionsEmpty: document.getElementById('cldSessionsEmpty'),
 
   // Misc
+  frontierLink: document.getElementById('frontierLink'),
   toast: document.getElementById('toast'),
   loginOverlay: document.getElementById('loginOverlay'),
   loginForm: document.getElementById('loginForm'),
