@@ -312,9 +312,16 @@
       <section class="card">
         <div class="card-header">
           <div class="hub-title-block">
-            <h2>Claude Code usage</h2>
+            <h2>Coding agent usage</h2>
             <span id="cldFreshness" class="muted small"></span>
           </div>
+        </div>
+
+        <!-- Vendor selector (issue #71): one vendor or all at once -->
+        <div id="cldVendorSeg" class="segmented stretch" role="tablist" aria-label="Vendor" style="margin-bottom: 8px;">
+          <button type="button" data-vendor="all" class="active">All</button>
+          <button type="button" data-vendor="claude">Claude</button>
+          <button type="button" data-vendor="codex">Codex</button>
         </div>
 
         <!-- Period toggle -->
@@ -329,24 +336,26 @@
         <div id="cldCounterGrid" class="cld-counter-grid">
           <div class="cld-counter">
             <div class="cld-counter-value" id="cldRequests">—</div>
+            <div class="cld-counter-cost" id="cldTotalCost" title="Total equivalent metered API cost (input + output + cache reads)"></div>
             <div class="cld-counter-label">requests</div>
             <span class="cld-delta" id="cldDeltaRequests" hidden></span>
           </div>
           <div class="cld-counter">
             <div class="cld-counter-value" id="cldInputTok">—</div>
-            <div class="cld-counter-cost" id="cldInputCost" title="Equivalent metered Anthropic API cost"></div>
+            <div class="cld-counter-cost" id="cldInputCost" title="Equivalent metered API cost"></div>
             <div class="cld-counter-label">input tokens</div>
             <span class="cld-delta" id="cldDeltaInputTok" hidden></span>
           </div>
           <div class="cld-counter">
             <div class="cld-counter-value" id="cldOutputTok">—</div>
-            <div class="cld-counter-cost" id="cldOutputCost" title="Equivalent metered Anthropic API cost"></div>
+            <div class="cld-counter-cost" id="cldOutputCost" title="Equivalent metered API cost"></div>
             <div class="cld-counter-label">output tokens</div>
+            <div class="cld-counter-sub" id="cldOutputReasoning" title="Codex reasoning tokens — a subset of output, shown for transparency"></div>
             <span class="cld-delta" id="cldDeltaOutputTok" hidden></span>
           </div>
           <div class="cld-counter">
             <div class="cld-counter-value" id="cldCacheRead">—</div>
-            <div class="cld-counter-cost" id="cldCacheCost" title="Equivalent metered Anthropic API cost"></div>
+            <div class="cld-counter-cost" id="cldCacheCost" title="Equivalent metered API cost"></div>
             <div class="cld-counter-label">cache reads</div>
             <span class="cld-delta" id="cldDeltaCacheRead" hidden></span>
           </div>
@@ -356,6 +365,24 @@
           <span class="cld-counter-cost" style="display:inline">≈ $</span> lines show the equivalent
           metered-API cost these tokens would have billed.</p>
         <p class="muted small" style="margin: 4px 0 0;">⚠️ <strong>Sub-agent (Task tool) calls are not captured</strong> — Claude Code does not write them to the JSONL session transcripts, so figures here undercount whenever sub-agents run. The OTel tab gives accurate per-model totals. (<a href="https://github.com/ferraroroberto/local-llm-hub/issues/68" target="_blank" rel="noopener">#68</a>, <a href="https://github.com/anthropics/claude-code/issues/22625" target="_blank" rel="noopener">upstream #22625</a>)</p>
+      </section>
+
+      <!-- Per-vendor breakdown (issue #71) — shown only in "All" mode -->
+      <section class="card" id="cldVendorCard" hidden>
+        <div class="card-header">
+          <h2>🏷️ Per-vendor</h2>
+        </div>
+        <div class="counters-wrap">
+          <table id="cldVendorTable" class="counters">
+            <thead>
+              <tr>
+                <th>Vendor</th><th>Req</th><th>In tok</th><th>Out tok</th><th>Cache rd</th><th>≈ $</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="cldVendorEmpty" class="empty" hidden>No vendor data for this period.</div>
       </section>
 
       <!-- Per-model breakdown -->
@@ -392,6 +419,7 @@
           </table>
         </div>
         <div id="cldProjectEmpty" class="empty" hidden>No project data for today.</div>
+        <p class="muted small" style="margin: 6px 0 0;">Projects under the <code>automation</code> workspace show just the folder name (the <code>automation-</code> prefix is stripped; the workspace root itself stays <code>automation</code>). Long names are truncated with “…” — hover for the full path.</p>
       </section>
 
       <!-- Usage trend charts (hidden in "All" mode) -->
