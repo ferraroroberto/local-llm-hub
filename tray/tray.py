@@ -47,6 +47,7 @@ from src.server_process import WIN_NEW_GROUP
 from src.webapp_config import append_auth_token, ensure_auth_token, load_webapp_config
 
 from .icon import COLOR_RUNNING, COLOR_STARTING, COLOR_STOPPED, make_icon_image
+from .single_instance import cross_process_lock
 
 try:
     from winotify import Notification as _WinToast  # type: ignore
@@ -130,28 +131,35 @@ class HubProcess:
         return (not self.is_running()) and self.is_reachable(0.3)
 
     def start(self) -> Tuple[bool, str]:
-        if self.is_running():
-            return True, "already running"
-        if self.is_reachable(0.3):
-            return True, "adopted external hub"
+        # Race-safe adopt-or-spawn (project-scaffolding#39): serialize the
+        # is_running/is_reachable check-then-Popen across processes so two trays
+        # can't both spawn the hub. The loser re-checks inside the lock and
+        # adopts the now-listening hub. self._lock is in-process only;
+        # cross_process_lock adds the cross-process guarantee and fails open so
+        # it never blocks startup. Primitive vendored byte-identical from scaffold.
+        with cross_process_lock(rf"Global\local-llm-hub-hub-start-{hub_port()}"):
+            if self.is_running():
+                return True, "already running"
+            if self.is_reachable(0.3):
+                return True, "adopted external hub"
 
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
-        env["PYTHONUTF8"] = "1"
-        creationflags = WIN_NEW_GROUP
-        try:
-            with self._lock:
-                self.proc = subprocess.Popen(
-                    [sys.executable, "-m", "src.server"],
-                    cwd=str(PROJECT_ROOT),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    env=env,
-                    creationflags=creationflags,
-                )
-        except Exception as exc:  # noqa: BLE001
-            return False, f"failed to launch: {exc}"
-        return True, f"started (pid={self.proc.pid})"
+            env = os.environ.copy()
+            env["PYTHONIOENCODING"] = "utf-8"
+            env["PYTHONUTF8"] = "1"
+            creationflags = WIN_NEW_GROUP
+            try:
+                with self._lock:
+                    self.proc = subprocess.Popen(
+                        [sys.executable, "-m", "src.server"],
+                        cwd=str(PROJECT_ROOT),
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        env=env,
+                        creationflags=creationflags,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                return False, f"failed to launch: {exc}"
+            return True, f"started (pid={self.proc.pid})"
 
     def stop(self) -> Tuple[bool, str]:
         with self._lock:
