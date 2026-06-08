@@ -37,9 +37,13 @@ def _write_crash(exc: BaseException) -> None:
 def main() -> int:
     _setup_logging()
     try:
-        from .single_instance import acquire_lock
+        from .single_instance import SingleInstance
 
-        if not acquire_lock():
+        # In-process named-mutex single-instance (project-scaffolding#39),
+        # replacing the former PID-file lock. Held for the tray's lifetime
+        # (tray_main blocks); the OS frees the mutex on exit.
+        instance = SingleInstance(r"Global\local-llm-hub-tray")
+        if not instance.acquired:
             return 0
         from .tray import main as tray_main
 
