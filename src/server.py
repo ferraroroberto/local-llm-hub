@@ -1085,6 +1085,15 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
     The hub's observability middleware records the request in the live
     ring — that's the whole point of going through us instead of
     hitting :8090 / :8091 directly.
+
+    For ``audio_translate`` requests the raw-bytes path cannot be used:
+    whisper-server exposes exactly one inference endpoint
+    (``/v1/audio/transcriptions``), and it expects whisper.cpp's own
+    ``translate=true`` boolean rather than OpenAI's ``task=translate``
+    string field.  We therefore parse the multipart form, rewrite
+    ``task=translate`` → ``translate=true``, and POST to the backend's
+    real ``/v1/audio/transcriptions`` path — mirroring the logic the
+    lazy-load shim in ``whisper_translate_proxy.py`` already uses.
     """
     import httpx as _httpx
 
@@ -1129,17 +1138,69 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
             pass
     _stash_trace_id_on_ctx(ctx, span)
 
-    upstream_url = f"http://127.0.0.1:{port}{ctx_path}"
-    headers = {
-        k: v for k, v in request.headers.items()
-        if k.lower() in {"content-type", "accept"}
-    }
+    if default_role == "audio_translate":
+        # whisper-server exposes a single inference path (/v1/audio/transcriptions)
+        # and uses whisper.cpp's own `translate=true` boolean, not OpenAI's
+        # `task=translate` string.  Parse the multipart form, bridge the field,
+        # and POST to the real inference path — same contract the lazy-load shim
+        # in whisper_translate_proxy.py:307-312 implements.
+        from starlette.datastructures import UploadFile as _StarletteUploadFile
 
-    try:
-        async with _httpx.AsyncClient(timeout=300.0) as client:
-            upstream = await client.post(upstream_url, content=body, headers=headers)
-    except _httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"whisper upstream error: {exc}")
+        try:
+            form = await request.form()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"invalid multipart body: {exc}",
+            )
+
+        upload: Optional[_StarletteUploadFile] = None
+        data: Dict[str, str] = {}
+        for key, value in form.multi_items():
+            if isinstance(value, _StarletteUploadFile):
+                if key == "file" and upload is None:
+                    upload = value
+                # Drop any extra file parts — whisper-server takes exactly one.
+                continue
+            if key == "task":
+                if value == "translate":
+                    data["translate"] = "true"
+                # task=transcribe is whisper-server's default; drop silently.
+                continue
+            data[key] = value
+
+        if upload is None:
+            raise HTTPException(
+                status_code=400,
+                detail="missing required form field: file",
+            )
+
+        file_bytes = await upload.read()
+        files = {
+            "file": (
+                upload.filename or "audio",
+                file_bytes,
+                upload.content_type or "application/octet-stream",
+            )
+        }
+
+        upstream_url = f"http://127.0.0.1:{port}/v1/audio/transcriptions"
+        try:
+            async with _httpx.AsyncClient(timeout=300.0) as client:
+                upstream = await client.post(upstream_url, files=files, data=data)
+        except _httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"whisper upstream error: {exc}")
+    else:
+        upstream_url = f"http://127.0.0.1:{port}{ctx_path}"
+        headers = {
+            k: v for k, v in request.headers.items()
+            if k.lower() in {"content-type", "accept"}
+        }
+        try:
+            async with _httpx.AsyncClient(timeout=300.0) as client:
+                upstream = await client.post(upstream_url, content=body, headers=headers)
+        except _httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"whisper upstream error: {exc}")
 
     out_headers = {
         k: v for k, v in upstream.headers.items()
