@@ -27,10 +27,11 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,92 @@ def load_boost_terms(path: Optional[str] = None) -> List[str]:
         return []
     terms = data.get("boost_terms", []) if isinstance(data, dict) else []
     return [t for t in terms if isinstance(t, str) and t.strip()]
+
+
+def load_glossary(path: Optional[str] = None) -> Dict[str, Any]:
+    """Return the raw, editable glossary: ``{replacements, boost_terms}``.
+
+    Unlike :func:`load_rules` (compiled patterns) this returns the plain
+    JSON shape the admin editor round-trips. Missing/unparseable file →
+    empty lists, never an error.
+    """
+    target = Path(path) if path else DEFAULT_GLOSSARY_PATH
+    if not target.exists():
+        return {"replacements": [], "boost_terms": []}
+    try:
+        data = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("⚠️ could not load transcription glossary %s: %s", target, exc)
+        return {"replacements": [], "boost_terms": []}
+    if not isinstance(data, dict):
+        return {"replacements": [], "boost_terms": []}
+    return {
+        "replacements": data.get("replacements", []) or [],
+        "boost_terms": data.get("boost_terms", []) or [],
+    }
+
+
+def normalize_glossary(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate + clean an incoming glossary payload for persistence.
+
+    Drops malformed entries, trims whitespace, and de-dupes ``boost_terms``
+    (case-insensitive, order-preserving). Raises :class:`ValueError` if the
+    top-level shape is wrong so the API can answer 400 rather than write
+    junk that would later be silently ignored by :func:`load_rules`.
+    """
+    if not isinstance(data, dict):
+        raise ValueError("glossary must be a JSON object")
+    raw_repl = data.get("replacements", [])
+    raw_boost = data.get("boost_terms", [])
+    if not isinstance(raw_repl, list) or not isinstance(raw_boost, list):
+        raise ValueError("'replacements' and 'boost_terms' must be lists")
+
+    replacements: List[Dict[str, str]] = []
+    for r in raw_repl:
+        if not isinstance(r, dict):
+            continue
+        src = str(r.get("from", "")).strip()
+        dst = r.get("to", "")
+        if not src or not isinstance(dst, str):
+            continue
+        replacements.append({"from": src, "to": dst})
+
+    boost_terms: List[str] = []
+    seen = set()
+    for t in raw_boost:
+        if not isinstance(t, str):
+            continue
+        term = t.strip()
+        key = term.lower()
+        if term and key not in seen:
+            seen.add(key)
+            boost_terms.append(term)
+
+    return {"replacements": replacements, "boost_terms": boost_terms}
+
+
+def save_glossary(data: Dict[str, Any], path: Optional[str] = None) -> Dict[str, Any]:
+    """Validate, atomically write, and invalidate caches. Returns the saved shape.
+
+    The replacement-rule cache (:func:`load_rules`) is cleared so edits
+    take effect on the next request without a hub restart.
+    ``boost_terms`` changes only bind on the next whisper launch (boosting
+    is a launch-time arg), which the caller surfaces to the user.
+    """
+    target = Path(path) if path else DEFAULT_GLOSSARY_PATH
+    clean = normalize_glossary(data)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    tmp.write_text(
+        json.dumps(clean, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    os.replace(tmp, target)
+    load_rules.cache_clear()
+    logger.info(
+        "💾 Saved transcription glossary (%d replacements, %d boost terms)",
+        len(clean["replacements"]), len(clean["boost_terms"]),
+    )
+    return clean
 
 
 def apply_rules(text: str, rules: Tuple[Rule, ...]) -> str:

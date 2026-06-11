@@ -1,14 +1,39 @@
 {
   "replacements": [
     { "from": "cloud code", "to": "Claude Code" },
+    { "from": "claude code", "to": "Claude Code" },
+    { "from": "code x", "to": "Codex" },
     { "from": "open claw", "to": "openClaw" },
-    { "from": "quen", "to": "Qwen" }
+    { "from": "quen", "to": "Qwen" },
+    { "from": "lang fuse", "to": "Langfuse" },
+    { "from": "langfuse", "to": "Langfuse" },
+    { "from": "llama server", "to": "llama-server" },
+    { "from": "fast api", "to": "FastAPI" },
+    { "from": "anti gravity", "to": "Antigravity" },
+    { "from": "cloud flare", "to": "Cloudflare" },
+    { "from": "tail scale", "to": "Tailscale" },
+    { "from": "play write", "to": "Playwright" },
+    { "from": "git hub", "to": "GitHub" },
+    { "from": "super base", "to": "Supabase" }
   ],
   "boost_terms": [
     "Claude Code",
     "Codex",
     "Qwen",
+    "GLM",
+    "Gemma",
     "Langfuse",
-    "openClaw"
+    "openClaw",
+    "Antigravity",
+    "FastAPI",
+    "llama-server",
+    "whisper",
+    "Cloudflare",
+    "Tailscale",
+    "Playwright",
+    "Notion",
+    "Supabase",
+    "Anthropic",
+    "GitHub"
   ]
 }

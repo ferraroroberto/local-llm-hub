@@ -9,6 +9,7 @@
 
 import { els, state } from './state.js';
 import { jsonApi, postJson, toast } from './api.js';
+import { mountGlossaryEditor } from './glossary.js';
 
 export async function fetchModels() {
   try {
@@ -62,10 +63,16 @@ function fillItem(li, m) {
   const adopted = ownership === 'external';
   const pidNote = m.pid && adopted ? ' <span class="muted small">PID ' + m.pid + '</span>' : '';
 
-  li.replaceChildren();
-
-  const main = document.createElement('div');
-  main.className = 'app-main';
+  // Rebuild the .app-main block in place rather than wiping the whole <li>,
+  // so an open dictionary panel (a sibling, below) survives the 5 s poll
+  // with its unsaved edits intact.
+  let main = li.querySelector(':scope > .app-main');
+  if (main) {
+    main.replaceChildren();
+  } else {
+    main = document.createElement('div');
+    main.className = 'app-main';
+  }
 
   const titleRow = document.createElement('div');
   titleRow.className = 'app-title-row';
@@ -90,10 +97,17 @@ function fillItem(li, m) {
   if (adopted) {
     buttons.push({ act: 'force-stop', glyph: '💀', label: 'Force stop', danger: true });
   }
+  if (m.backend === 'whisper') {
+    // The transcription dictionary is shared by every whisper backend, so
+    // the same editor opens from any whisper row.
+    buttons.push({ act: 'dictionary', glyph: '📖', label: 'Transcription dictionary' });
+  }
+  const panelOpen = !!li.querySelector(':scope > .glossary-panel:not([hidden])');
   buttons.forEach(function (b) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'icon-btn' + (b.danger ? ' danger' : '');
+    if (b.act === 'dictionary' && panelOpen) btn.classList.add('active');
     btn.dataset.act = b.act;
     btn.disabled = !!b.disabled;
     btn.title = b.label;
@@ -113,7 +127,13 @@ function fillItem(li, m) {
     (m.aliases && m.aliases.length ? ' · ' + m.aliases.join(', ') : '');
   main.appendChild(meta);
 
-  li.appendChild(main);
+  // Keep .app-main as the first child so any dictionary panel stays below it.
+  const panel = li.querySelector(':scope > .glossary-panel');
+  if (panel) {
+    li.insertBefore(main, panel);
+  } else if (main.parentNode !== li) {
+    li.appendChild(main);
+  }
 }
 
 function badge(m) {
@@ -158,7 +178,42 @@ async function handleAction(m, act) {
       const body = await postJson('/admin/api/models/' + encodeURIComponent(m.id) + '/ping', {});
       toast(m.display_name + ' · ' + body.status + ' · ' + body.latency_ms + ' ms', body.ok ? 'good' : 'error');
     } catch (exc) { toast(String(exc.message || exc), 'error'); }
+  } else if (act === 'dictionary') {
+    toggleDictionaryPanel(m);
   }
+}
+
+// Open/close the shared transcription-dictionary editor under a whisper row.
+//
+// There is exactly one dictionary, so only one editor is ever open at a
+// time: opening it on any whisper row first closes any other open panel.
+// That makes it visually unambiguous that Turbo and Translate edit the
+// same list — you can't have two side-by-side that look independent.
+function toggleDictionaryPanel(m) {
+  const root = els.modelsList;
+  if (!root) return;
+  const li = root.querySelector('.app-item[data-id="' + cssEscape(m.id) + '"]');
+  if (!li) return;
+  const alreadyOpen = !!li.querySelector(':scope > .glossary-panel');
+  closeAllDictionaryPanels(root);
+  // Clicking the row whose panel was open just closes it (toggle off).
+  if (alreadyOpen) return;
+  const panel = document.createElement('div');
+  panel.className = 'glossary-panel';
+  li.appendChild(panel);
+  mountGlossaryEditor(panel);
+  const btn = li.querySelector('.icon-btn[data-act="dictionary"]');
+  if (btn) btn.classList.add('active');
+}
+
+function closeAllDictionaryPanels(root) {
+  root.querySelectorAll('.glossary-panel').forEach(function (p) { p.remove(); });
+  root.querySelectorAll('.icon-btn[data-act="dictionary"].active')
+    .forEach(function (b) { b.classList.remove('active'); });
+}
+
+function cssEscape(s) {
+  return String(s).replace(/["\\]/g, '\\$&');
 }
 
 function escapeHtml(s) {
