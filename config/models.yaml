@@ -270,11 +270,26 @@ models:
     # GPU is on by default in whisper.cpp v1.8+; pass -ng / --no-gpu to disable.
     # --inference-path exposes the OpenAI-compatible route that clients
     # (including transcribe_voice's TranscriptionClient) expect.
+    #
+    # Anti-hallucination guards (issue #88): whisper.cpp defaults
+    # --max-context to -1 (unlimited text carry-over between 30 s windows).
+    # Once the greedy decoder emits a repeated phrase on a low-information
+    # stretch, that text is fed forward as the next window's prompt and
+    # self-reinforces into a runaway loop. --max-context 0 disables the
+    # carry-over (equivalent to OpenAI Whisper's condition_on_previous_text
+    # =False), which is the single highest-leverage fix. --suppress-nst
+    # drops non-speech tokens that also seed silence/noise hallucinations.
+    # Temperature fallback + the entropy threshold (-et 2.40) are already
+    # on by default. VAD would further help but needs a separate model
+    # download — deferred (see issue #88).
     args:
       - "--threads"
       - "4"
       - "--processors"
       - "1"
+      - "--max-context"
+      - "0"
+      - "--suppress-nst"
       - "--inference-path"
       - "/v1/audio/transcriptions"
 
@@ -305,12 +320,18 @@ models:
     hf_repo: "ggerganov/whisper.cpp"
     hf_pattern: "ggml-medium.bin"
     model_path: "models/ggml-medium.bin"
+    # Same anti-hallucination guards as the turbo row above (issue #88):
+    # --max-context 0 kills the cross-window text carry-over that drives
+    # repetition cascades; --suppress-nst drops non-speech tokens.
     args:
       - "-ng"
       - "--threads"
       - "4"
       - "--processors"
       - "1"
+      - "--max-context"
+      - "0"
+      - "--suppress-nst"
       - "--inference-path"
       - "/v1/audio/transcriptions"
 

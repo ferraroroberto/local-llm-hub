@@ -169,6 +169,36 @@ set `translate: false` in
 or patch its `transcription_client.py` to POST to a single path and
 pass `translate` as a form field.
 
+### Runaway repetition loops (issue #88)
+
+whisper.cpp periodically emitted a runaway repetition loop — the same
+short phrase repeated dozens of times until the clip ended (`"all these
+things that we're doing…"`, `"And I think that's a very important
+thing."` ×40). It is the classic Whisper decoder hallucination, and the
+hub was exposed to it because `--max-context` defaults to **`-1`**
+(unlimited). whisper.cpp transcribes in ~30 s windows and feeds the
+previous window's decoded text forward as the next window's initial
+prompt; once the greedy decoder emits a repeated n-gram on a
+low-information stretch (filler, a pause, silence, noise), that text is
+carried forward and self-reinforces into an escalating cascade.
+
+Fix (launch-flag only, both whisper rows in `config/models.yaml`):
+
+- **`--max-context 0`** — disables the cross-window text carry-over. This
+  is the highest-leverage guard and is equivalent to OpenAI Whisper's
+  `condition_on_previous_text=False`. Tradeoff: marginally less coherence
+  across sentence boundaries (e.g. consistent spelling of a name) —
+  negligible for short dictation clips.
+- **`--suppress-nst`** — suppresses non-speech tokens that also seed
+  silence/noise hallucinations.
+
+Already on by default in the vendored build (verified via
+`whisper-server --help`): temperature fallback and the entropy threshold
+(`-et 2.40`). VAD (`--vad` + `--vad-model`) would filter non-speech
+before the decoder and help further, but it needs a separate Silero VAD
+model download — deferred until the two no-download guards above prove
+insufficient.
+
 ## Verification (what we actually ran)
 
 1. `python -m src.install --fix` — pulled the CUDA whisper.cpp release
