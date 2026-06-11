@@ -242,8 +242,10 @@ per-term locally if you want them.
 ### How it's wired
 
 - [src/transcription_glossary.py](../src/transcription_glossary.py) loads
-  + compiles the rules (cached; edits take effect on hub restart) and
-  exposes `apply_to_response(content, content_type, rules)`.
+  + compiles the rules (cached) and exposes
+  `apply_to_response(content, content_type, rules)`. Hand-editing the
+  JSON takes effect on hub restart; **saving from the in-app editor
+  (below) clears the cache** so replacement edits apply immediately.
 - [src/server.py](../src/server.py) `_proxy_audio` calls it on the
   upstream response before returning, for both the transcribe and
   translate paths. It rewrites the `text` field of `json` responses,
@@ -258,6 +260,49 @@ Unit coverage:
 [tests/test_transcription_glossary.py](../tests/test_transcription_glossary.py)
 — ordering, word-boundary, case-insensitivity, no over-match, the three
 response shapes, and an end-to-end proxy rewrite.
+
+### Editing the dictionary in-app + transcript mining (issue #94)
+
+The dictionary no longer needs hand-editing. In the admin SPA's **Models**
+tab, every whisper row carries a 📖 button that expands an inline editor
+for the *shared* `config/transcription_glossary.json` (one dictionary
+feeds all whisper backends, so the same editor opens from any whisper
+row):
+
+- **Replacements** — add / edit / delete / reorder the ordered
+  `{from → to}` rules. Saving writes the JSON and clears the rule cache,
+  so replacement edits apply to the next request **without a restart**.
+- **Boost terms** — add / remove chips. Boosting is a launch-time arg, so
+  boost-term edits bind on the **next whisper start** (the save toast
+  says so).
+
+**✨ Suggest from transcripts** runs a miner that reads the last *N* days
+of real dictation transcripts from **voice-transcriber's session API**
+over loopback (the canonical corpus owner — the hub stores no transcript
+text of its own) and proposes additions you accept/reject before saving.
+It never writes the dictionary unattended.
+
+- API: `GET`/`PUT /admin/api/glossary`, `POST /admin/api/glossary/mine`
+  ([app_web/routers/glossary.py](../app_web/routers/glossary.py)).
+- Miner: [src/dictionary_miner.py](../src/dictionary_miner.py) — frequency
+  + capitalisation heuristics for candidate `boost_terms`, plus an
+  optional LLM clustering pass (run *through the hub itself*) that groups
+  a canonical term with its common mis-transcriptions into candidate
+  `replacements`. The LLM pass degrades gracefully to heuristics-only if
+  the hub call fails.
+- Config: [config/dictionary_miner.json](../config/dictionary_miner.json)
+  — `voice_transcriber_base_url` (default `https://127.0.0.1:8443`),
+  `default_days`, `max_tokens`, `min_count`, `use_llm`, `llm_model`. The
+  file is optional; the baked defaults apply when it's absent. The miner
+  consumes voice-transcriber's documented session-API contract
+  (`GET /api/sessions/transcripts?days=N`); pin the tested build via
+  `GET /api/version`.
+
+Unit coverage:
+[tests/test_glossary_router.py](../tests/test_glossary_router.py) (CRUD +
+cache invalidation + `/mine`) and
+[tests/test_dictionary_miner.py](../tests/test_dictionary_miner.py)
+(heuristics, cluster→rule mapping, fetch, graceful LLM fallback).
 
 ## Recognition boosting & the whisper.cpp ≥1.8.5 upgrade (issue #91)
 

@@ -64,12 +64,17 @@ Local entries in active use as of the May 2026 frontier reading:
 proxy (`:8000/v1/audio/*`) get a deterministic post-processing pass that
 fixes persistent domain-term misspellings (e.g. "cloud code" → "Claude
 Code"). The rules live in [config/transcription_glossary.json](config/transcription_glossary.json)
-— an ordered, hand-editable list of literal `{"from","to"}` replacements
-(case-insensitive, word-boundary, longest-phrase-first). Edits take
-effect on hub restart. Direct hits to `:8090`/`:8091` bypass the
-glossary (and the observability ring). See
-[docs/add-whisper-asr.md](docs/add-whisper-asr.md) for the schema and the
-companion recognition-boosting mechanism.
+— an ordered list of literal `{"from","to"}` replacements
+(case-insensitive, word-boundary, longest-phrase-first) plus a
+`boost_terms` vocabulary. Edit it from the **📖 button on any whisper row
+in the Models tab** (an inline editor; replacement edits apply without a
+restart, boost-term edits on the next whisper start), or hand-edit the
+JSON. **✨ Suggest from transcripts** mines the last *N* days of real
+dictation from voice-transcriber's session API and proposes additions to
+review. Direct hits to `:8090`/`:8091` bypass the glossary (and the
+observability ring). See
+[docs/add-whisper-asr.md](docs/add-whisper-asr.md) for the schema, the
+in-app editor + miner, and the companion recognition-boosting mechanism.
 
 ## Demoted candidates (kept defined, not in active rotation)
 

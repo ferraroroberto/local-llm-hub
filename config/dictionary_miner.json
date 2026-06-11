@@ -1,0 +1,8 @@
+{
+  "voice_transcriber_base_url": "https://127.0.0.1:8443",
+  "default_days": 7,
+  "max_tokens": 60000,
+  "min_count": 2,
+  "use_llm": true,
+  "llm_model": "claude-haiku-4-5"
+}
