@@ -1202,12 +1202,32 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
         except _httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=f"whisper upstream error: {exc}")
 
+    # Apply the committed transcription glossary (issue #90) to the
+    # transcript text before returning. Deterministic literal fixes for
+    # acoustically-strong errors recognition-level biasing can't solve
+    # (e.g. "cloud code" → "Claude Code"). Wrapped defensively: a broken
+    # glossary must never break the passthrough.
+    out_content = upstream.content
+    if upstream.status_code == 200:
+        try:
+            from .transcription_glossary import apply_to_response, load_rules
+
+            rules = load_rules()
+            if rules:
+                out_content = apply_to_response(
+                    upstream.content,
+                    upstream.headers.get("content-type"),
+                    rules,
+                )
+        except Exception:  # noqa: BLE001 — never let post-processing fail the proxy
+            out_content = upstream.content
+
     out_headers = {
         k: v for k, v in upstream.headers.items()
         if k.lower() not in {"content-length", "transfer-encoding", "connection"}
     }
     return Response(
-        content=upstream.content,
+        content=out_content,
         status_code=upstream.status_code,
         media_type=upstream.headers.get("content-type"),
         headers=out_headers,

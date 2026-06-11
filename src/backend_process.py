@@ -213,6 +213,27 @@ def _reader(state: _BackendState, proc: subprocess.Popen) -> None:
             state.log.append(line)
 
 
+def _whisper_boost_args(existing_args: list[str]) -> list[str]:
+    """Return extra whisper-server args to enable vocabulary boosting (#91).
+
+    When a whisper row opts into ``--carry-initial-prompt`` (which is only
+    honoured with ``--max-context > 0`` — proven on v1.8.6), source the
+    initial prompt from the committed dictionary's ``boost_terms`` so the
+    boosting vocabulary lives in one place
+    (``config/transcription_glossary.json``, shared with the #90
+    replacement rules). No-op if boosting isn't requested or the row
+    already supplies its own ``--prompt``.
+    """
+    if "--carry-initial-prompt" not in existing_args or "--prompt" in existing_args:
+        return []
+    from .transcription_glossary import load_boost_terms
+
+    terms = load_boost_terms()
+    if not terms:
+        return []
+    return ["--prompt", "Glossary: " + ", ".join(terms) + "."]
+
+
 def build_command(model: Model) -> list[str]:
     if not model.model_path:
         raise RuntimeError(f"model {model.id} has no model_path")
@@ -252,7 +273,9 @@ def build_command(model: Model) -> list[str]:
             "--port", str(model.port),
             "--model", str(model_path),
         ]
-        cmd.extend(model.args or [])
+        args = list(model.args or [])
+        cmd.extend(args)
+        cmd.extend(_whisper_boost_args(args))
         return cmd
 
     bin_path = _llama_server_binary()
