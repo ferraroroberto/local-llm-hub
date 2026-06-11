@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -24,7 +25,16 @@ from typing import List, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 VENDOR_DIR = PROJECT_ROOT / "vendor" / "whisper.cpp"
-RELEASES_URL = "https://api.github.com/repos/ggerganov/whisper.cpp/releases/latest"
+
+# Pinned to a known-good tag rather than floating "latest" so the feature
+# set is deterministic (issue #91). v1.8.5 (2026-05-29, ggml-org/whisper.cpp
+# #3781) added server-side `carry_initial_prompt`; v1.8.6 is the newest
+# patch on that line. Bump this tag deliberately when a newer one is
+# vetted. The repo moved ggerganov → ggml-org; the API redirects either way.
+PINNED_TAG = "v1.8.6"
+RELEASES_URL = (
+    f"https://api.github.com/repos/ggml-org/whisper.cpp/releases/tags/{PINNED_TAG}"
+)
 
 # Prefer the newest CUDA line upstream ships; fall back to older ones.
 WIN_CUDA_PREFS = ["cublas-12.4.0", "cublas-12.2.0", "cublas-11.8.0"]
@@ -50,14 +60,23 @@ def already_installed() -> bool:
     bin_path = _server_binary()
     if not bin_path.exists():
         return False
-    try:
-        # whisper-server prints usage on --help and exits non-zero, so just
-        # check that the binary can execute at all.
-        r = subprocess.run([str(bin_path), "--help"],
-                           capture_output=True, text=True, timeout=10)
-        return r.returncode in (0, 1)
-    except Exception:
-        return False
+    # The first exec immediately after a --force extract can transiently
+    # fail (Errno-ish / AV scan) while the OS finishes flushing the large
+    # CUDA DLLs (cublasLt64_12.dll is ~450 MB) to disk. Retry a couple of
+    # times before declaring the binary non-runnable.
+    for attempt in range(3):
+        try:
+            # whisper-server prints usage on --help and exits non-zero, so just
+            # check that the binary can execute at all.
+            r = subprocess.run([str(bin_path), "--help"],
+                               capture_output=True, text=True, timeout=10)
+            if r.returncode in (0, 1):
+                return True
+        except Exception:
+            pass
+        if attempt < 2:
+            time.sleep(1.5)
+    return False
 
 
 def _fetch_release() -> dict:
@@ -65,6 +84,28 @@ def _fetch_release() -> dict:
     req = urllib.request.Request(RELEASES_URL, headers={"Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.load(r)
+
+
+def _purge_vendor() -> None:
+    """Remove the existing vendored tree so a forced reinstall lands clean.
+
+    Used by ``--force`` to upgrade the pinned binary. On Windows the
+    server .exe / DLLs are locked while whisper-server is running, so
+    rmtree raises — surface that as a clear "stop the server first"
+    message rather than a bare OSError.
+    """
+    if not VENDOR_DIR.exists():
+        return
+    print(f"--force: removing existing {VENDOR_DIR}")
+    try:
+        shutil.rmtree(VENDOR_DIR)
+    except (PermissionError, OSError) as exc:
+        raise InstallError(
+            f"could not remove {VENDOR_DIR} ({exc}). whisper-server is "
+            "likely still running and holding the binary. Stop it first "
+            "(coordinate with voice-transcriber on the shared :8090/:8091 "
+            "mutex), then re-run with --force."
+        )
 
 
 def _pick_assets(release: dict) -> List[dict]:
@@ -175,8 +216,13 @@ def _normalise_binary_name() -> None:
             return
 
 
-def main() -> int:
-    if already_installed():
+def main(argv: Optional[List[str]] = None) -> int:
+    args = list(sys.argv[1:] if argv is None else argv)
+    force = "--force" in args
+
+    if force:
+        _purge_vendor()
+    elif already_installed():
         print(f"whisper.cpp already installed at {_server_binary()}")
         return 0
 

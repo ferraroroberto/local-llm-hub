@@ -1,0 +1,14 @@
+{
+  "replacements": [
+    { "from": "cloud code", "to": "Claude Code" },
+    { "from": "open claw", "to": "openClaw" },
+    { "from": "quen", "to": "Qwen" }
+  ],
+  "boost_terms": [
+    "Claude Code",
+    "Codex",
+    "Qwen",
+    "Langfuse",
+    "openClaw"
+  ]
+}

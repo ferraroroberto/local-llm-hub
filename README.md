@@ -60,6 +60,17 @@ Local entries in active use as of the May 2026 frontier reading:
   [src/whisper_translate_proxy.py](src/whisper_translate_proxy.py) — for
   hosts that need to reclaim RAM when translate is rare.
 
+**Transcription glossary.** Requests that go through the hub's audio
+proxy (`:8000/v1/audio/*`) get a deterministic post-processing pass that
+fixes persistent domain-term misspellings (e.g. "cloud code" → "Claude
+Code"). The rules live in [config/transcription_glossary.json](config/transcription_glossary.json)
+— an ordered, hand-editable list of literal `{"from","to"}` replacements
+(case-insensitive, word-boundary, longest-phrase-first). Edits take
+effect on hub restart. Direct hits to `:8090`/`:8091` bypass the
+glossary (and the observability ring). See
+[docs/add-whisper-asr.md](docs/add-whisper-asr.md) for the schema and the
+companion recognition-boosting mechanism.
+
 ## Demoted candidates (kept defined, not in active rotation)
 
 `qwen3.5-9b` and `glm-4.5-air` are **defined in `config/models.yaml`**

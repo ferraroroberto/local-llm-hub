@@ -271,14 +271,25 @@ models:
     # --inference-path exposes the OpenAI-compatible route that clients
     # (including transcribe_voice's TranscriptionClient) expect.
     #
-    # Anti-hallucination guards (issue #88): whisper.cpp defaults
-    # --max-context to -1 (unlimited text carry-over between 30 s windows).
-    # Once the greedy decoder emits a repeated phrase on a low-information
-    # stretch, that text is fed forward as the next window's prompt and
-    # self-reinforces into a runaway loop. --max-context 0 disables the
-    # carry-over (equivalent to OpenAI Whisper's condition_on_previous_text
-    # =False), which is the single highest-leverage fix. --suppress-nst
-    # drops non-speech tokens that also seed silence/noise hallucinations.
+    # Anti-hallucination guards (issue #88) + vocabulary boosting (#91):
+    # whisper.cpp defaults --max-context to -1 (unlimited text carry-over
+    # between 30 s windows); once the greedy decoder emits a repeated
+    # phrase on a low-information stretch, that text is fed forward and
+    # self-reinforces into a runaway loop. --suppress-nst drops non-speech
+    # tokens that also seed silence/noise hallucinations.
+    #
+    # --max-context is 64 (not 0): the #88 fix used 0, but 0 *nullifies*
+    # the initial prompt entirely — even with --carry-initial-prompt
+    # (proven on v1.8.6: at maxctx 0 the prompt has zero effect; at 64 it
+    # is honoured). 64 is the smallest budget that re-enables boosting
+    # while still holding loops at 0 repetitions in #88/#91 testing.
+    # --carry-initial-prompt (whisper.cpp >=1.8.5) re-injects the prompt
+    # into every sliding window so it doesn't age out on long dictation.
+    # The prompt text itself is sourced at launch from the committed
+    # dictionary's `boost_terms` (config/transcription_glossary.json) by
+    # backend_process._whisper_boost_args — one home for the vocabulary,
+    # shared with the #90 replacement rules.
+    #
     # Temperature fallback + the entropy threshold (-et 2.40) are already
     # on by default. VAD would further help but needs a separate model
     # download — deferred (see issue #88).
@@ -288,7 +299,8 @@ models:
       - "--processors"
       - "1"
       - "--max-context"
-      - "0"
+      - "64"
+      - "--carry-initial-prompt"
       - "--suppress-nst"
       - "--inference-path"
       - "/v1/audio/transcriptions"
@@ -320,9 +332,12 @@ models:
     hf_repo: "ggerganov/whisper.cpp"
     hf_pattern: "ggml-medium.bin"
     model_path: "models/ggml-medium.bin"
-    # Same anti-hallucination guards as the turbo row above (issue #88):
-    # --max-context 0 kills the cross-window text carry-over that drives
-    # repetition cascades; --suppress-nst drops non-speech tokens.
+    # Anti-hallucination guards (issue #88): --max-context 0 kills the
+    # cross-window text carry-over that drives repetition cascades;
+    # --suppress-nst drops non-speech tokens. Intentionally NOT boosted
+    # (issue #91): this row translates ES→EN, where the English-tech
+    # glossary is off-topic, so it keeps the strongest loop guard
+    # (maxctx 0) rather than trading it for boosting.
     args:
       - "-ng"
       - "--threads"
