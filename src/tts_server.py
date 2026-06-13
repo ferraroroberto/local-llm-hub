@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import io
 import logging
+import os
 import struct
 import sys
 import threading
@@ -36,6 +37,18 @@ from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 from .backend_process import resolve_model_by_id
 from .model_registry import Model
 from .tts_engines import SpeechRequest, TTSEngine, build_engine
+
+# Disable tqdm progress bars for the whole backend process (#104). Chatterbox's
+# t3.inference draws a "Sampling" bar to stdout on every synthesis. This backend
+# is spawned with stdout piped to the hub; when the hub restarts but the backend
+# survives (tray.bat --restart deliberately leaves the TTS ports alone, so the
+# new hub *inherits* the old process), that pipe's read end is closed. On Windows
+# a write to a broken pipe surfaces as OSError: [Errno 22] Invalid argument — not
+# BrokenPipeError — so the bar write blew up mid-generate and every synthesis
+# 502'd. Silencing tqdm removes the only per-synthesis stdout write, so an
+# orphaned stdout can no longer crash synthesis. setdefault leaves an explicit
+# override in place. Must run before chatterbox/tqdm import (lazy in load()).
+os.environ.setdefault("TQDM_DISABLE", "1")
 
 log = logging.getLogger("tts_server")
 
