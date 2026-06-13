@@ -21,6 +21,19 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+# Bounded default Playwright timeout (#100): cap implicit auto-waiting actions
+# at 15 s so a stuck click/goto names itself instead of silently stacking
+# toward Playwright's opaque 30 s default.  Explicit per-call timeout= and
+# expect() web-first assertions are unaffected.
+_DEFAULT_TIMEOUT_MS = int(os.environ.get("E2E_DEFAULT_TIMEOUT_MS", "15000"))
+
+
+@pytest.fixture(autouse=True)
+def _bound_default_timeouts(page):
+    """Set a bounded action + navigation timeout on every Playwright page (#100)."""
+    page.set_default_timeout(_DEFAULT_TIMEOUT_MS)
+    page.set_default_navigation_timeout(_DEFAULT_TIMEOUT_MS)
+
 
 def _free_tcp_port() -> int:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
