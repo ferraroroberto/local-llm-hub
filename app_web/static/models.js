@@ -147,6 +147,7 @@ function pickGlyph(m) {
   if (m.backend === 'claude') return '🌀';
   if (m.backend === 'gemini') return '♊';
   if (m.backend === 'whisper') return '🎙';
+  if (m.backend === 'tts') return '🔊';
   return '🦙';
 }
 

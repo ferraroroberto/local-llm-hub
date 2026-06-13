@@ -1,0 +1,39 @@
+# Text-to-speech backends (issue #98) — the inverse of the whisper STT pair.
+#
+# Heavy: this set pulls torch + torchaudio (~2 GB on a CUDA build). Kept OUT
+# of requirements.txt so the base hub install and the Mac mini (which enables
+# no TTS role) stay lean. Install on TTS-enabled hosts via:
+#
+#     python -m src.install --fix          (runs scripts/install_tts.py)
+#   or
+#     .venv\Scripts\python -m pip install -r requirements-tts.txt
+#     .venv\Scripts\python -m pip install --no-deps chatterbox-tts==0.1.7
+#
+# Why chatterbox-tts is installed --no-deps (by install_tts.py), not listed
+# here: its own dependency set additionally pins `spacy-pkuseg` (Chinese
+# word segmentation — no wheel on Python 3.14, so pip tries to *compile* it
+# and fails without MSVC C++ Build Tools) and `gradio` (a whole demo-UI
+# framework we don't want in the hub). Neither is needed for English
+# server-side synthesis, so we install Chatterbox's real runtime deps here
+# explicitly (its 0.1.7 set minus spacy-pkuseg + gradio) and add the package
+# itself with --no-deps. pykakasi is pure-Python and kept so any lazy import
+# resolves.
+
+# --- Chatterbox 0.1.7 runtime deps (minus spacy-pkuseg + gradio) ---
+torch>=2.9.0          # cp314 wheels exist (2.12); chatterbox pins 2.6 only for <3.14
+torchaudio>=2.9.0
+transformers==5.2.0
+diffusers==0.29.0
+safetensors==0.5.3
+librosa==0.11.0
+s3tokenizer
+resemble-perth>=1.0.0
+conformer==0.3.2
+pykakasi==2.3.0       # pure-Python; satisfies any lazy text-frontend import
+pyloudnorm
+omegaconf
+numpy>=2.0.0
+
+# --- Shared TTS infra ---
+snac                  # SNAC neural codec — decodes Orpheus audio tokens
+soundfile             # optional non-wav response_format encoding (flac/ogg/...)

@@ -235,6 +235,15 @@ def _whisper_boost_args(existing_args: list[str]) -> list[str]:
 
 
 def build_command(model: Model) -> list[str]:
+    # TTS rows run the in-repo FastAPI shim (src/tts_server), which owns the
+    # heavy engine (Chatterbox in-process / Orpheus via a llama-server child).
+    # Checked first: a chatterbox row has no model_path (weights come from the
+    # HF cache), so it must skip the model_path guard below.
+    if model.engine == "tts-server":
+        cmd = [sys.executable, "-m", "src.tts_server", "--model-id", model.id]
+        cmd.extend(model.args or [])
+        return cmd
+
     if not model.model_path:
         raise RuntimeError(f"model {model.id} has no model_path")
     model_path = (PROJECT_ROOT / model.model_path).resolve()
@@ -398,7 +407,7 @@ def inherit_running_backends() -> int:
     listening = snapshot_listening_pids()
     count = 0
     for m in enabled_models():
-        if m.backend not in ("openai", "whisper"):
+        if m.backend not in ("openai", "whisper", "tts"):
             continue
         if not m.port:
             continue
@@ -449,7 +458,7 @@ def running_backends() -> Dict[str, Model]:
     """Return {model_id: Model} for each local backend whose process is alive."""
     out: Dict[str, Model] = {}
     for m in enabled_models():
-        if m.backend in ("openai", "whisper") and is_running(m.id):
+        if m.backend in ("openai", "whisper", "tts") and is_running(m.id):
             out[m.id] = m
     return out
 

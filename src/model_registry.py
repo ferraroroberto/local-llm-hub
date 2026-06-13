@@ -19,9 +19,13 @@ from .host_profile import CONFIG_PATH, HostProfile, resolve as resolve_host
 class Model:
     id: str                         # short key in YAML ("qwen", "glm", "claude")
     display_name: str               # name the client sends in the `model` field
-    backend: str                    # "claude" | "openai" | "gemini" | "whisper"
+    backend: str                    # "claude" | "openai" | "gemini" | "whisper" | "tts"
     aliases: List[str] = field(default_factory=list)
     engine: Optional[str] = None
+    # For backend == "tts" (engine "tts-server"): which synthesis engine
+    # the shim loads — "chatterbox" (in-process torch) or "orpheus"
+    # (llama-server GGUF child + SNAC decode). See src/tts_engines.py.
+    tts_engine: Optional[str] = None
     port: Optional[int] = None
     hf_repo: Optional[str] = None
     hf_pattern: Optional[str] = None
@@ -59,6 +63,7 @@ def _row_to_model(model_id: str, row: Dict) -> Model:
         backend=str(row.get("backend", "openai")),
         aliases=list(row.get("aliases", []) or []),
         engine=row.get("engine"),
+        tts_engine=row.get("tts_engine"),
         port=int(row["port"]) if row.get("port") is not None else None,
         hf_repo=row.get("hf_repo"),
         hf_pattern=row.get("hf_pattern"),

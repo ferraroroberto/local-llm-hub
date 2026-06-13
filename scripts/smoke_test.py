@@ -90,6 +90,28 @@ def main() -> int:
             log.info("[skip] %s — audio backend, not a chat model", m.display_name)
             skipped.append(m.display_name)
             continue
+        if m.backend == "tts":
+            if not lp.is_reachable(m):
+                log.info("[skip] %s — TTS backend on :%s not reachable", m.display_name, m.port)
+                skipped.append(m.display_name)
+                continue
+            log.info("\n=== %s (tts) ===", m.display_name)
+            try:
+                r = httpx.post(
+                    f"{BASE_URL}/v1/audio/speech",
+                    json={"model": m.display_name, "input": "pong", "response_format": "wav"},
+                    timeout=300.0,
+                )
+                r.raise_for_status()
+                n = len(r.content)
+                log.info("   synthesized %d audio bytes (%s)", n, r.headers.get("content-type"))
+                if n > 44:  # bigger than a bare WAV header
+                    passed.append(m.display_name)
+                else:
+                    failures.append(f"{m.display_name}: empty audio ({n} bytes)")
+            except Exception as e:
+                failures.append(f"{m.display_name}: {e}")
+            continue
         if m.backend == "openai" and not lp.is_reachable(m):
             log.info("[skip] %s — backend on :%s not reachable", m.display_name, m.port)
             skipped.append(m.display_name)

@@ -644,6 +644,14 @@ def messages(req: MessagesRequest, request: Request) -> JSONResponse:
                     f"POST audio to http://127.0.0.1:{model.port}/v1/audio/transcriptions instead."
                 ),
             )
+        elif model.backend == "tts":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{req.model!r} is a TTS backend, not a chat model. "
+                    f"POST text to http://127.0.0.1:{model.port}/v1/audio/speech instead."
+                ),
+            )
         else:
             raise HTTPException(status_code=500, detail=f"unknown backend {model.backend!r}")
     except HTTPException as exc:
@@ -961,6 +969,16 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
                 ),
             )
 
+        if model.backend == "tts":
+            error_type = "http_400"
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{req.model!r} is a TTS backend, not a chat model. "
+                    f"POST text to http://127.0.0.1:{model.port}/v1/audio/speech instead."
+                ),
+            )
+
         if model.backend == "openai":
             if not model.url:
                 error_type = "config_error"
@@ -1255,6 +1273,96 @@ async def audio_translations(request: Request) -> Response:
     return await _proxy_audio(
         request, default_role="audio_translate",
         ctx_path="/v1/audio/translations",
+    )
+
+
+def _tts_port_for_model(model_name: str) -> Optional[int]:
+    """Pick a TTS backend port for a ``/v1/audio/speech`` request.
+
+    Resolve an explicit ``model`` through the registry first; otherwise fall
+    back to the ``audio_speech`` role (chatterbox), then the first enabled
+    TTS backend. Returns ``None`` if no TTS backend is enabled on this host.
+    """
+    from .model_registry import enabled_models, resolve as _resolve_model
+
+    if model_name:
+        m = _resolve_model(model_name)
+        if m and m.backend == "tts" and m.port:
+            return m.port
+
+    tts = [m for m in enabled_models() if m.backend == "tts" and m.port]
+    if not tts:
+        return None
+    for m in tts:
+        if "audio_speech" in (m.aliases or []):
+            return m.port
+    return tts[0].port
+
+
+@app.post("/v1/audio/speech")
+async def audio_speech(request: Request) -> Response:
+    """Proxy text-to-speech requests through the hub so they land in the
+    observability ring. The inverse of :func:`audio_transcriptions`.
+
+    Body is the OpenAI JSON shape ``{model, input, voice, response_format,
+    speed}`` (plus Chatterbox's ``exaggeration`` / ``cfg_weight``). Clients
+    may also POST directly to the backend port (:8092 / :8093) for lower
+    overhead, bypassing the hub's capture.
+    """
+    import json as _json
+
+    import httpx as _httpx
+
+    body = await request.body()
+    model_name = ""
+    try:
+        parsed = _json.loads(body or b"{}")
+        if isinstance(parsed, dict):
+            model_name = str(parsed.get("model") or "")
+    except Exception:  # noqa: BLE001
+        pass
+
+    port = _tts_port_for_model(model_name)
+    if port is None:
+        raise HTTPException(status_code=503, detail="no TTS backend enabled on this host")
+
+    ctx = getattr(request.state, "obs_ctx", None)
+    if ctx is not None:
+        ctx.model = model_name
+        ctx.backend = "tts"
+
+    span = _current_otel_span()
+    if span is not None and hasattr(span, "set_attribute"):
+        try:
+            span.set_attribute("gen_ai.system", "tts")
+            span.set_attribute("gen_ai.operation.name", "audio_speech")
+            if model_name:
+                span.set_attribute("gen_ai.request.model", model_name)
+            span.set_attribute("tts.port", int(port))
+        except Exception:  # noqa: BLE001
+            pass
+    _stash_trace_id_on_ctx(ctx, span)
+
+    upstream_url = f"http://127.0.0.1:{port}/v1/audio/speech"
+    headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() in {"content-type", "accept"}
+    }
+    try:
+        async with _httpx.AsyncClient(timeout=300.0) as client:
+            upstream = await client.post(upstream_url, content=body, headers=headers)
+    except _httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"tts upstream error: {exc}")
+
+    out_headers = {
+        k: v for k, v in upstream.headers.items()
+        if k.lower() not in {"content-length", "transfer-encoding", "connection"}
+    }
+    return Response(
+        content=upstream.content,
+        status_code=upstream.status_code,
+        media_type=upstream.headers.get("content-type"),
+        headers=out_headers,
     )
 
 

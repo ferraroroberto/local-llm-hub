@@ -8,6 +8,7 @@ import mimetypes
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import Response
 
 from src.host_profile import hub_port
 from src.model_registry import enabled_models, resolve as resolve_model
@@ -45,6 +46,72 @@ async def playground_models() -> Dict[str, Any]:
             }
         )
     return {"models": rows}
+
+
+@router.get("/api/playground/tts_models")
+async def playground_tts_models() -> Dict[str, Any]:
+    """List enabled TTS backends for the Playground's speech tester."""
+    rows: List[Dict[str, Any]] = []
+    for m in enabled_models():
+        if m.backend != "tts":
+            continue
+        rows.append(
+            {
+                "id": m.id,
+                "display_name": m.display_name,
+                "engine": m.tts_engine,
+                "aliases": list(m.aliases or []),
+            }
+        )
+    return {"models": rows}
+
+
+@router.post("/api/playground/speak")
+async def playground_speak(
+    model: str = Form(...),
+    input: str = Form(...),
+    voice: str = Form(""),
+    response_format: str = Form("wav"),
+    exaggeration: float = Form(0.5),
+    cfg_weight: float = Form(0.5),
+) -> Response:
+    """Synthesize speech through the hub's own ``/v1/audio/speech`` proxy.
+
+    Same loopback-proxy pattern as :func:`playground_send` — the request
+    lands in the observability ring like any external call. Returns the raw
+    audio bytes for the SPA's ``<audio>`` player.
+    """
+    import httpx
+
+    target = resolve_model(model)
+    if target is None or target.backend != "tts":
+        raise HTTPException(status_code=400, detail=f"not a TTS model: {model!r}")
+    if not input.strip():
+        raise HTTPException(status_code=400, detail="input is empty")
+
+    payload: Dict[str, Any] = {
+        "model": target.display_name,
+        "input": input,
+        "voice": voice,
+        "response_format": response_format,
+        "exaggeration": exaggeration,
+        "cfg_weight": cfg_weight,
+    }
+    url = f"http://127.0.0.1:{hub_port()}/v1/audio/speech"
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            r = await client.post(url, json=payload)
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"upstream error: {exc}")
+    if not r.is_success:
+        detail = r.text or f"HTTP {r.status_code}"
+        try:
+            body = r.json()
+            detail = body.get("detail") or detail
+        except Exception:  # noqa: BLE001
+            pass
+        raise HTTPException(status_code=r.status_code, detail=str(detail)[:500])
+    return Response(content=r.content, media_type=r.headers.get("content-type", "audio/wav"))
 
 
 @router.post("/api/playground/send")

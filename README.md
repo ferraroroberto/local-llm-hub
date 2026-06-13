@@ -2,8 +2,10 @@
 
 A tiny local HTTP hub that routes `POST /v1/messages` (Anthropic shape) and
 `POST /v1/chat/completions` (OpenAI shape) to several backends by `model` name,
-plus a local whisper.cpp ASR pair reachable through the hub's `/v1/audio/*`
-proxy (observable) or directly on their own ports.
+plus a local whisper.cpp ASR pair and a text-to-speech pair, both reachable
+through the hub's `/v1/audio/*` proxy (observable) or directly on their own
+ports. Audio runs both directions: speech→text via `/v1/audio/transcriptions`
+and text→speech via `/v1/audio/speech`.
 
 ## Active rotation
 
@@ -59,6 +61,23 @@ Local entries in active use as of the May 2026 frontier reading:
   the `audio_translate` role. A lazy-load mode is also available — see
   [src/whisper_translate_proxy.py](src/whisper_translate_proxy.py) — for
   hosts that need to reclaim RAM when translate is rare.
+- **`orpheus-tts`** — local text-to-speech (the inverse of whisper), served
+  by the in-repo FastAPI shim [src/tts_server.py](src/tts_server.py) on
+  `127.0.0.1:8093`. OpenAI-compatible `POST /v1/audio/speech`. POST to the
+  hub's proxy at `:8000/v1/audio/speech` (captured in the observability ring)
+  or directly to `:8093` for lower overhead. Orpheus-3B is LLM-based, the
+  most natural/expressive local voice and faster than real-time on GPU; its
+  reference runtime (vLLM) has no usable Windows build, so the shim runs the
+  GGUF on the vendored `llama-server` (loopback `:18093`) and decodes its
+  audio tokens with the SNAC codec in-process. Fills the `audio_speech` role
+  and is auto-loaded by the tray. Also addressable as `model="audio_speech"`.
+- **`chatterbox-tts`** — second TTS engine on `127.0.0.1:8092`, **on demand**
+  (not autostarted). Resemble AI's Chatterbox (~0.5 B, torch) with an
+  emotion/"tone" dial (`exaggeration` + `cfg_weight`) and optional zero-shot
+  voice cloning. Start it from the Models tab or
+  `launchers/run_tts_chatterbox.bat`. See
+  [docs/add-tts.md](docs/add-tts.md) for the engine choice, request shape,
+  and the Orpheus GGUF caveat.
 
 **Transcription glossary.** Requests that go through the hub's audio
 proxy (`:8000/v1/audio/*`) get a deterministic post-processing pass that
@@ -100,6 +119,7 @@ The four active local roles live in `config/models.yaml` → `roles:`:
 | `agentic_heavy` | `gemma4_26b` | Deep agentic, transcripts, docs, ES↔EN↔CA |
 | `audio_transcribe` | `whisper` | EN/ES audio → text |
 | `audio_translate` | `whisper_translate` | ES audio → English (eager CPU sibling) |
+| `audio_speech` | `orpheus` | text → speech (Orpheus; chatterbox on demand) |
 
 Two Claude Code slash commands drive the monthly refresh, both
 human-in-the-loop, both edit files directly:
@@ -207,13 +227,16 @@ openClaw / anthropic SDK / openai SDK / curl
    │    whisper-* (via chat shape) → 400 "use /v1/audio/* or direct"    │
    │    POST /v1/audio/transcriptions → proxy to whisper :8090          │
    │    POST /v1/audio/translations   → proxy to whisper :8091          │
+   │    POST /v1/audio/speech         → proxy to tts shim :8092/:8093    │
    │      (the audio proxy lands requests in the observability ring)    │
    └──────────────────────────────────────────────────────────┘
 
-audio clients  ──►  hub 127.0.0.1:8000 /v1/audio/*  ──►  whisper-server  (proxied, observable)
+audio clients  ──►  hub 127.0.0.1:8000 /v1/audio/*  ──►  whisper-server / tts shim  (proxied, observable)
 audio clients  ──►  whisper-server 127.0.0.1:8090   (turbo, transcribe, GPU; direct, lower overhead)
 audio clients  ──►  whisper-server 127.0.0.1:8091   (medium, translate, CPU; direct)
-                          (both speak OpenAI-compatible /v1/audio/transcriptions;
+audio clients  ──►  tts shim       127.0.0.1:8093   (orpheus, text→speech, auto-loaded; llama-server :18093 + SNAC)
+audio clients  ──►  tts shim       127.0.0.1:8092   (chatterbox, text→speech, on demand; direct)
+                          (whisper speaks /v1/audio/transcriptions, the tts shim /v1/audio/speech;
                            POST via the hub proxy for observability, or direct to the port to skip it)
 
 Demoted (defined in config/models.yaml, not in any host's enabled list):
@@ -225,9 +248,11 @@ Replaced as agentic_light on 2026-05-10 (still enabled on pc-cuda for fallback):
 See [docs/project-structure.md](docs/project-structure.md) for the full
 mermaid diagrams (components, modules, request lifecycle),
 [docs/hub-with-qwen-and-glm.md](docs/hub-with-qwen-and-glm.md)
-for the original hub post-mortem, and
+for the original hub post-mortem,
 [docs/add-whisper-asr.md](docs/add-whisper-asr.md) for
-how the whisper backend slotted in.
+how the whisper backend slotted in, and
+[docs/add-tts.md](docs/add-tts.md) for the text-to-speech backend
+(`/v1/audio/speech`).
 
 ## Layout
 
@@ -241,6 +266,7 @@ local-llm-hub/
 │       └── system-specs.md       # collect Windows hardware specs
 ├── requirements.txt
 ├── requirements-dev.txt      # e2e + passkey deps (Playwright, pytest-playwright, webauthn)
+├── requirements-tts.txt      # TTS deps (chatterbox-tts, snac, soundfile — torch); TTS hosts only
 ├── tray.bat                  # Windows-only system-tray launcher (silent)
 ├── run_hub.bat / .sh         # start the FastAPI hub on :8000
 ├── launchers/                # per-model backends (.bat + .sh)
@@ -251,6 +277,8 @@ local-llm-hub/
 │   ├── run_gemma4_26b.*         # agentic_heavy role on :8087
 │   ├── run_whisper.*            # audio_transcribe role on :8090
 │   ├── run_whisper_translate.*  # audio_translate role on :8091 (eager CPU)
+│   ├── run_tts.*                # audio_speech role — orpheus on :8093
+│   ├── run_tts_chatterbox.*     # chatterbox TTS on :8092 (on demand)
 │   └── run_all.*                # start everything enabled on this host
 ├── config/
 │   ├── models.yaml           # hosts + models + roles + tray autostart
@@ -274,6 +302,8 @@ local-llm-hub/
 │   ├── server_process.py     # hub Popen + ownership / adopt-or-spawn (used by the tray)
 │   ├── backend_process.py    # per-model Popen (llama-server + whisper-server)
 │   ├── whisper_translate_proxy.py  # FastAPI shim for optional lazy-load mode
+│   ├── tts_server.py            # FastAPI shim for /v1/audio/speech (engine: tts-server)
+│   ├── tts_engines.py           # TTS engines: chatterbox (torch) + orpheus (llama-server + SNAC)
 │   ├── webapp_config.py      # admin webapp config loader (bearer token, webauthn, allowlist)
 │   ├── webauthn_gate.py      # passkey gate (optional — needs `webauthn` package)
 │   ├── static_versioning.py  # ?v=<hash> stamping for /admin/static assets
@@ -298,6 +328,7 @@ local-llm-hub/
 │   ├── detect_machine_specs.py   # populate config/machine_specs.yaml
 │   ├── install_llama_cpp.py      # CUDA-Windows / Metal-macOS release
 │   ├── install_whisper_cpp.py    # whisper.cpp CUDA/Metal release → vendor/whisper.cpp/
+│   ├── install_tts.py           # pip -r requirements-tts.txt + warm Chatterbox/SNAC + Orpheus GGUF
 │   └── verify-before-ship.ps1    # byte-compile + pytest + Playwright on Chromium
 ├── tests/                    # test_server / test_router / test_model_registry /
 │   │                         # test_install / test_streaming
@@ -316,6 +347,8 @@ local-llm-hub/
 └── docs/
     ├── project-structure.md
     ├── model-comparison.md
+    ├── add-whisper-asr.md        # how the whisper STT backend slotted in
+    ├── add-tts.md                # how the TTS backend (/v1/audio/speech) slotted in
     ├── playbook-cli-backend-migration.md  # reusable method when a vendor CLI changes
     └── frontier/                 # monthly efficient-frontier research
         ├── RESEARCH_PROMPT.md    #   canonical brief; read by /frontier-refresh
@@ -353,6 +386,17 @@ ignores them. To bring one up ad-hoc, add it to `enabled:` and re-run
 `--fix`, or just download manually with
 `python scripts/download_models.py --only qwen` and launch via
 `launchers/run_qwen.bat`.
+
+On a host with a TTS role enabled, `--fix` also pip-installs
+[requirements-tts.txt](requirements-tts.txt) (`chatterbox-tts`, `snac`,
+`soundfile` — these pull torch, ~2 GB, which is why they're kept out of the
+base `requirements.txt` so non-TTS hosts like the Mac mini stay lean) and
+pre-warms the Chatterbox / SNAC weights so the first `/v1/audio/speech`
+request isn't a cold download. To do it by hand:
+
+```bat
+.venv\Scripts\python -m pip install -r requirements-tts.txt
+```
 
 Plain check (no changes):
 
@@ -414,6 +458,8 @@ launchers\run_qwen35_4b.bat      :: agentic_light  on :8088
 launchers\run_gemma4_26b.bat     :: agentic_heavy  on :8087
 launchers\run_whisper.bat        :: audio_transcribe on :8090
 launchers\run_whisper_translate.bat :: audio_translate on :8091 (eager CPU)
+launchers\run_tts.bat            :: audio_speech (orpheus) on :8093
+launchers\run_tts_chatterbox.bat :: chatterbox TTS on :8092 (on demand)
 launchers\run_all.bat            :: start every backend in `enabled:` for this host
 
 :: Fallback / ad-hoc (still in `enabled:` on pc-cuda, not autostarted)
@@ -440,7 +486,8 @@ Starts a resident system-tray icon (silent — no terminal window) that:
 
 - Auto-starts the hub on :8000 and the models listed in
   `config/models.yaml` under `tray.autostart_models` (default
-  `[qwen35_4b, whisper, whisper_translate]`). Set it to `[]` to skip
+  `[qwen35_4b, whisper, whisper_translate, orpheus]` — the last is the
+  text-to-speech default). Set it to `[]` to skip
   model autostart, or change the list to any subset of enabled model
   ids.
 - Lets you toggle any other enabled local model on/off from the
@@ -505,6 +552,8 @@ Equivalent Python entrypoints (run from the project root):
 .venv\Scripts\python -m src.run_backend gemma4_26b
 .venv\Scripts\python -m src.run_backend whisper
 .venv\Scripts\python -m src.run_backend whisper_translate
+.venv\Scripts\python -m src.run_backend chatterbox
+.venv\Scripts\python -m src.run_backend orpheus
 
 :: Fallback (still enabled, not autostarted)
 .venv\Scripts\python -m src.run_backend gemma4_e4b
@@ -684,6 +733,35 @@ with open("clip.wav", "rb") as f:
     r = asr.audio.transcriptions.create(model="whisper-large-v3-turbo", file=f)
 print(r.text)
 ```
+
+Synthesize speech (text → audio) via the TTS backend — through the hub's
+proxy at `:8000/v1/audio/speech` (captured in the observability ring) or
+directly to `:8093` (lower overhead):
+
+```bash
+# through the hub proxy (lands in the observability ring)
+# audio_speech → Orpheus; voice picks a preset (tara/leah/jess/leo/dan/mia/zac/zoe)
+curl -s -X POST http://127.0.0.1:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"audio_speech","input":"Hey, listen to this.","voice":"tara","response_format":"wav"}' \
+  --output reply.wav
+```
+
+```python
+from openai import OpenAI
+tts = OpenAI(api_key="local-dummy", base_url="http://127.0.0.1:8000/v1")
+# model="audio_speech" → Orpheus (auto-loaded); model="chatterbox-tts" → Chatterbox.
+audio = tts.audio.speech.create(model="audio_speech", voice="tara", input="Hey, listen to this.")
+audio.stream_to_file("reply.wav")
+```
+
+`exaggeration` / `cfg_weight` are Chatterbox's emotion/"tone" dial; `voice`
+selects an Orpheus preset (`tara`, `leah`, …) or a Chatterbox cloning clip
+at `config/tts_voices/<voice>.wav`; `speed` is accepted but a no-op. The
+hub exposes every enabled TTS model on the same route, so a client (e.g.
+app-launcher) switches engines just by changing `model`. Defaults, formats,
+voice cloning, and the Orpheus GGUF caveat are in
+[docs/add-tts.md](docs/add-tts.md).
 
 ## Observability (issue #4)
 

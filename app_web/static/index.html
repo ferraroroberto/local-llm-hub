@@ -250,6 +250,57 @@
         <h3 class="opt-group-title">Usage</h3>
         <div id="playgroundUsage" class="kv-grid usage"></div>
       </section>
+
+      <section class="card" id="ttsCard">
+        <div class="card-header"><h2>🔊 Text-to-speech</h2></div>
+
+        <div class="opt-stack">
+          <label for="ttsModel">Voice model</label>
+          <select id="ttsModel" aria-label="TTS model"></select>
+        </div>
+
+        <div class="opt-stack">
+          <label for="ttsInput">Text</label>
+          <textarea id="ttsInput" rows="4" placeholder="Hey, listen to this."></textarea>
+        </div>
+
+        <div class="opt-stack">
+          <label for="ttsVoice">Voice <span class="muted small">(default, an Orpheus preset like tara, or a Chatterbox clip name)</span></label>
+          <input id="ttsVoice" type="text" placeholder="default" aria-label="Voice">
+        </div>
+
+        <details class="opt-stack" id="ttsMore">
+          <summary class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
+
+          <div class="opt-stack">
+            <label for="ttsFormat">Format</label>
+            <select id="ttsFormat" aria-label="Response format">
+              <option value="wav" selected>wav</option>
+              <option value="mp3">mp3</option>
+              <option value="flac">flac</option>
+              <option value="opus">opus</option>
+              <option value="pcm">pcm</option>
+            </select>
+          </div>
+
+          <div class="opt-stack">
+            <label for="ttsExaggeration">Exaggeration <span class="muted small">(Chatterbox tone dial)</span> · <span id="ttsExaggerationVal">0.5</span></label>
+            <input id="ttsExaggeration" type="range" min="0" max="1" step="0.05" value="0.5" aria-label="Exaggeration">
+          </div>
+
+          <div class="opt-stack">
+            <label for="ttsCfgWeight">CFG weight <span class="muted small">(pacing)</span> · <span id="ttsCfgWeightVal">0.5</span></label>
+            <input id="ttsCfgWeight" type="range" min="0" max="1" step="0.05" value="0.5" aria-label="CFG weight">
+          </div>
+        </details>
+
+        <div class="playground-send-row">
+          <button id="ttsSpeakBtn" type="button" class="ghost-btn primary">🔊 Speak</button>
+        </div>
+        <p id="ttsLatency" class="muted small" style="margin: 8px 0 0;"></p>
+
+        <audio id="ttsAudio" controls style="width: 100%; margin-top: 10px;" hidden></audio>
+      </section>
     </section>
 
     <section id="paneTelemetry" class="pane" hidden role="tabpanel">
