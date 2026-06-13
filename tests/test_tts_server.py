@@ -89,6 +89,22 @@ def _wait_ready(client, timeout=3.0):
     return False
 
 
+def test_backend_disables_tqdm_progress_bars():
+    """Regression for #104: importing the TTS backend must disable tqdm.
+
+    Chatterbox draws a "Sampling" progress bar to stdout during synthesis.
+    When the backend is inherited across a hub restart its stdout is an
+    orphaned pipe, and on Windows writing to it raises
+    ``OSError: [Errno 22] Invalid argument`` — which 502'd every synthesis.
+    Disabling tqdm removes that per-synthesis stdout write.
+    """
+    import os
+
+    from src import tts_server  # noqa: F401 — import is the behaviour under test
+
+    assert os.environ.get("TQDM_DISABLE") == "1"
+
+
 def test_missing_input_is_400(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch, _FakeEngine()) as client:
         r = client.post("/v1/audio/speech", json={"model": "chatterbox-tts"})
