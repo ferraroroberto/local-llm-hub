@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import io
 import logging
+import struct
 import sys
 import threading
 import wave
@@ -29,7 +30,8 @@ from typing import Optional, Tuple
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Response
-from starlette.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
+from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
 from .backend_process import resolve_model_by_id
 from .model_registry import Model
@@ -58,17 +60,34 @@ def _float(body: dict, key: str, default: float) -> float:
         return default
 
 
-def _wav_bytes(samples, sample_rate: int) -> bytes:
+def _pcm16_bytes(samples) -> bytes:
+    """Mono float32 samples → little-endian signed 16-bit PCM bytes."""
     import numpy as np
 
     pcm = np.clip(np.asarray(samples, dtype=np.float32), -1.0, 1.0)
-    pcm16 = (pcm * 32767.0).astype("<i2")
+    return (pcm * 32767.0).astype("<i2").tobytes()
+
+
+def _streaming_wav_header(sample_rate: int, channels: int = 1, bits: int = 16) -> bytes:
+    """A 44-byte canonical WAV header with open-ended (0xFFFFFFFF) RIFF/data
+    sizes, so PCM16 frames can be appended as they synthesize. Browsers'
+    ``<audio>`` and ffmpeg play such a stream incrementally."""
+    byte_rate = sample_rate * channels * bits // 8
+    block_align = channels * bits // 8
+    return (
+        b"RIFF" + struct.pack("<I", 0xFFFFFFFF) + b"WAVE"
+        + b"fmt " + struct.pack("<IHHIIHH", 16, 1, channels, sample_rate, byte_rate, block_align, bits)
+        + b"data" + struct.pack("<I", 0xFFFFFFFF)
+    )
+
+
+def _wav_bytes(samples, sample_rate: int) -> bytes:
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(int(sample_rate))
-        w.writeframes(pcm16.tobytes())
+        w.writeframes(_pcm16_bytes(samples))
     return buf.getvalue()
 
 
@@ -216,13 +235,51 @@ def build_app(model_id: str = DEFAULT_MODEL_ID, device: str = "auto") -> FastAPI
             cfg_weight=_float(body, "cfg_weight", 0.5),
         )
         assert state.engine is not None
+        engine = state.engine
+        sr = state.sample_rate
+        fmt = str(body.get("response_format") or "wav").strip().lower()
+        # OpenAI-native opt-in: stream_format="audio" returns raw chunked
+        # bytes that play as they synthesize. Streaming supports wav (a
+        # streaming WAV header + PCM16 frames) and pcm (headerless PCM16);
+        # any other format falls back to the buffered response below.
+        streaming = str(body.get("stream_format") or "").strip().lower() == "audio"
+        if streaming and fmt in ("wav", "wave", "", "pcm"):
+            is_pcm = fmt == "pcm"
+
+            async def _byte_stream():
+                first = True
+                try:
+                    async for chunk in iterate_in_threadpool(engine.synthesize_stream(req)):
+                        data = _pcm16_bytes(chunk)
+                        if not data:
+                            continue
+                        if first and not is_pcm:
+                            yield _streaming_wav_header(sr)
+                        first = False
+                        yield data
+                    if first and not is_pcm:
+                        # No audio produced — still a valid (empty) WAV.
+                        yield _streaming_wav_header(sr)
+                except Exception as exc:  # noqa: BLE001 — headers already sent
+                    log.error("streaming synthesis failed: %s", exc, exc_info=True)
+
+            media_type = "audio/L16" if is_pcm else "audio/wav"
+            return StreamingResponse(
+                _byte_stream(), media_type=media_type, headers={"X-Sample-Rate": str(sr)}
+            )
+
+        if streaming:
+            log.info("stream_format=audio with response_format=%r is not streamable — buffering", fmt)
+
         try:
-            samples = await run_in_threadpool(state.engine.synthesize, req)
+            samples = await run_in_threadpool(engine.synthesize, req)
         except Exception as exc:  # noqa: BLE001
+            # Log the full traceback — the 502 detail only carries the
+            # exception string, which is too thin to diagnose engine faults.
+            log.error("synthesis failed: %s", exc, exc_info=True)
             raise HTTPException(status_code=502, detail=f"synthesis failed: {exc}")
 
-        fmt = str(body.get("response_format") or "wav")
-        audio, media_type = encode_audio(samples, state.sample_rate, fmt)
+        audio, media_type = encode_audio(samples, sr, fmt)
         return Response(content=audio, media_type=media_type)
 
     return app

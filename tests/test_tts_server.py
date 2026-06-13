@@ -54,6 +54,11 @@ class _FakeEngine:
         self.last_req = req
         return [0.0] * 240  # placeholder samples; encode_audio is mocked
 
+    def synthesize_stream(self, req: SpeechRequest):
+        self.last_req = req
+        yield [0.0] * 120
+        yield [0.0] * 120
+
     def close(self) -> None:
         self._loaded = False
 
@@ -61,10 +66,15 @@ class _FakeEngine:
 def _client(tmp_path, monkeypatch, fake):
     _config(tmp_path, monkeypatch)
     monkeypatch.setattr(tts_server, "build_engine", lambda model, device: fake)
-    # Avoid numpy/soundfile in CI: stub the encoder to fixed bytes.
+    # Avoid numpy/soundfile in CI: stub the encoder + streaming byte helpers
+    # to fixed bytes.
     monkeypatch.setattr(
         tts_server, "encode_audio",
         lambda samples, sr, fmt: (b"RIFFfake-wav-bytes", "audio/wav"),
+    )
+    monkeypatch.setattr(tts_server, "_pcm16_bytes", lambda samples: b"\x01\x00")
+    monkeypatch.setattr(
+        tts_server, "_streaming_wav_header", lambda sr, **kw: b"RIFFstreamhdr"
     )
     app = tts_server.build_app("chatterbox", device="cpu")
     return TestClient(app)
@@ -125,3 +135,122 @@ def test_encode_audio_wav_roundtrip(tmp_path, monkeypatch):
     audio, media = tts_server.encode_audio(samples, 24000, "wav")
     assert media == "audio/wav"
     assert audio[:4] == b"RIFF" and audio[8:12] == b"WAVE"
+
+
+def test_speech_streaming_returns_chunked_wav(tmp_path, monkeypatch):
+    """stream_format=audio streams a WAV header followed by PCM16 frames."""
+    fake = _FakeEngine()
+    with _client(tmp_path, monkeypatch, fake) as client:
+        assert _wait_ready(client)
+        r = client.post("/v1/audio/speech", json={
+            "model": "chatterbox-tts",
+            "input": "hello there",
+            "stream_format": "audio",
+            "response_format": "wav",
+        })
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("audio/wav")
+        assert r.headers["x-sample-rate"] == "24000"
+        # Header emitted once, then one stubbed PCM frame per yielded chunk.
+        assert r.content == b"RIFFstreamhdr" + b"\x01\x00" + b"\x01\x00"
+
+
+def test_speech_streaming_pcm_is_headerless(tmp_path, monkeypatch):
+    fake = _FakeEngine()
+    with _client(tmp_path, monkeypatch, fake) as client:
+        assert _wait_ready(client)
+        r = client.post("/v1/audio/speech", json={
+            "model": "chatterbox-tts",
+            "input": "hello there",
+            "stream_format": "audio",
+            "response_format": "pcm",
+        })
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("audio/L16")
+        assert r.content == b"\x01\x00" + b"\x01\x00"  # no WAV header
+
+
+def test_speech_non_streaming_unchanged(tmp_path, monkeypatch):
+    """Without stream_format the buffered single-Response path is unchanged."""
+    fake = _FakeEngine()
+    with _client(tmp_path, monkeypatch, fake) as client:
+        assert _wait_ready(client)
+        r = client.post("/v1/audio/speech", json={
+            "model": "chatterbox-tts", "input": "hello there", "response_format": "wav",
+        })
+        assert r.status_code == 200
+        assert r.content == b"RIFFfake-wav-bytes"
+
+
+# ---- Orpheus incremental decode (no torch) ----
+
+def _tok(code: int, pos: int) -> str:
+    """Build the <custom_token_N> text that decodes to ``code`` at ``pos``."""
+    from src.tts_engines import _SNAC_CODEBOOK
+
+    return f"<custom_token_{code + 10 + (pos % 7) * _SNAC_CODEBOOK}>"
+
+
+def test_iter_token_ids_reassembles_across_chunks():
+    from src.tts_engines import OrpheusEngine
+
+    full = _tok(5, 0) + _tok(6, 1) + _tok(7, 2)
+    chunks = [full[:9], full[9:26], full[26:]]  # split mid-tag
+    assert list(OrpheusEngine._iter_token_ids(chunks)) == [5, 6, 7]
+
+
+def test_iter_token_ids_skips_control_without_shifting_frame():
+    from src.tts_engines import OrpheusEngine
+
+    # <custom_token_10> → tid 0 at pos 0: a control token, skipped without
+    # advancing pos, so the next real token still decodes at pos 0.
+    text = "<custom_token_10>" + _tok(5, 0)
+    assert list(OrpheusEngine._iter_token_ids([text])) == [5]
+
+
+def test_synthesize_stream_sliding_window_cadence(monkeypatch):
+    import pytest
+    from types import SimpleNamespace
+
+    np = pytest.importorskip("numpy")
+    from src.tts_engines import OrpheusEngine, SpeechRequest
+
+    eng = OrpheusEngine(SimpleNamespace(internal_port=18093), device="cpu")
+    monkeypatch.setattr(eng, "ready", lambda: True)
+    # 35 tokens = 5 frames; each tid = 1 + frame index, always in range.
+    text = "".join(_tok(1 + p // 7, p) for p in range(35))
+    monkeypatch.setattr(eng, "_stream_completion", lambda prompt: [text])
+    monkeypatch.setattr(eng, "_decode_window", lambda w: np.ones(2048, dtype=np.float32))
+
+    out = list(eng.synthesize_stream(SpeechRequest(text="hi", voice="tara")))
+    # Windows emit at len 28 and len 35 → two 2048-sample segments.
+    assert len(out) == 2
+    assert all(seg.shape == (2048,) for seg in out)
+
+
+def test_synthesize_stream_short_input_falls_back_to_whole_clip(monkeypatch):
+    import pytest
+    from types import SimpleNamespace
+
+    np = pytest.importorskip("numpy")
+    from src.tts_engines import OrpheusEngine, SpeechRequest
+
+    eng = OrpheusEngine(SimpleNamespace(internal_port=18093), device="cpu")
+    monkeypatch.setattr(eng, "ready", lambda: True)
+    text = "".join(_tok(1, p) for p in range(14))  # 2 frames, never reaches 28
+    monkeypatch.setattr(eng, "_stream_completion", lambda prompt: [text])
+    monkeypatch.setattr(eng, "_decode_snac", lambda codes: np.ones(4096, dtype=np.float32))
+
+    out = list(eng.synthesize_stream(SpeechRequest(text="hi", voice="tara")))
+    assert len(out) == 1 and out[0].shape == (4096,)
+
+
+def test_default_synthesize_stream_yields_single_chunk():
+    from src.tts_engines import SpeechRequest, TTSEngine
+
+    class _Single(TTSEngine):
+        def synthesize(self, req):
+            return [0.1, 0.2, 0.3]
+
+    out = list(_Single().synthesize_stream(SpeechRequest(text="x")))
+    assert out == [[0.1, 0.2, 0.3]]

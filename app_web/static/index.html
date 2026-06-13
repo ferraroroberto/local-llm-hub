@@ -269,11 +269,18 @@
           <input id="ttsVoice" type="text" placeholder="default" aria-label="Voice">
         </div>
 
+        <div class="opt-stack">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" id="ttsStream" aria-label="Stream audio" checked>
+            <span>Stream <span class="muted small">(play as it synthesizes — first audio in ~1s · Orpheus only; off = buffered clip with a player)</span></span>
+          </label>
+        </div>
+
         <details class="opt-stack" id="ttsMore">
           <summary class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
 
           <div class="opt-stack">
-            <label for="ttsFormat">Format</label>
+            <label for="ttsFormat">Format <span class="muted small">(buffered only — streaming uses PCM)</span></label>
             <select id="ttsFormat" aria-label="Response format">
               <option value="wav" selected>wav</option>
               <option value="mp3">mp3</option>

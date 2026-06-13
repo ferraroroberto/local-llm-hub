@@ -21,6 +21,7 @@ on TTS-enabled hosts (see ``scripts/install_tts.py``).
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -31,7 +32,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Iterable, Iterator, List, Optional
 
 import httpx
 
@@ -213,6 +214,14 @@ class TTSEngine:
     def synthesize(self, req: SpeechRequest):  # pragma: no cover - overridden
         raise NotImplementedError
 
+    def synthesize_stream(self, req: SpeechRequest) -> Iterator:
+        """Yield audio in chunks of mono float32 samples for incremental
+        playback. Default: a single chunk wrapping :meth:`synthesize`, so
+        engines that can't stream (Chatterbox) degrade gracefully to one
+        final chunk.
+        """
+        yield self.synthesize(req)
+
     def close(self) -> None:  # pragma: no cover - overridden
         pass
 
@@ -379,26 +388,32 @@ class OrpheusEngine(TTSEngine):
 
     # ---- synthesis ----
 
-    def synthesize(self, req: SpeechRequest):
-        import numpy as np
-
-        if not self.ready():
-            raise RuntimeError("Orpheus not loaded")
+    def _prompt_for(self, req: SpeechRequest) -> str:
         voice = req.voice if req.voice in self.AVAILABLE_VOICES else self.DEFAULT_VOICE
         # Orpheus-FastAPI prompt convention for the llama.cpp route: the
         # end marker is the model's <|eot_id|> special token (not <|eot|>).
-        prompt = f"<|audio|>{voice}: {req.text}<|eot_id|>"
-        payload = {
+        return f"<|audio|>{voice}: {req.text}<|eot_id|>"
+
+    @staticmethod
+    def _completion_payload(prompt: str, stream: bool) -> dict:
+        return {
             "prompt": prompt,
             "n_predict": 4096,
             "temperature": 0.6,
             "top_p": 0.9,
             "repeat_penalty": 1.1,
             "cache_prompt": True,
-            "stream": False,
+            "stream": stream,
         }
+
+    def synthesize(self, req: SpeechRequest):
+        import numpy as np
+
+        if not self.ready():
+            raise RuntimeError("Orpheus not loaded")
+        prompt = self._prompt_for(req)
         url = f"http://127.0.0.1:{self.internal_port}/completion"
-        r = httpx.post(url, json=payload, timeout=300.0)
+        r = httpx.post(url, json=self._completion_payload(prompt, stream=False), timeout=300.0)
         r.raise_for_status()
         content = r.json().get("content", "")
         codes = self._parse_tokens(content)
@@ -406,6 +421,95 @@ class OrpheusEngine(TTSEngine):
             log.warning("Orpheus emitted no audio tokens for input")
             return np.zeros(0, dtype=np.float32)
         return self._decode_snac(codes)
+
+    # ---- streaming synthesis ----
+
+    def synthesize_stream(self, req: SpeechRequest):
+        """Decode SNAC frames incrementally as the llama-server streams them.
+
+        Mirrors the canopyai/Orpheus-FastAPI ``speechpipe`` sliding window:
+        on every completed 7-token frame past a 4-frame warmup, decode the
+        newest 28-token window and emit its artefact-free ``[2048:4096]``
+        segment (~85 ms at 24 kHz). Short inputs that never reach the window
+        fall back to a single whole-clip decode so they still produce audio.
+        """
+        if not self.ready():
+            raise RuntimeError("Orpheus not loaded")
+        prompt = self._prompt_for(req)
+        buffer: List[int] = []
+        emitted = False
+        for tid in self._iter_token_ids(self._stream_completion(prompt)):
+            buffer.append(tid)
+            if len(buffer) % 7 == 0 and len(buffer) >= 28:
+                seg = self._decode_window(buffer[-28:])
+                if seg.size:
+                    emitted = True
+                    yield seg
+        if not emitted and buffer:
+            audio = self._decode_snac(buffer)
+            if audio.size:
+                yield audio
+
+    def _stream_completion(self, prompt: str) -> Iterator[str]:
+        """Stream the llama-server ``/completion`` SSE, yielding each delta's
+        ``content`` text as it arrives."""
+        url = f"http://127.0.0.1:{self.internal_port}/completion"
+        with httpx.stream(
+            "POST", url, json=self._completion_payload(prompt, stream=True), timeout=300.0
+        ) as r:
+            r.raise_for_status()
+            for line in r.iter_lines():
+                if not line:
+                    continue
+                if line.startswith("data: "):
+                    line = line[6:]
+                if line.strip() == "[DONE]":
+                    break
+                try:
+                    obj = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                piece = obj.get("content", "")
+                if piece:
+                    yield piece
+                if obj.get("stop"):
+                    break
+
+    @staticmethod
+    def _iter_token_ids(text_chunks: Iterable[str]) -> Iterator[int]:
+        """Stream SNAC code ids from a sequence of completion text deltas.
+
+        Buffers a partial ``<custom_token_N>`` tail across chunk boundaries
+        (a token may be split mid-tag), applies the +10 / per-position
+        stride offset, and skips control tokens (id <= 0) **without
+        advancing the frame position** — the same validated semantics as
+        :meth:`_parse_tokens`, made incremental.
+        """
+        carry = ""
+        pos = 0
+        for chunk in text_chunks:
+            carry += chunk
+            last_end = 0
+            for m in _ORPHEUS_TOKEN_RE.finditer(carry):
+                tid = int(m.group(1)) - 10 - ((pos % 7) * _SNAC_CODEBOOK)
+                if tid > 0:
+                    yield tid
+                    pos += 1
+                last_end = m.end()
+            # Retain the unconsumed tail (a possible partial token) for the
+            # next chunk; a closing '>' only appears at a token's true end,
+            # so splitting mid-number can never match prematurely.
+            carry = carry[last_end:]
+
+    def _decode_window(self, window: List[int]):
+        """Decode a 28-token (4-frame) sliding window and return its newest
+        2048-sample segment. Empty array if any code is out of range."""
+        import numpy as np
+
+        frames = [window[7 * j: 7 * j + 7] for j in range(len(window) // 7)]
+        if not frames or any(not all(0 <= c < _SNAC_CODEBOOK for c in f) for f in frames):
+            return np.zeros(0, dtype=np.float32)
+        return self._snac_decode(frames)[2048:4096]
 
     @staticmethod
     def _parse_tokens(text: str) -> List[int]:
@@ -431,7 +535,6 @@ class OrpheusEngine(TTSEngine):
 
     def _decode_snac(self, code_list: List[int]):
         import numpy as np
-        import torch
 
         # Whole 7-token frames only; drop any frame with an out-of-range code.
         n_frames = len(code_list) // 7
@@ -439,6 +542,15 @@ class OrpheusEngine(TTSEngine):
         frames = [f for f in frames if all(0 <= c < _SNAC_CODEBOOK for c in f)]
         if not frames:
             return np.zeros(0, dtype=np.float32)
+        return self._snac_decode(frames)
+
+    def _snac_decode(self, frames: List[List[int]]):
+        """Run the SNAC codec on whole 7-token frames → mono float32 audio.
+
+        Each frame fans out into SNAC's three hierarchical layers as
+        ``[f0] / [f1,f4] / [f2,f3,f5,f6]``.
+        """
+        import torch
 
         layer_1: List[int] = []
         layer_2: List[int] = []
