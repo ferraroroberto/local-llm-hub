@@ -23,7 +23,7 @@ tray:
   autostart_models:             # set to [] to skip model autostart
     - qwen35_4b                 # agentic_light role — fast lane
     - whisper                   # audio_transcribe role
-    - whisper_translate         # audio_translate role (lazy)
+    - whisper_translate         # audio_translate role (eager CPU)
   hub_ready_timeout_s: 30
 
 hosts:
@@ -249,9 +249,10 @@ models:
   # --- Local whisper.cpp ASR server (OpenAI-compatible audio endpoints) ---
   # Port 8090 is fixed by design — it is the mutual-exclusion lock shared
   # with E:\automation\automation\audio\transcribe_voice. Only one of the
-  # two projects can own the server at any time. Clients POST to
-  # /v1/audio/transcriptions and /v1/audio/translations on this port
-  # directly (the hub does not proxy audio endpoints).
+  # two projects can own the server at any time. The hub now proxies both
+  # /v1/audio/transcriptions and /v1/audio/translations (src/server.py),
+  # landing those requests in the observability ring. Clients may also POST
+  # directly to this port for lower overhead, bypassing the hub's capture.
   #
   # To switch model size, change hf_pattern + model_path to another
   # ggml-<size>.bin (tiny / base / small / medium / large-v3 / large-v3-turbo)
@@ -350,7 +351,7 @@ models:
       - "--inference-path"
       - "/v1/audio/transcriptions"
 
-# --- Active roles (managed by src/model_swap.py via the Frontier tab) ---
+# --- Active roles (managed by the `/swap-model` slash command — see README) ---
 # Maps a small fixed set of role slots to model ids in `models:` above.
 # Latest-only: exactly one model id per role (audio is two-slotted by
 # design — turbo for transcribe, medium for translate). The `claude`
@@ -367,4 +368,4 @@ roles:
     transcribe:
       model_id: whisper            # whisper-large-v3-turbo on :8090
     translate:
-      model_id: whisper_translate  # whisper-medium on :8091, lazy
+      model_id: whisper_translate  # whisper-medium on :8091, eager CPU

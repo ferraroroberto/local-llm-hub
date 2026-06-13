@@ -19,7 +19,7 @@ from .host_profile import CONFIG_PATH, HostProfile, resolve as resolve_host
 class Model:
     id: str                         # short key in YAML ("qwen", "glm", "claude")
     display_name: str               # name the client sends in the `model` field
-    backend: str                    # "claude" | "openai"
+    backend: str                    # "claude" | "openai" | "gemini" | "whisper"
     aliases: List[str] = field(default_factory=list)
     engine: Optional[str] = None
     port: Optional[int] = None
