@@ -339,7 +339,9 @@ the envelope into OpenAI shape; for the local llama-server backends
   `call_claude` and `call_openai_chat`. The real end-to-end check
   lives in [`scripts/smoke_test.py`](../scripts/smoke_test.py) and
   needs the hub plus the relevant backends running.
-- **Intentional gaps.** No streaming. No tool-use translation between
+- **Intentional gaps.** Partial streaming — OpenAI-shape
+  `/v1/chat/completions` proxies upstream SSE through; Anthropic-shape
+  `/v1/messages` still single JSON. No tool-use translation between
   Anthropic ↔ OpenAI shapes (OpenAI-shape callers get tool calls
   natively from `llama-server --jinja`; Anthropic-shape callers to
   qwen/glm are text-only for now). Image and document content blocks
