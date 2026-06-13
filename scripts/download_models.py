@@ -54,7 +54,7 @@ def download_one(model_id: str) -> List[Path]:
     model = next((m for m in enabled_models() if m.id == model_id), None)
     if model is None:
         raise RuntimeError(f"model {model_id!r} is not enabled on this host")
-    if model.backend not in ("openai", "whisper") or not model.hf_repo:
+    if model.backend not in ("openai", "whisper", "tts") or not model.hf_repo:
         raise RuntimeError(f"model {model_id!r} has no hf_repo; nothing to download")
 
     matches = _files_for(model)
@@ -106,7 +106,7 @@ def main(argv: List[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     candidates = [m for m in enabled_models()
-                  if m.backend in ("openai", "whisper") and m.hf_repo]
+                  if m.backend in ("openai", "whisper", "tts") and m.hf_repo]
     if args.only:
         candidates = [m for m in candidates if m.id == args.only]
         if not candidates:

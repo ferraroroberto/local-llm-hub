@@ -72,7 +72,7 @@ async def list_models_for_admin() -> Dict[str, Any]:
 
     rows: List[Dict[str, Any]] = []
     for m, reachable in zip(models, reach_results):
-        controllable = m.backend in ("openai", "whisper")
+        controllable = m.backend in ("openai", "whisper", "tts")
         own = OWNERSHIP_NONE
         pid: Any = None
         if controllable:
@@ -101,7 +101,7 @@ async def model_start(model_id: str) -> Dict[str, Any]:
     target = bp.resolve_model_by_id(model_id)
     if target is None:
         raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
-    if not (target.backend in ("openai", "whisper")):
+    if not (target.backend in ("openai", "whisper", "tts")):
         raise HTTPException(
             status_code=400,
             detail=f"backend {target.backend!r} has no managed process (subscription-backed)",
@@ -219,6 +219,35 @@ async def model_ping(model_id: str) -> Dict[str, Any]:
                 "error": str(exc),
             }
         return _ping_result(r, (time.monotonic_ns() - t0) / 1e6)
+
+    if target.backend == "tts":
+        # TTS speaks the OpenAI /v1/audio/speech shape, not chat — synthesize
+        # a short phrase through the hub's proxy (model=display_name routes it
+        # to this exact backend and keeps the hit in the observability ring).
+        url = f"http://127.0.0.1:{port}/v1/audio/speech"
+        payload = {"model": target.display_name, "input": "ping", "response_format": "wav"}
+        t0 = time.monotonic_ns()
+        try:
+            # Generous timeout: a cold TTS backend may still be warming weights.
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                r = await client.post(url, json=payload)
+        except httpx.HTTPError as exc:
+            return {
+                "ok": False,
+                "status": 0,
+                "latency_ms": (time.monotonic_ns() - t0) / 1e6,
+                "error": str(exc),
+            }
+        # Audio bytes aren't JSON — _ping_result would mis-parse them, so
+        # shape the result directly (ok = 2xx, no usage payload for audio).
+        latency_ms = (time.monotonic_ns() - t0) / 1e6
+        return {
+            "ok": r.is_success,
+            "status": r.status_code,
+            "latency_ms": round(latency_ms, 1),
+            "usage": {"audio_bytes": len(r.content)} if r.is_success else {},
+            "error": "" if r.is_success else r.text[:300],
+        }
 
     url = f"http://127.0.0.1:{port}/v1/messages"
     payload = {

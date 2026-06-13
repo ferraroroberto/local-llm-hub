@@ -197,7 +197,7 @@ def _check_llama_cpp() -> Check:
 def _check_models() -> List[Check]:
     rows: List[Check] = []
     for m in enabled_models():
-        if m.backend not in ("openai", "whisper") or not m.model_path:
+        if m.backend not in ("openai", "whisper", "tts") or not m.model_path:
             continue
         path = (PROJECT_ROOT / m.model_path).resolve()
         label = f"Model present: {m.display_name}"
@@ -243,6 +243,34 @@ def _check_whisper_cpp() -> Check:
         return Check("whisper_cpp", "whisper.cpp binary installed", "warn", str(e))
 
 
+def _tts_enabled() -> bool:
+    return any(m.backend == "tts" or m.engine == "tts-server"
+               for m in enabled_models())
+
+
+def _check_tts() -> Check:
+    """Are the TTS Python deps present? (chatterbox-tts + snac, torch-based.)
+
+    Gated on a tts-server row being enabled. The weights themselves stream
+    from the HF cache on first start, so this only verifies the packages
+    are importable — the heavy bit that ``requirements.txt`` deliberately
+    omits (torch) so non-TTS hosts stay lean.
+    """
+    missing = []
+    for mod in ("torch", "chatterbox", "snac"):
+        try:
+            importlib.import_module(mod)
+        except ImportError:
+            missing.append("chatterbox-tts" if mod == "chatterbox" else mod)
+    if missing:
+        return Check("tts", "TTS deps installed (chatterbox-tts, snac)", "missing",
+                     f"missing: {', '.join(missing)}",
+                     fix_id="tts",
+                     fix_label="scripts/install_tts.py (pip install -r requirements-tts.txt + warm weights)")
+    return Check("tts", "TTS deps installed (chatterbox-tts, snac)", "ok",
+                 "torch + chatterbox-tts + snac importable")
+
+
 def _port_in_use(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.5)
@@ -258,7 +286,7 @@ def _check_ports() -> List[Check]:
     for label, port in [("hub", hub_port())] + [
         (m.display_name, m.port)
         for m in enabled_models()
-        if m.backend in ("openai", "whisper") and m.port
+        if m.backend in ("openai", "whisper", "tts") and m.port
     ]:
         if _port_in_use(port):
             rows.append(Check(
@@ -284,6 +312,8 @@ def run_all_checks() -> Report:
     ]
     if _whisper_enabled():
         checks.append(_check_whisper_cpp())
+    if _tts_enabled():
+        checks.append(_check_tts())
     checks.extend(_check_models())
     checks.extend(_check_ports())
     return Report(checks=checks)
@@ -309,6 +339,11 @@ def _fix_whisper_cpp() -> None:
     install_whisper_cpp.main()
 
 
+def _fix_tts() -> None:
+    from scripts import install_tts  # type: ignore
+    install_tts.main()
+
+
 def _fix_download(model_id: str) -> Callable[[], None]:
     def _fix() -> None:
         from scripts import download_models  # type: ignore
@@ -323,6 +358,8 @@ def fix_fn_for(check: Check) -> Optional[FixFn]:
         return _fix_llama_cpp
     if check.fix_id == "whisper_cpp":
         return _fix_whisper_cpp
+    if check.fix_id == "tts":
+        return _fix_tts
     if check.fix_id and check.fix_id.startswith("download_"):
         return _fix_download(check.fix_id[len("download_"):])
     return None

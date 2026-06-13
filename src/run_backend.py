@@ -57,7 +57,7 @@ def _run_backend(model_id: str) -> int:
         known = [m.id for m in enabled_models()]
         log.error("model %r not enabled on host %s. known: %s", model_id, host.id, known)
         return 2
-    if model.backend not in ("openai", "whisper"):
+    if model.backend not in ("openai", "whisper", "tts"):
         log.error("model %r is backend=%s; nothing to spawn", model_id, model.backend)
         return 2
 

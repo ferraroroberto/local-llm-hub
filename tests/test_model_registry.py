@@ -214,6 +214,68 @@ def test_whisper_translate_lazy_entry(tmp_path, monkeypatch):
     assert lazy.url == "http://127.0.0.1:8091/v1"
 
 
+def test_tts_entry(tmp_path, monkeypatch):
+    """TTS is a distinct backend (engine tts-server); two engines side by side."""
+    cfg = _write_config(tmp_path, {
+        "hub": {"port": 8000},
+        "hosts": {
+            "pc-cuda":     {"platform": "win32", "default": True,
+                            "enabled": ["chatterbox", "orpheus"]},
+            "mac-mini-m4": {"platform": "darwin", "default": True, "enabled": ["qwen"]},
+        },
+        "models": {
+            "qwen": {"display_name": "qwen3.5-9b", "backend": "openai", "port": 8081},
+            "chatterbox": {
+                "display_name": "chatterbox-tts",
+                "aliases": ["audio_speech"],
+                "backend": "tts",
+                "engine": "tts-server",
+                "tts_engine": "chatterbox",
+                "port": 8092,
+                "args": ["--device", "auto"],
+            },
+            "orpheus": {
+                "display_name": "orpheus-tts",
+                "backend": "tts",
+                "engine": "tts-server",
+                "tts_engine": "orpheus",
+                "port": 8093,
+                "internal_port": 18093,
+                "hf_repo": "isaiahbjork/orpheus-3b-0.1-ft-Q4_K_M-GGUF",
+                "hf_pattern": "*q4_k_m*.gguf",
+                "model_path": "models/orpheus-3b-0.1-ft-q4_k_m.gguf",
+                "args": ["--device", "auto"],
+            },
+        },
+    })
+    _patch_config_path(monkeypatch, cfg)
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "pc-cuda")
+
+    ids = {m.id for m in model_registry.enabled_models()}
+    assert {"chatterbox", "orpheus"} <= ids
+
+    # The audio_speech role alias resolves to the chatterbox row.
+    cb = model_registry.resolve("audio_speech")
+    assert cb is not None
+    assert cb.id == "chatterbox"
+    assert cb.backend == "tts"
+    assert cb.engine == "tts-server"
+    assert cb.tts_engine == "chatterbox"
+    assert cb.port == 8092
+    assert cb.model_path is None       # weights come from the HF cache, not models/
+    assert cb.url == "http://127.0.0.1:8092/v1"
+
+    orph = model_registry.resolve("orpheus-tts")
+    assert orph.tts_engine == "orpheus"
+    assert orph.port == 8093
+    assert orph.internal_port == 18093
+    assert orph.model_path == "models/orpheus-3b-0.1-ft-q4_k_m.gguf"
+
+    # TTS rows are host-scoped: absent on the Mac mini (qwen-only).
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "mac-mini-m4")
+    assert model_registry.resolve("audio_speech") is None
+
+
 def test_resolve_by_registry_id(tmp_path, monkeypatch):
     """Regression: the SPA Playground dropdown sends ``m.id`` (the YAML
     key), not ``display_name``. resolve() must accept it — otherwise

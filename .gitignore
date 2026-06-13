@@ -51,6 +51,8 @@ config/machine_specs.yaml
 # user cloudflared config, placeholder PNG icons generated at boot.
 config/webapp_config.json
 config/webauthn_devices.json
+# TTS voice-cloning reference clips (config/tts_voices/<voice>.wav) — local audio
+config/tts_voices/
 webapp/cloudflared.yml
 webapp/auth.log
 webapp/last_tunnel_url.txt

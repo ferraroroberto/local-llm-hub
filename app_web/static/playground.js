@@ -21,10 +21,28 @@ export async function fetchPlaygroundModels() {
   } catch (_) { /* ignore */ }
 }
 
+export async function fetchTtsModels() {
+  try {
+    const body = await jsonApi('/admin/api/playground/tts_models');
+    const models = body.models || [];
+    if (!els.ttsModel) return;
+    els.ttsModel.innerHTML = '';
+    // No TTS backend enabled on this host → hide the whole card.
+    if (els.ttsCard) els.ttsCard.hidden = models.length === 0;
+    models.forEach(function (m) {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.display_name + (m.engine ? ' (' + m.engine + ')' : '');
+      els.ttsModel.appendChild(opt);
+    });
+  } catch (_) { /* ignore */ }
+}
+
 export function wirePlayground() {
   if (els.playgroundSendBtn) {
     els.playgroundSendBtn.addEventListener('click', sendPrompt);
   }
+  wireTts();
   if (els.playgroundClearBtn) {
     els.playgroundClearBtn.addEventListener('click', function () {
       els.playgroundReply.textContent = '';
@@ -56,6 +74,71 @@ export function wirePlayground() {
         b.classList.toggle('active', b.dataset.value === current);
       });
     });
+  }
+}
+
+function wireTts() {
+  // Live value readouts for the two range sliders.
+  if (els.ttsExaggeration && els.ttsExaggerationVal) {
+    els.ttsExaggeration.addEventListener('input', function () {
+      els.ttsExaggerationVal.textContent = els.ttsExaggeration.value;
+    });
+  }
+  if (els.ttsCfgWeight && els.ttsCfgWeightVal) {
+    els.ttsCfgWeight.addEventListener('input', function () {
+      els.ttsCfgWeightVal.textContent = els.ttsCfgWeight.value;
+    });
+  }
+  if (els.ttsSpeakBtn) {
+    els.ttsSpeakBtn.addEventListener('click', speak);
+  }
+}
+
+async function speak() {
+  if (!els.ttsModel || !els.ttsModel.value) {
+    toast('No TTS model available.', 'error');
+    return;
+  }
+  const text = (els.ttsInput.value || '').trim();
+  if (!text) {
+    toast('Text is empty.', 'error');
+    return;
+  }
+  els.ttsSpeakBtn.disabled = true;
+  els.ttsLatency.textContent = 'synthesizing…';
+
+  const fd = new FormData();
+  fd.append('model', els.ttsModel.value);
+  fd.append('input', text);
+  fd.append('voice', (els.ttsVoice.value || '').trim());
+  fd.append('response_format', els.ttsFormat ? els.ttsFormat.value : 'wav');
+  if (els.ttsExaggeration) fd.append('exaggeration', els.ttsExaggeration.value);
+  if (els.ttsCfgWeight) fd.append('cfg_weight', els.ttsCfgWeight.value);
+
+  const t0 = performance.now();
+  try {
+    const res = await api('/admin/api/playground/speak', { method: 'POST', body: fd });
+    if (!res.ok) {
+      let msg = 'HTTP ' + res.status;
+      try { const b = await res.json(); msg = b.detail || msg; } catch (_) { /* ignore */ }
+      els.ttsLatency.textContent = '';
+      toast(msg, 'error');
+      return;
+    }
+    const blob = await res.blob();
+    const elapsed = (performance.now() - t0).toFixed(0);
+    els.ttsLatency.textContent = elapsed + ' ms · ' + Math.round(blob.size / 1024) + ' KB';
+    if (els.ttsAudio.dataset.url) URL.revokeObjectURL(els.ttsAudio.dataset.url);
+    const url = URL.createObjectURL(blob);
+    els.ttsAudio.dataset.url = url;
+    els.ttsAudio.src = url;
+    els.ttsAudio.hidden = false;
+    els.ttsAudio.play().catch(function () { /* autoplay may be blocked; controls remain */ });
+  } catch (exc) {
+    els.ttsLatency.textContent = '';
+    toast(String(exc.message || exc), 'error');
+  } finally {
+    els.ttsSpeakBtn.disabled = false;
   }
 }
 

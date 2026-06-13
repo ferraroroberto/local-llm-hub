@@ -17,6 +17,8 @@ start "Local LLM Hub - gemma4-e4b"      cmd /k .venv\Scripts\python.exe -m src.r
 start "Local LLM Hub - gemma4-26b-a4b"  cmd /k .venv\Scripts\python.exe -m src.run_backend gemma4_26b
 start "Local LLM Hub - whisper"         cmd /k .venv\Scripts\python.exe -m src.run_backend whisper
 start "Local LLM Hub - whisper-translate" cmd /k .venv\Scripts\python.exe -m src.run_backend whisper_translate
+start "Local LLM Hub - chatterbox-tts"  cmd /k .venv\Scripts\python.exe -m src.run_backend chatterbox
+start "Local LLM Hub - orpheus-tts"     cmd /k .venv\Scripts\python.exe -m src.run_backend orpheus
 
-echo Launched hub + qwen + glm + qwen3.5-4b + gemma4-e4b + gemma4-26b-a4b + whisper + whisper-translate in separate windows.
+echo Launched hub + qwen + glm + qwen3.5-4b + gemma4-e4b + gemma4-26b-a4b + whisper + whisper-translate + chatterbox-tts + orpheus-tts in separate windows.
 echo (If a model is not enabled on this host its window will exit immediately.)

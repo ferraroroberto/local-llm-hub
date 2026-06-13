@@ -151,6 +151,19 @@ export const els = {
   playgroundLatency: document.getElementById('playgroundLatency'),
   playgroundReply: document.getElementById('playgroundReply'),
   playgroundUsage: document.getElementById('playgroundUsage'),
+  // Playground — text-to-speech tester (issue #98)
+  ttsModel: document.getElementById('ttsModel'),
+  ttsInput: document.getElementById('ttsInput'),
+  ttsVoice: document.getElementById('ttsVoice'),
+  ttsFormat: document.getElementById('ttsFormat'),
+  ttsExaggeration: document.getElementById('ttsExaggeration'),
+  ttsExaggerationVal: document.getElementById('ttsExaggerationVal'),
+  ttsCfgWeight: document.getElementById('ttsCfgWeight'),
+  ttsCfgWeightVal: document.getElementById('ttsCfgWeightVal'),
+  ttsSpeakBtn: document.getElementById('ttsSpeakBtn'),
+  ttsLatency: document.getElementById('ttsLatency'),
+  ttsAudio: document.getElementById('ttsAudio'),
+  ttsCard: document.getElementById('ttsCard'),
 
   // Code-usage tab (issue #20)
   cldFreshness: document.getElementById('cldFreshness'),
