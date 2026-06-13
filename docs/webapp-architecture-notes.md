@@ -8,7 +8,7 @@ debugging something and wants the gotchas in one place.
 
 The admin webapp is a FastAPI **sub-app** mounted at `/admin` on the
 hub's own `:8000` — there is no second port, no second Python process,
-no bundler. Three tabs (Hub / Models / Playground) cover every
+no bundler. Five tabs (Hub / Models / Play / OTel / Code) cover every
 operational concern.
 
 ```
@@ -18,7 +18,8 @@ src/server.py            ── parent FastAPI hub (:8000)
 app_web/server.py        ── sub-app, owns its own middleware + routers
   ├── middleware.py      ── BearerTokenMiddleware (sub-app, /admin only)
   ├── routers/           ── misc / version / auth / webauthn / hub /
-  │                        models / playground
+  │                        models / playground / services /
+  │                        telemetry / code_usage / glossary
   └── static/            ── HTML + ES-module JS + CSS, no build step
 ```
 
