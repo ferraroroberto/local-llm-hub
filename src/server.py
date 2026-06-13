@@ -1315,10 +1315,12 @@ async def audio_speech(request: Request) -> Response:
 
     body = await request.body()
     model_name = ""
+    stream_format = ""
     try:
         parsed = _json.loads(body or b"{}")
         if isinstance(parsed, dict):
             model_name = str(parsed.get("model") or "")
+            stream_format = str(parsed.get("stream_format") or "").strip().lower()
     except Exception:  # noqa: BLE001
         pass
 
@@ -1348,21 +1350,51 @@ async def audio_speech(request: Request) -> Response:
         k: v for k, v in request.headers.items()
         if k.lower() in {"content-type", "accept"}
     }
+
+    def _passthrough_headers(upstream) -> dict:
+        return {
+            k: v for k, v in upstream.headers.items()
+            if k.lower() not in {"content-length", "transfer-encoding", "connection"}
+        }
+
+    # Streaming synth: hold the upstream connection open and forward bytes as
+    # they arrive, so time-to-first-audio stays low. The obs middleware still
+    # records this entry on response, exactly like the chat-stream path.
+    if stream_format == "audio":
+        client = _httpx.AsyncClient(timeout=300.0)
+        stream_cm = client.stream("POST", upstream_url, content=body, headers=headers)
+        try:
+            upstream = await stream_cm.__aenter__()
+        except _httpx.HTTPError as exc:
+            await client.aclose()
+            raise HTTPException(status_code=502, detail=f"tts upstream error: {exc}")
+
+        async def _forward():
+            try:
+                async for piece in upstream.aiter_bytes():
+                    yield piece
+            finally:
+                await stream_cm.__aexit__(None, None, None)
+                await client.aclose()
+
+        return StreamingResponse(
+            _forward(),
+            status_code=upstream.status_code,
+            media_type=upstream.headers.get("content-type"),
+            headers=_passthrough_headers(upstream),
+        )
+
     try:
         async with _httpx.AsyncClient(timeout=300.0) as client:
             upstream = await client.post(upstream_url, content=body, headers=headers)
     except _httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"tts upstream error: {exc}")
 
-    out_headers = {
-        k: v for k, v in upstream.headers.items()
-        if k.lower() not in {"content-length", "transfer-encoding", "connection"}
-    }
     return Response(
         content=upstream.content,
         status_code=upstream.status_code,
         media_type=upstream.headers.get("content-type"),
-        headers=out_headers,
+        headers=_passthrough_headers(upstream),
     )
 
 

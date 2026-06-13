@@ -123,3 +123,61 @@ def test_playground_no_attachment_is_text_only(monkeypatch):
     assert r.status_code == 200, r.text
     content = captured["payload"]["messages"][0]["content"]
     assert content == [{"type": "text", "text": "hi"}]
+
+
+def _mock_stream_upstream(monkeypatch) -> dict:
+    """Patch httpx.AsyncClient so the proxied /v1/audio/speech *stream* is
+    captured and a fake chunked body is returned."""
+    captured: dict = {}
+
+    class _FakeStreamResp:
+        is_success = True
+        status_code = 200
+        headers = {"content-type": "audio/L16", "x-sample-rate": "24000"}
+
+        async def aiter_bytes(self):
+            yield b"\x01\x00"
+            yield b"\x02\x00"
+
+        async def aread(self):
+            return b""
+
+    class _FakeStreamCM:
+        async def __aenter__(self):
+            return _FakeStreamResp()
+
+        async def __aexit__(self, *a):
+            return False
+
+    class _FakeClient:
+        def __init__(self, *a, **kw):
+            pass
+
+        def stream(self, method, url, json=None, **kw):
+            captured["url"] = url
+            captured["payload"] = json
+            return _FakeStreamCM()
+
+        async def aclose(self):
+            pass
+
+    import httpx
+
+    monkeypatch.setattr(httpx, "AsyncClient", _FakeClient)
+    return captured
+
+
+def test_playground_speak_streaming_forwards_chunks(monkeypatch):
+    captured = _mock_stream_upstream(monkeypatch)
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/admin/api/playground/speak",
+        data={"model": "chatterbox-tts", "input": "hi", "stream": "true",
+              "response_format": "pcm"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"].startswith("audio/L16")
+    assert r.headers["x-sample-rate"] == "24000"
+    assert r.content == b"\x01\x00\x02\x00"
+    # The hub-side streaming flag was forwarded upstream.
+    assert captured["payload"]["stream_format"] == "audio"

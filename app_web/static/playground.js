@@ -107,6 +107,19 @@ async function speak() {
   els.ttsSpeakBtn.disabled = true;
   els.ttsLatency.textContent = 'synthesizing…';
 
+  const streaming = !!(els.ttsStream && els.ttsStream.checked);
+  if (streaming) {
+    try {
+      await speakStream(text);
+    } catch (exc) {
+      els.ttsLatency.textContent = '';
+      toast(String(exc.message || exc), 'error');
+    } finally {
+      els.ttsSpeakBtn.disabled = false;
+    }
+    return;
+  }
+
   const fd = new FormData();
   fd.append('model', els.ttsModel.value);
   fd.append('input', text);
@@ -140,6 +153,85 @@ async function speak() {
   } finally {
     els.ttsSpeakBtn.disabled = false;
   }
+}
+
+// Streaming synthesis: request headerless PCM16 with stream_format=audio and
+// schedule each chunk on a Web Audio timeline so playback starts as soon as
+// the first frames arrive. Reports time-to-first-audio vs total — the whole
+// point of the streaming endpoint (issue #102). The native <audio> element
+// can't consume a chunked POST, hence Web Audio rather than ttsAudio.src.
+async function speakStream(text) {
+  const fd = new FormData();
+  fd.append('model', els.ttsModel.value);
+  fd.append('input', text);
+  fd.append('voice', (els.ttsVoice.value || '').trim());
+  fd.append('response_format', 'pcm');   // headerless PCM16 for Web Audio
+  fd.append('stream', 'true');
+  if (els.ttsExaggeration) fd.append('exaggeration', els.ttsExaggeration.value);
+  if (els.ttsCfgWeight) fd.append('cfg_weight', els.ttsCfgWeight.value);
+
+  els.ttsAudio.hidden = true;            // streamed playback uses Web Audio
+  // Create + resume the AudioContext *inside* the click gesture (before the
+  // first await) so browser autoplay policy lets it produce sound.
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AudioCtx();
+  try { await ctx.resume(); } catch (_) { /* ignore */ }
+
+  const t0 = performance.now();
+  const res = await api('/admin/api/playground/speak', { method: 'POST', body: fd });
+  if (!res.ok) {
+    let msg = 'HTTP ' + res.status;
+    try { const b = await res.json(); msg = b.detail || msg; } catch (_) { /* ignore */ }
+    els.ttsLatency.textContent = '';
+    ctx.close().catch(function () { /* ignore */ });
+    toast(msg, 'error');
+    return;
+  }
+
+  const sampleRate = parseInt(res.headers.get('X-Sample-Rate') || '24000', 10) || 24000;
+  let playHead = ctx.currentTime + 0.08;  // small lead-in to avoid underrun
+  let ttfa = null;
+  let totalSamples = 0;
+  let leftover = new Uint8Array(0);
+  const reader = res.body.getReader();
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value || value.length === 0) continue;
+    if (ttfa === null) {
+      ttfa = performance.now() - t0;
+      els.ttsLatency.textContent = 'first audio ' + ttfa.toFixed(0) + ' ms · playing…';
+    }
+    // Merge any odd trailing byte from the previous chunk, then split into
+    // whole int16 samples (carry the remainder forward).
+    const merged = new Uint8Array(leftover.length + value.length);
+    merged.set(leftover, 0);
+    merged.set(value, leftover.length);
+    const usable = merged.length - (merged.length % 2);
+    leftover = merged.slice(usable);
+    if (usable === 0) continue;
+    const i16 = new Int16Array(merged.buffer.slice(0, usable));
+    const f32 = new Float32Array(i16.length);
+    for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768;
+    const buf = ctx.createBuffer(1, f32.length, sampleRate);
+    buf.copyToChannel(f32, 0);
+    const node = ctx.createBufferSource();
+    node.buffer = buf;
+    node.connect(ctx.destination);
+    node.start(playHead);
+    playHead += buf.duration;
+    totalSamples += f32.length;
+  }
+
+  const total = performance.now() - t0;
+  const audioSec = totalSamples / sampleRate;
+  els.ttsLatency.textContent =
+    'first audio ' + (ttfa || 0).toFixed(0) + ' ms · total ' + total.toFixed(0) +
+    ' ms · ' + audioSec.toFixed(1) + ' s audio';
+  // Let scheduled buffers finish, then release the context.
+  setTimeout(function () { ctx.close().catch(function () { /* ignore */ }); },
+    Math.max(0, (playHead - ctx.currentTime) * 1000) + 500);
 }
 
 async function sendPrompt() {

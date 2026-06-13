@@ -8,7 +8,7 @@ import mimetypes
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 
 from src.host_profile import hub_port
 from src.model_registry import enabled_models, resolve as resolve_model
@@ -74,12 +74,15 @@ async def playground_speak(
     response_format: str = Form("wav"),
     exaggeration: float = Form(0.5),
     cfg_weight: float = Form(0.5),
+    stream: bool = Form(False),
 ) -> Response:
     """Synthesize speech through the hub's own ``/v1/audio/speech`` proxy.
 
     Same loopback-proxy pattern as :func:`playground_send` — the request
     lands in the observability ring like any external call. Returns the raw
-    audio bytes for the SPA's ``<audio>`` player.
+    audio bytes for the SPA's ``<audio>`` player. With ``stream=true`` the
+    hub's streaming shape (``stream_format: "audio"``) is forwarded through
+    so the SPA can play audio as it synthesizes and time the first chunk.
     """
     import httpx
 
@@ -97,7 +100,43 @@ async def playground_speak(
         "exaggeration": exaggeration,
         "cfg_weight": cfg_weight,
     }
+    if stream:
+        payload["stream_format"] = "audio"
     url = f"http://127.0.0.1:{hub_port()}/v1/audio/speech"
+
+    if stream:
+        client = httpx.AsyncClient(timeout=300.0)
+        stream_cm = client.stream("POST", url, json=payload)
+        try:
+            upstream = await stream_cm.__aenter__()
+        except httpx.HTTPError as exc:
+            await client.aclose()
+            raise HTTPException(status_code=502, detail=f"upstream error: {exc}")
+        if not upstream.is_success:
+            detail = (await upstream.aread()).decode("utf-8", "replace") or f"HTTP {upstream.status_code}"
+            status = upstream.status_code
+            await stream_cm.__aexit__(None, None, None)
+            await client.aclose()
+            raise HTTPException(status_code=status, detail=str(detail)[:500])
+
+        async def _forward():
+            try:
+                async for piece in upstream.aiter_bytes():
+                    yield piece
+            finally:
+                await stream_cm.__aexit__(None, None, None)
+                await client.aclose()
+
+        out_headers = {}
+        sr = upstream.headers.get("x-sample-rate")
+        if sr:
+            out_headers["X-Sample-Rate"] = sr
+        return StreamingResponse(
+            _forward(),
+            media_type=upstream.headers.get("content-type", "audio/wav"),
+            headers=out_headers,
+        )
+
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
             r = await client.post(url, json=payload)

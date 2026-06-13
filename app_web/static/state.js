@@ -156,6 +156,7 @@ export const els = {
   ttsInput: document.getElementById('ttsInput'),
   ttsVoice: document.getElementById('ttsVoice'),
   ttsFormat: document.getElementById('ttsFormat'),
+  ttsStream: document.getElementById('ttsStream'),
   ttsExaggeration: document.getElementById('ttsExaggeration'),
   ttsExaggerationVal: document.getElementById('ttsExaggerationVal'),
   ttsCfgWeight: document.getElementById('ttsCfgWeight'),

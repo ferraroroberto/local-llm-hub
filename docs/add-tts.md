@@ -161,6 +161,79 @@ Chatterbox's `exaggeration` + `cfg_weight`. Defaults / notes:
   Orpheus (which expresses emotion through inline text instead).
 - **`speed`** — accepted but a **documented no-op**: neither engine exposes
   a native rate control.
+- **`stream_format`** — `"audio"` opts into **streaming** delivery (raw
+  chunked bytes that play as they synthesize); absent / any other value keeps
+  the current buffered single response. See [Streaming](#streaming) below.
+
+## Streaming
+
+Long inputs feel laggy when the whole clip has to synthesize before the
+first byte returns (perceived latency is bounded by *total* synth time, not
+time-to-first-audio). Setting `stream_format: "audio"` flips the endpoint to
+incremental delivery — audio starts flowing as soon as the first frames
+decode, so time-to-first-audio drops to a fraction of a second regardless of
+length.
+
+```bash
+curl -N -X POST http://127.0.0.1:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"audio_speech","input":"A long paragraph…","stream_format":"audio"}' \
+  --output reply.wav
+```
+
+What streams:
+
+- **Orpheus** (default) streams natively. Its llama-server child emits SNAC
+  audio tokens incrementally; the engine switches that `/completion` call to
+  `stream: true` and decodes a **sliding 28-token (4-frame) window**,
+  emitting each window's artefact-free `[2048:4096]` segment (~85 ms at
+  24 kHz) — the canopyai/Orpheus-FastAPI `speechpipe` pattern. Very short
+  inputs that never fill the window fall back to one whole-clip decode.
+- **Chatterbox** can't stream (its flow-matching vocoder needs the full
+  token sequence), so it **cleanly falls back to a single final chunk** via
+  the default `TTSEngine.synthesize_stream`. The request still succeeds; it
+  just isn't incremental.
+
+Body format of the stream:
+
+- `response_format: "wav"` (default) → a **streaming WAV** header
+  (open-ended `0xFFFFFFFF` RIFF/`data` sizes) followed by PCM16 frames; plays
+  incrementally in a browser `<audio>` element and ffmpeg with no MediaSource
+  glue.
+- `response_format: "pcm"` → headerless little-endian PCM16 frames; the
+  sample rate is on the `X-Sample-Rate` response header.
+- Any other format (`mp3`/`flac`/…) can't be encoded frame-by-frame with the
+  stdlib/soundfile, so a streaming request for one **falls back to the
+  buffered response** in that format (logged) — never an error.
+
+The hub proxy (`POST /v1/audio/speech` on :8000) forwards the streamed body
+through `httpx`'s streaming client while still recording the request in the
+observability ring, exactly like the streamed chat path — so streamed synth
+stays observable. Clients that POST directly to the backend port (:8093 /
+:8092) stream too, just without the ring entry.
+
+Non-streaming requests are unaffected — omit `stream_format` (or send any
+other value) and the endpoint returns the same single buffered response as
+before.
+
+### Live validation (streaming)
+
+`pytest` covers the incremental SNAC decode with **mocked tokens** (no torch)
+and the shim's streaming response shape (mocked engine). The real perceived
+latency can only be felt on the TTS box:
+
+```bat
+tray.bat --restart      :: orpheus auto-loads on :8093
+:: long paragraph, streamed — first audio should arrive in ~1 s
+curl -N -X POST http://127.0.0.1:8000/v1/audio/speech ^
+  -H "Content-Type: application/json" ^
+  -d "{\"model\":\"audio_speech\",\"input\":\"<a few sentences>\",\"stream_format\":\"audio\"}" ^
+  --output reply.wav
+```
+
+Measured on the 16 GB reference GPU (Orpheus), a ~19 s paragraph: **time-to-first-audio ≈ 1.1 s streamed vs ≈ 13.5 s buffered** (~12× faster to first sound; total synth time is unchanged). The floor is set by the 4-frame (28-token) decode warmup plus prompt processing, so very long prompts add a little. Confirm a request *without* `stream_format` still returns a complete buffered clip (back-compat).
+
+> **Restarting a TTS backend to pick up code changes.** `tray.bat --restart` reclaims `:8000` (the hub) but deliberately leaves the model/backend ports alone, so it does **not** reload `tts_server`/`tts_engines` changes. Cycle the backend itself from the Models tab (stop → start) or `POST /admin/api/models/<id>/{stop,start}` (loopback-exempt), then restart the hub if you also changed `src/server.py`.
 
 ## Choosing the engine / model (downstream)
 

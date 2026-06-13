@@ -757,11 +757,13 @@ audio.stream_to_file("reply.wav")
 
 `exaggeration` / `cfg_weight` are Chatterbox's emotion/"tone" dial; `voice`
 selects an Orpheus preset (`tara`, `leah`, …) or a Chatterbox cloning clip
-at `config/tts_voices/<voice>.wav`; `speed` is accepted but a no-op. The
-hub exposes every enabled TTS model on the same route, so a client (e.g.
-app-launcher) switches engines just by changing `model`. Defaults, formats,
-voice cloning, and the Orpheus GGUF caveat are in
-[docs/add-tts.md](docs/add-tts.md).
+at `config/tts_voices/<voice>.wav`; `speed` is accepted but a no-op. Add
+`"stream_format":"audio"` to **stream** the audio incrementally (Orpheus
+decodes a sliding SNAC window for sub-second time-to-first-audio; Chatterbox
+falls back to a single final chunk). The hub exposes every enabled TTS model
+on the same route, so a client (e.g. app-launcher) switches engines just by
+changing `model`. Defaults, formats, streaming, voice cloning, and the
+Orpheus GGUF caveat are in [docs/add-tts.md](docs/add-tts.md).
 
 ## Observability (issue #4)
 
