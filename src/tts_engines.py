@@ -323,6 +323,21 @@ class OrpheusEngine(TTSEngine):
                 f"Orpheus GGUF not found at {gguf} - "
                 f"run scripts/download_models.py --only {self.model_row.id}"
             )
+        # Throughput note (issue #105): on the reference GPU this 3B Q4_K_M
+        # generates ~150 tok/s, which sets the total synthesis time. That rate
+        # is memory-bandwidth bound, NOT a missing flag — the model is fully
+        # offloaded (-ngl 99) and llama.cpp already auto-enables flash
+        # attention, so --flash-attn / -b/-ub batch / --no-mmap leave the rate
+        # unchanged (measured: scripts/bench_orpheus.py). ~150 tok/s is ~65% of
+        # this card's bandwidth ceiling for a ~1.94 GB resident model; the only
+        # faster route is a lower quant, which would regress SNAC audio quality.
+        # Perceived latency is handled by streaming (#102). Full analysis +
+        # before/after numbers: docs/orpheus-throughput.md.
+        #
+        # -c 8192 (not smaller): KV is sized by n_ctx, not per slot, so a
+        # shorter context would not free meaningful VRAM, and 8192 is needed to
+        # hold longer inputs (Orpheus emits ~107 audio tokens per second of
+        # speech, so 8192 ≈ 76 s of audio headroom).
         cmd = [
             str(bin_path),
             "-m", str(gguf),

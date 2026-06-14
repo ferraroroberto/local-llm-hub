@@ -324,6 +324,7 @@ local-llm-hub/
 │   └── __main__.py           #   `python -m tray` entry, writes one-shot crash log
 ├── scripts/
 │   ├── smoke_test.py
+│   ├── bench_orpheus.py      # measure Orpheus llama-server throughput (tok/s, e2e)
 │   ├── download_models.py    # huggingface_hub → models/
 │   ├── detect_machine_specs.py   # populate config/machine_specs.yaml
 │   ├── install_llama_cpp.py      # CUDA-Windows / Metal-macOS release
