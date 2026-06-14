@@ -33,8 +33,10 @@ export async function fetchTtsModels() {
       const opt = document.createElement('option');
       opt.value = m.id;
       opt.textContent = m.display_name + (m.engine ? ' (' + m.engine + ')' : '');
+      opt.dataset.engine = m.engine || '';
       els.ttsModel.appendChild(opt);
     });
+    _syncStreamCheckbox();
   } catch (_) { /* ignore */ }
 }
 
@@ -77,6 +79,19 @@ export function wirePlayground() {
   }
 }
 
+// Disable the Stream checkbox (and uncheck it) when the selected TTS engine
+// does not support true streaming.  Only Orpheus has an incremental decoder;
+// Chatterbox synthesises the whole clip first and then yields it as one chunk,
+// which causes the Web Audio scheduler to cut audio short (#109).
+function _syncStreamCheckbox() {
+  if (!els.ttsModel || !els.ttsStream) return;
+  const sel = els.ttsModel.options[els.ttsModel.selectedIndex];
+  const engine = sel ? (sel.dataset.engine || '') : '';
+  const orpheus = engine === 'orpheus';
+  els.ttsStream.disabled = !orpheus;
+  if (!orpheus) els.ttsStream.checked = false;
+}
+
 function wireTts() {
   // Live value readouts for the two range sliders.
   if (els.ttsExaggeration && els.ttsExaggerationVal) {
@@ -88,6 +103,9 @@ function wireTts() {
     els.ttsCfgWeight.addEventListener('input', function () {
       els.ttsCfgWeightVal.textContent = els.ttsCfgWeight.value;
     });
+  }
+  if (els.ttsModel) {
+    els.ttsModel.addEventListener('change', _syncStreamCheckbox);
   }
   if (els.ttsSpeakBtn) {
     els.ttsSpeakBtn.addEventListener('click', speak);
