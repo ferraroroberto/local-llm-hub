@@ -8,7 +8,7 @@ import { jsonApi, tokenFromUrl, urlWithToken, writeToken, wireLoginForm, toast }
 import { wireTabs, setTab, onTabChange } from './tabs.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchInstallStatus, fetchServicesStatus } from './hub.js';
 import { wireModels, fetchModels } from './models.js';
-import { wirePlayground, fetchPlaygroundModels, fetchTtsModels } from './playground.js';
+import { wirePlayground, fetchPlaygroundModels, fetchTtsModels, fetchImageModels } from './playground.js';
 import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls, fetchTelemetryHealth } from './telemetry.js';
 import { wireCodeUsage, startCodeUsagePolls, stopCodeUsagePolls } from './code_usage.js';
 
@@ -65,6 +65,7 @@ async function boot() {
     fetchTelemetryHealth(),
     fetchPlaygroundModels(),
     fetchTtsModels(),
+    fetchImageModels(),
   ]);
 
   startHubStreams();
@@ -97,6 +98,7 @@ async function resumeAfterLogin() {
     fetchTelemetryHealth(),
     fetchPlaygroundModels(),
     fetchTtsModels(),
+    fetchImageModels(),
   ]);
   startHubStreams();
 }

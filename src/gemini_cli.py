@@ -39,6 +39,7 @@ import logging
 import re
 import shutil
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -65,6 +66,34 @@ class GeminiCLIError(RuntimeError):
 # selected so it only pays the ~interactive model-switch cost on a change.
 _LOCK = threading.Lock()
 _current_model: Optional[str] = None
+
+# Image generation has no picker model in `agy` — the only image backend is
+# Google's Imagen, exposed as an agentic tool reachable from any Gemini text
+# session. We host it inside the cheapest/fastest text model (Flash High);
+# the choice does not affect the image model used. Verified: issue #114 spike.
+_IMAGE_HOST_MODEL = "Gemini 3.5 Flash (High)"
+
+# Magic-byte signatures → media type. `agy` saves the artifact under whatever
+# name we ask, but the bytes may be a different format than the extension
+# implies (the spike saved JPEG bytes into a `.png` name), so the produced
+# file is identified by content, never by its extension.
+_IMAGE_SIGNATURES: Tuple[Tuple[bytes, str], ...] = (
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+)
+
+
+def _sniff_image_media_type(data: bytes) -> Optional[str]:
+    """Return the image media type from magic bytes, or None if not an image."""
+    for sig, media_type in _IMAGE_SIGNATURES:
+        if data.startswith(sig):
+            return media_type
+    # WebP: "RIFF" .... "WEBP" with the format tag at offset 8.
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 # Strips ANSI/VT escape sequences from ConPTY output: CSI sequences
 # (incl. private `?`/`$`/space params and cursor-style `1 q`), simple
@@ -396,3 +425,150 @@ def call_gemini(
         "stop_reason": "end_turn",
         "usage": {"input_tokens": 0, "output_tokens": 0},
     }
+
+
+def call_gemini_image(
+    prompt: str,
+    *,
+    reference_image: Optional[Path] = None,
+    timeout: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Generate (or edit) an image with `agy` and return the raw bytes.
+
+    `agy` has no image model in its `/model` picker — image generation is an
+    agentic tool (Google Imagen) reachable from an ordinary Gemini text
+    session. This drives that path: it hosts the tool in ``_IMAGE_HOST_MODEL``
+    (switching the globally-persisted model first if needed, same serialized
+    contract as :func:`call_gemini`), runs a print-mode prompt that asks the
+    model to produce the image and save it into a throwaway working dir, then
+    captures whatever image artifact lands there — identified by magic bytes,
+    not extension, because the saved file's format is model-driven.
+
+    There is no ``size`` parameter: Imagen controls the output dimensions and
+    ignores pixel-size hints — aspect ratio is steered from the prompt text
+    (e.g. "16:9"), proven empirically (issue #114).
+
+    When ``reference_image`` is given the call is an **edit**: the file is
+    copied into the working dir and referenced as ``@<basename>`` so `agy`
+    operates on it. Editing is agentic and procedural (the model often writes
+    image-processing code) — slower and best-effort, hence the longer default
+    timeout.
+
+    Returns ``{"image_bytes", "media_type", "result_text"}``. Raises
+    :class:`GeminiCLIError` if no image artifact is produced (e.g. the model
+    refused or only replied with text).
+    """
+    global _current_model
+    exe = _resolve_agy()
+    editing = reference_image is not None
+    if timeout is None:
+        timeout = 600.0 if editing else 300.0
+
+    tracer = _tracer()
+    cm = (
+        tracer.start_as_current_span("gemini_cli.image")
+        if tracer is not None
+        else contextlib.nullcontext(None)
+    )
+    with cm as span:
+        if span is not None and hasattr(span, "set_attribute"):
+            try:
+                span.set_attribute("gemini_cli.model", _IMAGE_HOST_MODEL)
+                span.set_attribute("gemini_cli.image_editing", editing)
+            except Exception:  # noqa: BLE001
+                pass
+
+        with _LOCK:
+            if _IMAGE_HOST_MODEL != _current_model:
+                _switch_model(exe, _IMAGE_HOST_MODEL)
+                _current_model = _IMAGE_HOST_MODEL
+
+            workdir = Path(tempfile.mkdtemp(prefix="hub_imggen_"))
+            try:
+                save_name = "generated.png"
+                ref_in_workdir: Optional[Path] = None
+                add_dirs: Optional[List[str]] = None
+                if editing:
+                    ref_in_workdir = workdir / (
+                        "input" + (reference_image.suffix or ".png"))
+                    shutil.copyfile(reference_image, ref_in_workdir)
+                    add_dirs = [str(workdir)]
+                    full_prompt = (
+                        f"@{ref_in_workdir.name} Edit the attached image "
+                        f"according to these instructions: {prompt}\n\n"
+                        f"Save the edited image as a file named {save_name} in "
+                        f"the current working directory. After saving, reply "
+                        f"with the exact text SAVED on its own line. If you "
+                        f"cannot edit the image, reply with the exact text "
+                        f"NO_IMAGE and one line explaining why."
+                    )
+                else:
+                    full_prompt = (
+                        f"Generate an image based on this description: {prompt}"
+                        f"\n\nSave the generated image as a file named "
+                        f"{save_name} in the current working directory. After "
+                        f"saving, reply with the exact text SAVED on its own "
+                        f"line. If you cannot generate an image, reply with the "
+                        f"exact text NO_IMAGE and one line explaining why."
+                    )
+                reply = _print_call(
+                    exe, full_prompt, str(workdir), timeout, add_dirs=add_dirs)
+
+                # Ignore the reference copy so the captured artifact is the
+                # model's output, never the input we placed in the workdir.
+                image_bytes, media_type = _collect_image_artifact(
+                    workdir, ignore=ref_in_workdir)
+            finally:
+                shutil.rmtree(workdir, ignore_errors=True)
+
+        if image_bytes is None:
+            raise GeminiCLIError(
+                "agy did not produce an image artifact "
+                f"(reply: {reply[:200]!r})"
+            )
+
+        if span is not None and hasattr(span, "set_attribute"):
+            try:
+                span.set_attribute("gemini_cli.image_bytes", len(image_bytes))
+                span.set_attribute("gemini_cli.image_media_type", media_type)
+            except Exception:  # noqa: BLE001
+                pass
+
+    return {
+        "image_bytes": image_bytes,
+        "media_type": media_type,
+        "result_text": reply,
+    }
+
+
+def _collect_image_artifact(
+    workdir: Path,
+    *,
+    ignore: Optional[Path] = None,
+) -> Tuple[Optional[bytes], Optional[str]]:
+    """Return ``(bytes, media_type)`` of the newest image file under ``workdir``.
+
+    Files are identified by magic bytes (see :func:`_sniff_image_media_type`),
+    not extension. ``ignore`` skips one path (e.g. the edit reference copy).
+    Returns ``(None, None)`` when no image is present.
+    """
+    ignore_resolved = ignore.resolve() if ignore is not None else None
+    candidates: List[Tuple[float, bytes, str]] = []
+    for path in workdir.rglob("*"):
+        if not path.is_file():
+            continue
+        if ignore_resolved is not None and path.resolve() == ignore_resolved:
+            continue
+        try:
+            data = path.read_bytes()
+        except OSError:
+            continue
+        media_type = _sniff_image_media_type(data)
+        if media_type is not None:
+            candidates.append((path.stat().st_mtime, data, media_type))
+    if not candidates:
+        return None, None
+    # Newest artifact wins (the model may leave intermediate scratch files).
+    candidates.sort(key=lambda c: c[0])
+    _, data, media_type = candidates[-1]
+    return data, media_type

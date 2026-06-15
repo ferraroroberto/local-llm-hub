@@ -272,6 +272,8 @@ from starlette.requests import Request  # noqa: E402
 OBSERVABLE_PATHS = (
     "/v1/messages",
     "/v1/chat/completions",
+    "/v1/images/generations",
+    "/v1/images/edits",
     "/v1/audio/transcriptions",
     "/v1/audio/translations",
 )

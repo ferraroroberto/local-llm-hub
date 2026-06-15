@@ -21,6 +21,23 @@ export async function fetchPlaygroundModels() {
   } catch (_) { /* ignore */ }
 }
 
+export async function fetchImageModels() {
+  try {
+    const body = await jsonApi('/admin/api/playground/image_models');
+    const models = body.models || [];
+    if (!els.imageModel) return;
+    // No image-generation backend on this host → hide the whole card.
+    if (els.imageCard) els.imageCard.hidden = models.length === 0;
+    els.imageModel.innerHTML = '';
+    models.forEach(function (m) {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.display_name + ' (' + m.backend + ')';
+      els.imageModel.appendChild(opt);
+    });
+  } catch (_) { /* ignore */ }
+}
+
 export async function fetchTtsModels() {
   try {
     const body = await jsonApi('/admin/api/playground/tts_models');
@@ -45,6 +62,7 @@ export function wirePlayground() {
     els.playgroundSendBtn.addEventListener('click', sendPrompt);
   }
   wireTts();
+  wireImage();
   if (els.playgroundClearBtn) {
     els.playgroundClearBtn.addEventListener('click', function () {
       els.playgroundReply.textContent = '';
@@ -250,6 +268,76 @@ async function speakStream(text) {
   // Let scheduled buffers finish, then release the context.
   setTimeout(function () { ctx.close().catch(function () { /* ignore */ }); },
     Math.max(0, (playHead - ctx.currentTime) * 1000) + 500);
+}
+
+function wireImage() {
+  if (els.imageGenBtn) els.imageGenBtn.addEventListener('click', generateImage);
+  if (els.imageClearBtn) {
+    els.imageClearBtn.addEventListener('click', function () {
+      if (els.imagePreview) {
+        if (els.imagePreview.dataset.url) URL.revokeObjectURL(els.imagePreview.dataset.url);
+        els.imagePreview.removeAttribute('src');
+        els.imagePreview.hidden = true;
+      }
+      if (els.imageDownloadRow) els.imageDownloadRow.hidden = true;
+      if (els.imageLatency) els.imageLatency.textContent = '';
+    });
+  }
+}
+
+async function generateImage() {
+  if (!els.imageModel || !els.imageModel.value) {
+    toast('No image model available.', 'error');
+    return;
+  }
+  const prompt = (els.imagePrompt.value || '').trim();
+  if (!prompt) {
+    toast('Prompt is empty.', 'error');
+    return;
+  }
+  const editing = !!(els.imageAttachment && els.imageAttachment.files && els.imageAttachment.files[0]);
+
+  const fd = new FormData();
+  fd.append('model', els.imageModel.value);
+  fd.append('prompt', prompt);
+  if (editing) fd.append('image', els.imageAttachment.files[0]);
+
+  els.imageGenBtn.disabled = true;
+  els.imageLatency.textContent = editing
+    ? 'editing… (procedural — can take minutes)'
+    : 'generating…';
+
+  const t0 = performance.now();
+  try {
+    const res = await api('/admin/api/playground/generate_image', { method: 'POST', body: fd });
+    if (!res.ok) {
+      let msg = 'HTTP ' + res.status;
+      try { const b = await res.json(); msg = b.detail || msg; } catch (_) { /* ignore */ }
+      els.imageLatency.textContent = '';
+      toast(msg, 'error');
+      return;
+    }
+    const blob = await res.blob();
+    const elapsed = (performance.now() - t0).toFixed(0);
+    els.imageLatency.textContent = elapsed + ' ms · ' + Math.round(blob.size / 1024) + ' KB';
+    if (els.imagePreview.dataset.url) URL.revokeObjectURL(els.imagePreview.dataset.url);
+    const url = URL.createObjectURL(blob);
+    els.imagePreview.dataset.url = url;
+    els.imagePreview.src = url;
+    els.imagePreview.hidden = false;
+    if (els.imageDownload) {
+      const ext = (blob.type && blob.type.indexOf('jpeg') >= 0) ? 'jpg'
+        : (blob.type && blob.type.indexOf('webp') >= 0) ? 'webp' : 'png';
+      els.imageDownload.href = url;
+      els.imageDownload.download = 'generated-' + Date.now() + '.' + ext;
+      if (els.imageDownloadRow) els.imageDownloadRow.hidden = false;
+    }
+  } catch (exc) {
+    els.imageLatency.textContent = '';
+    toast(String(exc.message || exc), 'error');
+  } finally {
+    els.imageGenBtn.disabled = false;
+  }
 }
 
 async function sendPrompt() {
