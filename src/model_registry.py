@@ -22,6 +22,12 @@ class Model:
     backend: str                    # "claude" | "openai" | "gemini" | "whisper" | "tts"
     aliases: List[str] = field(default_factory=list)
     engine: Optional[str] = None
+    # For backend == "gemini": when true this row is an image-*generation*
+    # model (agy's built-in Imagen tool), routed through
+    # POST /v1/images/generations rather than the text chat paths. There is
+    # no picker entry for it — the image tool is hosted inside an ordinary
+    # Gemini text session (see src/gemini_cli._IMAGE_HOST_MODEL).
+    image_gen: bool = False
     # For backend == "tts" (engine "tts-server"): which synthesis engine
     # the shim loads — "chatterbox" (in-process torch) or "orpheus"
     # (llama-server GGUF child + SNAC decode). See src/tts_engines.py.
@@ -63,6 +69,7 @@ def _row_to_model(model_id: str, row: Dict) -> Model:
         backend=str(row.get("backend", "openai")),
         aliases=list(row.get("aliases", []) or []),
         engine=row.get("engine"),
+        image_gen=bool(row.get("image_gen", False)),
         tts_engine=row.get("tts_engine"),
         port=int(row["port"]) if row.get("port") is not None else None,
         hf_repo=row.get("hf_repo"),

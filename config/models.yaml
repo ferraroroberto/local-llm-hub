@@ -89,6 +89,21 @@ models:
     backend: gemini
     aliases: ["gemini_lite"]
 
+  # --- Image generation (Imagen via the Antigravity CLI) ---
+  # `agy` exposes no Nano Banana / image model in its `/model` picker; its
+  # only image backend is Google's **Imagen**, reachable as an agentic tool
+  # from inside any ordinary Gemini text session. So this is NOT a picker
+  # model — `display_name` is purely descriptive. The hub routes the
+  # `gemini_image` alias through POST /v1/images/generations, which drives
+  # src/gemini_cli.call_gemini_image (it hosts the Imagen tool in a Flash
+  # session, captures the saved artifact, and returns it). One honest id:
+  # Flash-vs-Pro selection does not change the image model.
+  gemini_image:
+    display_name: imagen
+    backend: gemini
+    image_gen: true
+    aliases: ["gemini_image"]
+
   # --- Local Qwen3.5-9B via llama.cpp ---
   qwen:
     display_name: qwen3.5-9b

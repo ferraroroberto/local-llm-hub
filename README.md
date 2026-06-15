@@ -5,7 +5,9 @@ A tiny local HTTP hub that routes `POST /v1/messages` (Anthropic shape) and
 plus a local whisper.cpp ASR pair and a text-to-speech pair, both reachable
 through the hub's `/v1/audio/*` proxy (observable) or directly on their own
 ports. Audio runs both directions: speech→text via `/v1/audio/transcriptions`
-and text→speech via `/v1/audio/speech`.
+and text→speech via `/v1/audio/speech`. Image **generation** is available
+OpenAI-shape at `POST /v1/images/generations` (Google Imagen via the
+Antigravity CLI).
 
 ## Active rotation
 
@@ -28,6 +30,15 @@ Subscription-backed cloud routes (no GPU, no API keys, no Cloud project):
   the `/model` picker before each request — see
   [src/gemini_cli.py](src/gemini_cli.py). Quotas follow your Google
   AI Pro / Ultra plan.
+- **`gemini_image`** — image **generation** via `agy`'s built-in Google
+  **Imagen** tool, exposed OpenAI-shape at `POST /v1/images/generations`
+  (returns `data[].b64_json`). `agy` ships no Nano Banana picker model;
+  Imagen is its only image backend, hosted inside a Flash text session.
+  The hub captures the generated artifact and returns it; the call lands
+  in the observability ring like other traffic. Editing is also available
+  (`POST /v1/images/edits`, multipart image+prompt) but is slow and
+  procedural — see [docs/image-generation.md](docs/image-generation.md).
+  Both are testable from the admin Playground's image card.
 
 Local entries in active use as of the May 2026 frontier reading:
 
@@ -222,6 +233,9 @@ openClaw / anthropic SDK / openai SDK / curl
    │  route by `model`:                                       │
    │    claude-*               → call_claude()   (claude -p subprocess)  │
    │    gemini-* / gemini_*    → call_gemini()   (agy CLI via ConPTY)    │
+   │    POST /v1/images/generations (gemini_image) → call_gemini_image() │
+   │      (agy Imagen tool; returns data[].b64_json, observable)         │
+   │    POST /v1/images/edits (multipart image+prompt) → edit (slow)     │
    │    qwen3.5-4b             → llama-server 127.0.0.1:8088             │
    │    gemma4-26b-a4b-it      → llama-server 127.0.0.1:8087             │
    │    whisper-* (via chat shape) → 400 "use /v1/audio/* or direct"    │
@@ -350,6 +364,7 @@ local-llm-hub/
     ├── model-comparison.md
     ├── add-whisper-asr.md        # how the whisper STT backend slotted in
     ├── add-tts.md                # how the TTS backend (/v1/audio/speech) slotted in
+    ├── image-generation.md       # Imagen via agy → /v1/images/generations
     ├── playbook-cli-backend-migration.md  # reusable method when a vendor CLI changes
     └── frontier/                 # monthly efficient-frontier research
         ├── RESEARCH_PROMPT.md    #   canonical brief; read by /frontier-refresh
@@ -699,6 +714,23 @@ List enabled models:
 
 ```bash
 curl -s http://127.0.0.1:8000/v1/models
+```
+
+Generate an image (Google Imagen via `agy`) — OpenAI Images shape,
+returns `data[].b64_json`:
+
+```python
+import base64
+from openai import OpenAI
+client = OpenAI(api_key="local-dummy", base_url="http://127.0.0.1:8000/v1")
+r = client.images.generate(model="gemini_image", prompt="a red apple on white")
+open("apple.png", "wb").write(base64.b64decode(r.data[0].b64_json))
+```
+
+```bash
+curl -s http://127.0.0.1:8000/v1/images/generations \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gemini_image","prompt":"a red apple on white"}'
 ```
 
 Transcribe audio via whisper — through the hub's proxy at

@@ -36,6 +36,10 @@ async def playground_models() -> Dict[str, Any]:
     for m in enabled_models():
         if m.backend == "whisper":
             continue
+        # Image-generation rows don't speak the chat shape — they're served
+        # by the dedicated image card, not the chat dropdown.
+        if getattr(m, "image_gen", False):
+            continue
         rows.append(
             {
                 "id": m.id,
@@ -45,6 +49,23 @@ async def playground_models() -> Dict[str, Any]:
                 "image_capable": m.backend in ("claude", "gemini"),
             }
         )
+    return {"models": rows}
+
+
+@router.get("/api/playground/image_models")
+async def playground_image_models() -> Dict[str, Any]:
+    """List enabled image-generation models for the Playground image card."""
+    rows: List[Dict[str, Any]] = []
+    for m in enabled_models():
+        if getattr(m, "image_gen", False):
+            rows.append(
+                {
+                    "id": m.id,
+                    "display_name": m.display_name,
+                    "backend": m.backend,
+                    "aliases": list(m.aliases or []),
+                }
+            )
     return {"models": rows}
 
 
@@ -242,3 +263,69 @@ async def playground_send(
         "stop_reason": body.get("stop_reason"),
         "usage": body.get("usage") or {},
     }
+
+
+@router.post("/api/playground/generate_image")
+async def playground_generate_image(
+    model: str = Form("gemini_image"),
+    prompt: str = Form(...),
+    image: Optional[UploadFile] = File(None),
+) -> Response:
+    """Generate (or edit) an image through the hub's own image endpoints.
+
+    Same loopback-proxy pattern as :func:`playground_send`: with no upload it
+    POSTs ``/v1/images/generations`` (text→image); with an upload it POSTs
+    ``/v1/images/edits`` (image+prompt→edited image). Either way the request
+    lands in the observability ring. Returns the raw image bytes for the SPA's
+    ``<img>`` preview. Editing is slow (procedural-agentic), so the timeout is
+    generous.
+    """
+    import httpx
+
+    target = resolve_model(model)
+    if target is None or not getattr(target, "image_gen", False):
+        raise HTTPException(
+            status_code=400, detail=f"not an image-generation model: {model!r}")
+    if not prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt is empty")
+
+    base = f"http://127.0.0.1:{hub_port()}"
+    try:
+        async with httpx.AsyncClient(timeout=900.0) as client:
+            if image is not None and image.filename:
+                raw = await image.read()
+                files = {
+                    "image": (
+                        image.filename, raw,
+                        image.content_type or "application/octet-stream",
+                    )
+                }
+                data = {"model": model, "prompt": prompt}
+                r = await client.post(
+                    base + "/v1/images/edits", files=files, data=data)
+            else:
+                r = await client.post(
+                    base + "/v1/images/generations",
+                    json={"model": model, "prompt": prompt},
+                )
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"upstream error: {exc}")
+
+    if not r.is_success:
+        detail = r.text or f"HTTP {r.status_code}"
+        try:
+            detail = r.json().get("detail") or detail
+        except Exception:  # noqa: BLE001
+            pass
+        raise HTTPException(status_code=r.status_code, detail=str(detail)[:500])
+
+    body = r.json()
+    b64 = (body.get("data") or [{}])[0].get("b64_json")
+    if not b64:
+        raise HTTPException(status_code=502, detail="no image in hub response")
+    img = base64.b64decode(b64)
+    # Sniff the real format — artifacts are usually PNG but can be JPEG.
+    from src.gemini_cli import _sniff_image_media_type
+
+    media_type = _sniff_image_media_type(img) or "image/png"
+    return Response(content=img, media_type=media_type)

@@ -217,13 +217,13 @@
           <textarea id="playgroundPrompt" rows="6" placeholder="Hello"></textarea>
         </div>
 
+        <div class="opt-stack">
+          <label for="playgroundAttachment">Attachment <span class="muted small">(image / PDF / text — claude &amp; gemini only)</span></label>
+          <input id="playgroundAttachment" type="file" aria-label="Attach a file — image, PDF, or any text/data file (claude/gemini only)">
+        </div>
+
         <details class="opt-stack" id="playgroundMore">
           <summary class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
-
-          <div class="opt-stack">
-            <label for="playgroundAttachment">Attachment (claude/gemini only)</label>
-            <input id="playgroundAttachment" type="file" aria-label="Attach a file — image, PDF, or any text/data file (claude/gemini only)">
-          </div>
 
           <div class="opt-stack">
             <label>Max tokens</label>
@@ -249,6 +249,37 @@
         <pre id="playgroundReply" class="logpane" aria-label="Model reply"></pre>
         <h3 class="opt-group-title">Usage</h3>
         <div id="playgroundUsage" class="kv-grid usage"></div>
+      </section>
+
+      <section class="card" id="imageCard">
+        <div class="card-header"><h2>🖼️ Image generation</h2></div>
+
+        <div class="opt-stack">
+          <label for="imageModel">Model</label>
+          <select id="imageModel" aria-label="Image model"></select>
+        </div>
+
+        <div class="opt-stack">
+          <label for="imagePrompt">Prompt</label>
+          <textarea id="imagePrompt" rows="4" placeholder="a red apple on a white background"></textarea>
+        </div>
+
+        <div class="opt-stack">
+          <label for="imageAttachment">Reference image <span class="muted small">(optional — edits the upload instead of generating; slow &amp; experimental, can take minutes)</span></label>
+          <input id="imageAttachment" type="file" accept="image/*" aria-label="Reference image to edit (optional)">
+          <p class="muted small" style="margin: 4px 0 0;">Tip: dimensions are model-controlled — ask for an aspect ratio in the prompt (e.g. “16:9”).</p>
+        </div>
+
+        <div class="playground-send-row">
+          <button id="imageGenBtn" type="button" class="ghost-btn primary">✨ Generate</button>
+          <button id="imageClearBtn" type="button" class="ghost-btn">Clear</button>
+        </div>
+        <p id="imageLatency" class="muted small" style="margin: 8px 0 0;"></p>
+
+        <img id="imagePreview" alt="Generated image" style="max-width: 100%; margin-top: 10px; border-radius: 8px;" hidden>
+        <div class="playground-send-row" id="imageDownloadRow" hidden style="margin-top: 10px;">
+          <a id="imageDownload" class="ghost-btn primary" download="generated.png" role="button">⬇ Download</a>
+        </div>
       </section>
 
       <section class="card" id="ttsCard">

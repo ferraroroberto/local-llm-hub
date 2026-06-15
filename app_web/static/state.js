@@ -151,6 +151,17 @@ export const els = {
   playgroundLatency: document.getElementById('playgroundLatency'),
   playgroundReply: document.getElementById('playgroundReply'),
   playgroundUsage: document.getElementById('playgroundUsage'),
+  // Playground — image generation / editing tester (issue #114)
+  imageCard: document.getElementById('imageCard'),
+  imageModel: document.getElementById('imageModel'),
+  imagePrompt: document.getElementById('imagePrompt'),
+  imageAttachment: document.getElementById('imageAttachment'),
+  imageGenBtn: document.getElementById('imageGenBtn'),
+  imageClearBtn: document.getElementById('imageClearBtn'),
+  imageLatency: document.getElementById('imageLatency'),
+  imagePreview: document.getElementById('imagePreview'),
+  imageDownload: document.getElementById('imageDownload'),
+  imageDownloadRow: document.getElementById('imageDownloadRow'),
   // Playground — text-to-speech tester (issue #98)
   ttsModel: document.getElementById('ttsModel'),
   ttsInput: document.getElementById('ttsInput'),
