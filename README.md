@@ -612,9 +612,9 @@ from anthropic import Anthropic
 
 client = Anthropic(api_key="local-dummy", base_url="http://127.0.0.1:8000")
 
-# Claude via subscription
+# Claude via subscription — use the version-free alias, not the dated display_name
 msg = client.messages.create(
-    model="claude-haiku-4-5",
+    model="claude_haiku",
     max_tokens=128,
     messages=[{"role": "user", "content": "Hello"}],
 )
