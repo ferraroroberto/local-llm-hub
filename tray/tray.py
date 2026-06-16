@@ -96,7 +96,7 @@ def load_tray_config() -> TrayConfig:
         )
         candidates = []
 
-    valid_ids = {m.id for m in enabled_models() if m.backend in ("openai", "whisper")}
+    valid_ids = {m.id for m in enabled_models() if m.backend in ("openai", "whisper", "tts")}
     autostart_models = [m for m in candidates if m in valid_ids]
     return TrayConfig(
         autostart_hub=autostart_hub,
@@ -218,7 +218,7 @@ class TrayApp:
         self._icon: Optional[pystray.Icon] = None
         self._stop_event = threading.Event()
         self._models: List[Model] = [
-            m for m in enabled_models() if m.backend in ("openai", "whisper")
+            m for m in enabled_models() if m.backend in ("openai", "whisper", "tts")
         ]
         # The webapp config holds the bearer token we append to copied URLs.
         # Generate one on first boot so we never have an unprotected non-
