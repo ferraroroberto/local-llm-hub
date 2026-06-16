@@ -301,6 +301,8 @@ local-llm-hub/
 │   ├── cloudflared.sample.yml  # sample named-tunnel config (copy to cloudflared.yml)
 │   ├── cloudflared.yml         # your own tunnel config — gitignored
 │   └── auth.log                # /admin/api/login attempts (gitignored)
+├── data/                     # runtime artefacts (gitignored)
+│   └── logs/                    # per-backend stdout/stderr: backend-<id>.log (+ one .log.1 backup)
 ├── src/
 │   ├── server.py             # FastAPI hub (both shapes) + /admin sub-app mount
 │   ├── claude_cli.py         # subprocess wrapper around `claude -p`
@@ -314,7 +316,8 @@ local-llm-hub/
 │   ├── install.py            # first-run checks + --fix
 │   ├── run_backend.py        # hub|qwen35_4b|gemma4_26b|whisper|… dispatcher
 │   ├── server_process.py     # hub Popen + ownership / adopt-or-spawn (used by the tray)
-│   ├── backend_process.py    # per-model Popen (llama-server + whisper-server)
+│   ├── backend_process.py    # per-model Popen (llama-server + whisper-server);
+│   │                         #   stdout/stderr → data/logs/backend-<id>.log (child-owned)
 │   ├── whisper_translate_proxy.py  # FastAPI shim for optional lazy-load mode
 │   ├── tts_server.py            # FastAPI shim for /v1/audio/speech (engine: tts-server)
 │   ├── tts_engines.py           # TTS engines: chatterbox (torch) + orpheus (llama-server + SNAC)

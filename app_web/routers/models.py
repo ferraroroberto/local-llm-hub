@@ -143,6 +143,32 @@ async def model_force_stop(model_id: str) -> Dict[str, Any]:
     return {"ok": True, "detail": msg}
 
 
+@router.get("/api/models/{model_id}/log")
+async def model_log(model_id: str, limit: int = 400) -> Dict[str, Any]:
+    """Tail of a managed backend's log file (``data/logs/backend-<id>.log``).
+
+    Readable for a backend the hub spawned *and* one it inherited across a
+    restart — the child owns the log fd. Empty ``lines`` (200) when the
+    backend has never started; 404 only for an unknown/subscription-backed
+    model that has no managed process.
+    """
+    target = bp.resolve_model_by_id(model_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
+    if not (target.backend in ("openai", "whisper", "tts")):
+        raise HTTPException(
+            status_code=400,
+            detail=f"backend {target.backend!r} has no managed process (subscription-backed)",
+        )
+    limit = max(1, min(limit, bp.LOG_TAIL_LINES * 10))
+    lines = await asyncio.to_thread(bp.log_lines, model_id, limit)
+    return {
+        "id": model_id,
+        "lines": lines,
+        "path": f"data/logs/backend-{model_id}.log",
+    }
+
+
 def _silent_wav(seconds: float = 0.1, rate: int = 16000) -> bytes:
     """A tiny mono 16-bit PCM WAV of silence, built in memory.
 
