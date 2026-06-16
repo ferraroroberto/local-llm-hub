@@ -1,10 +1,12 @@
 """Per-model backend process manager.
 
 Each enabled local model in the registry gets its own singleton process +
-log ring buffer here. Keyed by model id ("qwen", "glm", "whisper"). Used
-by the admin SPA's Models tab, the tray, and the per-model launcher
-scripts to start/stop individual backends and tail their output without
-global-state entanglement.
+per-backend log file (``data/logs/backend-<id>.log``) here. Keyed by model
+id ("qwen", "glm", "whisper"). Used by the admin SPA's Models tab, the
+tray, and the per-model launcher scripts to start/stop individual backends
+and tail their output without global-state entanglement. The log file is
+written by the child (not a hub-owned pipe), so it stays readable across a
+hub restart and an inherited backend never writes into a closed pipe.
 
 Two engine families share this manager:
   - `llama-server` for chat/completion GGUF models (qwen, glm, gemma4*)
@@ -26,10 +28,8 @@ import signal
 import socket
 import subprocess
 import sys
-import threading
-from collections import deque
 from pathlib import Path
-from typing import Deque, Dict, Optional
+from typing import Dict, Optional
 
 import httpx
 
@@ -46,7 +46,34 @@ from .server_process import (
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 VENDOR_LLAMA = PROJECT_ROOT / "vendor" / "llama.cpp"
 VENDOR_WHISPER = PROJECT_ROOT / "vendor" / "whisper.cpp"
-RING_MAX = 1000
+LOG_DIR = PROJECT_ROOT / "data" / "logs"
+# Tail size returned by ``log_lines`` — replaces the old 1000-line ring.
+LOG_TAIL_LINES = 400
+
+
+def _log_path(model_id: str) -> Path:
+    """Per-backend log file: ``data/logs/backend-<id>.log`` (child-owned)."""
+    return LOG_DIR / f"backend-{model_id}.log"
+
+
+def _roll_log(model_id: str) -> Path:
+    """Roll the previous run's log to ``.log.1`` and return the fresh path.
+
+    Bounds growth to two files per backend (current + one backup) without
+    needing the hub to manage rotation mid-run: the child owns the fd, so
+    we can only rotate at spawn time. Best-effort — a failed roll never
+    blocks a launch.
+    """
+    path = _log_path(model_id)
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            backup = path.with_suffix(".log.1")
+            backup.unlink(missing_ok=True)
+            path.replace(backup)
+    except OSError:
+        pass
+    return path
 
 
 def _llama_server_binary() -> Path:
@@ -81,12 +108,10 @@ class _BackendState:
         # PID of a backend the hub inherited at startup — a process the
         # hub didn't itself spawn but recognises as one of its model
         # binaries listening on the right port. ``stop`` taskkill's it
-        # instead of calling ``proc.terminate``; ``log_lines`` returns
-        # empty since we never captured its stdout.
+        # instead of calling ``proc.terminate``. Its stdout still lands in
+        # the per-backend log file (the child owns that fd), so ``log_lines``
+        # returns its tail across a hub restart — see ``_log_path``.
         self.inherited_pid: Optional[int] = None
-        self.log: Deque[str] = deque(maxlen=RING_MAX)
-        self.lock = threading.Lock()
-        self.reader: Optional[threading.Thread] = None
 
 
 _STATES: Dict[str, _BackendState] = {}
@@ -193,24 +218,31 @@ def is_reachable(model: Model, timeout: float = 1.5) -> bool:
         return False
 
 
-def log_lines(model_id: str) -> list[str]:
-    state = _state_for(model_id)
-    with state.lock:
-        return list(state.log)
+def log_lines(model_id: str, limit: int = LOG_TAIL_LINES) -> list[str]:
+    """Tail of the backend's log file (``data/logs/backend-<id>.log``).
+
+    Reads the file the child writes its stdout/stderr to, so it works for
+    a backend we spawned *and* one we inherited across a hub restart (the
+    child owns the fd). Returns ``[]`` if the backend has never started.
+    """
+    path = _log_path(model_id)
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            lines = fh.read().splitlines()
+    except FileNotFoundError:
+        return []
+    except OSError:
+        return []
+    return lines[-limit:] if limit else lines
 
 
 def clear_log(model_id: str) -> None:
-    state = _state_for(model_id)
-    with state.lock:
-        state.log.clear()
-
-
-def _reader(state: _BackendState, proc: subprocess.Popen) -> None:
-    assert proc.stdout is not None
-    for raw in proc.stdout:
-        line = raw.rstrip("\n")
-        with state.lock:
-            state.log.append(line)
+    """Truncate the backend's log file (no-op if it doesn't exist yet)."""
+    path = _log_path(model_id)
+    try:
+        path.open("w", encoding="utf-8").close()
+    except OSError:
+        pass
 
 
 def _whisper_boost_args(existing_args: list[str]) -> list[str]:
@@ -316,7 +348,6 @@ def start(model_id: str) -> tuple[bool, str]:
         return True, f"adopted external instance{suffix}"
 
     state = _state_for(model_id)
-    clear_log(model_id)
 
     try:
         cmd = build_command(model)
@@ -330,26 +361,30 @@ def start(model_id: str) -> tuple[bool, str]:
     if sys.platform == "win32":
         env["PATH"] = str(vendor_dir_for(model)) + os.pathsep + env.get("PATH", "")
 
+    # Redirect stdout/stderr to a child-owned log file instead of a hub-owned
+    # pipe. The child keeps its own fd, so the log survives a hub restart and
+    # an inherited backend never writes into a closed pipe (the [Errno 22]
+    # class that made #104 possible). The file is also readable on disk and
+    # via ``log_lines`` / the admin log endpoint. Roll first for a fresh log.
+    log_file = _roll_log(model_id).open("ab")
     try:
         proc = subprocess.Popen(
             cmd,
             cwd=str(PROJECT_ROOT),
-            stdout=subprocess.PIPE,
+            stdout=log_file,
             stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            bufsize=1,
             env=env,
             creationflags=WIN_NEW_GROUP,
         )
     except Exception as e:
         return False, f"failed to launch: {e}"
+    finally:
+        # The child duplicated the handle at spawn; the hub no longer needs
+        # its own copy (and keeping it open would pin the file). Closing it is
+        # exactly what makes the log restart-safe — only the child holds the fd.
+        log_file.close()
 
     state.proc = proc
-    t = threading.Thread(target=_reader, args=(state, proc), daemon=True)
-    t.start()
-    state.reader = t
     return True, f"started (pid={proc.pid})"
 
 
@@ -428,8 +463,8 @@ def inherit_running_backends() -> int:
             count += 1
             import logging
             logging.getLogger(__name__).info(
-                "📎 Inherited %s on :%s (PID %s) — log tail unavailable",
-                m.id, m.port, candidate,
+                "📎 Inherited %s on :%s (PID %s) — log tail at %s",
+                m.id, m.port, candidate, _log_path(m.id),
             )
     return count
 
