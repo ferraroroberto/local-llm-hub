@@ -81,7 +81,7 @@ if defined WANT_RESTART (
     REM NOTE: :8090 (whisper, mutex-shared with voice-transcriber) and the
     REM llama-server model ports are intentionally NOT reclaimed.
     set "RECLAIM_VENV=%SCRIPT_DIR%.venv"
-    %PS% -NoProfile -NonInteractive -File "%TRAY_PS%" reclaim -VenvDir "%RECLAIM_VENV%" -Ports "8000"
+    %PS% -NoProfile -NonInteractive -File "%TRAY_PS%" reclaim -VenvDir "!RECLAIM_VENV!" -Ports "8000"
     REM Give Windows a moment to release :8000 before rebinding.
     ping 127.0.0.1 -n 3 >nul
 )
