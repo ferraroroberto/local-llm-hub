@@ -253,6 +253,7 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
 
     app = FastAPI(lifespan=lifespan)
     inference_path = _inference_path_from_args(model.args)
+    default_language = _default_language_from_args(model.args)
 
     @app.get("/")
     async def root() -> Response:
@@ -311,6 +312,14 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
                 continue
             data[key] = value
 
+        # Apply the row's configured default language when the caller did
+        # not specify one (#128). whisper-server otherwise forces `en` per
+        # request regardless of the launch-level --language flag, so this
+        # is the only effective lever for an auto-detect default. A caller
+        # that sends its own `language` always wins (we never overwrite).
+        if default_language and not data.get("language"):
+            data["language"] = default_language
+
         if upload is None:
             return Response(
                 content='{"error": "missing required form field: file"}',
@@ -353,6 +362,25 @@ def _inference_path_from_args(args: list[str]) -> str:
         if a == "--inference-path" and i + 1 < len(args):
             return args[i + 1]
     return default
+
+
+def _default_language_from_args(args: list[str]) -> Optional[str]:
+    """Pull the configured spoken language (``-l`` / ``--language``) out of args.
+
+    whisper-server takes ``--language`` at launch but, empirically (#128),
+    its HTTP handler resets each request's language to ``en`` unless the
+    request body carries one — the launch flag does *not* change the
+    per-request default. So a row that wants a non-``en`` default (e.g.
+    ``--language auto`` for unbiased detection) must have it injected into
+    every request that omits ``language``. Rows without the flag (e.g.
+    ``whisper_translate``) return ``None`` and are left untouched.
+    """
+    if not args:
+        return None
+    for i, a in enumerate(args):
+        if a in ("-l", "--language") and i + 1 < len(args):
+            return args[i + 1]
+    return None
 
 
 def main(argv: Optional[list[str]] = None) -> int:

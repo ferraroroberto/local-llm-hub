@@ -72,6 +72,23 @@ Local entries in active use as of the May 2026 frontier reading:
   the `audio_translate` role. A lazy-load mode is also available — see
   [src/whisper_translate_proxy.py](src/whisper_translate_proxy.py) — for
   hosts that need to reclaim RAM when translate is rare.
+- **`whisper-vanilla`** — the same `ggml-large-v3-turbo.bin` as the turbo
+  row, configured for **unbiased language auto-detection**. The escape
+  hatch for callers transcribing general multilingual audio (e.g. Spanish
+  voice notes) that the English tech-dictation glossary would otherwise
+  force-Englishize. Select it with `model="whisper-vanilla"` on the
+  standard `:8000/v1/audio/transcriptions` request — no `language` needed.
+  Two things make detection unbiased, **both required** (proven in #128):
+  it carries **no** dictation glossary (`--carry-initial-prompt`/`--prompt`
+  bias detection toward English), **and** the lazy proxy injects
+  `language=auto` into every request that omits one — because
+  whisper-server otherwise forces `language=en` per request regardless of
+  its launch-level `--language` flag, so dropping the glossary alone is not
+  enough. A caller that sends its own `language` always wins. Lazy-loaded
+  (spawn-on-request via
+  [src/whisper_translate_proxy.py](src/whisper_translate_proxy.py),
+  idle-unload after 300 s) on external `:8094` / loopback `:18094` so it
+  costs no VRAM when idle. See issue #128.
 - **`orpheus-tts`** — local text-to-speech (the inverse of whisper), served
   by the in-repo FastAPI shim [src/tts_server.py](src/tts_server.py) on
   `127.0.0.1:8093`. OpenAI-compatible `POST /v1/audio/speech`. POST to the
@@ -244,6 +261,7 @@ openClaw / anthropic SDK / openai SDK / curl
    │    gemma4-26b-a4b-it      → llama-server 127.0.0.1:8087             │
    │    whisper-* (via chat shape) → 400 "use /v1/audio/* or direct"    │
    │    POST /v1/audio/transcriptions → proxy to whisper :8090          │
+   │      (model=whisper-vanilla → glossary-free turbo :8094, lazy)     │
    │    POST /v1/audio/translations   → proxy to whisper :8091          │
    │    POST /v1/audio/speech         → proxy to tts shim :8092/:8093    │
    │      (the audio proxy lands requests in the observability ring)    │
@@ -252,6 +270,7 @@ openClaw / anthropic SDK / openai SDK / curl
 audio clients  ──►  hub 127.0.0.1:8000 /v1/audio/*  ──►  whisper-server / tts shim  (proxied, observable)
 audio clients  ──►  whisper-server 127.0.0.1:8090   (turbo, transcribe, GPU; direct, lower overhead)
 audio clients  ──►  whisper-server 127.0.0.1:8091   (medium, translate, CPU; direct)
+audio clients  ──►  whisper proxy  127.0.0.1:8094   (turbo, glossary-free transcribe, GPU, lazy; via hub model=whisper-vanilla)
 audio clients  ──►  tts shim       127.0.0.1:8093   (orpheus, text→speech, auto-loaded; llama-server :18093 + SNAC)
 audio clients  ──►  tts shim       127.0.0.1:8092   (chatterbox, text→speech, on demand; direct)
                           (whisper speaks /v1/audio/transcriptions, the tts shim /v1/audio/speech;
