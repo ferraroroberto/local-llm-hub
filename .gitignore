@@ -66,5 +66,8 @@ tests/e2e/snapshots/
 playwright-report/
 test-results/
 
-# launcher temporary files 
+# launcher temporary files
 .launcher-tmp/
+
+# Spike scratch (issue #123 Parakeet bench — binaries, weights, clips)
+.scratch/

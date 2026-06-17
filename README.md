@@ -105,6 +105,10 @@ review. Direct hits to `:8090`/`:8091` bypass the glossary (and the
 observability ring). See
 [docs/add-whisper-asr.md](docs/add-whisper-asr.md) for the schema, the
 in-app editor + miner, and the companion recognition-boosting mechanism.
+NVIDIA Parakeet (`parakeet.cpp`) was evaluated as a replacement transcribe
+backend and rejected — ~4× worse WER and no boosting lever on this
+jargon-heavy workload; see
+[docs/parakeet-asr-evaluation.md](docs/parakeet-asr-evaluation.md).
 
 ## Demoted candidates (kept defined, not in active rotation)
 
