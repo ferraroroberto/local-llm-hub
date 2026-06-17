@@ -1296,12 +1296,18 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
     # backend. python-multipart parsing is overkill — the field shows
     # up as ``Content-Disposition: form-data; name="model"`` followed
     # by a couple of CRLF lines and the value. Best-effort regex.
+    #
+    # Scan the first 16 KB first (the cheap path — standard SDK clients
+    # serialize plain form fields before the file part, so ``model``
+    # lands in the head). Fall back to the whole body if it's not there:
+    # a client that puts a large file *before* the model field would
+    # otherwise misroute to the default turbo (#128) — silently landing
+    # on the glossary path the caller chose ``whisper-vanilla`` to escape.
     model_name = ""
     try:
         import re as _re
-        match = _re.search(
-            rb'name="model"\r?\n\r?\n([^\r\n]+)', body[: 16 * 1024]
-        )
+        pattern = rb'name="model"\r?\n\r?\n([^\r\n]+)'
+        match = _re.search(pattern, body[: 16 * 1024]) or _re.search(pattern, body)
         if match:
             model_name = match.group(1).decode("ascii", errors="ignore").strip()
     except Exception:  # noqa: BLE001

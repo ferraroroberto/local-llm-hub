@@ -35,7 +35,7 @@ hosts:
     # but are out of the active rotation. To bring one up: add its id back
     # to this list and run `python -m src.install --fix`, or just launch
     # `launchers/run_qwen.bat` directly.
-    enabled: [qwen35_4b, gemma4_e4b, gemma4_26b, whisper, whisper_translate, chatterbox, orpheus]
+    enabled: [qwen35_4b, gemma4_e4b, gemma4_26b, whisper, whisper_translate, whisper_vanilla, chatterbox, orpheus]
 
   mac-mini-m4:
     platform: darwin
@@ -357,6 +357,59 @@ models:
     # (maxctx 0) rather than trading it for boosting.
     args:
       - "-ng"
+      - "--threads"
+      - "4"
+      - "--processors"
+      - "1"
+      - "--max-context"
+      - "0"
+      - "--suppress-nst"
+      - "--inference-path"
+      - "/v1/audio/transcriptions"
+
+  # --- Lazy turbo whisper instance for unbiased auto-detect (#128) ---
+  # Same ggml-large-v3-turbo model as `whisper`, but configured so language
+  # detection is driven purely by the audio. Two things differ from the
+  # dictation `whisper` row, and BOTH are required (proven empirically in
+  # #128 against a Spanish clip):
+  #   1. NO --carry-initial-prompt / --prompt — the English tech-dictation
+  #      glossary biases language detection toward English.
+  #   2. --language auto — whisper-server defaults language to "en" (NOT
+  #      auto-detect!), so dropping the glossary alone is not enough: a
+  #      request that omits `language` is still forced to English. Proven
+  #      in #128: the launch-level --language flag does NOT change the
+  #      per-request default — whisper-server's HTTP handler resets each
+  #      request to "en" unless the body carries a language. So the lazy
+  #      proxy (src/whisper_translate_proxy.py) reads this arg and injects
+  #      it as the request default when the caller omits `language`; a
+  #      caller that sends its own language always wins.
+  # Callers that want unbiased auto-detect (e.g. whatsapp-radar transcribing
+  # Spanish voice notes) select this row via model=whisper-vanilla on the
+  # standard /v1/audio/transcriptions request — no custom endpoint needed.
+  #
+  # Engine whisper-server-lazy (spawn-on-request, idle-unload after
+  # idle_seconds) saves GPU VRAM: the vanilla path is low-frequency and
+  # the turbo model is already resident on :8090 for dictation.
+  # External proxy port 8094; whisper-server child binds 18094 (loopback).
+  #
+  # --max-context 0 (strongest anti-hallucination, same as translate row):
+  # no --carry-initial-prompt means no boosting trade-off, so there is no
+  # reason to raise max-context above zero.
+  # GPU-accelerated (no -ng) to keep transcription latency low.
+  whisper_vanilla:
+    display_name: whisper-vanilla
+    backend: whisper
+    engine: whisper-server-lazy
+    port: 8094
+    internal_port: 18094
+    idle_seconds: 300
+    aliases: ["whisper-vanilla"]
+    hf_repo: "ggerganov/whisper.cpp"
+    hf_pattern: "ggml-large-v3-turbo.bin"
+    model_path: "models/ggml-large-v3-turbo.bin"
+    args:
+      - "--language"
+      - "auto"
       - "--threads"
       - "4"
       - "--processors"
