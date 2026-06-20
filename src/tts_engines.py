@@ -50,6 +50,22 @@ VOICES_DIR = PROJECT_ROOT / "config" / "tts_voices"
 _SNAC_CODEBOOK = 4096
 _ORPHEUS_TOKEN_RE = re.compile(r"<custom_token_(\d+)>")
 
+# A single llama-server ``/completion`` is capped at ``_N_PREDICT`` generated
+# audio tokens. 4096 SNAC tokens ≈ 49.6 s of speech (4096 ÷ 7 codes/frame ×
+# 2048 samples/frame ÷ 24 kHz). Synthesising longer than that in one request
+# silently truncates the audio (issue #130), so long input is split into
+# chunks that each comfortably fit under the cap and then concatenated.
+#
+# Orpheus emits roughly 18 characters of text per second of speech, so the
+# ~49.6 s ceiling is ~900 characters. ``_MAX_CHARS_PER_CHUNK`` budgets each
+# chunk at ~27 s — generous headroom against rate variance, and small enough
+# that single generations stay coherent (very long ones also degrade quality).
+_N_PREDICT = 4096
+_MAX_CHARS_PER_CHUNK = 480
+# Split on whitespace that follows sentence-ending punctuation, keeping the
+# punctuation with its sentence.
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+
 
 def _win_kill_on_close_job():
     """Create a Windows Job Object that kills every assigned process when
@@ -188,6 +204,32 @@ def _to_mono_f32(wav) -> "list":  # returns np.ndarray; annotated loosely (numpy
         # (1, N) → (N,); (C, N) with C>1 → average channels.
         arr = arr.reshape(-1) if arr.shape[0] == 1 else arr.mean(axis=0)
     return arr
+
+
+def _wrap_on_words(segment: str, budget: int) -> List[str]:
+    """Break ``segment`` into pieces of at most ``budget`` characters on word
+    boundaries. A single word longer than ``budget`` is hard-sliced so a
+    piece can never exceed the budget (last-resort; real text rarely hits it).
+    """
+    pieces: List[str] = []
+    current = ""
+    for word in segment.split():
+        while len(word) > budget:  # pathological single word
+            if current:
+                pieces.append(current)
+                current = ""
+            pieces.append(word[:budget])
+            word = word[budget:]
+        if not current:
+            current = word
+        elif len(current) + 1 + len(word) <= budget:
+            current += " " + word
+        else:
+            pieces.append(current)
+            current = word
+    if current:
+        pieces.append(current)
+    return pieces
 
 
 @dataclass
@@ -403,17 +445,50 @@ class OrpheusEngine(TTSEngine):
 
     # ---- synthesis ----
 
-    def _prompt_for(self, req: SpeechRequest) -> str:
+    def _prompt_for(self, req: SpeechRequest, text: Optional[str] = None) -> str:
         voice = req.voice if req.voice in self.AVAILABLE_VOICES else self.DEFAULT_VOICE
+        body = req.text if text is None else text
         # Orpheus-FastAPI prompt convention for the llama.cpp route: the
         # end marker is the model's <|eot_id|> special token (not <|eot|>).
-        return f"<|audio|>{voice}: {req.text}<|eot_id|>"
+        return f"<|audio|>{voice}: {body}<|eot_id|>"
+
+    @staticmethod
+    def _split_into_chunks(text: str, budget: int = _MAX_CHARS_PER_CHUNK) -> List[str]:
+        """Split ``text`` into chunks no longer than ``budget`` characters.
+
+        Input that already fits in a single chunk is returned **unchanged**
+        (``[text]``) so short synthesis is byte-for-byte identical to the
+        pre-chunking behaviour. Longer input is broken on sentence
+        boundaries and greedily packed; a single sentence over budget is
+        hard-wrapped on word boundaries so no chunk can exceed ``budget``.
+        """
+        if not text or not text.strip():
+            return []
+        if len(text) <= budget:
+            return [text]
+        chunks: List[str] = []
+        current = ""
+        for sentence in (s.strip() for s in _SENTENCE_SPLIT_RE.split(text.strip())):
+            if not sentence:
+                continue
+            pieces = [sentence] if len(sentence) <= budget else _wrap_on_words(sentence, budget)
+            for piece in pieces:
+                if not current:
+                    current = piece
+                elif len(current) + 1 + len(piece) <= budget:
+                    current += " " + piece
+                else:
+                    chunks.append(current)
+                    current = piece
+        if current:
+            chunks.append(current)
+        return chunks
 
     @staticmethod
     def _completion_payload(prompt: str, stream: bool) -> dict:
         return {
             "prompt": prompt,
-            "n_predict": 4096,
+            "n_predict": _N_PREDICT,
             "temperature": 0.6,
             "top_p": 0.9,
             "repeat_penalty": 1.1,
@@ -426,14 +501,27 @@ class OrpheusEngine(TTSEngine):
 
         if not self.ready():
             raise RuntimeError("Orpheus not loaded")
-        prompt = self._prompt_for(req)
+        # Long input is split into per-chunk /completion calls (each under the
+        # n_predict cap) and the decoded PCM segments concatenated in order;
+        # short input is a single chunk, so this is identical to before (#130).
+        segments = [self._synthesize_chunk(req, chunk) for chunk in self._split_into_chunks(req.text)]
+        segments = [seg for seg in segments if seg.size]
+        if not segments:
+            log.warning("Orpheus emitted no audio tokens for input")
+            return np.zeros(0, dtype=np.float32)
+        return segments[0] if len(segments) == 1 else np.concatenate(segments)
+
+    def _synthesize_chunk(self, req: SpeechRequest, chunk: str):
+        """Synthesise one text chunk through a single buffered /completion."""
+        import numpy as np
+
+        prompt = self._prompt_for(req, chunk)
         url = f"http://127.0.0.1:{self.internal_port}/completion"
         r = httpx.post(url, json=self._completion_payload(prompt, stream=False), timeout=300.0)
         r.raise_for_status()
         content = r.json().get("content", "")
         codes = self._parse_tokens(content)
         if not codes:
-            log.warning("Orpheus emitted no audio tokens for input")
             return np.zeros(0, dtype=np.float32)
         return self._decode_snac(codes)
 
@@ -450,7 +538,15 @@ class OrpheusEngine(TTSEngine):
         """
         if not self.ready():
             raise RuntimeError("Orpheus not loaded")
-        prompt = self._prompt_for(req)
+        # Stream chunk after chunk back-to-back: long input is split so each
+        # chunk stays under the n_predict cap (#130), while a short single
+        # chunk streams exactly as before — time-to-first-audio is unchanged.
+        for chunk in self._split_into_chunks(req.text):
+            yield from self._stream_chunk(req, chunk)
+
+    def _stream_chunk(self, req: SpeechRequest, chunk: str):
+        """Stream one text chunk's PCM via the sliding-window SNAC decode."""
+        prompt = self._prompt_for(req, chunk)
         buffer: List[int] = []
         emitted = False
         for tid in self._iter_token_ids(self._stream_completion(prompt)):

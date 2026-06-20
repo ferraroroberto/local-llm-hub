@@ -270,3 +270,145 @@ def test_default_synthesize_stream_yields_single_chunk():
 
     out = list(_Single().synthesize_stream(SpeechRequest(text="x")))
     assert out == [[0.1, 0.2, 0.3]]
+
+
+# ---- Orpheus long-input chunking (#130) ----
+
+class _FakeResp:
+    def __init__(self, content: str) -> None:
+        self._content = content
+
+    def raise_for_status(self) -> None:
+        pass
+
+    def json(self) -> dict:
+        return {"content": self._content}
+
+
+def _chunk_text_of(prompt: str) -> str:
+    """Recover the chunk body from a ``<|audio|>voice: BODY<|eot_id|>`` prompt."""
+    return prompt.split(": ", 1)[1].rsplit("<|eot_id|>", 1)[0]
+
+
+def _capped_completion_content(chunk_text: str, n_predict: int) -> str:
+    """Simulate llama-server: ~7 audio tokens per character, **capped** at
+    ``n_predict`` (this is exactly where the #130 truncation bites a single
+    request). Returns whole 7-token frames as ``<custom_token_N>`` text."""
+    want = min(len(chunk_text) * 7, n_predict)
+    want -= want % 7  # whole frames only
+    return "".join(_tok(1 + p // 7, p) for p in range(want))
+
+
+def _sentences(n: int) -> str:
+    return " ".join(f"This is spoken sentence number {i} of many." for i in range(n))
+
+
+def test_split_into_chunks_short_input_is_returned_unchanged():
+    from src.tts_engines import OrpheusEngine
+
+    # Single-chunk transparency: under the budget, the text is untouched
+    # (whitespace preserved), so short synthesis is identical to pre-#130.
+    assert OrpheusEngine._split_into_chunks("Hello there.") == ["Hello there."]
+    assert OrpheusEngine._split_into_chunks("  odd  spacing  ") == ["  odd  spacing  "]
+    assert OrpheusEngine._split_into_chunks("") == []
+    assert OrpheusEngine._split_into_chunks("   ") == []
+
+
+def test_split_into_chunks_long_input_packs_under_budget():
+    from src.tts_engines import OrpheusEngine, _MAX_CHARS_PER_CHUNK
+
+    text = _sentences(200)
+    chunks = OrpheusEngine._split_into_chunks(text)
+    assert len(chunks) > 1
+    assert all(len(c) <= _MAX_CHARS_PER_CHUNK for c in chunks)
+    # Order preserved — first sentence heads the first chunk, last the last.
+    assert chunks[0].startswith("This is spoken sentence number 0 ")
+    assert "number 199 " in chunks[-1]
+
+
+def test_split_into_chunks_hard_wraps_oversized_sentence():
+    from src.tts_engines import OrpheusEngine, _MAX_CHARS_PER_CHUNK
+
+    giant = ("word " * 300).strip()  # one ~1500-char sentence, no terminator
+    chunks = OrpheusEngine._split_into_chunks(giant)
+    assert len(chunks) > 1
+    assert all(len(c) <= _MAX_CHARS_PER_CHUNK for c in chunks)
+
+
+def test_synthesize_long_input_is_not_truncated(monkeypatch):
+    """A >49.6 s synthesis returns proportional, non-flatlined audio (#130).
+
+    The fake backend caps every single /completion at n_predict tokens — the
+    real ceiling that made two different long inputs return byte-identical
+    output. With chunking, output length now tracks the input length.
+    """
+    import pytest
+    from types import SimpleNamespace
+
+    np = pytest.importorskip("numpy")
+    from src import tts_engines
+    from src.tts_engines import OrpheusEngine, SpeechRequest, _N_PREDICT
+
+    eng = OrpheusEngine(SimpleNamespace(internal_port=18093), device="cpu")
+    monkeypatch.setattr(eng, "ready", lambda: True)
+    monkeypatch.setattr(
+        eng, "_decode_snac",
+        lambda codes: np.ones((len(codes) // 7) * 2048, dtype=np.float32),
+    )
+
+    calls: list = []
+
+    def fake_post(url, json=None, timeout=None):
+        body = _chunk_text_of(json["prompt"])
+        calls.append(body)
+        return _FakeResp(_capped_completion_content(body, json["n_predict"]))
+
+    monkeypatch.setattr(tts_engines.httpx, "post", fake_post)
+
+    # The single-request ceiling: 4096 tokens → 585 frames → 585*2048 samples.
+    ceiling = (_N_PREDICT // 7) * 2048
+
+    # Short input → exactly one /completion, audio under the ceiling, unchanged.
+    short = eng.synthesize(SpeechRequest(text="Hello there.", voice="tara"))
+    assert len(calls) == 1
+    assert 0 < short.size < ceiling
+
+    # Long input (>49.6 s) → multiple /completion calls, audio well past the
+    # single-request ceiling instead of flatlining at it.
+    calls.clear()
+    long_a = _sentences(60)   # ~2.6k chars ≫ the ~900-char single-call limit
+    out_a = eng.synthesize(SpeechRequest(text=long_a, voice="tara"))
+    assert len(calls) > 1
+    assert out_a.size > ceiling
+
+    # A *longer* input yields *more* audio — proof it is no longer byte-identical
+    # / capped (the original bug: 1,513 and 3,446 chars gave identical bytes).
+    calls.clear()
+    long_b = _sentences(120)  # ~2x long_a
+    out_b = eng.synthesize(SpeechRequest(text=long_b, voice="tara"))
+    assert out_b.size > out_a.size
+
+
+def test_synthesize_stream_long_input_streams_past_cap(monkeypatch):
+    """The streamed path also chunks: total emitted audio exceeds what a
+    single capped /completion could produce (#130)."""
+    import pytest
+    from types import SimpleNamespace
+
+    np = pytest.importorskip("numpy")
+    from src.tts_engines import OrpheusEngine, SpeechRequest, _N_PREDICT
+
+    eng = OrpheusEngine(SimpleNamespace(internal_port=18093), device="cpu")
+    monkeypatch.setattr(eng, "ready", lambda: True)
+    monkeypatch.setattr(eng, "_decode_window", lambda w: np.ones(2048, dtype=np.float32))
+
+    def fake_stream(prompt):
+        yield _capped_completion_content(_chunk_text_of(prompt), _N_PREDICT)
+
+    monkeypatch.setattr(eng, "_stream_completion", fake_stream)
+
+    out = list(eng.synthesize_stream(SpeechRequest(text=_sentences(80), voice="tara")))
+    # A single capped chunk emits at most (4096/7 - 3) sliding windows; chunking
+    # the long input streams strictly more segments than that ceiling.
+    single_chunk_windows = (_N_PREDICT // 7) - 3
+    assert len(out) > single_chunk_windows
