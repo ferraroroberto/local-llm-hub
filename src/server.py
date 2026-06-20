@@ -63,6 +63,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
+from .audio_proxy import build_whisper_upstream_request
 from .claude_cli import ClaudeCLIError, call_claude
 from .gemini_cli import GeminiCLIError, call_gemini, call_gemini_image
 from .host_profile import hub_bind_host, hub_port
@@ -1340,11 +1341,9 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
     if default_role == "audio_translate":
         # whisper-server exposes a single inference path (/v1/audio/transcriptions)
         # and uses whisper.cpp's own `translate=true` boolean, not OpenAI's
-        # `task=translate` string.  Parse the multipart form, bridge the field,
-        # and POST to the real inference path — same contract the lazy-load shim
-        # in whisper_translate_proxy.py:307-312 implements.
-        from starlette.datastructures import UploadFile as _StarletteUploadFile
-
+        # `task=translate` string. Parse the multipart form, then bridge it to
+        # the upstream request via the shared helper (the lazy-load shim in
+        # whisper_translate_proxy.py calls the same helper — issue #132).
         try:
             form = await request.form()
         except Exception as exc:
@@ -1353,35 +1352,12 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
                 detail=f"invalid multipart body: {exc}",
             )
 
-        upload: Optional[_StarletteUploadFile] = None
-        data: Dict[str, str] = {}
-        for key, value in form.multi_items():
-            if isinstance(value, _StarletteUploadFile):
-                if key == "file" and upload is None:
-                    upload = value
-                # Drop any extra file parts — whisper-server takes exactly one.
-                continue
-            if key == "task":
-                if value == "translate":
-                    data["translate"] = "true"
-                # task=transcribe is whisper-server's default; drop silently.
-                continue
-            data[key] = value
-
+        upload, data, files = await build_whisper_upstream_request(form)
         if upload is None:
             raise HTTPException(
                 status_code=400,
                 detail="missing required form field: file",
             )
-
-        file_bytes = await upload.read()
-        files = {
-            "file": (
-                upload.filename or "audio",
-                file_bytes,
-                upload.content_type or "application/octet-stream",
-            )
-        }
 
         upstream_url = f"http://127.0.0.1:{port}/v1/audio/transcriptions"
         try:
