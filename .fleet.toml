@@ -6,4 +6,4 @@ layer       = "enabling"
 icon        = "🧠"
 port        = ":8000"
 description = "Shared LLM gateway — routes to local models or claude -p."
-chips       = ["claude -p", "qwen :8081", "glm :8082", "gemma-e4b :8086", "gemma-26b :8087"]
+chips       = ["claude -p", "agy gemini", "qwen35-4b :8088", "gemma-26b :8087", "whisper :8090", "tts :8093"]
