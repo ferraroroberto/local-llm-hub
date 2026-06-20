@@ -245,6 +245,57 @@ def test_chat_completions_streaming_proxies_sse(monkeypatch):
     assert saw_done
 
 
+def test_chat_completions_streaming_usage_populated_from_trailing_frame(monkeypatch):
+    """usage_in/usage_out must be captured from the trailing usage frame.
+
+    llama-server (--jinja mode) emits the usage object on a final chunk that
+    arrives *after* all content deltas, i.e. after first_token_ns is set.
+    This test verifies the fix: usage must be non-zero even when the usage
+    frame is not the first data frame.
+    """
+
+    def fake_stream(base_url, model, messages, *, max_tokens=None, temperature=None,
+                    timeout=600.0, extra=None) -> Iterator[str]:
+        # Two content deltas first (these set first_token_ns), then a trailing
+        # usage-only chunk (no choices/delta, just a usage field).
+        content_chunks = [_delta("Hello "), _delta("world!")]
+        usage_chunk = {
+            "id": "x", "object": "chat.completion.chunk", "model": model,
+            "choices": [],
+            "usage": {"prompt_tokens": 12, "completion_tokens": 7, "total_tokens": 19},
+        }
+        for line in _sse_lines(*content_chunks, usage_chunk):
+            yield line
+
+    monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
+
+    # Patch record_genai_metrics to capture what usage values were recorded.
+    recorded: dict = {}
+
+    def fake_record(*, model, backend, route, client_id, duration_ms,
+                    input_tokens=0, output_tokens=0, error_type=""):
+        recorded["input_tokens"] = input_tokens
+        recorded["output_tokens"] = output_tokens
+
+    monkeypatch.setattr(server_mod, "record_genai_metrics", fake_record)
+
+    client = TestClient(server_mod.app)
+    with client.stream(
+        "POST",
+        "/v1/chat/completions",
+        json={
+            "model": "qwen3.5-4b",
+            "stream": True,
+            "messages": [{"role": "user", "content": "hi"}],
+        },
+    ) as r:
+        assert r.status_code == 200
+        _ = "".join(r.iter_text())
+
+    assert recorded.get("input_tokens") == 12, f"input_tokens should be 12, got {recorded.get('input_tokens')}"
+    assert recorded.get("output_tokens") == 7, f"output_tokens should be 7, got {recorded.get('output_tokens')}"
+
+
 def test_chat_completions_stream_upstream_error(monkeypatch):
     def fake_stream(*args, **kwargs):
         raise upstream_mod.UpstreamError("boom")

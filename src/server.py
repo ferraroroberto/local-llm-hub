@@ -783,29 +783,32 @@ def _stream_openai_passthrough(
                 extra=extra or None,
             )
             for cleaned in iter_cleaned_sse(raw):
-                # Detect first non-empty content delta to record TTFT.
-                if first_token_ns is None and cleaned.startswith("data:"):
+                if cleaned.startswith("data:"):
                     payload = cleaned[len("data:"):].strip()
                     if payload and payload != "[DONE]":
                         try:
                             obj = _json.loads(payload)
-                            delta = (obj.get("choices") or [{}])[0].get("delta") or {}
-                            if delta.get("content"):
-                                first_token_ns = time.monotonic_ns()
-                                if span is not None and hasattr(span, "add_event"):
-                                    try:
-                                        ttft_ms = (first_token_ns - start_ns) / 1e6
-                                        span.add_event(
-                                            "first_token",
-                                            attributes={"latency_ms": ttft_ms},
-                                        )
-                                        span.set_attribute(
-                                            "gen_ai.response.time_to_first_token_ms",
-                                            ttft_ms,
-                                        )
-                                    except Exception:  # noqa: BLE001
-                                        pass
-                            # Some llama-server builds emit a final usage chunk.
+                            # Detect first non-empty content delta to record TTFT.
+                            if first_token_ns is None:
+                                delta = (obj.get("choices") or [{}])[0].get("delta") or {}
+                                if delta.get("content"):
+                                    first_token_ns = time.monotonic_ns()
+                                    if span is not None and hasattr(span, "add_event"):
+                                        try:
+                                            ttft_ms = (first_token_ns - start_ns) / 1e6
+                                            span.add_event(
+                                                "first_token",
+                                                attributes={"latency_ms": ttft_ms},
+                                            )
+                                            span.set_attribute(
+                                                "gen_ai.response.time_to_first_token_ms",
+                                                ttft_ms,
+                                            )
+                                        except Exception:  # noqa: BLE001
+                                            pass
+                            # Parse usage on every frame — llama-server emits the
+                            # usage chunk after content, so it arrives after
+                            # first_token_ns is already set.
                             u = obj.get("usage") or {}
                             usage_in = max(usage_in, int(u.get("prompt_tokens", 0) or 0))
                             usage_out = max(usage_out, int(u.get("completion_tokens", 0) or 0))
