@@ -44,8 +44,8 @@ from typing import Optional
 import httpx
 import uvicorn
 from fastapi import FastAPI, Request, Response
-from starlette.datastructures import UploadFile
 
+from .audio_proxy import build_whisper_upstream_request
 from .backend_process import (
     VENDOR_WHISPER,
     _whisper_server_binary,
@@ -282,11 +282,11 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
             )
         sup.touch()
 
-        # Parse the inbound multipart form so we can both (a) faithfully
-        # forward every field the caller sent and (b) bridge OpenAI's
-        # `task=translate` to whisper.cpp's `translate=true` boolean,
-        # which is the actual form field whisper-server's server.cpp
-        # honors per-request.
+        # Parse the inbound multipart form, then bridge it to whisper-server's
+        # upstream request shape via the shared helper (the hub's _proxy_audio
+        # in src/server.py calls the same helper — issue #132): forward every
+        # field, drop extra file parts, and map OpenAI's `task=translate` to
+        # whisper.cpp's `translate=true` boolean.
         try:
             form = await request.form()
         except Exception as exc:
@@ -297,20 +297,7 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
                 media_type="application/json",
             )
 
-        upload: Optional[UploadFile] = None
-        data: dict[str, str] = {}
-        for key, value in form.multi_items():
-            if isinstance(value, UploadFile):
-                if key == "file" and upload is None:
-                    upload = value
-                # Drop any other file parts — whisper-server only takes one.
-                continue
-            if key == "task":
-                if value == "translate":
-                    data["translate"] = "true"
-                # task=transcribe is the upstream default; drop silently.
-                continue
-            data[key] = value
+        upload, data, files = await build_whisper_upstream_request(form)
 
         # Apply the row's configured default language when the caller did
         # not specify one (#128). whisper-server otherwise forces `en` per
@@ -326,15 +313,6 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
                 status_code=400,
                 media_type="application/json",
             )
-
-        file_bytes = await upload.read()
-        files = {
-            "file": (
-                upload.filename or "audio",
-                file_bytes,
-                upload.content_type or "application/octet-stream",
-            )
-        }
 
         url = f"http://127.0.0.1:{internal_port}{inference_path}"
         async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
