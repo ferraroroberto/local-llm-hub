@@ -11,6 +11,7 @@
 
 import { els, state } from './state.js';
 import { jsonApi, postJson, eventStream, toast } from './api.js';
+import { icon } from './_vendored/icons/icons.js';
 
 const HEALTH_POLL_MS = 8000;
 const METRICS_POLL_MS = 5000;
@@ -183,16 +184,16 @@ function renderTraces() {
       '<span class="muted small">trace</span> <code>' + escapeHtml(tid) + '</code>' +
       (rec.backend ? ' <span class="muted small">·</span> ' + escapeHtml(rec.backend) : '') +
       (rec.in_tok || rec.out_tok ? ' <span class="muted small">·</span> in ' + rec.in_tok + ' / out ' + rec.out_tok : '') +
-      (rec.trace_id ? ' <span class="muted small">·</span> <span class="tel-expand-hint">' + (expanded ? '▾ tap to collapse' : '▸ tap for detail') + '</span>' : '');
+      (rec.trace_id ? ' <span class="muted small">·</span> <span class="tel-expand-hint">' + (expanded ? icon('chevron-down') + ' tap to collapse' : icon('chevron-right') + ' tap for detail') + '</span>' : '');
     li.appendChild(meta);
 
     if (rec.trace_id) {
       const actions = document.createElement('div');
       actions.className = 'tel-trace-actions';
       actions.innerHTML =
-        '<button type="button" class="ghost-btn tel-thumb" data-thumbs="1" aria-label="Thumbs up">👍</button>' +
-        '<button type="button" class="ghost-btn tel-thumb" data-thumbs="-1" aria-label="Thumbs down">👎</button>' +
-        '<a class="ghost-btn tel-deeplink" target="_blank" rel="noopener" href="' + langfuseTraceUrl(rec.trace_id) + '">🔗 Langfuse</a>';
+        '<button type="button" class="ghost-btn tel-thumb" data-thumbs="1" aria-label="Thumbs up">' + icon('thumbs-up') + '</button>' +
+        '<button type="button" class="ghost-btn tel-thumb" data-thumbs="-1" aria-label="Thumbs down">' + icon('thumbs-down') + '</button>' +
+        '<a class="ghost-btn tel-deeplink" target="_blank" rel="noopener" href="' + langfuseTraceUrl(rec.trace_id) + '">' + icon('external-link') + 'Langfuse</a>';
       li.appendChild(actions);
     }
 
@@ -287,7 +288,7 @@ async function postFeedback(traceId, value) {
     await postJson('/admin/api/trace/' + encodeURIComponent(traceId) + '/feedback', {
       thumbs: value,
     });
-    toast(value > 0 ? '👍 sent' : (value < 0 ? '👎 sent' : 'noted'), 'good');
+    toast(value > 0 ? 'Thumbs up sent' : (value < 0 ? 'Thumbs down sent' : 'noted'), 'good');
   } catch (exc) {
     toast('feedback failed: ' + (exc.message || 'unknown'), 'error');
   }

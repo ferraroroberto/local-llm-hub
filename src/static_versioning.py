@@ -29,8 +29,12 @@ _HASH_LEN = 8
 _HASHED_SUFFIXES = (".js", ".css")
 _SKIP_DIRS = ("vendor",)
 
+# Matches a relative ES-module import and splits it into (prefix, path,
+# basename, existing-stamp, close-quote). The path segment allows subdirs
+# (e.g. ``./_vendored/icons/``) so a vendored module nested under static/ is
+# stamped too — the hash map is basename-keyed, so the lookup is by basename.
 _JS_IMPORT_RE = re.compile(
-    r"""(from\s*['"])\./([\w\-.]+\.js)(\?v=[^'"]*)?(['"])"""
+    r"""(from\s*['"])(\.{1,2}/(?:[\w\-.]+/)*)([\w\-.]+\.js)(\?v=[^'"]*)?(['"])"""
 )
 
 _INDEX_ASSET_RE = re.compile(
@@ -81,11 +85,11 @@ def rewrite_js_imports(body: str, hashes: Dict[str, str]) -> str:
         return body
 
     def _sub(match: re.Match) -> str:
-        prefix, filename, _existing, quote_close = match.group(1, 2, 3, 4)
+        prefix, path, filename, _existing, quote_close = match.group(1, 2, 3, 4, 5)
         stamp = hashes.get(filename)
         if not stamp:
             return match.group(0)
-        return f"{prefix}./{filename}?v={stamp}{quote_close}"
+        return f"{prefix}{path}{filename}?v={stamp}{quote_close}"
 
     return _JS_IMPORT_RE.sub(_sub, body)
 
