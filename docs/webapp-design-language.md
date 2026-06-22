@@ -77,8 +77,8 @@ Lifted verbatim from app-launcher's launcher tiles:
 <li class="app-item">
   <div class="app-main">title + meta + status badge</div>
   <div class="row-actions">
-    <button class="icon-btn">▶</button>
-    <button class="icon-btn danger">■</button>
+    <button class="icon-btn"><svg class="icon"><use href="#i-play"></use></svg></button>
+    <button class="icon-btn danger"><svg class="icon"><use href="#i-square"></use></svg></button>
     ...
   </div>
 </li>
@@ -122,6 +122,15 @@ shows on every tab, not just Hub. Background tints by state:
 
 Border alpha matches at 45%.
 
+## Icons
+
+The SPA's UI glyphs are **Lucide**, the canonical fleet icon set (`~/.claude/design.md` → "Icons"), adopted via the **vendored** component at `app_web/static/_vendored/icons/` (sprite + `icons.js` helper, copied verbatim from `project-scaffolding`; issue #139).
+
+- **How to reference one.** Static markup: `<svg class="icon"><use href="#i-NAME"></use></svg>`. From JS: `import { icon } from './_vendored/icons/icons.js'` then `el.innerHTML = icon('NAME')`. Glyphs inherit `currentColor` (the `.icon` CSS contract), so they recolor for free in any context — tint a status glyph by setting its parent's `color`.
+- **The sprite is injected server-side**, once, after `<body>` (see `app_web/routers/misc.py::_icon_sprite`) from the single `icons-sprite.html` source. It must stay **inline** in-document — iOS Safari silently fails to resolve external `<use href="file.svg#id">` references.
+- **Vendor verbatim.** Don't edit `icons.js` per-app; the only per-app change is *which `<symbol>` glyphs* live in `icons-sprite.html` (add the ones a view needs from lucide-static 0.544.0, keeping the `i-NAME` id + `fill="none"`). To change the helper or share a new glyph fleet-wide, change it in `project-scaffolding` and re-vendor. Full recipe: `_vendored/icons/README.md`.
+- **No backend-identity glyph.** The Models tab rows previously carried a per-provider emoji (Claude/Gemini/whisper/TTS/llama); these were **removed** entirely rather than substituted — provider brands have no faithful Lucide equivalent, and the backend name already labels each row. Emoji remain only in genuine prose/content (the page `<title>`, the transcription-dictionary editor's help text) — never in chrome.
+
 ## What we deliberately *don't* copy from app-launcher
 
 - **`.detached-toggle` / `.edit-toggle`** — these label-as-button
@@ -139,7 +148,7 @@ Border alpha matches at 45%.
 |---|---|---|---|
 | `--code-bg` token | present | absent | The hub's logpane needs a surface darker than `--bg-elev`; launcher uses xterm.js which paints its own background. |
 | Counters table | wrapped in `.counters-wrap` for horizontal scroll | n/a — launcher has no equivalent | Seven-column table doesn't fit 720 px phone width; alternative was bumping the container to 820 px (declined, would diverge from canonical). |
-| Tab icons | `🌐 🧠 🧪` | varied | Hub set chosen for Windows Segoe UI Emoji compatibility; the satellite glyph rendered as tofu on default Windows. Will retire when the shared icon family from issue #6 ships. |
+| Icon set | Lucide via vendored `_vendored/icons/` | varied | Adopted the canonical fleet Lucide set per `~/.claude/design.md` (issue #139); nav tabs now show icon + label. Backend-identity emoji were dropped (no faithful Lucide equivalent; the backend name labels the row). See the **Icons** section above. |
 
 ## When to update this file
 

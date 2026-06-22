@@ -12,6 +12,7 @@
  */
 
 import { jsonApi, postJson, putJson, toast } from './api.js';
+import { icon } from './_vendored/icons/icons.js';
 
 export function mountGlossaryEditor(container) {
   // Per-mount working copy of the dictionary.
@@ -65,11 +66,15 @@ export function mountGlossaryEditor(container) {
 
   const actions = document.createElement('div');
   actions.className = 'glossary-actions';
-  const mineBtn = ghostBtn('✨ Suggest from transcripts', onMine);
+  const mineBtn = document.createElement('button');
+  mineBtn.type = 'button';
+  mineBtn.className = 'ghost-btn';
+  mineBtn.innerHTML = icon('sparkles') + 'Suggest from transcripts';
+  mineBtn.addEventListener('click', onMine);
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
   saveBtn.className = 'ghost-btn primary';
-  saveBtn.textContent = '💾 Save';
+  saveBtn.innerHTML = icon('save') + 'Save';
   saveBtn.addEventListener('click', onSave);
   actions.append(mineBtn, saveBtn);
 
@@ -95,11 +100,11 @@ export function mountGlossaryEditor(container) {
       to.setAttribute('aria-label', 'Replace to');
       to.addEventListener('input', function () { rule.to = to.value; });
 
-      const up = iconBtn('▲', 'Move up', function () { move(idx, -1); });
-      const down = iconBtn('▼', 'Move down', function () { move(idx, 1); });
+      const up = iconBtn(icon('chevron-up'), 'Move up', function () { move(idx, -1); });
+      const down = iconBtn(icon('chevron-down'), 'Move down', function () { move(idx, 1); });
       up.disabled = idx === 0;
       down.disabled = idx === model.replacements.length - 1;
-      const del = iconBtn('✕', 'Delete rule', function () {
+      const del = iconBtn(icon('x'), 'Delete rule', function () {
         model.replacements.splice(idx, 1); renderRepl();
       });
       del.classList.add('danger');
@@ -132,7 +137,7 @@ export function mountGlossaryEditor(container) {
       chip.className = 'glossary-chip';
       chip.append(document.createTextNode(term));
       const x = document.createElement('button');
-      x.type = 'button'; x.className = 'glossary-chip-x'; x.textContent = '✕';
+      x.type = 'button'; x.className = 'glossary-chip-x'; x.innerHTML = icon('x');
       x.setAttribute('aria-label', 'Remove ' + term);
       x.addEventListener('click', function () { model.boost_terms.splice(idx, 1); renderBoost(); });
       chip.appendChild(x);
@@ -198,8 +203,8 @@ export function mountGlossaryEditor(container) {
   // ----------------------------------------------------------- mining
   async function onMine() {
     mineBtn.disabled = true;
-    const orig = mineBtn.textContent;
-    mineBtn.textContent = '⏳ Mining…';
+    const orig = mineBtn.innerHTML;
+    mineBtn.innerHTML = icon('hourglass') + 'Mining…';
     try {
       const body = await postJson('/admin/api/glossary/mine', {});
       renderSuggestions(body);
@@ -207,7 +212,7 @@ export function mountGlossaryEditor(container) {
       toast('Mining failed: ' + String(exc.message || exc), 'error');
     } finally {
       mineBtn.disabled = false;
-      mineBtn.textContent = orig;
+      mineBtn.innerHTML = orig;
     }
   }
 
@@ -217,8 +222,9 @@ export function mountGlossaryEditor(container) {
     const meta = body.meta || {};
     const head = document.createElement('div');
     head.className = 'glossary-suggest-head';
-    head.textContent = '✨ Suggestions · ' + (meta.n_sessions || 0) + ' transcript(s), last ' + (meta.days || '?') + 'd'
-      + (meta.llm_used ? ' · LLM-assisted' : '');
+    head.innerHTML = icon('sparkles');
+    head.append(' Suggestions · ' + (meta.n_sessions || 0) + ' transcript(s), last ' + (meta.days || '?') + 'd'
+      + (meta.llm_used ? ' · LLM-assisted' : ''));
     suggestWrap.appendChild(head);
 
     const boosts = body.boost_terms || [];
@@ -295,7 +301,7 @@ function iconBtn(glyph, label, onClick) {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'icon-btn';
-  b.textContent = glyph;
+  b.innerHTML = glyph;  // glyph is an icon() SVG string (no user input)
   b.title = label;
   b.setAttribute('aria-label', label);
   b.addEventListener('click', onClick);
@@ -306,7 +312,8 @@ function suggestionChip(label, onAccept) {
   const chip = document.createElement('button');
   chip.type = 'button';
   chip.className = 'glossary-chip glossary-chip-suggest';
-  chip.textContent = '＋ ' + label;
+  chip.innerHTML = icon('plus');     // static SVG; label appended as text below
+  chip.append(' ' + label);
   chip.title = 'Add to dictionary';
   chip.addEventListener('click', onAccept);
   return chip;

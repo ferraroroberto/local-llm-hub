@@ -56,6 +56,27 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 
+/* ---------- icons (vendored Lucide sprite — _vendored/icons) ----------
+ * The `.icon` rule is the required CSS contract from the vendored component's
+ * README: glyphs inherit `currentColor`, so they recolor for free. Size them
+ * with `font-size`/`width`/`height` at the call site (1em tracks the text). */
+.icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.15em;
+}
+/* Section headings carry a leading Lucide glyph inline with the title text. */
+h2 { display: flex; align-items: center; gap: 8px; }
+/* Other inline icon+label contexts: service rows and footer links. */
+.services-label { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+.footer-row a { display: inline-flex; align-items: center; gap: 6px; }
+
 .app {
   max-width: 720px;
   margin: 0 auto;
@@ -87,6 +108,10 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
 .tab {
   flex: 1;
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: transparent;
   color: var(--muted);
   border: 0;
@@ -97,10 +122,11 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  text-overflow: ellipsis;
   overflow: hidden;
   min-height: 36px;
 }
+/* The tab's icon is a touch larger than the label for legibility at a glance. */
+.tab .icon { font-size: 16px; }
 .tab:hover { color: var(--fg); }
 .tab.active { background: var(--bg-elev-2); color: var(--fg); }
 
@@ -282,6 +308,10 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
 .segmented.stretch { display: flex; width: 100%; }
 .segmented button {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: transparent;
   border: 0;
   padding: 7px 10px;
@@ -648,7 +678,6 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
   border-bottom: 1px solid var(--border);
 }
 .services-row:last-child { border-bottom: 0; }
-.services-label { font-weight: 500; }
 .services-detail {
   word-break: break-word;
   min-width: 0;
@@ -666,6 +695,12 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
 }
 .install-row:last-of-type { border-bottom: 0; }
 .install-row .install-detail { grid-column: 2 / -1; font-size: 12px; }
+/* Status glyph (Lucide) inherits currentColor — tint it per check status. */
+.install-glyph .icon { font-size: 16px; }
+.install-ok .install-glyph { color: var(--good); }
+.install-warn .install-glyph { color: var(--warn); }
+.install-missing .install-glyph { color: var(--muted); }
+.install-error .install-glyph { color: var(--danger); }
 
 /* ---------- empty state ---------- */
 .empty {

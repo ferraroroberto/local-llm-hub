@@ -18,11 +18,11 @@
 <body>
   <main class="app density-compact">
     <nav class="tabs" role="tablist">
-      <button id="tabHub" type="button" class="tab active" role="tab" data-tab="hub" aria-label="Hub">Hub</button>
-      <button id="tabModels" type="button" class="tab" role="tab" data-tab="models" aria-label="Models">Models</button>
-      <button id="tabPlayground" type="button" class="tab" role="tab" data-tab="playground" aria-label="Playground">Play</button>
-      <button id="tabTelemetry" type="button" class="tab" role="tab" data-tab="telemetry" aria-label="Telemetry">OTel</button>
-      <button id="tabCodeUsage" type="button" class="tab" role="tab" data-tab="code-usage" aria-label="Claude Code usage">Code</button>
+      <button id="tabHub" type="button" class="tab active" role="tab" data-tab="hub" aria-label="Hub"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>Hub</button>
+      <button id="tabModels" type="button" class="tab" role="tab" data-tab="models" aria-label="Models"><svg class="icon" aria-hidden="true"><use href="#i-boxes"></use></svg>Models</button>
+      <button id="tabPlayground" type="button" class="tab" role="tab" data-tab="playground" aria-label="Playground"><svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>Play</button>
+      <button id="tabTelemetry" type="button" class="tab" role="tab" data-tab="telemetry" aria-label="Telemetry"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg>OTel</button>
+      <button id="tabCodeUsage" type="button" class="tab" role="tab" data-tab="code-usage" aria-label="Claude Code usage"><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Code</button>
     </nav>
 
     <section id="paneHub" class="pane" role="tabpanel">
@@ -38,7 +38,7 @@
             </span>
           </div>
           <div class="card-header-actions">
-            <button id="hubRestartBtn" type="button" class="icon-header-btn" aria-label="Restart hub" title="Restart hub">🔄</button>
+            <button id="hubRestartBtn" type="button" class="icon-header-btn" aria-label="Restart hub" title="Restart hub"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg></button>
           </div>
         </div>
         <div class="hub-meta-row">
@@ -61,14 +61,14 @@
         </div>
         <div class="services-rows">
           <div class="services-row">
-            <span class="services-label">🐳 Docker</span>
+            <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-container"></use></svg>Docker</span>
             <span id="dockerStatus" class="hub-live-status">
               <span class="dot"></span><span id="dockerStatusText">—</span>
             </span>
             <span id="dockerDetail" class="muted small services-detail"></span>
           </div>
           <div class="services-row">
-            <span class="services-label">📡 Langfuse</span>
+            <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Langfuse</span>
             <span id="langfuseStatus" class="hub-live-status">
               <span class="dot"></span><span id="langfuseStatusText">—</span>
             </span>
@@ -76,7 +76,7 @@
           </div>
         </div>
         <div class="card-actions" id="servicesActions" hidden>
-          <button id="servicesLaunchBtn" type="button" class="launch-btn">🚀 Launch Docker + Langfuse</button>
+          <button id="servicesLaunchBtn" type="button" class="launch-btn"><svg class="icon" aria-hidden="true"><use href="#i-rocket"></use></svg>Launch Docker + Langfuse</button>
         </div>
         <p id="servicesHint" class="muted small" style="margin: 6px 0 0;" hidden></p>
       </section>
@@ -85,14 +85,14 @@
       <details class="card" id="installCard">
         <summary>
           <div class="card-header" style="margin-bottom: 0;">
-            <h2>🩺 Health &amp; install</h2>
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-stethoscope"></use></svg>Health &amp; install</h2>
             <span id="installSummary" class="muted small">checking…</span>
           </div>
         </summary>
         <div id="installRows" style="margin-top: 10px;"></div>
         <div class="card-actions">
-          <button id="installFixAllBtn" type="button" class="launch-btn">🔧 Fix all</button>
-          <button id="installRefreshBtn" type="button" class="ghost-btn">↻ Re-check</button>
+          <button id="installFixAllBtn" type="button" class="launch-btn"><svg class="icon" aria-hidden="true"><use href="#i-wrench"></use></svg>Fix all</button>
+          <button id="installRefreshBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>Re-check</button>
         </div>
       </details>
 
@@ -111,10 +111,10 @@
       <!-- Compact mode: a single card with sub-tabs -->
       <section class="card compact-card" id="hubCompactCard">
         <div id="hubCompactTabs" class="segmented stretch" role="tablist" aria-label="Hub details">
-          <button type="button" data-section="live" class="active">📡 Live</button>
-          <button type="button" data-section="counters">📊 Counters</button>
-          <button type="button" data-section="errors">⚠️ Errors</button>
-          <button type="button" data-section="log">📜 Log</button>
+          <button type="button" data-section="live" class="active"><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Live</button>
+          <button type="button" data-section="counters"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Counters</button>
+          <button type="button" data-section="errors"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>Errors</button>
+          <button type="button" data-section="log"><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Log</button>
         </div>
         <div class="compact-section active" data-section="live">
           <div class="card-header"><h2>Live requests</h2><span id="liveRequestsBadge" class="badge">0</span></div>
@@ -140,7 +140,7 @@
         <div class="compact-section" data-section="log">
           <div class="card-header">
             <h2>Hub log</h2>
-            <button id="hubLogPauseBtn" type="button" class="ghost-btn">⏸ Pause</button>
+            <button id="hubLogPauseBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-pause"></use></svg>Pause</button>
           </div>
           <pre id="hubLog" class="logpane" aria-label="Hub server log"></pre>
         </div>
@@ -150,7 +150,7 @@
       <!-- The Hub status card + Health card above are shared between modes. -->
       <section class="card hub-expanded-only">
         <div class="card-header">
-          <h2>📡 Live requests</h2>
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Live requests</h2>
           <span id="liveRequestsBadgeExp" class="badge">0</span>
         </div>
         <ul id="liveRequestsListExp" class="card-list dense" aria-label="Live request stream (expanded)"></ul>
@@ -160,7 +160,7 @@
 
       <section class="card hub-expanded-only">
         <div class="card-header">
-          <h2>📊 Per-backend counters</h2>
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Per-backend counters</h2>
           <span class="muted small">since hub start · resets on restart</span>
         </div>
         <div class="counters-wrap">
@@ -174,7 +174,7 @@
 
       <section class="card hub-expanded-only">
         <div class="card-header">
-          <h2>⚠️ Recent errors</h2>
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>Recent errors</h2>
           <span id="recentErrorsBadgeExp" class="badge danger">0</span>
         </div>
         <ul id="recentErrorsListExp" class="card-list dense" aria-label="Recent errors (expanded)"></ul>
@@ -183,8 +183,8 @@
 
       <section class="card hub-expanded-only">
         <div class="card-header">
-          <h2>📜 Hub log</h2>
-          <button id="hubLogPauseBtnExp" type="button" class="ghost-btn">⏸ Pause</button>
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Hub log</h2>
+          <button id="hubLogPauseBtnExp" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-pause"></use></svg>Pause</button>
         </div>
         <pre id="hubLogExp" class="logpane" aria-label="Hub server log (expanded)"></pre>
       </section>
@@ -200,7 +200,7 @@
 
     <section id="panePlayground" class="pane" hidden role="tabpanel">
       <section class="card">
-        <div class="card-header"><h2>🧪 Playground</h2></div>
+        <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>Playground</h2></div>
 
         <div class="opt-stack">
           <label for="playgroundModel">Model</label>
@@ -240,7 +240,7 @@
         </details>
 
         <div class="playground-send-row">
-          <button id="playgroundSendBtn" type="button" class="ghost-btn primary">▶ Send</button>
+          <button id="playgroundSendBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Send</button>
           <button id="playgroundClearBtn" type="button" class="ghost-btn">Clear</button>
         </div>
         <p id="playgroundLatency" class="muted small" style="margin: 8px 0 0;"></p>
@@ -252,7 +252,7 @@
       </section>
 
       <section class="card" id="imageCard">
-        <div class="card-header"><h2>🖼️ Image generation</h2></div>
+        <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>Image generation</h2></div>
 
         <div class="opt-stack">
           <label for="imageModel">Model</label>
@@ -271,19 +271,19 @@
         </div>
 
         <div class="playground-send-row">
-          <button id="imageGenBtn" type="button" class="ghost-btn primary">✨ Generate</button>
+          <button id="imageGenBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Generate</button>
           <button id="imageClearBtn" type="button" class="ghost-btn">Clear</button>
         </div>
         <p id="imageLatency" class="muted small" style="margin: 8px 0 0;"></p>
 
         <img id="imagePreview" alt="Generated image" style="max-width: 100%; margin-top: 10px; border-radius: 8px;" hidden>
         <div class="playground-send-row" id="imageDownloadRow" hidden style="margin-top: 10px;">
-          <a id="imageDownload" class="ghost-btn primary" download="generated.png" role="button">⬇ Download</a>
+          <a id="imageDownload" class="ghost-btn primary" download="generated.png" role="button"><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Download</a>
         </div>
       </section>
 
       <section class="card" id="ttsCard">
-        <div class="card-header"><h2>🔊 Text-to-speech</h2></div>
+        <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Text-to-speech</h2></div>
 
         <div class="opt-stack">
           <label for="ttsModel">Voice model</label>
@@ -333,7 +333,7 @@
         </details>
 
         <div class="playground-send-row">
-          <button id="ttsSpeakBtn" type="button" class="ghost-btn primary">🔊 Speak</button>
+          <button id="ttsSpeakBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Speak</button>
         </div>
         <p id="ttsLatency" class="muted small" style="margin: 8px 0 0;"></p>
 
@@ -353,7 +353,7 @@
             </span>
           </div>
           <div class="card-header-actions">
-            <a id="telOpenLangfuse" class="icon-header-btn" href="http://localhost:3000" target="_blank" rel="noopener" aria-label="Open Langfuse UI" title="Open Langfuse UI">🔗</a>
+            <a id="telOpenLangfuse" class="icon-header-btn" href="http://localhost:3000" target="_blank" rel="noopener" aria-label="Open Langfuse UI" title="Open Langfuse UI"><svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg></a>
           </div>
         </div>
         <div id="telHealthMeta" class="hub-meta-row">
@@ -371,7 +371,7 @@
       <!-- Per-model leaderboard (reuses .counters table style) -->
       <section class="card">
         <div class="card-header">
-          <h2>📈 Per-model leaderboard</h2>
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>Per-model leaderboard</h2>
           <span id="telSummary" class="muted small">—</span>
         </div>
         <div class="counters-wrap">
@@ -386,12 +386,12 @@
       <!-- Live trace feed -->
       <section class="card">
         <div class="card-header">
-          <h2>📡 Live traces</h2>
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Live traces</h2>
           <span id="telTracesBadge" class="badge">0</span>
         </div>
         <ul id="telTracesList" class="card-list dense tel-traces" aria-label="Live trace feed"></ul>
         <div id="telTracesEmpty" class="empty">No traces yet — the ring fills as clients call the hub.</div>
-        <p class="muted small" style="margin: 8px 0 0;">Tap a row to expand prompt/completion preview. 👍/👎 sends a Langfuse score; 🔗 opens the full trace.</p>
+        <p class="muted small" style="margin: 8px 0 0;">Tap a row to expand prompt/completion preview. <svg class="icon" aria-hidden="true"><use href="#i-thumbs-up"></use></svg>/<svg class="icon" aria-hidden="true"><use href="#i-thumbs-down"></use></svg> sends a Langfuse score; <svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg> opens the full trace.</p>
       </section>
     </section>
 
@@ -453,13 +453,13 @@
           Cache reads are served from the 5-min/1-hr prompt cache.
           <span class="cld-counter-cost" style="display:inline">≈ $</span> lines show the equivalent
           metered-API cost these tokens would have billed.</p>
-        <p class="muted small" style="margin: 4px 0 0;">⚠️ <strong>Sub-agent (Task tool) calls are not captured</strong> — Claude Code does not write them to the JSONL session transcripts, so figures here undercount whenever sub-agents run. The OTel tab gives accurate per-model totals. (<a href="https://github.com/ferraroroberto/local-llm-hub/issues/68" target="_blank" rel="noopener">#68</a>, <a href="https://github.com/anthropics/claude-code/issues/22625" target="_blank" rel="noopener">upstream #22625</a>)</p>
+        <p class="muted small" style="margin: 4px 0 0;"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg> <strong>Sub-agent (Task tool) calls are not captured</strong> — Claude Code does not write them to the JSONL session transcripts, so figures here undercount whenever sub-agents run. The OTel tab gives accurate per-model totals. (<a href="https://github.com/ferraroroberto/local-llm-hub/issues/68" target="_blank" rel="noopener">#68</a>, <a href="https://github.com/anthropics/claude-code/issues/22625" target="_blank" rel="noopener">upstream #22625</a>)</p>
       </section>
 
       <!-- Per-vendor breakdown (issue #71) — shown only in "All" mode -->
       <section class="card" id="cldVendorCard" hidden>
         <div class="card-header">
-          <h2>🏷️ Per-vendor</h2>
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg>Per-vendor</h2>
         </div>
         <div class="counters-wrap">
           <table id="cldVendorTable" class="counters">
@@ -477,7 +477,7 @@
       <!-- Per-model breakdown -->
       <section class="card">
         <div class="card-header">
-          <h2>📈 Per-model</h2>
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>Per-model</h2>
         </div>
         <div class="counters-wrap">
           <table id="cldModelTable" class="counters">
@@ -495,7 +495,7 @@
       <!-- Per-project breakdown -->
       <section class="card">
         <div class="card-header">
-          <h2>📁 Per-project</h2>
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>Per-project</h2>
         </div>
         <div class="counters-wrap">
           <table id="cldProjectTable" class="counters">
@@ -514,7 +514,7 @@
       <!-- Usage trend charts (hidden in "All" mode) -->
       <section class="card" id="cldChartsCard" hidden>
         <div class="card-header">
-          <h2>📊 Usage trend</h2>
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Usage trend</h2>
         </div>
         <div class="cld-chart-wrap">
           <div class="cld-chart-label">Input tokens</div>
@@ -537,7 +537,7 @@
       <!-- Recent sessions -->
       <section class="card">
         <div class="card-header">
-          <h2>🕒 Recent sessions</h2>
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg>Recent sessions</h2>
           <span id="cldSessionsBadge" class="badge">0</span>
         </div>
         <ul id="cldSessionsList" class="card-list dense cld-sessions" aria-label="Recent Claude Code sessions"></ul>
@@ -548,9 +548,9 @@
 
     <footer class="footer">
       <div class="footer-row">
-        <a href="https://github.com/ferraroroberto/local-llm-hub#readme" target="_blank" rel="noopener">📖 README</a>
-        <a href="https://github.com/ferraroroberto/local-llm-hub/blob/main/docs/model-comparison.md" target="_blank" rel="noopener">📊 Model comparison</a>
-        <a id="frontierLink" href="/admin/frontier" target="_blank" rel="noopener noreferrer">📈 Frontier</a>
+        <a href="https://github.com/ferraroroberto/local-llm-hub#readme" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#i-book-open"></use></svg>README</a>
+        <a href="https://github.com/ferraroroberto/local-llm-hub/blob/main/docs/model-comparison.md" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Model comparison</a>
+        <a id="frontierLink" href="/admin/frontier" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>Frontier</a>
       </div>
       <div class="footer-row">
         <span class="small">tests: <code>pytest -q</code></span>
@@ -562,7 +562,7 @@
 
     <div id="loginOverlay" class="overlay" hidden role="dialog" aria-modal="true" aria-label="Login">
       <form id="loginForm" class="login-card">
-        <h2>🔒 Sign in</h2>
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>Sign in</h2>
         <p class="muted small">This hub is locked. Enter the configured password to receive a bearer token.</p>
         <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" required>
         <button type="submit" class="launch-btn">Sign in</button>

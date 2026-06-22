@@ -357,6 +357,8 @@ local-llm-hub/
 │   └── static/               #   index.html + main.js + state.js + tabs.js + api.js +
 │                             #   hub.js + models.js + playground.js + styles.css +
 │                             #   manifest.webmanifest + placeholder icons
+│       └── _vendored/icons/  #   Lucide icon sprite + icons.js helper (vendored from
+│                             #   project-scaffolding; the SPA's UI glyphs per design.md)
 ├── tray/                     # Windows system-tray launcher (silent pythonw)
 │   ├── tray.py               #   single-file pystray + hub lifecycle owner
 │   ├── icon.py               #   PIL hub glyph

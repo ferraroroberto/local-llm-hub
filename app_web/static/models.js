@@ -10,6 +10,7 @@
 import { els, state } from './state.js';
 import { jsonApi, postJson, toast } from './api.js';
 import { mountGlossaryEditor } from './glossary.js';
+import { icon } from './_vendored/icons/icons.js';
 
 export async function fetchModels() {
   try {
@@ -57,7 +58,6 @@ function buildItem(m) {
 }
 
 function fillItem(li, m) {
-  const glyph = pickGlyph(m);
   const ownership = m.ownership || 'none';
   const reachable = !!m.reachable;
   const adopted = ownership === 'external';
@@ -81,26 +81,26 @@ function fillItem(li, m) {
   // pill nested inside it gets pushed past the clip boundary and vanishes.
   // As siblings in the title row they are never clipped.
   titleRow.innerHTML =
-    '<span class="app-title">' + glyph + '<span class="app-name">' + escapeHtml(m.display_name) + '</span></span>' + badge(m) + pidNote;
+    '<span class="app-title"><span class="app-name">' + escapeHtml(m.display_name) + '</span></span>' + badge(m) + pidNote;
 
   const icons = document.createElement('div');
   icons.className = 'app-icons';
   const buttons = [];
   if (m.controllable) {
-    buttons.push({ act: 'start', glyph: '▶', label: 'Start', disabled: ownership !== 'none' });
-    buttons.push({ act: 'stop',  glyph: '■', label: 'Stop',  disabled: ownership !== 'ours', danger: true });
+    buttons.push({ act: 'start', glyph: icon('play'), label: 'Start', disabled: ownership !== 'none' });
+    buttons.push({ act: 'stop',  glyph: icon('square'), label: 'Stop',  disabled: ownership !== 'ours', danger: true });
   }
   buttons.push({
-    act: 'ping', glyph: '📶', label: 'Ping',
+    act: 'ping', glyph: icon('signal'), label: 'Ping',
     disabled: !reachable && m.backend !== 'claude' && m.backend !== 'gemini',
   });
   if (adopted) {
-    buttons.push({ act: 'force-stop', glyph: '💀', label: 'Force stop', danger: true });
+    buttons.push({ act: 'force-stop', glyph: icon('skull'), label: 'Force stop', danger: true });
   }
   if (m.backend === 'whisper') {
     // The transcription dictionary is shared by every whisper backend, so
     // the same editor opens from any whisper row.
-    buttons.push({ act: 'dictionary', glyph: '📖', label: 'Transcription dictionary' });
+    buttons.push({ act: 'dictionary', glyph: icon('book-open'), label: 'Transcription dictionary' });
   }
   const panelOpen = !!li.querySelector(':scope > .glossary-panel:not([hidden])');
   buttons.forEach(function (b) {
@@ -112,7 +112,7 @@ function fillItem(li, m) {
     btn.disabled = !!b.disabled;
     btn.title = b.label;
     btn.setAttribute('aria-label', b.label);
-    btn.textContent = b.glyph;
+    btn.innerHTML = b.glyph;
     btn.addEventListener('click', function () { handleAction(m, b.act); });
     icons.appendChild(btn);
   });
@@ -141,14 +141,6 @@ function badge(m) {
   if (m.ownership === 'ours') return ' <span class="badge good">running</span>';
   if (m.ownership === 'external') return ' <span class="badge warn">adopted</span>';
   return ' <span class="badge">stopped</span>';
-}
-
-function pickGlyph(m) {
-  if (m.backend === 'claude') return '🌀';
-  if (m.backend === 'gemini') return '♊';
-  if (m.backend === 'whisper') return '🎙';
-  if (m.backend === 'tts') return '🔊';
-  return '🦙';
 }
 
 async function handleAction(m, act) {

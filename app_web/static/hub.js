@@ -6,6 +6,7 @@
 import { els, state, DENSITY_KEY } from './state.js';
 import { jsonApi, postJson, eventStream, toast } from './api.js';
 import { langfuseTraceUrl, fetchTelemetryHealth } from './telemetry.js';
+import { icon } from './_vendored/icons/icons.js';
 
 // --------------------------------------------------------- status / urls
 export async function fetchHubStatus() {
@@ -217,7 +218,10 @@ function renderInstall(body) {
   checks.forEach(function (c) {
     const row = document.createElement('div');
     row.className = 'install-row install-' + c.status;
-    const glyph = c.status === 'ok' ? '✅' : c.status === 'warn' ? '⚠️' : c.status === 'missing' ? '❓' : '❌';
+    const glyph = c.status === 'ok' ? icon('circle-check')
+      : c.status === 'warn' ? icon('triangle-alert')
+      : c.status === 'missing' ? icon('circle-help')
+      : icon('circle-x');
     row.innerHTML =
       '<span class="install-glyph">' + glyph + '</span>' +
       '<span class="install-label">' + escapeHtml(c.label) + '</span>' +
@@ -226,7 +230,7 @@ function renderInstall(body) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'ghost-btn';
-      btn.textContent = '🔧 ' + (c.fix_label || 'Fix');
+      btn.innerHTML = icon('wrench') + escapeHtml(c.fix_label || 'Fix');
       btn.addEventListener('click', async function () {
         btn.disabled = true;
         btn.textContent = 'Running…';
@@ -237,7 +241,7 @@ function renderInstall(body) {
         } catch (exc) {
           toast(String(exc.message || exc), 'error');
           btn.disabled = false;
-          btn.textContent = '🔧 Retry';
+          btn.innerHTML = icon('wrench') + 'Retry';
         }
       });
       row.appendChild(btn);
@@ -322,9 +326,9 @@ function renderServices() {
   }
   if (els.servicesLaunchBtn) {
     els.servicesLaunchBtn.disabled = !showActions;
-    els.servicesLaunchBtn.textContent = state.servicesLaunching
+    els.servicesLaunchBtn.innerHTML = state.servicesLaunching
       ? 'Launching… (up to ~90s)'
-      : '🚀 Launch Docker + Langfuse';
+      : icon('rocket') + 'Launch Docker + Langfuse';
   }
 }
 
@@ -419,9 +423,9 @@ export function wireHub() {
   // sync so flipping density preserves the user's pause preference.
   function togglePause() {
     state.logPaused = !state.logPaused;
-    const label = state.logPaused ? '▶ Resume' : '⏸ Pause';
+    const label = state.logPaused ? icon('play') + 'Resume' : icon('pause') + 'Pause';
     [els.hubLogPauseBtn, els.hubLogPauseBtnExp].forEach(function (b) {
-      if (b) b.textContent = label;
+      if (b) b.innerHTML = label;
     });
   }
   if (els.hubLogPauseBtn) els.hubLogPauseBtn.addEventListener('click', togglePause);
