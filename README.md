@@ -136,6 +136,12 @@ bring-up. Demoted on 2026-05-10 per the May 2026 frontier reading —
 see [docs/frontier-via-slash-commands.md](docs/frontier-via-slash-commands.md)
 for the reasoning.
 
+GLM **5.2** (the newer flagship) was evaluated for the local coding lane
+and rejected — it is a single 744B-A40B MoE with no Air/Flash variant,
+and even its smallest quant needs ~245 GB RAM+VRAM vs. this box's
+~144 GB, so it does not load. Revisit if a GLM-5.2-Air/Flash ships; see
+[docs/glm-5.2-evaluation.md](docs/glm-5.2-evaluation.md).
+
 `gemma4-e4b-it` is the previous `agentic_light` role-holder, replaced
 by `qwen3.5-4b` on 2026-05-10 via `/swap-model`. It is **kept in
 `enabled:`** on the reference host for ad-hoc bring-up via

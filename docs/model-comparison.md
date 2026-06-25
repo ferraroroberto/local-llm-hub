@@ -87,3 +87,10 @@ model was still thinking.
 - **Hugging Face Inference API, OpenRouter, etc.** — the
   project is local-first; cloud models go through Claude's
   subscription path, not arbitrary remote APIs.
+- **GLM-5.2** (`zai-org/GLM-5.2`) — evaluated for the local coding
+  lane and rejected: it is a single 744B-A40B MoE with no Air/Flash
+  variant, and its smallest usable quant (UD-IQ2_M) needs ~245 GB
+  RAM+VRAM vs. this box's ~144 GB — it does not load at any quant.
+  Excellent coder, wrong size for the hardware. Revisit if a
+  GLM-5.2-Air/Flash (~80–120 B) ships. Full analysis:
+  [glm-5.2-evaluation.md](glm-5.2-evaluation.md) · [#141](https://github.com/ferraroroberto/local-llm-hub/issues/141).
