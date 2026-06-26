@@ -271,6 +271,8 @@ openClaw / anthropic SDK / openai SDK / curl
    │    POST /v1/audio/translations   → proxy to whisper :8091          │
    │    POST /v1/audio/speech         → proxy to tts shim :8092/:8093    │
    │      (the audio proxy lands requests in the observability ring)    │
+   │    GET  /v1/audio/health         → probe whisper/tts; 503 if down   │
+   │      (preflight liveness — never sends a doomed transcription)      │
    └──────────────────────────────────────────────────────────┘
 
 audio clients  ──►  hub 127.0.0.1:8000 /v1/audio/*  ──►  whisper-server / tts shim  (proxied, observable)
