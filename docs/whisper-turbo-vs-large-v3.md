@@ -39,9 +39,10 @@ worth paying 2× latency for.
 
 Turbo F16 is 1.62 GB on disk and sits comfortably under 2 GB of VRAM on
 the reference RTX 5060 Ti 16 GB. That leaves 14 GB+ headroom for the
-llama.cpp backends — qwen3.5-9b + gemma3-12b-it + gemma3n-e4b-it all
-happily fit alongside it, and gemma3-27b-it QAT still fits when
-whisper is the only other resident model.
+llama.cpp backends — the active rotation's `qwen3.5-4b` (~2.6 GB, full
+GPU offload) sits alongside it with room to spare, and the larger
+`gemma4-26b-a4b-it` (IQ4_XS, ~13.4 GB on GPU) still fits when whisper
+is the only other resident model.
 
 ## When large-v3 would still be preferred
 

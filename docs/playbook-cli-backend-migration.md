@@ -6,8 +6,9 @@ one). Vendors rename, deprecate, or restructure their CLIs on their own
 schedule; this hub exists precisely to absorb that churn so downstream
 callers never feel it. This is the procedure that worked for the
 2026-05 `gemini` CLI → Antigravity CLI (`agy`) migration — see
-[changelog/gemini-to-antigravity-cli.md](changelog/gemini-to-antigravity-cli.md)
-and the analysis in GitHub issue #5.
+[gemini-to-antigravity-cli.md](gemini-to-antigravity-cli.md)
+and the analysis in
+[issue #5](https://github.com/ferraroroberto/local-llm-hub/issues/5).
 
 ## The invariant that must survive any migration
 

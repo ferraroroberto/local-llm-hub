@@ -1,5 +1,14 @@
 # GLM-4.5-Air performance assessment — 2026-04-20
 
+> **Historical — both GLM-4.5-Air and Qwen3.5-9B were demoted on
+> 2026-05-10** and are no longer in any host's active rotation (kept
+> defined in `config/models.yaml` for ad-hoc bring-up only). The
+> openclaw routing advice below — "route most turns to Qwen3.5-9B" — is
+> superseded: see the README's active rotation and "Demoted candidates"
+> section ([README.md](../README.md)). `agentic_light` is now
+> `qwen3.5-4b` and `agentic_heavy` is `gemma4-26b-a4b-it`. This doc is
+> kept as the durable performance record behind the demotion.
+
 Follow-up to [hub-with-qwen-and-glm.md](hub-with-qwen-and-glm.md).
 Morning test: ~400 input tokens / ~1000 output tokens in ~120 s on the
 Windows PC (5060 Ti 16 GB + 128 GB RAM), CPU pinned at 100 %, GPU
