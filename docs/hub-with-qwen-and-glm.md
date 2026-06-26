@@ -1,5 +1,14 @@
 # What we did — 2026-04-20
 
+> **Historical — the two local models this post-mortem brought up,
+> GLM-4.5-Air and Qwen3.5-9B, were both demoted on 2026-05-10** and are
+> no longer in any host's active rotation (kept defined in
+> `config/models.yaml` for ad-hoc bring-up only). Read this as the
+> durable record of the original three-backend build, not the current
+> lineup — see the README's active rotation and "Demoted candidates"
+> section ([README.md](../README.md)) for what runs today
+> (`agentic_light` = `qwen3.5-4b`, `agentic_heavy` = `gemma4-26b-a4b-it`).
+
 Post-mortem of the work that turned `local-llm-hub` from a single-
 backend Claude wrapper into a three-backend local models hub. Pairs with
 [project-structure.md](project-structure.md) — that file shows the end-
