@@ -32,10 +32,30 @@ class HostProfile:
     source: str = ""  # human-readable description of how we picked it
 
 
+# Parsed-YAML cache, keyed by the resolved config path. The README's
+# contract is "edit the YAML and restart the hub to pick up changes," so a
+# single hub request shouldn't pay several YAML parses behind the scenes
+# (resolve() + hub_port() + hub_bind_host() each used to re-read). Keying on
+# the path means swapping ``CONFIG_PATH`` (as the tests do) transparently
+# busts the cache; ``reload()`` is the explicit escape hatch.
+_CONFIG_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
 def _load_config() -> Dict[str, Any]:
+    key = str(CONFIG_PATH)
+    cached = _CONFIG_CACHE.get(key)
+    if cached is not None:
+        return cached
     if not CONFIG_PATH.exists():
         raise FileNotFoundError(f"config file missing: {CONFIG_PATH}")
-    return yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
+    data = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
+    _CONFIG_CACHE[key] = data
+    return data
+
+
+def reload() -> None:
+    """Drop the parsed-YAML cache (call after editing models.yaml in-process)."""
+    _CONFIG_CACHE.clear()
 
 
 def _row_to_profile(host_id: str, row: Dict[str, Any], *, source: str) -> HostProfile:

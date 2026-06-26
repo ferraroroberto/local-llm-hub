@@ -11,6 +11,7 @@ import base64
 from fastapi.testclient import TestClient
 
 from src import server as server_mod
+from src import server_images as images_mod
 from src.gemini_cli import GeminiCLIError
 
 # A 1x1 PNG — enough to round-trip through base64 in the response.
@@ -30,7 +31,7 @@ def test_images_generation_returns_b64(monkeypatch):
             "result_text": "SAVED",
         }
 
-    monkeypatch.setattr(server_mod, "call_gemini_image", fake_call)
+    monkeypatch.setattr(images_mod, "call_gemini_image", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -57,7 +58,7 @@ def test_images_edit_returns_b64(monkeypatch):
             "result_text": "SAVED",
         }
 
-    monkeypatch.setattr(server_mod, "call_gemini_image", fake_call)
+    monkeypatch.setattr(images_mod, "call_gemini_image", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -86,7 +87,7 @@ def test_images_generation_cli_error_returns_502(monkeypatch):
     def fake_call(prompt, *, size="1024x1024", timeout=300.0):
         raise GeminiCLIError("agy did not produce an image artifact")
 
-    monkeypatch.setattr(server_mod, "call_gemini_image", fake_call)
+    monkeypatch.setattr(images_mod, "call_gemini_image", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -108,7 +109,7 @@ def test_images_generation_rejects_non_image_model():
 
 def test_images_generation_rejects_n_gt_1(monkeypatch):
     monkeypatch.setattr(
-        server_mod, "call_gemini_image",
+        images_mod, "call_gemini_image",
         lambda *a, **k: {"image_bytes": _PNG_BYTES, "media_type": "image/png",
                          "result_text": "SAVED"},
     )
