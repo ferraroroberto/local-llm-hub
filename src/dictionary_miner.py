@@ -58,7 +58,7 @@ _STOPWORDS = {
     "one", "two", "let", "see", "say", "use", "want", "need", "know",
     "think", "going", "really", "actually", "basically", "something",
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
-    "sunday", "january", "february", "march", "april", "june", "july",
+    "sunday", "january", "february", "march", "april", "may", "june", "july",
     "august", "september", "october", "november", "december",
 }
 
