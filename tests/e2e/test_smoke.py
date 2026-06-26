@@ -179,7 +179,7 @@ def test_live_request_ring(admin_url: str):
     first = body["requests"][0]
     assert first["status"] == 400
     assert first["model"] == "definitely-not-a-real-model"
-    assert first["latency_ms"] > 0
+    assert first["latency_ms"] >= 0  # monotonic-clock duration is non-negative but can read 0.0 below clock resolution (coarse QPC ticks on CI Windows runners)
 
 
 def test_live_requests_stream_rolls_forward(page, admin_url):

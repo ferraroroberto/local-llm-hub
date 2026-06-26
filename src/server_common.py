@@ -1,0 +1,77 @@
+"""Helpers shared by the hub's route modules.
+
+``server.py`` (chat routes + app), ``server_audio.py`` (the ``/v1/audio/*``
+proxy) and ``server_images.py`` (the ``/v1/images/*`` handlers) all need the
+same small set of model-resolution and OpenTelemetry helpers. They live here,
+in a leaf module with no dependency on the FastAPI ``app``, so the route
+modules can import them without a circular import back into ``server.py``.
+"""
+
+from __future__ import annotations
+
+import logging
+from contextlib import contextmanager
+from typing import Iterator
+
+from fastapi import HTTPException, Request
+
+from .model_registry import Model, enabled_models, resolve as resolve_model
+
+logger = logging.getLogger(__name__)
+
+
+def resolve_model_or_400(model_name: str) -> Model:
+    """Resolve a request's ``model`` against the registry, or 400 with the
+    list of names enabled on this host."""
+    m = resolve_model(model_name)
+    if m is None:
+        known = [m.display_name for m in enabled_models()]
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown model {model_name!r}. available on this host: {known}",
+        )
+    return m
+
+
+def client_id_from(request: Request) -> str:
+    """Read ``X-Client-Id`` for telemetry attribution; empty string when absent."""
+    return (request.headers.get("x-client-id") or "").strip()
+
+
+def current_otel_span():
+    """Return the active OTel span (or None when the SDK is unavailable)."""
+    try:
+        from opentelemetry import trace as _trace
+
+        return _trace.get_current_span()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+@contextmanager
+def safe_span(label: str = "span") -> Iterator[None]:
+    """Swallow-and-log wrapper for best-effort OTel span mutations.
+
+    Telemetry must never fail a request, so every span attribute / event
+    write is wrapped. Centralising the broad-except here means one
+    structured warning — instead of a handful of silent
+    ``except Exception: pass`` blocks scattered across the route handlers
+    where a real error (a typo'd attribute name, a None span context) would
+    be swallowed without a trace. Callers still guard ``span is not None``
+    before entering, so the no-op-span case never reaches this except.
+    """
+    try:
+        yield
+    except Exception as exc:  # noqa: BLE001 — telemetry is best-effort
+        logger.warning("⚠️ span telemetry (%s) failed: %s", label, exc)
+
+
+def stash_trace_id_on_ctx(ctx, span) -> None:
+    """Copy the span's trace ID onto the live-ring obs context so the
+    /admin Hub tab can deep-link into Langfuse."""
+    if ctx is None or span is None:
+        return
+    with safe_span("stash_trace_id"):
+        sctx = span.get_span_context()
+        if sctx and sctx.trace_id:
+            ctx.trace_id = format(sctx.trace_id, "032x")

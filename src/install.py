@@ -108,41 +108,69 @@ def _check_host_profile() -> Check:
                  f"host={h.id} ({h.source}); enabled local models: {h.enabled or '(none)'}")
 
 
-def _check_claude_cli() -> Check:
-    exe = shutil.which("claude")
+def _probe_cli_version(
+    *,
+    check_id: str,
+    label: str,
+    exe: Optional[str],
+    version_args: List[str],
+    not_found_detail: str,
+    not_found_status: str = "warn",
+    fix_id: Optional[str] = None,
+    fix_label: Optional[str] = None,
+    ok_codes: tuple = (0,),
+) -> Check:
+    """Shared shape for the four "is this executable here and runnable?" checks.
+
+    The caller resolves ``exe`` to a runnable path (``shutil.which(...)`` for
+    PATH tools, or ``str(bin_path)`` when the vendored binary exists, else
+    ``None``). We then run ``exe version_args`` with a short timeout and
+    classify the exit code:
+
+      * ``exe is None``      → ``not_found_status`` (warn for optional CLIs,
+                               missing + fix for installable binaries).
+      * returncode in ``ok_codes`` → ``ok``, detail = first output line.
+      * any other returncode → ``warn`` ("<args> exited N").
+      * subprocess raised    → ``warn`` (the exception text).
+    """
     if not exe:
-        return Check("claude_cli", "`claude` CLI on PATH", "warn",
-                     "not found — the Claude backend won't work until Claude Code is installed")
+        return Check(check_id, label, not_found_status, not_found_detail,
+                     fix_id=fix_id, fix_label=fix_label)
     try:
-        r = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=10)
-        if r.returncode == 0:
-            ver = (r.stdout or r.stderr).strip().splitlines()[0] if (r.stdout or r.stderr) else "ok"
-            return Check("claude_cli", "`claude` CLI on PATH", "ok", ver)
-        return Check("claude_cli", "`claude` CLI on PATH", "warn",
-                     f"--version exited {r.returncode}")
-    except Exception as e:
-        return Check("claude_cli", "`claude` CLI on PATH", "warn", str(e))
+        r = subprocess.run([str(exe), *version_args],
+                           capture_output=True, text=True, timeout=10)
+        if r.returncode in ok_codes:
+            first = ((r.stdout or r.stderr).strip().splitlines() or ["ok"])[0]
+            return Check(check_id, label, "ok", first)
+        return Check(check_id, label, "warn",
+                     f"{' '.join(version_args)} exited {r.returncode}")
+    except Exception as e:  # noqa: BLE001
+        return Check(check_id, label, "warn", str(e))
+
+
+def _check_claude_cli() -> Check:
+    return _probe_cli_version(
+        check_id="claude_cli",
+        label="`claude` CLI on PATH",
+        exe=shutil.which("claude"),
+        version_args=["--version"],
+        not_found_detail="not found — the Claude backend won't work until Claude Code is installed",
+    )
 
 
 def _check_gemini_cli() -> Check:
     # The Gemini backend drives the Antigravity CLI (`agy`); Google's
     # standalone `gemini` CLI stops serving AI Pro subscribers 2026-06-18.
-    label = "`agy` (Antigravity CLI) on PATH"
-    exe = shutil.which("agy")
-    if not exe:
-        return Check(
-            "gemini_cli", label, "warn",
+    return _probe_cli_version(
+        check_id="gemini_cli",
+        label="`agy` (Antigravity CLI) on PATH",
+        exe=shutil.which("agy"),
+        version_args=["--version"],
+        not_found_detail=(
             "not found — install the Antigravity CLI from https://antigravity.google "
-            "and sign in once to use the Gemini backend (Google AI Pro)",
-        )
-    try:
-        r = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=10)
-        if r.returncode == 0:
-            ver = (r.stdout or r.stderr).strip().splitlines()[0] if (r.stdout or r.stderr) else "ok"
-            return Check("gemini_cli", label, "ok", ver)
-        return Check("gemini_cli", label, "warn", f"--version exited {r.returncode}")
-    except Exception as e:
-        return Check("gemini_cli", label, "warn", str(e))
+            "and sign in once to use the Gemini backend (Google AI Pro)"
+        ),
+    )
 
 
 def _check_gpu() -> Check:
@@ -178,20 +206,16 @@ def _llama_server_binary() -> Path:
 
 def _check_llama_cpp() -> Check:
     bin_path = _llama_server_binary()
-    if not bin_path.exists():
-        return Check("llama_cpp", "llama.cpp binary installed", "missing",
-                     f"expected at {bin_path}",
-                     fix_id="llama_cpp",
-                     fix_label="scripts/install_llama_cpp.py (downloads the platform-matching release)")
-    try:
-        r = subprocess.run([str(bin_path), "--version"], capture_output=True, text=True, timeout=10)
-        if r.returncode == 0:
-            return Check("llama_cpp", "llama.cpp binary installed", "ok",
-                         (r.stdout or r.stderr).strip().splitlines()[0])
-        return Check("llama_cpp", "llama.cpp binary installed", "warn",
-                     f"--version exited {r.returncode}")
-    except Exception as e:
-        return Check("llama_cpp", "llama.cpp binary installed", "warn", str(e))
+    return _probe_cli_version(
+        check_id="llama_cpp",
+        label="llama.cpp binary installed",
+        exe=str(bin_path) if bin_path.exists() else None,
+        version_args=["--version"],
+        not_found_detail=f"expected at {bin_path}",
+        not_found_status="missing",
+        fix_id="llama_cpp",
+        fix_label="scripts/install_llama_cpp.py (downloads the platform-matching release)",
+    )
 
 
 def _check_models() -> List[Check]:
@@ -226,21 +250,18 @@ def _whisper_enabled() -> bool:
 
 def _check_whisper_cpp() -> Check:
     bin_path = _whisper_server_binary()
-    if not bin_path.exists():
-        return Check("whisper_cpp", "whisper.cpp binary installed", "missing",
-                     f"expected at {bin_path}",
-                     fix_id="whisper_cpp",
-                     fix_label="scripts/install_whisper_cpp.py (downloads the platform-matching release)")
-    try:
-        # whisper-server prints usage on --help and may exit non-zero.
-        r = subprocess.run([str(bin_path), "--help"], capture_output=True, text=True, timeout=10)
-        if r.returncode in (0, 1):
-            first = ((r.stdout or r.stderr).strip().splitlines() or ["ok"])[0]
-            return Check("whisper_cpp", "whisper.cpp binary installed", "ok", first)
-        return Check("whisper_cpp", "whisper.cpp binary installed", "warn",
-                     f"--help exited {r.returncode}")
-    except Exception as e:
-        return Check("whisper_cpp", "whisper.cpp binary installed", "warn", str(e))
+    # whisper-server prints usage on --help and may exit non-zero (0 or 1).
+    return _probe_cli_version(
+        check_id="whisper_cpp",
+        label="whisper.cpp binary installed",
+        exe=str(bin_path) if bin_path.exists() else None,
+        version_args=["--help"],
+        not_found_detail=f"expected at {bin_path}",
+        not_found_status="missing",
+        fix_id="whisper_cpp",
+        fix_label="scripts/install_whisper_cpp.py (downloads the platform-matching release)",
+        ok_codes=(0, 1),
+    )
 
 
 def _tts_enabled() -> bool:
