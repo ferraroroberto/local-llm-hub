@@ -334,6 +334,10 @@ local-llm-hub/
 │   └── logs/                    # per-backend stdout/stderr: backend-<id>.log (+ one .log.1 backup)
 ├── src/
 │   ├── server.py             # FastAPI hub (both shapes) + /admin sub-app mount
+│   ├── server_common.py      # shared request models, content-block helpers,
+│   │                         #   _safe_span_call() OTel helper, models.yaml cache
+│   ├── server_audio.py       # /v1/audio/* proxy handlers (transcriptions, translations, speech)
+│   ├── server_images.py      # /v1/images/* handlers (generations, edits)
 │   ├── claude_cli.py         # subprocess wrapper around `claude -p`
 │   ├── gemini_cli.py         # Antigravity CLI (`agy`) wrapper via ConPTY (Google AI Pro)
 │   ├── openai_upstream.py    # httpx client + SSE think-strip pipeline

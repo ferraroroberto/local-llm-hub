@@ -136,6 +136,9 @@ flowchart TB
 
     ROOT --> SRC["src/"]
     SRC --> S1["server.py<br/>FastAPI hub + router (local backends + Claude + Gemini)"]
+    SRC --> S1b["server_common.py<br/>shared request models · content-block helpers<br/>_safe_span_call() OTel helper · models.yaml cache"]
+    SRC --> S1c["server_audio.py<br/>/v1/audio/* proxy handlers<br/>(transcriptions · translations · speech)"]
+    SRC --> S1d["server_images.py<br/>/v1/images/* handlers<br/>(generations · edits)"]
     SRC --> S2["claude_cli.py<br/>claude -p wrapper"]
     SRC --> S10["gemini_cli.py<br/>agy (Antigravity) CLI wrapper<br/>via ConPTY (pywinpty)"]
     SRC --> S3["openai_upstream.py<br/>llama-server client +<br/>Anthropic ↔ OpenAI shapes"]
