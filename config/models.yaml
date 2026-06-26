@@ -60,7 +60,7 @@ models:
     aliases: ["claude_sonnet"]
 
   claude_opus:
-    display_name: claude-opus-4-7
+    display_name: claude-opus-4-8
     backend: claude
     aliases: ["claude_opus"]
 

@@ -16,7 +16,7 @@ Subscription-backed cloud routes (no GPU, no API keys, no Cloud project):
 - **`claude-*`** — forwarded to the **`claude -p`** CLI on your machine,
   using your local Claude Code auth (your subscription) instead of an
   API key. Three rows: `claude-haiku-4-5` (alias `claude_haiku`),
-  `claude-sonnet-4-6` (`claude_sonnet`), `claude-opus-4-7`
+  `claude-sonnet-4-6` (`claude_sonnet`), `claude-opus-4-8`
   (`claude_opus`). The short aliases are version-free, so when a new
   Claude release lands only the row's `display_name` needs updating
   and downstream callers keep working unchanged.
