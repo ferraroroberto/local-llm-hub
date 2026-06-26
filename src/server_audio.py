@@ -27,6 +27,35 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _audio_upstream_error(exc: Exception, *, backend: str, port: int) -> HTTPException:
+    """Map an httpx upstream failure to a *distinct* HTTPException.
+
+    A connection failure — the backend port refuses the socket or never
+    answers — is a categorically different condition from a transient
+    mid-flight error: the backend is wholesale down (crashed, not started, or
+    lost its mutex-shared port), not merely slow. Surface it as a ``503`` whose
+    message names the port and says the backend isn't running, instead of the
+    opaque ``502 "whisper upstream error: All connection attempts failed"`` that
+    gave downstream consumers no way to tell "down" from "in flight past
+    timeout" (issue #147). Every other upstream error stays a ``502``.
+    """
+    import httpx as _httpx
+
+    if isinstance(exc, (_httpx.ConnectError, _httpx.ConnectTimeout)):
+        logger.warning(
+            "⚠️ %s not reachable on :%s — backend not running (connection refused)",
+            backend, port,
+        )
+        return HTTPException(
+            status_code=503,
+            detail=(
+                f"{backend} not running on :{port} — start the backend "
+                f"(admin Models tab or its launcher) and retry"
+            ),
+        )
+    return HTTPException(status_code=502, detail=f"{backend} upstream error: {exc}")
+
+
 def _whisper_port_for_model(model_name: str, *, default_role: str) -> Optional[int]:
     """Pick a whisper backend port for a request.
 
@@ -156,7 +185,7 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
             async with _httpx.AsyncClient(timeout=300.0) as client:
                 upstream = await client.post(upstream_url, files=files, data=data)
         except _httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail=f"whisper upstream error: {exc}")
+            raise _audio_upstream_error(exc, backend="whisper-server", port=port)
     else:
         upstream_url = f"http://127.0.0.1:{port}{ctx_path}"
         headers = {
@@ -167,7 +196,7 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
             async with _httpx.AsyncClient(timeout=300.0) as client:
                 upstream = await client.post(upstream_url, content=body, headers=headers)
         except _httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail=f"whisper upstream error: {exc}")
+            raise _audio_upstream_error(exc, backend="whisper-server", port=port)
 
     # Apply the committed transcription glossary (issue #90) to the
     # transcript text before returning. Deterministic literal fixes for
@@ -222,6 +251,54 @@ async def audio_translations(request: Request) -> Response:
     return await _proxy_audio(
         request, default_role="audio_translate",
         ctx_path="/v1/audio/translations",
+    )
+
+
+@router.get("/v1/audio/health")
+def audio_health() -> Response:
+    """Probe-only liveness of the audio backends — lets a consumer preflight
+    instead of discovering an outage one failed transcription at a time (#147).
+
+    Reports each enabled whisper / TTS backend with its port and whether it is
+    currently reachable (a cheap GET to the backend, never a transcription).
+    ``status`` is ``ok`` when every enabled audio backend answers, ``degraded``
+    when at least one is down, and ``none`` when no audio backend is enabled on
+    this host. A degraded/none result returns HTTP 503 so a consumer can branch
+    on the status code alone; ``ok`` returns 200.
+
+    Defined as a sync route on purpose: ``is_reachable`` does blocking socket
+    probes, so FastAPI runs it in a threadpool rather than stalling the loop.
+    """
+    import json as _json
+
+    from .backend_process import is_reachable
+    from .model_registry import enabled_models
+
+    backends = []
+    audio = [
+        m for m in enabled_models()
+        if m.backend in ("whisper", "tts") and m.port
+    ]
+    for m in audio:
+        reachable = is_reachable(m, timeout=1.0)
+        backends.append({
+            "id": m.id,
+            "backend": m.backend,
+            "port": m.port,
+            "reachable": reachable,
+        })
+
+    if not backends:
+        status, code = "none", 503
+    elif all(b["reachable"] for b in backends):
+        status, code = "ok", 200
+    else:
+        status, code = "degraded", 503
+
+    return Response(
+        content=_json.dumps({"status": status, "backends": backends}),
+        status_code=code,
+        media_type="application/json",
     )
 
 
@@ -314,7 +391,7 @@ async def audio_speech(request: Request) -> Response:
             upstream = await stream_cm.__aenter__()
         except _httpx.HTTPError as exc:
             await client.aclose()
-            raise HTTPException(status_code=502, detail=f"tts upstream error: {exc}")
+            raise _audio_upstream_error(exc, backend="tts-server", port=port)
 
         async def _forward():
             try:
@@ -335,7 +412,7 @@ async def audio_speech(request: Request) -> Response:
         async with _httpx.AsyncClient(timeout=300.0) as client:
             upstream = await client.post(upstream_url, content=body, headers=headers)
     except _httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"tts upstream error: {exc}")
+        raise _audio_upstream_error(exc, backend="tts-server", port=port)
 
     return Response(
         content=upstream.content,

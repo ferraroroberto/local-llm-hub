@@ -540,6 +540,7 @@ def info() -> Dict[str, Any]:
         "description": "Multi-model hub: Anthropic-shape + OpenAI-shape over Claude / Gemini / Qwen / GLM.",
         "endpoints": {
             "health": "GET /health",
+            "audio_health": "GET /v1/audio/health",
             "messages": "POST /v1/messages",
             "chat_completions": "POST /v1/chat/completions",
             "models": "GET /v1/models",
