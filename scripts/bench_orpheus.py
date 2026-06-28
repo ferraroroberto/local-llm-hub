@@ -51,7 +51,7 @@ try:
 except Exception:  # noqa: BLE001
     pass
 
-from src.backend_process import VENDOR_LLAMA, _llama_server_binary  # noqa: E402
+from src.backend_process import VENDOR_LLAMA, llama_server_binary  # noqa: E402
 from src.model_registry import resolve as resolve_model  # noqa: E402
 
 DEFAULT_VOICE = "tara"
@@ -105,7 +105,7 @@ def _gguf_path() -> Path:
 
 
 def _spawn(port: int, extra_flags: List[str]) -> subprocess.Popen:
-    bin_path = _llama_server_binary()
+    bin_path = llama_server_binary()
     if not bin_path.exists():
         raise SystemExit(f"llama-server not found at {bin_path} - run scripts/install_llama_cpp.py")
     cmd = [

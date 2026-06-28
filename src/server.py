@@ -574,6 +574,34 @@ def list_models() -> Dict[str, Any]:
     return {"object": "list", "data": data}
 
 
+def _reject_non_chat_backend(model: Model, requested_name: str) -> Optional[HTTPException]:
+    """Return the 400 to raise when a chat route is hit with an ASR/TTS backend.
+
+    The whisper and tts backends don't serve chat completions; both chat
+    routes (/v1/messages and /v1/chat/completions) reject them with the
+    same backend-specific "POST to the right audio endpoint instead" 400.
+    Returns ``None`` for any chat-capable backend so the caller can fall
+    through to its normal handling.
+    """
+    if model.backend == "whisper":
+        return HTTPException(
+            status_code=400,
+            detail=(
+                f"{requested_name!r} is an ASR backend, not a chat model. "
+                f"POST audio to http://127.0.0.1:{model.port}/v1/audio/transcriptions instead."
+            ),
+        )
+    if model.backend == "tts":
+        return HTTPException(
+            status_code=400,
+            detail=(
+                f"{requested_name!r} is a TTS backend, not a chat model. "
+                f"POST text to http://127.0.0.1:{model.port}/v1/audio/speech instead."
+            ),
+        )
+    return None
+
+
 @app.post("/v1/messages")
 def messages(req: MessagesRequest, request: Request) -> JSONResponse:
     if req.stream:
@@ -607,22 +635,8 @@ def messages(req: MessagesRequest, request: Request) -> JSONResponse:
             env = _run_gemini_backend(model, req)
         elif model.backend == "openai":
             env = _run_openai_backend(model, req)
-        elif model.backend == "whisper":
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"{req.model!r} is an ASR backend, not a chat model. "
-                    f"POST audio to http://127.0.0.1:{model.port}/v1/audio/transcriptions instead."
-                ),
-            )
-        elif model.backend == "tts":
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"{req.model!r} is a TTS backend, not a chat model. "
-                    f"POST text to http://127.0.0.1:{model.port}/v1/audio/speech instead."
-                ),
-            )
+        elif (reject := _reject_non_chat_backend(model, req.model)) is not None:
+            raise reject
         else:
             raise HTTPException(status_code=500, detail=f"unknown backend {model.backend!r}")
     except HTTPException as exc:
@@ -929,25 +943,10 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
                 text, model_name=req.model, in_toks=in_t, out_toks=out_t,
             ))
 
-        if model.backend == "whisper":
+        reject = _reject_non_chat_backend(model, req.model)
+        if reject is not None:
             error_type = "http_400"
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"{req.model!r} is an ASR backend, not a chat model. "
-                    f"POST audio to http://127.0.0.1:{model.port}/v1/audio/transcriptions instead."
-                ),
-            )
-
-        if model.backend == "tts":
-            error_type = "http_400"
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"{req.model!r} is a TTS backend, not a chat model. "
-                    f"POST text to http://127.0.0.1:{model.port}/v1/audio/speech instead."
-                ),
-            )
+            raise reject
 
         if model.backend == "openai":
             if not model.url:

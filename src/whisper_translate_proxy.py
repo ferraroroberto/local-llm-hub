@@ -48,7 +48,7 @@ from fastapi import FastAPI, Request, Response
 from .audio_proxy import build_whisper_upstream_request
 from .backend_process import (
     VENDOR_WHISPER,
-    _whisper_server_binary,
+    whisper_server_binary,
     resolve_model_by_id,
 )
 from .model_registry import Model
@@ -81,7 +81,7 @@ class _ChildSupervisor:
         return self.proc is not None and self.proc.poll() is None
 
     def _build_command(self) -> list[str]:
-        bin_path = _whisper_server_binary()
+        bin_path = whisper_server_binary()
         if not bin_path.exists():
             raise RuntimeError(
                 f"whisper-server not found at {bin_path} - "

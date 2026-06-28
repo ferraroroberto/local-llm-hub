@@ -76,12 +76,12 @@ def _roll_log(model_id: str) -> Path:
     return path
 
 
-def _llama_server_binary() -> Path:
+def llama_server_binary() -> Path:
     name = "llama-server.exe" if sys.platform == "win32" else "llama-server"
     return VENDOR_LLAMA / name
 
 
-def _whisper_server_binary() -> Path:
+def whisper_server_binary() -> Path:
     name = "whisper-server.exe" if sys.platform == "win32" else "whisper-server"
     return VENDOR_WHISPER / name
 
@@ -284,7 +284,7 @@ def build_command(model: Model) -> list[str]:
         # The proxy itself doesn't need the model on disk to start — it
         # only needs whisper-server present. We still surface a clear
         # error if the model is missing, since the first POST would fail.
-        bin_path = _whisper_server_binary()
+        bin_path = whisper_server_binary()
         if not bin_path.exists():
             raise RuntimeError(
                 f"whisper-server not found at {bin_path} - run scripts/install_whisper_cpp.py"
@@ -299,7 +299,7 @@ def build_command(model: Model) -> list[str]:
         ]
 
     if _is_whisper(model):
-        bin_path = _whisper_server_binary()
+        bin_path = whisper_server_binary()
         if not bin_path.exists():
             raise RuntimeError(
                 f"whisper-server not found at {bin_path} - run scripts/install_whisper_cpp.py"
@@ -319,7 +319,7 @@ def build_command(model: Model) -> list[str]:
         cmd.extend(_whisper_boost_args(args))
         return cmd
 
-    bin_path = _llama_server_binary()
+    bin_path = llama_server_binary()
     if not bin_path.exists():
         raise RuntimeError(f"llama-server not found at {bin_path} - run scripts/install_llama_cpp.py")
     if not model_path.exists():

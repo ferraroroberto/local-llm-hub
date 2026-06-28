@@ -631,11 +631,11 @@ class OrpheusEngine(TTSEngine):
             kill_pid(int(pid))
 
     def _spawn_llama(self) -> None:
-        from .backend_process import _llama_server_binary, VENDOR_LLAMA
+        from .backend_process import llama_server_binary, VENDOR_LLAMA
         from .server_process import WIN_NEW_GROUP
 
         self._reclaim_internal_port()
-        bin_path = _llama_server_binary()
+        bin_path = llama_server_binary()
         if not bin_path.exists():
             raise RuntimeError(
                 f"llama-server not found at {bin_path} - run scripts/install_llama_cpp.py"
