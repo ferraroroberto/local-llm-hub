@@ -27,12 +27,11 @@ from typing import Callable, List, Optional
 
 log = logging.getLogger(__name__)
 
+from .backend_process import llama_server_binary, whisper_server_binary
 from .host_profile import hub_port, resolve as resolve_host
 from .model_registry import Model, enabled_models
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-VENDOR_LLAMA = PROJECT_ROOT / "vendor" / "llama.cpp"
-VENDOR_WHISPER = PROJECT_ROOT / "vendor" / "whisper.cpp"
 
 STATUS_ORDER = {"ok": 0, "warn": 1, "missing": 2, "error": 3}
 
@@ -199,13 +198,8 @@ def _check_gpu() -> Check:
                  f"unknown platform {sys.platform}")
 
 
-def _llama_server_binary() -> Path:
-    name = "llama-server.exe" if sys.platform == "win32" else "llama-server"
-    return VENDOR_LLAMA / name
-
-
 def _check_llama_cpp() -> Check:
-    bin_path = _llama_server_binary()
+    bin_path = llama_server_binary()
     return _probe_cli_version(
         check_id="llama_cpp",
         label="llama.cpp binary installed",
@@ -238,18 +232,13 @@ def _check_models() -> List[Check]:
     return rows
 
 
-def _whisper_server_binary() -> Path:
-    name = "whisper-server.exe" if sys.platform == "win32" else "whisper-server"
-    return VENDOR_WHISPER / name
-
-
 def _whisper_enabled() -> bool:
     return any(m.engine == "whisper-server" or m.backend == "whisper"
                for m in enabled_models())
 
 
 def _check_whisper_cpp() -> Check:
-    bin_path = _whisper_server_binary()
+    bin_path = whisper_server_binary()
     # whisper-server prints usage on --help and may exit non-zero (0 or 1).
     return _probe_cli_version(
         check_id="whisper_cpp",
