@@ -11,7 +11,7 @@ start() {
   echo "  $name pid=$!"
 }
 
-echo "launching hub + qwen + glm + qwen3.5-4b + gemma4-e4b + gemma4-26b-a4b + whisper + whisper-translate + chatterbox-tts + orpheus-tts (disabled backends will exit immediately)..."
+echo "launching hub + qwen + glm + qwen3.5-4b + gemma4-e4b + gemma4-26b-a4b + whisper + whisper-translate + piper-tts + chatterbox-tts + orpheus-tts + kokoro-tts (disabled backends will exit immediately)..."
 start hub
 start qwen
 start glm
@@ -20,6 +20,8 @@ start gemma4_e4b
 start gemma4_26b
 start whisper
 start whisper_translate
+start piper
 start chatterbox
 start orpheus
+start kokoro
 wait

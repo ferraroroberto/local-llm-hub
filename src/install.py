@@ -270,7 +270,7 @@ def _tts_enabled() -> bool:
 
 
 def _check_tts() -> Check:
-    """Are the TTS Python deps present? (chatterbox-tts + snac, torch-based.)
+    """Are the TTS Python deps present? (chatterbox/orpheus/kokoro/piper runtimes.)
 
     Gated on a tts-server row being enabled. The weights themselves stream
     from the HF cache on first start, so this only verifies the packages
@@ -278,18 +278,33 @@ def _check_tts() -> Check:
     omits (torch) so non-TTS hosts stay lean.
     """
     missing = []
-    for mod in ("torch", "chatterbox", "snac"):
+    for mod in ("torch", "chatterbox", "snac", "kokoro_onnx"):
         try:
             importlib.import_module(mod)
         except ImportError:
-            missing.append("chatterbox-tts" if mod == "chatterbox" else mod)
+            missing.append(
+                "chatterbox-tts" if mod == "chatterbox"
+                else "kokoro-onnx" if mod == "kokoro_onnx"
+                else mod
+            )
     if missing:
-        return Check("tts", "TTS deps installed (chatterbox-tts, snac)", "missing",
+        return Check("tts", "TTS deps installed (chatterbox, snac, kokoro, piper)", "missing",
                      f"missing: {', '.join(missing)}",
                      fix_id="tts",
                      fix_label="scripts/install_tts.py (pip install -r requirements-tts.txt + warm weights)")
-    return Check("tts", "TTS deps installed (chatterbox-tts, snac)", "ok",
-                 "torch + chatterbox-tts + snac importable")
+    piper_rows = [m for m in enabled_models()
+                  if m.backend == "tts" and m.tts_engine == "piper" and m.model_path]
+    if piper_rows:
+        exe_name = "piper.exe" if sys.platform == "win32" else "piper"
+        piper_exe = PROJECT_ROOT / "vendor" / "piper" / exe_name
+        voice = PROJECT_ROOT / str(piper_rows[0].model_path)
+        if not piper_exe.exists() or not voice.exists() or not Path(str(voice) + ".json").exists():
+            return Check("tts", "TTS deps installed (chatterbox, snac, kokoro, piper)", "missing",
+                         "missing Piper binary or voice assets",
+                         fix_id="tts",
+                         fix_label="scripts/install_tts.py (download Piper assets)")
+    return Check("tts", "TTS deps installed (chatterbox, snac, kokoro, piper)", "ok",
+                 "torch + chatterbox-tts + snac + kokoro-onnx importable; Piper assets present")
 
 
 def _port_in_use(port: int) -> bool:

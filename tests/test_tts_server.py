@@ -272,6 +272,42 @@ def test_default_synthesize_stream_yields_single_chunk():
     assert out == [[0.1, 0.2, 0.3]]
 
 
+def test_kokoro_engine_voice_fallback_and_build():
+    from types import SimpleNamespace
+
+    from src.tts_engines import KokoroEngine, build_engine
+
+    model = SimpleNamespace(
+        id="kokoro",
+        tts_engine="kokoro",
+        model_path="models/kokoro/kokoro-v1.0.int8.onnx",
+    )
+    eng = build_engine(model, device="cpu")
+    assert isinstance(eng, KokoroEngine)
+    assert KokoroEngine._voice_for("") == "am_michael"
+    assert KokoroEngine._voice_for("default") == "am_michael"
+    assert KokoroEngine._voice_for("tara") == "am_michael"
+    assert KokoroEngine._voice_for("af_bella") == "af_bella"
+    assert KokoroEngine._lang_for_voice("bm_george") == "en-gb"
+
+
+def test_piper_engine_voice_mapping_and_build():
+    from types import SimpleNamespace
+
+    from src.tts_engines import PiperEngine, build_engine
+
+    model = SimpleNamespace(
+        id="piper",
+        tts_engine="piper",
+        model_path="models/piper/en_US-ryan-medium.onnx",
+    )
+    eng = build_engine(model, device="cpu")
+    assert isinstance(eng, PiperEngine)
+    assert PiperEngine.VOICE_FILES["default"] == "en_US-ryan-medium.onnx"
+    assert PiperEngine.VOICE_FILES["ryan-high"] == "en_US-ryan-high.onnx"
+    assert PiperEngine.VOICE_FILES["lessac"] == "en_US-lessac-medium.onnx"
+
+
 # ---- Orpheus long-input chunking (#130) ----
 
 class _FakeResp:

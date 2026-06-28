@@ -1,19 +1,18 @@
 @echo off
 REM ==========================================================
-REM  local-llm-hub - Piper TTS server (port 8096)
+REM  local-llm-hub - Kokoro TTS server (port 8095, on demand)
 REM  OpenAI-compatible /v1/audio/speech (text -> speech).
-REM  The audio_speech role; auto-loaded by the tray. Fast local
-REM  CPU voice for short assistant replies.
+REM  Kokoro-82M ONNX comparison option.
 REM ==========================================================
-title Local LLM Hub - piper-tts
+title Local LLM Hub - kokoro-tts
 cd /d "%~dp0.."
 
 echo ============================================================
-echo   tts_server: piper-tts on http://127.0.0.1:8096
+echo   tts_server: kokoro-tts on http://127.0.0.1:8095
 echo   POST text to /v1/audio/speech
 echo   Ctrl+C to stop
 echo ============================================================
 echo.
 
-.venv\Scripts\python.exe -m src.run_backend piper
+.venv\Scripts\python.exe -m src.run_backend kokoro
 pause

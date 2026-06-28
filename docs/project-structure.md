@@ -6,7 +6,7 @@ backends (Claude subscription via the `claude -p` CLI + Gemini
 subscription via the `agy` Antigravity CLI + local llama-server
 processes for Qwen3.5-9B, GLM-4.5-Air, Gemma 4 E4B, Gemma 4 26B-A4B +
 whisper.cpp ASR for both transcribe (turbo, GPU) and translate
-(medium, CPU) + a text-to-speech pair (Chatterbox + Orpheus) at
+(medium, CPU) + text-to-speech backends (Piper + Orpheus + Kokoro + Chatterbox) at
 `/v1/audio/speech`); a **module
 diagram** showing the Python package layout and imports; and a
 **request lifecycle** sequence. Use this file as context when asking
@@ -129,7 +129,7 @@ flowchart TB
     ROOT --> REQ["requirements.txt"]
     ROOT --> LIC["LICENSE"]
     ROOT --> ROOTBAT["run_hub / tray / start_langfuse<br/>.bat (Windows) + .sh (macOS)<br/>(repo-root launchers)"]
-    ROOT --> LAUNCHERS["launchers/<br/>run_qwen / run_glm / run_qwen35_4b / run_gemma4_e4b / run_gemma4_26b<br/>run_whisper / run_whisper_translate / run_tts / run_tts_chatterbox / run_all<br/>.bat (Windows) + .sh (macOS)"]
+    ROOT --> LAUNCHERS["launchers/<br/>run_qwen / run_glm / run_qwen35_4b / run_gemma4_e4b / run_gemma4_26b<br/>run_whisper / run_whisper_translate / run_tts / run_tts_orpheus / run_tts_kokoro / run_tts_chatterbox / run_all<br/>.bat (Windows) + .sh (macOS)"]
 
     ROOT --> CFGDIR["config/"]
     CFGDIR --> C1["models.yaml<br/>hosts + models registry"]
@@ -149,7 +149,7 @@ flowchart TB
     SRC --> S8["server_process.py<br/>hub Popen + kill-port"]
     SRC --> S9["backend_process.py<br/>per-model Popen (llama-server + whisper-server + tts shim)"]
     SRC --> S11["whisper_translate_proxy.py<br/>FastAPI shim for optional lazy-load mode<br/>(dormant; whisper_translate runs eager)"]
-    SRC --> S12["tts_server.py + tts_engines.py<br/>FastAPI shim for /v1/audio/speech<br/>(chatterbox + orpheus engines)"]
+    SRC --> S12["tts_server.py + tts_engines.py<br/>FastAPI shim for /v1/audio/speech<br/>(piper + chatterbox + orpheus + kokoro engines)"]
 
     ROOT --> APPDIR["app_web/<br/>admin SPA sub-app (mounted at /admin)"]
     APPDIR --> A1["server.py<br/>create_app() + versioned static"]
@@ -312,7 +312,7 @@ the envelope into OpenAI shape; for the local llama-server backends
     `llama-server` / `whisper-server` / TTS-shim child with args from
     `models.yaml`. The `whisper_translate` slot uses the
     `whisper-server` engine (eager-load, medium on CPU, ~1.5 GB RAM).
-    The `chatterbox` / `orpheus` slots use the `tts-server` engine —
+    The `piper` / `chatterbox` / `orpheus` / `kokoro` slots use the `tts-server` engine —
     the in-repo FastAPI shim `src/tts_server.py` (Orpheus runs a
     loopback `llama-server` child for its GGUF + SNAC decode).
     A lazy-load alternative exists — set

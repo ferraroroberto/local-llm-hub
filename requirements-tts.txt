@@ -2,7 +2,9 @@
 #
 # Heavy: this set pulls torch + torchaudio (~2 GB on a CUDA build). Kept OUT
 # of requirements.txt so the base hub install and the Mac mini (which enables
-# no TTS role) stay lean. Install on TTS-enabled hosts via:
+# no TTS role) stay lean. Piper is not a Python dependency here; the installer
+# downloads its standalone binary and ONNX voices into vendor/piper +
+# models/piper. Install on TTS-enabled hosts via:
 #
 #     python -m src.install --fix          (runs scripts/install_tts.py)
 #   or
@@ -37,3 +39,4 @@ numpy>=2.0.0
 # --- Shared TTS infra ---
 snac                  # SNAC neural codec — decodes Orpheus audio tokens
 soundfile             # optional non-wav response_format encoding (flac/ogg/...)
+kokoro-onnx==0.4.7    # Kokoro-82M ONNX Runtime backend (Python 3.14 compatible)

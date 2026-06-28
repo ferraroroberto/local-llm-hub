@@ -220,19 +220,28 @@ def test_tts_entry(tmp_path, monkeypatch):
         "hub": {"port": 8000},
         "hosts": {
             "pc-cuda":     {"platform": "win32", "default": True,
-                            "enabled": ["chatterbox", "orpheus"]},
+                            "enabled": ["piper", "chatterbox", "orpheus", "kokoro"]},
             "mac-mini-m4": {"platform": "darwin", "default": True, "enabled": ["qwen"]},
         },
         "models": {
             "qwen": {"display_name": "qwen3.5-9b", "backend": "openai", "port": 8081},
             "chatterbox": {
                 "display_name": "chatterbox-tts",
-                "aliases": ["audio_speech"],
                 "backend": "tts",
                 "engine": "tts-server",
                 "tts_engine": "chatterbox",
                 "port": 8092,
                 "args": ["--device", "auto"],
+            },
+            "piper": {
+                "display_name": "piper-tts",
+                "aliases": ["audio_speech"],
+                "backend": "tts",
+                "engine": "tts-server",
+                "tts_engine": "piper",
+                "port": 8096,
+                "model_path": "models/piper/en_US-ryan-medium.onnx",
+                "args": ["--device", "cpu"],
             },
             "orpheus": {
                 "display_name": "orpheus-tts",
@@ -246,30 +255,54 @@ def test_tts_entry(tmp_path, monkeypatch):
                 "model_path": "models/orpheus-3b-0.1-ft-q4_k_m.gguf",
                 "args": ["--device", "auto"],
             },
+            "kokoro": {
+                "display_name": "kokoro-tts",
+                "backend": "tts",
+                "engine": "tts-server",
+                "tts_engine": "kokoro",
+                "port": 8095,
+                "model_path": "models/kokoro/kokoro-v1.0.int8.onnx",
+                "args": ["--device", "auto"],
+            },
         },
     })
     _patch_config_path(monkeypatch, cfg)
     monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "pc-cuda")
 
     ids = {m.id for m in model_registry.enabled_models()}
-    assert {"chatterbox", "orpheus"} <= ids
+    assert {"piper", "chatterbox", "orpheus", "kokoro"} <= ids
 
-    # The audio_speech role alias resolves to the chatterbox row.
-    cb = model_registry.resolve("audio_speech")
-    assert cb is not None
-    assert cb.id == "chatterbox"
-    assert cb.backend == "tts"
-    assert cb.engine == "tts-server"
-    assert cb.tts_engine == "chatterbox"
-    assert cb.port == 8092
-    assert cb.model_path is None       # weights come from the HF cache, not models/
-    assert cb.url == "http://127.0.0.1:8092/v1"
+    # The audio_speech role alias resolves to the default Piper row.
+    role = model_registry.resolve("audio_speech")
+    assert role is not None
+    assert role.id == "piper"
+    assert role.backend == "tts"
+    assert role.engine == "tts-server"
+    assert role.tts_engine == "piper"
+    assert role.port == 8096
+    assert role.model_path == "models/piper/en_US-ryan-medium.onnx"
+
+    piper = model_registry.resolve("piper-tts")
+    assert piper is not None
+    assert piper.tts_engine == "piper"
+    assert piper.url == "http://127.0.0.1:8096/v1"
 
     orph = model_registry.resolve("orpheus-tts")
     assert orph.tts_engine == "orpheus"
     assert orph.port == 8093
     assert orph.internal_port == 18093
     assert orph.model_path == "models/orpheus-3b-0.1-ft-q4_k_m.gguf"
+
+    kokoro = model_registry.resolve("kokoro-tts")
+    assert kokoro is not None
+    assert kokoro.tts_engine == "kokoro"
+    assert kokoro.port == 8095
+    assert kokoro.model_path == "models/kokoro/kokoro-v1.0.int8.onnx"
+    assert kokoro.url == "http://127.0.0.1:8095/v1"
+
+    cb = model_registry.resolve("chatterbox-tts")
+    assert cb is not None
+    assert cb.model_path is None       # weights come from the HF cache, not models/
 
     # TTS rows are host-scoped: absent on the Mac mini (qwen-only).
     monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "mac-mini-m4")

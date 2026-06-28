@@ -84,6 +84,7 @@ async def playground_tts_models() -> Dict[str, Any]:
                 "aliases": list(m.aliases or []),
             }
         )
+    rows.sort(key=lambda row: 0 if "audio_speech" in row.get("aliases", []) else 1)
     return {"models": rows}
 
 

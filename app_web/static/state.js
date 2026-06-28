@@ -173,8 +173,10 @@ export const els = {
   ttsCfgWeight: document.getElementById('ttsCfgWeight'),
   ttsCfgWeightVal: document.getElementById('ttsCfgWeightVal'),
   ttsSpeakBtn: document.getElementById('ttsSpeakBtn'),
+  ttsCompareBtn: document.getElementById('ttsCompareBtn'),
   ttsLatency: document.getElementById('ttsLatency'),
   ttsAudio: document.getElementById('ttsAudio'),
+  ttsCompareResults: document.getElementById('ttsCompareResults'),
   ttsCard: document.getElementById('ttsCard'),
 
   // Code-usage tab (issue #20)

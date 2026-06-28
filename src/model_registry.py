@@ -29,8 +29,7 @@ class Model:
     # Gemini text session (see src/gemini_cli._IMAGE_HOST_MODEL).
     image_gen: bool = False
     # For backend == "tts" (engine "tts-server"): which synthesis engine
-    # the shim loads — "chatterbox" (in-process torch) or "orpheus"
-    # (llama-server GGUF child + SNAC decode). See src/tts_engines.py.
+    # the shim loads — chatterbox, kokoro, orpheus, piper. See src/tts_engines.py.
     tts_engine: Optional[str] = None
     port: Optional[int] = None
     hf_repo: Optional[str] = None

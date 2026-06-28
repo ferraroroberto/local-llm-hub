@@ -89,7 +89,16 @@ Local entries in active use as of the May 2026 frontier reading:
   [src/whisper_translate_proxy.py](src/whisper_translate_proxy.py),
   idle-unload after 300 s) on external `:8094` / loopback `:18094` so it
   costs no VRAM when idle. See issue #128.
-- **`orpheus-tts`** — local text-to-speech (the inverse of whisper), served
+- **`piper-tts`** — fast local text-to-speech (the inverse of whisper),
+  served by the in-repo FastAPI shim [src/tts_server.py](src/tts_server.py)
+  on `127.0.0.1:8096`. OpenAI-compatible `POST /v1/audio/speech`. POST to
+  the hub's proxy at `:8000/v1/audio/speech` with `model="audio_speech"`
+  (captured in the observability ring). Uses the standalone Piper binary plus
+  ONNX voices in `models/piper/`; default voice is `ryan`
+  (`en_US-ryan-medium`). Integrated latency for `Arming the perimeter.` is
+  ~0.79 s direct to `:8096` and ~1.10 s through the hub. Fills the
+  `audio_speech` role and is auto-loaded by the tray.
+- **`orpheus-tts`** — expressive local text-to-speech, served
   by the in-repo FastAPI shim [src/tts_server.py](src/tts_server.py) on
   `127.0.0.1:8093`. OpenAI-compatible `POST /v1/audio/speech`. POST to the
   hub's proxy at `:8000/v1/audio/speech` (captured in the observability ring)
@@ -97,8 +106,18 @@ Local entries in active use as of the May 2026 frontier reading:
   most natural/expressive local voice and faster than real-time on GPU; its
   reference runtime (vLLM) has no usable Windows build, so the shim runs the
   GGUF on the vendored `llama-server` (loopback `:18093`) and decodes its
-  audio tokens with the SNAC codec in-process. Fills the `audio_speech` role
-  and is auto-loaded by the tray. Also addressable as `model="audio_speech"`.
+  audio tokens with the SNAC codec in-process. Address explicitly as
+  `model="orpheus-tts"` when expressiveness matters more than latency.
+- **`kokoro-tts`** — low-footprint Kokoro-82M TTS on `127.0.0.1:8095`, served
+  by the same [src/tts_server.py](src/tts_server.py) OpenAI-compatible
+  `/v1/audio/speech` shim. It uses `kokoro-onnx` with the int8 ONNX model and
+  packed voice styles in `models/kokoro/`. Start it from the Models tab or
+  `launchers/run_tts_kokoro.bat`, then call the hub with `model="kokoro-tts"`.
+  Default voice is `am_michael`, chosen as the closest built-in starting point
+  for a Jarvis-like assistant voice. ONNX Runtime CUDA is used when available,
+  but the current Windows path measures roughly 2.2 s direct / 2.5 s through
+  the hub for a short phrase, so it is kept as an option rather than the
+  `audio_speech` role default until you intentionally repoint that role.
 - **`chatterbox-tts`** — second TTS engine on `127.0.0.1:8092`, **on demand**
   (not autostarted). Resemble AI's Chatterbox (~0.5 B, torch) with an
   emotion/"tone" dial (`exaggeration` + `cfg_weight`) and optional zero-shot
@@ -157,7 +176,7 @@ The four active local roles live in `config/models.yaml` → `roles:`:
 | `agentic_heavy` | `gemma4_26b` | Deep agentic, transcripts, docs, ES↔EN↔CA |
 | `audio_transcribe` | `whisper` | EN/ES audio → text |
 | `audio_translate` | `whisper_translate` | ES audio → English (eager CPU sibling) |
-| `audio_speech` | `orpheus` | text → speech (Orpheus; chatterbox on demand) |
+| `audio_speech` | `piper` | text → speech (Piper fast default; Orpheus/Kokoro/Chatterbox on demand) |
 
 Two Claude Code slash commands drive the monthly refresh, both
 human-in-the-loop, both edit files directly:
@@ -269,7 +288,7 @@ openClaw / anthropic SDK / openai SDK / curl
    │    POST /v1/audio/transcriptions → proxy to whisper :8090          │
    │      (model=whisper-vanilla → glossary-free turbo :8094, lazy)     │
    │    POST /v1/audio/translations   → proxy to whisper :8091          │
-   │    POST /v1/audio/speech         → proxy to tts shim :8092/:8093    │
+   │    POST /v1/audio/speech         → proxy to tts shim :8092/:8093/:8095/:8096 │
    │      (the audio proxy lands requests in the observability ring)    │
    │    GET  /v1/audio/health         → probe whisper/tts; 503 if down   │
    │      (preflight liveness — never sends a doomed transcription)      │
@@ -279,7 +298,9 @@ audio clients  ──►  hub 127.0.0.1:8000 /v1/audio/*  ──►  whisper-ser
 audio clients  ──►  whisper-server 127.0.0.1:8090   (turbo, transcribe, GPU; direct, lower overhead)
 audio clients  ──►  whisper-server 127.0.0.1:8091   (medium, translate, CPU; direct)
 audio clients  ──►  whisper proxy  127.0.0.1:8094   (turbo, glossary-free transcribe, GPU, lazy; via hub model=whisper-vanilla)
-audio clients  ──►  tts shim       127.0.0.1:8093   (orpheus, text→speech, auto-loaded; llama-server :18093 + SNAC)
+audio clients  ──►  tts shim       127.0.0.1:8096   (piper, text→speech, auto-loaded; fast CPU)
+audio clients  ──►  tts shim       127.0.0.1:8093   (orpheus, text→speech, on demand; llama-server :18093 + SNAC)
+audio clients  ──►  tts shim       127.0.0.1:8095   (kokoro, text→speech, on demand; ONNX Runtime)
 audio clients  ──►  tts shim       127.0.0.1:8092   (chatterbox, text→speech, on demand; direct)
                           (whisper speaks /v1/audio/transcriptions, the tts shim /v1/audio/speech;
                            POST via the hub proxy for observability, or direct to the port to skip it)
@@ -311,7 +332,7 @@ local-llm-hub/
 │       └── system-specs.md       # collect Windows hardware specs
 ├── requirements.txt
 ├── requirements-dev.txt      # e2e + passkey deps (Playwright, pytest-playwright, webauthn)
-├── requirements-tts.txt      # TTS deps (chatterbox-tts, snac, soundfile — torch); TTS hosts only
+├── requirements-tts.txt      # TTS deps (chatterbox-tts, snac, kokoro-onnx, soundfile — torch); Piper is a downloaded binary
 ├── tray.bat                  # Windows-only system-tray launcher (silent)
 ├── run_hub.bat / .sh         # start the FastAPI hub on :8000
 ├── launchers/                # per-model backends (.bat + .sh)
@@ -322,7 +343,9 @@ local-llm-hub/
 │   ├── run_gemma4_26b.*         # agentic_heavy role on :8087
 │   ├── run_whisper.*            # audio_transcribe role on :8090
 │   ├── run_whisper_translate.*  # audio_translate role on :8091 (eager CPU)
-│   ├── run_tts.*                # audio_speech role — orpheus on :8093
+│   ├── run_tts.*                # audio_speech role — piper on :8096
+│   ├── run_tts_orpheus.*        # orpheus TTS on :8093 (on demand)
+│   ├── run_tts_kokoro.*         # kokoro TTS on :8095 (on demand)
 │   ├── run_tts_chatterbox.*     # chatterbox TTS on :8092 (on demand)
 │   └── run_all.*                # start everything enabled on this host
 ├── config/
@@ -355,7 +378,7 @@ local-llm-hub/
 │   │                         #   stdout/stderr → data/logs/backend-<id>.log (child-owned)
 │   ├── whisper_translate_proxy.py  # FastAPI shim for optional lazy-load mode
 │   ├── tts_server.py            # FastAPI shim for /v1/audio/speech (engine: tts-server)
-│   ├── tts_engines.py           # TTS engines: chatterbox (torch) + orpheus (llama-server + SNAC)
+│   ├── tts_engines.py           # TTS engines: piper + chatterbox + orpheus + kokoro
 │   ├── webapp_config.py      # admin webapp config loader (bearer token, webauthn, allowlist)
 │   ├── webauthn_gate.py      # passkey gate (optional — needs `webauthn` package)
 │   ├── static_versioning.py  # ?v=<hash> stamping for /admin/static assets
@@ -383,7 +406,7 @@ local-llm-hub/
 │   ├── detect_machine_specs.py   # populate config/machine_specs.yaml
 │   ├── install_llama_cpp.py      # CUDA-Windows / Metal-macOS release
 │   ├── install_whisper_cpp.py    # whisper.cpp CUDA/Metal release → vendor/whisper.cpp/
-│   ├── install_tts.py           # pip -r requirements-tts.txt + warm Chatterbox/SNAC + Orpheus GGUF
+│   ├── install_tts.py           # pip -r requirements-tts.txt + Piper/Kokoro assets + warm TTS
 │   └── verify-before-ship.ps1    # byte-compile + pytest + Playwright on Chromium
 ├── tests/                    # test_server / test_router / test_model_registry /
 │   │                         # test_install / test_streaming
@@ -445,10 +468,12 @@ ignores them. To bring one up ad-hoc, add it to `enabled:` and re-run
 
 On a host with a TTS role enabled, `--fix` also pip-installs
 [requirements-tts.txt](requirements-tts.txt) (`chatterbox-tts`, `snac`,
-`soundfile` — these pull torch, ~2 GB, which is why they're kept out of the
-base `requirements.txt` so non-TTS hosts like the Mac mini stay lean) and
-pre-warms the Chatterbox / SNAC weights so the first `/v1/audio/speech`
-request isn't a cold download. To do it by hand:
+`kokoro-onnx`, `soundfile` — the full set pulls torch, ~2 GB, which is why
+it's kept out of the base `requirements.txt` so non-TTS hosts like the Mac
+mini stay lean), installs CUDA torch / ONNX Runtime GPU on NVIDIA hosts,
+downloads Piper's binary/voices and Kokoro's ONNX assets, and pre-warms the
+Chatterbox / SNAC / Piper / Kokoro weights so the first
+`/v1/audio/speech` request isn't a cold download. To do it by hand:
 
 ```bat
 .venv\Scripts\python -m pip install -r requirements-tts.txt
@@ -514,7 +539,9 @@ launchers\run_qwen35_4b.bat      :: agentic_light  on :8088
 launchers\run_gemma4_26b.bat     :: agentic_heavy  on :8087
 launchers\run_whisper.bat        :: audio_transcribe on :8090
 launchers\run_whisper_translate.bat :: audio_translate on :8091 (eager CPU)
-launchers\run_tts.bat            :: audio_speech (orpheus) on :8093
+launchers\run_tts.bat            :: audio_speech (piper) on :8096
+launchers\run_tts_orpheus.bat    :: orpheus TTS on :8093 (on demand)
+launchers\run_tts_kokoro.bat     :: kokoro TTS on :8095 (on demand)
 launchers\run_tts_chatterbox.bat :: chatterbox TTS on :8092 (on demand)
 launchers\run_all.bat            :: start every backend in `enabled:` for this host
 
@@ -542,7 +569,7 @@ Starts a resident system-tray icon (silent — no terminal window) that:
 
 - Auto-starts the hub on :8000 and the models listed in
   `config/models.yaml` under `tray.autostart_models` (default
-  `[qwen35_4b, whisper, whisper_translate, orpheus]` — the last is the
+  `[qwen35_4b, whisper, whisper_translate, piper]` — the last is the
   text-to-speech default). Set it to `[]` to skip
   model autostart, or change the list to any subset of enabled model
   ids.
@@ -608,6 +635,7 @@ Equivalent Python entrypoints (run from the project root):
 .venv\Scripts\python -m src.run_backend gemma4_26b
 .venv\Scripts\python -m src.run_backend whisper
 .venv\Scripts\python -m src.run_backend whisper_translate
+.venv\Scripts\python -m src.run_backend piper
 .venv\Scripts\python -m src.run_backend chatterbox
 .venv\Scripts\python -m src.run_backend orpheus
 
@@ -809,34 +837,42 @@ print(r.text)
 
 Synthesize speech (text → audio) via the TTS backend — through the hub's
 proxy at `:8000/v1/audio/speech` (captured in the observability ring) or
-directly to `:8093` (lower overhead):
+directly to the backend port (lower overhead):
 
 ```bash
 # through the hub proxy (lands in the observability ring)
-# audio_speech → Orpheus; voice picks a preset (tara/leah/jess/leo/dan/mia/zac/zoe)
+# audio_speech → Piper; voice picks ryan, ryan-high, or lessac
 curl -s -X POST http://127.0.0.1:8000/v1/audio/speech \
   -H "Content-Type: application/json" \
-  -d '{"model":"audio_speech","input":"Hey, listen to this.","voice":"tara","response_format":"wav"}' \
+  -d '{"model":"audio_speech","input":"Hey, listen to this.","voice":"ryan","response_format":"wav"}' \
   --output reply.wav
+
+# kokoro-tts → Kokoro-82M; empty/default voice uses am_michael
+curl -s -X POST http://127.0.0.1:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"kokoro-tts","input":"Arming the perimeter.","voice":"am_michael","response_format":"wav"}' \
+  --output kokoro-reply.wav
 ```
 
 ```python
 from openai import OpenAI
 tts = OpenAI(api_key="local-dummy", base_url="http://127.0.0.1:8000/v1")
-# model="audio_speech" → Orpheus (auto-loaded); model="chatterbox-tts" → Chatterbox.
-audio = tts.audio.speech.create(model="audio_speech", voice="tara", input="Hey, listen to this.")
+# model="audio_speech" → Piper (auto-loaded); model="orpheus-tts" → Orpheus.
+audio = tts.audio.speech.create(model="audio_speech", voice="ryan", input="Hey, listen to this.")
 audio.stream_to_file("reply.wav")
 ```
 
 `exaggeration` / `cfg_weight` are Chatterbox's emotion/"tone" dial; `voice`
-selects an Orpheus preset (`tara`, `leah`, …) or a Chatterbox cloning clip
-at `config/tts_voices/<voice>.wav`; `speed` is accepted but a no-op. Add
-`"stream_format":"audio"` to **stream** the audio incrementally (Orpheus
-decodes a sliding SNAC window for sub-second time-to-first-audio; Chatterbox
-falls back to a single final chunk). The hub exposes every enabled TTS model
-on the same route, so a client (e.g. app-launcher) switches engines just by
-changing `model`. Defaults, formats, streaming, voice cloning, and the
-Orpheus GGUF caveat are in [docs/add-tts.md](docs/add-tts.md).
+selects a Piper voice (`ryan`, `ryan-high`, `lessac`), an Orpheus preset
+(`tara`, `leah`, …), a Kokoro voice id (`am_michael`, `af_bella`,
+`am_fenrir`, …), or a Chatterbox cloning clip at
+`config/tts_voices/<voice>.wav`. Piper and Kokoro honor `speed` in the
+0.5–2.0 range; Chatterbox/Orpheus accept it for API compatibility. Add
+`"stream_format":"audio"` to **stream** audio incrementally when the engine
+supports it; otherwise the backend returns a single final chunk. The hub
+exposes every enabled TTS model on the same route, so a client switches
+engines just by changing `model`. Defaults, formats, streaming, voice
+cloning, and the Orpheus GGUF caveat are in [docs/add-tts.md](docs/add-tts.md).
 
 ## Observability (issue #4)
 

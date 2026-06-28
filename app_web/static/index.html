@@ -296,14 +296,14 @@
         </div>
 
         <div class="opt-stack">
-          <label for="ttsVoice">Voice <span class="muted small">(default, an Orpheus preset like tara, or a Chatterbox clip name)</span></label>
+          <label for="ttsVoice">Voice <span class="muted small">(Piper ryan/ryan-high/lessac, Orpheus tara, Kokoro am_michael, or Chatterbox clip)</span></label>
           <input id="ttsVoice" type="text" placeholder="default" aria-label="Voice">
         </div>
 
         <div class="opt-stack">
           <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
             <input type="checkbox" id="ttsStream" aria-label="Stream audio" checked>
-            <span>Stream <span class="muted small">(play as it synthesizes — first audio in ~1s · Orpheus only; off = buffered clip with a player)</span></span>
+            <span>Stream <span class="muted small">(play as it synthesizes when supported; off = buffered clip with a player)</span></span>
           </label>
         </div>
 
@@ -334,10 +334,12 @@
 
         <div class="playground-send-row">
           <button id="ttsSpeakBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Speak</button>
+          <button id="ttsCompareBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Compare</button>
         </div>
         <p id="ttsLatency" class="muted small" style="margin: 8px 0 0;"></p>
 
         <audio id="ttsAudio" controls style="width: 100%; margin-top: 10px;" hidden></audio>
+        <div id="ttsCompareResults" class="tts-compare-list" aria-label="TTS comparison results"></div>
       </section>
     </section>
 
