@@ -14,7 +14,9 @@ consistent, observable, role-based voice that any LAN client can call.
 whisper.cpp and llama.cpp both ship a native HTTP server `.exe`, so those
 backends are "drop a binary on a port". The good local TTS engines don't:
 
-- **Chatterbox** (Resemble AI, default) is a `chatterbox-tts` PyPI package
+- **Piper** (default) is a standalone local VITS TTS binary with ONNX voices.
+  It is the fast path for short assistant replies and Home Assistant.
+- **Chatterbox** (Resemble AI, on demand) is a `chatterbox-tts` PyPI package
   (torch). Small (~0.5 B), has an emotion/"tone" dial (`exaggeration` +
   `cfg_weight`) and optional zero-shot voice cloning.
 - **Orpheus-3B** (on demand) is an LLM-based TTS that emits SNAC audio
@@ -29,12 +31,21 @@ So instead of a binary we run a thin in-repo FastAPI shim
 implementations live behind one interface in
 [src/tts_engines.py](../src/tts_engines.py).
 
-## The two registry rows ([config/models.yaml](../config/models.yaml))
+## The TTS registry rows ([config/models.yaml](../config/models.yaml))
 
 ```yaml
-orpheus:                        # auto-loaded default (tray.autostart_models)
-  display_name: orpheus-tts
+piper:                          # auto-loaded default (tray.autostart_models)
+  display_name: piper-tts
   aliases: ["audio_speech"]     # the role alias clients should address
+  backend: tts
+  engine: tts-server
+  tts_engine: piper
+  port: 8096
+  model_path: "models/piper/en_US-ryan-medium.onnx"
+  args: ["--device", "cpu"]
+
+orpheus:                        # on demand — expressive
+  display_name: orpheus-tts
   backend: tts
   engine: tts-server
   tts_engine: orpheus
@@ -52,12 +63,23 @@ chatterbox:                     # on demand — NOT autostarted
   tts_engine: chatterbox
   port: 8092
   args: ["--device", "auto"]
+
+kokoro:                         # on demand — low-footprint comparison model
+  display_name: kokoro-tts
+  backend: tts
+  engine: tts-server
+  tts_engine: kokoro
+  port: 8095
+  model_path: "models/kokoro/kokoro-v1.0.int8.onnx"
+  args: ["--device", "auto"]
 ```
 
-Both are enabled on `pc-cuda` only; the role lives at
-`roles.audio.speech.model_id: orpheus`. Orpheus is the auto-loaded default
-(most natural + faster than real-time on GPU); Chatterbox is the on-demand
-alternate, kept for its tone dial / voice cloning.
+All TTS rows are enabled on `pc-cuda` only; the role lives at
+`roles.audio.speech.model_id: piper`. Piper is the auto-loaded default because
+it measures sub-second for short assistant phrases. Orpheus is the expressive
+on-demand alternate, Chatterbox is kept for its tone dial / voice cloning, and
+Kokoro is the tiny ONNX comparison model whose current Windows ONNX path is not
+the fast option.
 
 > **Orpheus GGUF caveat.** The exact upstream repo / filename for the
 > community Q4_K_M build pairs with the llama.cpp route but drifts over
@@ -69,24 +91,24 @@ alternate, kept for its tone dial / voice cloning.
 
 | area | change |
 | ---- | ------ |
-| `config/models.yaml` | +2 rows, `+chatterbox/+orpheus` on `pc-cuda`, `roles.audio.speech`, `chatterbox` in `tray.autostart_models` |
+| `config/models.yaml` | TTS rows (`piper`, `chatterbox`, `orpheus`, `kokoro`) on `pc-cuda`; `roles.audio.speech` points at `piper` |
 | `src/model_registry.py` | `+tts_engine` field |
-| `src/tts_engines.py` | new — Chatterbox + Orpheus engines behind one interface |
+| `src/tts_engines.py` | Piper + Chatterbox + Orpheus + Kokoro engines behind one interface |
 | `src/tts_server.py` | new — FastAPI shim (`/v1/audio/speech`, `/health`) |
 | `src/backend_process.py` | `build_command` branch for `engine: tts-server`; widen filters to `tts` |
 | `src/run_backend.py` | widen spawnable backends to `tts` |
 | `src/server.py` | hub `POST /v1/audio/speech` proxy + a `tts` 400 on the chat routes |
 | `src/install.py` | `_check_tts` / `_fix_tts`; widen model + port filters |
 | `scripts/download_models.py` | widen to `tts` rows with `hf_repo` (Orpheus GGUF) |
-| `scripts/install_tts.py` | new — pip install + warm Chatterbox/SNAC + fetch Orpheus GGUF |
+| `scripts/install_tts.py` | pip install + warm Chatterbox/SNAC/Piper/Kokoro + fetch Piper assets, Orpheus GGUF, and Kokoro ONNX assets |
 | `scripts/smoke_test.py` | synth probe when a TTS port is reachable |
 | `app_web/...` | Models-tab 🔊 tile + a synthesis-based ping |
-| `launchers/run_tts*.{bat,sh}` | new; `run_all.*` +2 lines |
-| `requirements-tts.txt` | new — `chatterbox-tts`, `snac`, `soundfile` (torch transitively) |
+| `launchers/run_tts*.{bat,sh}` | per-engine launchers; `run_all.*` includes all enabled TTS rows |
+| `requirements-tts.txt` | `chatterbox-tts`, `snac`, `kokoro-onnx`, `soundfile` (torch transitively); Piper is a downloaded binary |
 
 ## Dependencies — kept off the base install
 
-`chatterbox-tts` pulls torch (~2 GB on CUDA). Putting it in
+`chatterbox-tts` pulls torch (~2 GB on CUDA). Putting the TTS set in
 `requirements.txt` would force torch onto the Mac mini (which enables no TTS
 role). So TTS deps live in [requirements-tts.txt](../requirements-tts.txt),
 installed only on TTS-enabled hosts:
@@ -95,8 +117,9 @@ installed only on TTS-enabled hosts:
 .venv\Scripts\python -m pip install -r requirements-tts.txt
 ```
 
-…or let the installer do it (it also pre-warms the weights so the first
-request isn't a cold download):
+…or let the installer do it (it also downloads Piper's binary/voices and
+Kokoro's ONNX assets, then pre-warms the weights so the first request isn't a
+cold download):
 
 ```bat
 .venv\Scripts\python -m src.install --fix      :: runs scripts/install_tts.py
@@ -108,12 +131,12 @@ row is enabled.
 ### GPU vs CPU torch
 
 `requirements-tts.txt` lists `torch`/`torchaudio` as lower bounds, and on
-Windows PyPI only serves the **CPU** wheel — on which synthesis runs at
-roughly real-time (RTF ≈ 1), too slow to feel responsive. So
+Windows PyPI only serves the **CPU** wheel — on which Orpheus synthesis runs
+at roughly real-time (RTF ≈ 1), too slow to feel responsive. So
 `scripts/install_tts.py` follows the requirements install with a CUDA
 override: if `nvidia-smi` is present it reinstalls torch from the PyTorch
-CUDA index, after which both engines load on the GPU (~5× faster; Orpheus
-reaches RTF ≈ 0.85 on the 16 GB reference box). The default pins target this
+CUDA index, after which the torch-based engines load on the GPU (~5× faster;
+Orpheus reaches RTF ≈ 0.85 on the 16 GB reference box). The default pins target this
 repo's reference box (Python 3.14 / CUDA 13 / Blackwell — `torch
 2.11.0+cu130`, the newest with a matching `torchaudio` on cu130). Different
 Python or driver? Override the index/spec without touching the script:
@@ -124,23 +147,29 @@ set HUB_TTS_TORCH_SPEC=torch==2.11.0+cu128 torchaudio==2.11.0+cu128
 .venv\Scripts\python scripts\install_tts.py
 ```
 
-Hosts without an NVIDIA GPU keep the CPU torch automatically. `--device` in
-each row's `args` stays `auto` (CUDA when available, else CPU).
+The installer also installs `onnxruntime-gpu` on NVIDIA hosts so Kokoro can
+request `CUDAExecutionProvider`. On the reference box the backend health does
+report `device: "cuda"`, but warm latency stayed around 2.2 s directly to
+`:8095` and 2.5 s through the hub for the short sample phrase; the bottleneck
+is the current `kokoro-onnx` ONNX path, not phonemization or hub encoding.
+Hosts without an NVIDIA GPU keep the CPU torch / ONNX Runtime path
+automatically. `--device` in each row's `args` stays `auto` (CUDA when
+available, else CPU).
 
 ## The request shape
 
 ```bash
-# through the hub (observable) — or directly to :8092 to skip the ring
+# through the hub (observable) — or directly to :8096 to skip the ring
 curl -s -X POST http://127.0.0.1:8000/v1/audio/speech \
   -H "Content-Type: application/json" \
-  -d '{"model":"chatterbox-tts","input":"Hey, listen to this.","voice":"default","response_format":"wav","exaggeration":0.7,"cfg_weight":0.4}' \
+  -d '{"model":"audio_speech","input":"Hey, listen to this.","voice":"ryan","response_format":"wav"}' \
   --output reply.wav
 ```
 
 ```python
 from openai import OpenAI
 client = OpenAI(api_key="local-dummy", base_url="http://127.0.0.1:8000/v1")
-audio = client.audio.speech.create(model="audio_speech", voice="default", input="Hey, listen to this.")
+audio = client.audio.speech.create(model="audio_speech", voice="ryan", input="Hey, listen to this.")
 audio.stream_to_file("reply.wav")
 ```
 
@@ -152,15 +181,19 @@ Chatterbox's `exaggeration` + `cfg_weight`. Defaults / notes:
   stdlib (no extra deps); `flac`/`ogg`/`opus`/`mp3`/`aac` go through
   `soundfile` and **fall back to wav** (with a logged note) when the encoder
   isn't available, so a request never fails on format alone.
-- **`voice`** — `default`/empty uses the engine's built-in voice. For
+- **`voice`** — `default`/empty uses the engine's built-in voice. For Piper,
+  `default`/`ryan` maps to `en_US-ryan-medium`, `ryan-high` trades a little
+  latency for quality, and `lessac` is the standard Piper female voice. For
   Chatterbox, any other name maps to a reference clip
   `config/tts_voices/<voice>.wav` (gitignored) → zero-shot cloning. For
   Orpheus, `voice` selects a preset (`tara`, `leah`, `jess`, `leo`, `dan`,
-  `mia`, `zac`, `zoe`); unknown → `tara`.
+  `mia`, `zac`, `zoe`); unknown → `tara`. For Kokoro, `voice` selects a
+  Kokoro voice id (`am_michael`, `af_bella`, `am_fenrir`, `bm_george`, …);
+  unknown/default → `am_michael`.
 - **`exaggeration` / `cfg_weight`** — Chatterbox's tone dial. Ignored by
   Orpheus (which expresses emotion through inline text instead).
-- **`speed`** — accepted but a **documented no-op**: neither engine exposes
-  a native rate control.
+- **`speed`** — Piper and Kokoro honor `0.5`–`2.0`; Chatterbox/Orpheus accept
+  it as a documented no-op.
 - **`stream_format`** — `"audio"` opts into **streaming** delivery (raw
   chunked bytes that play as they synthesize); absent / any other value keeps
   the current buffered single response. See [Streaming](#streaming) below.
@@ -193,6 +226,9 @@ What streams:
   token sequence), so it **cleanly falls back to a single final chunk** via
   the default `TTSEngine.synthesize_stream`. The request still succeeds; it
   just isn't incremental.
+- **Kokoro** also falls back to one final chunk on the current ONNX path.
+  Use buffered mode for latency comparisons; streaming is mainly an Orpheus
+  perceived-latency feature.
 
 Body format of the stream:
 
@@ -209,8 +245,9 @@ Body format of the stream:
 The hub proxy (`POST /v1/audio/speech` on :8000) forwards the streamed body
 through `httpx`'s streaming client while still recording the request in the
 observability ring, exactly like the streamed chat path — so streamed synth
-stays observable. Clients that POST directly to the backend port (:8093 /
-:8092) stream too, just without the ring entry.
+stays observable. Clients that POST directly to the backend port (:8096 /
+:8093 / :8092 / :8095) use the same backend route, just without the ring
+entry.
 
 Non-streaming requests are unaffected — omit `stream_format` (or send any
 other value) and the endpoint returns the same single buffered response as
@@ -223,7 +260,7 @@ and the shim's streaming response shape (mocked engine). The real perceived
 latency can only be felt on the TTS box:
 
 ```bat
-tray.bat --restart      :: orpheus auto-loads on :8093
+tray.bat --restart      :: piper auto-loads on :8096
 :: long paragraph, streamed — first audio should arrive in ~1 s
 curl -N -X POST http://127.0.0.1:8000/v1/audio/speech ^
   -H "Content-Type: application/json" ^
@@ -240,10 +277,16 @@ Measured on the 16 GB reference GPU (Orpheus), a ~19 s paragraph: **time-to-firs
 The hub exposes every enabled TTS model on the same `/v1/audio/speech`
 route, addressed by `model`:
 
-- `model="orpheus-tts"` (or `model="audio_speech"`, the role alias) →
-  Orpheus on :8093 (the autostarted default).
+- `model="audio_speech"` (or `model="piper-tts"`) → Piper on :8096
+  (the autostarted default). Default voice is `ryan`. Measured on the
+  reference Windows box: ~0.79 s direct to :8096 and ~1.10 s through the
+  observable hub route for `Arming the perimeter.`
+- `model="orpheus-tts"` → Orpheus on :8093 (start it first from the Models tab
+  or `launchers/run_tts_orpheus.bat`).
 - `model="chatterbox-tts"` → Chatterbox on :8092 (start it first from the
   Models tab or `launchers/run_tts_chatterbox.bat`).
+- `model="kokoro-tts"` → Kokoro on :8095 (start it first from the Models tab
+  or `launchers/run_tts_kokoro.bat`). Default voice is `am_michael`.
 
 Picking a model / voice from a UI belongs to the **client** (app-launcher
 #190), not the hub — the hub just routes by name. A client that wants to

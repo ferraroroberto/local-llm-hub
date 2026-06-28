@@ -1,7 +1,7 @@
 """OpenAI-shape text-to-speech server — the inverse of the whisper STT pair.
 
-Binds the registry row's external ``port`` (chatterbox :8092 / orpheus
-:8093) and exposes ``POST /v1/audio/speech`` accepting the OpenAI body
+Binds the registry row's external ``port`` (piper :8096 / chatterbox :8092 /
+orpheus :8093 / kokoro :8095) and exposes ``POST /v1/audio/speech`` accepting the OpenAI body
 ``{model, input, voice, response_format, speed}`` (plus Chatterbox's
 ``exaggeration`` / ``cfg_weight`` tone dial) and returning audio bytes.
 
@@ -10,7 +10,7 @@ row as ``python -m src.tts_server --model-id <id>`` — the same in-repo-shim
 pattern as ``whisper_translate_proxy``. The hub proxies ``/v1/audio/speech``
 to this port so requests land in the observability ring (``src/server.py``).
 
-The heavy synthesis engine (torch/chatterbox/snac) loads in a **background
+The synthesis engine loads in a **background
 thread** after startup, so the port answers ``GET /health`` immediately
 (``ready`` flips true once the model is warm). Synthesis returns 503 while
 loading and surfaces any load error verbatim.
@@ -52,7 +52,7 @@ os.environ.setdefault("TQDM_DISABLE", "1")
 
 log = logging.getLogger("tts_server")
 
-DEFAULT_MODEL_ID = "chatterbox"
+DEFAULT_MODEL_ID = "piper"
 
 
 class _State:

@@ -5,6 +5,8 @@
 import { els, state } from './state.js';
 import { api, jsonApi, toast } from './api.js';
 
+let ttsModels = [];
+
 export async function fetchPlaygroundModels() {
   try {
     const body = await jsonApi('/admin/api/playground/models');
@@ -42,6 +44,7 @@ export async function fetchTtsModels() {
   try {
     const body = await jsonApi('/admin/api/playground/tts_models');
     const models = body.models || [];
+    ttsModels = models;
     if (!els.ttsModel) return;
     els.ttsModel.innerHTML = '';
     // No TTS backend enabled on this host → hide the whole card.
@@ -128,6 +131,21 @@ function wireTts() {
   if (els.ttsSpeakBtn) {
     els.ttsSpeakBtn.addEventListener('click', speak);
   }
+  if (els.ttsCompareBtn) {
+    els.ttsCompareBtn.addEventListener('click', compareTts);
+  }
+}
+
+function ttsFormData(text, modelId, streaming) {
+  const fd = new FormData();
+  fd.append('model', modelId);
+  fd.append('input', text);
+  fd.append('voice', (els.ttsVoice.value || '').trim());
+  fd.append('response_format', streaming ? 'pcm' : (els.ttsFormat ? els.ttsFormat.value : 'wav'));
+  if (streaming) fd.append('stream', 'true');
+  if (els.ttsExaggeration) fd.append('exaggeration', els.ttsExaggeration.value);
+  if (els.ttsCfgWeight) fd.append('cfg_weight', els.ttsCfgWeight.value);
+  return fd;
 }
 
 async function speak() {
@@ -156,13 +174,7 @@ async function speak() {
     return;
   }
 
-  const fd = new FormData();
-  fd.append('model', els.ttsModel.value);
-  fd.append('input', text);
-  fd.append('voice', (els.ttsVoice.value || '').trim());
-  fd.append('response_format', els.ttsFormat ? els.ttsFormat.value : 'wav');
-  if (els.ttsExaggeration) fd.append('exaggeration', els.ttsExaggeration.value);
-  if (els.ttsCfgWeight) fd.append('cfg_weight', els.ttsCfgWeight.value);
+  const fd = ttsFormData(text, els.ttsModel.value, false);
 
   const t0 = performance.now();
   try {
@@ -191,20 +203,81 @@ async function speak() {
   }
 }
 
+function clearCompareResults() {
+  if (!els.ttsCompareResults) return;
+  els.ttsCompareResults.querySelectorAll('audio').forEach(function (a) {
+    if (a.dataset.url) URL.revokeObjectURL(a.dataset.url);
+  });
+  els.ttsCompareResults.innerHTML = '';
+}
+
+async function compareTts() {
+  const text = (els.ttsInput.value || '').trim();
+  if (!text) {
+    toast('Text is empty.', 'error');
+    return;
+  }
+  const models = ttsModels.length ? ttsModels : [];
+  if (!models.length) {
+    toast('No TTS model available.', 'error');
+    return;
+  }
+  if (!els.ttsCompareResults) return;
+  clearCompareResults();
+  els.ttsCompareBtn.disabled = true;
+  if (els.ttsSpeakBtn) els.ttsSpeakBtn.disabled = true;
+  els.ttsLatency.textContent = 'comparing…';
+
+  for (const model of models) {
+    const row = document.createElement('div');
+    row.className = 'tts-compare-row';
+    const name = document.createElement('div');
+    name.className = 'tts-compare-name';
+    name.textContent = model.display_name + (model.engine ? ' (' + model.engine + ')' : '');
+    const meta = document.createElement('div');
+    meta.className = 'tts-compare-meta';
+    meta.textContent = 'running…';
+    row.appendChild(name);
+    row.appendChild(meta);
+    els.ttsCompareResults.appendChild(row);
+
+    const fd = ttsFormData(text, model.id, false);
+    const t0 = performance.now();
+    try {
+      const res = await api('/admin/api/playground/speak', { method: 'POST', body: fd });
+      if (!res.ok) {
+        let msg = 'HTTP ' + res.status;
+        try { const b = await res.json(); msg = b.detail || msg; } catch (_) { /* ignore */ }
+        meta.textContent = msg;
+        meta.classList.add('danger');
+        continue;
+      }
+      const blob = await res.blob();
+      const elapsed = performance.now() - t0;
+      meta.textContent = elapsed.toFixed(0) + ' ms · ' + Math.round(blob.size / 1024) + ' KB';
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      const url = URL.createObjectURL(blob);
+      audio.dataset.url = url;
+      audio.src = url;
+      row.appendChild(audio);
+    } catch (exc) {
+      meta.textContent = String(exc.message || exc);
+      meta.classList.add('danger');
+    }
+  }
+  els.ttsLatency.textContent = 'comparison complete';
+  els.ttsCompareBtn.disabled = false;
+  if (els.ttsSpeakBtn) els.ttsSpeakBtn.disabled = false;
+}
+
 // Streaming synthesis: request headerless PCM16 with stream_format=audio and
 // schedule each chunk on a Web Audio timeline so playback starts as soon as
 // the first frames arrive. Reports time-to-first-audio vs total — the whole
 // point of the streaming endpoint (issue #102). The native <audio> element
 // can't consume a chunked POST, hence Web Audio rather than ttsAudio.src.
 async function speakStream(text) {
-  const fd = new FormData();
-  fd.append('model', els.ttsModel.value);
-  fd.append('input', text);
-  fd.append('voice', (els.ttsVoice.value || '').trim());
-  fd.append('response_format', 'pcm');   // headerless PCM16 for Web Audio
-  fd.append('stream', 'true');
-  if (els.ttsExaggeration) fd.append('exaggeration', els.ttsExaggeration.value);
-  if (els.ttsCfgWeight) fd.append('cfg_weight', els.ttsCfgWeight.value);
+  const fd = ttsFormData(text, els.ttsModel.value, true);
 
   els.ttsAudio.hidden = true;            // streamed playback uses Web Audio
   // Create + resume the AudioContext *inside* the click gesture (before the

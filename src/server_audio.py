@@ -306,7 +306,7 @@ def _tts_port_for_model(model_name: str) -> Optional[int]:
     """Pick a TTS backend port for a ``/v1/audio/speech`` request.
 
     Resolve an explicit ``model`` through the registry first; otherwise fall
-    back to the ``audio_speech`` role (chatterbox), then the first enabled
+    back to the ``audio_speech`` role (Piper), then the first enabled
     TTS backend. Returns ``None`` if no TTS backend is enabled on this host.
     """
     from .model_registry import enabled_models, resolve as _resolve_model
@@ -332,7 +332,7 @@ async def audio_speech(request: Request) -> Response:
 
     Body is the OpenAI JSON shape ``{model, input, voice, response_format,
     speed}`` (plus Chatterbox's ``exaggeration`` / ``cfg_weight``). Clients
-    may also POST directly to the backend port (:8092 / :8093) for lower
+    may also POST directly to the backend port (:8096 / :8092 / :8093 / :8095) for lower
     overhead, bypassing the hub's capture.
     """
     import json as _json

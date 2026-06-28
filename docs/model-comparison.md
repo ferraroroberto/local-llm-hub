@@ -26,6 +26,17 @@ markdown. Where a precise number isn't meaningful for a backend
 | `whisper-medium-translate` | whisper.cpp (OpenAI) — eager CPU sibling | 769 M (medium) | ggml f16 | ~1.5 GB | audio (30 s chunks) | CPU-only | 8091 | ~realtime on 7800X3D | [official medium](https://huggingface.co/openai/whisper-medium) · [ggml models](https://huggingface.co/ggerganov/whisper.cpp) |
 | `whisper-vanilla` | whisper.cpp (OpenAI) — lazy GPU, glossary-free | 809 M (same turbo model) | ggml f16 | 1.62 GB | audio (30 s chunks) | ~2 GB (only while loaded) | 8094 | realtime-factor ~4–8× (GPU) | [whisper.cpp](https://github.com/ggerganov/whisper.cpp) · [#128](https://github.com/ferraroroberto/local-llm-hub/issues/128) |
 
+## Local text-to-speech backends
+
+All rows speak the same OpenAI-compatible `POST /v1/audio/speech` shape through the hub on `:8000`; direct backend ports are listed for lower-overhead testing. The measured line is hub end-to-end on the Windows reference box for `input="Arming the perimeter."`, `response_format="wav"`, warm reps after backend load.
+
+| Model (hub id) | Engine | Size / runtime | Hub route | Direct port | Default voice | Measured latency | Notes |
+|---|---|---|---|---|---|---|---|
+| `piper-tts` (`audio_speech`) | Piper VITS via standalone binary | ONNX voice (~60 MB) + local binary | `model="audio_speech"` or `model="piper-tts"` | 8096 | `ryan` (`en_US-ryan-medium`) | direct backend median ~0.79 s; hub median ~1.10 s | Fast default for assistant replies and Home Assistant wiring. Standalone binary probe measured ~0.4 s warm; the integrated FastAPI/hub route is ~1 s. Voices: `ryan`, `ryan-high`, `lessac`. |
+| `orpheus-tts` | Orpheus-3B GGUF + SNAC | ~3 B, Q4_K_M GGUF + llama-server child | `model="orpheus-tts"` | 8093 | `tara` | median 2.40 s (2.16–2.47 s) | Most expressive local voice; supports Orpheus presets (`tara`, `leah`, `jess`, `leo`, `dan`, `mia`, `zac`, `zoe`) and streaming time-to-first-audio. |
+| `kokoro-tts` | Kokoro-82M ONNX Runtime | 82 M, int8 ONNX (~88 MB) + packed voices | `model="kokoro-tts"` | 8095 | `am_michael` | median 2.49 s through hub; direct backend median 2.22 s | Low-footprint alternate. ONNX Runtime CUDA is enabled on the reference box, but the current `kokoro-onnx` int8 path is still comparable to Orpheus for this short sample rather than materially faster; keep the Playground Compare spike for subjective voice/latency evaluation. |
+| `chatterbox-tts` | Resemble Chatterbox | ~0.5 B torch package | `model="chatterbox-tts"` | 8092 | built-in / clip path | not remeasured for #156 | On-demand alternate with `exaggeration` / `cfg_weight` tone controls and optional reference-clip voice cloning. |
+
 > **Demoted candidates** (kept defined in `config/models.yaml` but
 > **not in the active rotation** — see `enabled:` for the active host):
 > `qwen3.5-9b`, `glm-4.5-air`. Bring up ad-hoc with
@@ -54,6 +65,7 @@ model was still thinking.
 | **agentic_heavy** (deep lane / transcripts / docs) | `gemma4-26b-a4b-it` | 25 B-total MoE with only 3.8 B active per token. IQ4_XS keeps the whole model on GPU; quality approaches a dense 27B at much higher tok/s thanks to MoE sparsity. Strong multilingual incl. Catalan. |
 | **audio_transcribe** | `whisper-large-v3-turbo` | whisper.cpp on :8090. OpenAI-compatible `/v1/audio/transcriptions`. Port is a shared mutual-exclusion lock with the `transcribe_voice` project. Distilled large-v3 (4 decoder layers) — ~2× faster than large-v3 at near-identical WER on Spanish/English. Carries the English tech-dictation glossary as its initial prompt, which biases language detection toward English; callers transcribing general multilingual audio should select `model=whisper-vanilla` (glossary-free, lazy, :8094 — #128) for unbiased auto-detect. |
 | **audio_translate** | `whisper-medium-translate` | whisper.cpp medium on CPU, eager-loaded on :8091 (~1.5 GB RAM, always ready). Turbo's distilled decoder doesn't translate, so this slot fills the gap. A lazy-load mode (proxy + idle-unload) lives in `src/whisper_translate_proxy.py` for hosts that need to reclaim RAM. |
+| **audio_speech** | `piper-tts` | Piper is the fast local default for short assistant replies. Orpheus remains available as `model="orpheus-tts"` for expressive speech, and Kokoro remains available as `model="kokoro-tts"` for voice comparison. |
 | **Cloud parity (Anthropic)** | `claude_haiku` / `claude_sonnet` / `claude_opus` | Off-device baseline via `claude -p`; same hub, just swap the alias. The aliases stay stable across version bumps — when Anthropic ships `claude-haiku-5`, only the row's `display_name` changes. Not a local role — never touched by `/swap-model`. |
 | **gemini_pro (Google)** | `gemini-3.1-pro` | Subscription cloud route via the `agy` (Antigravity) CLI. AI Pro required for 3.1 Pro (paid since 2026-03-25). 1 M-token context. Image content blocks supported. |
 | **gemini_lite (Google)** | `gemini-3.1-flash-lite` | Subscription cloud route via the `agy` (Antigravity) CLI. GA on 2026-05-07. Lowest-latency tier; quotas share with Gemini Code Assist. |

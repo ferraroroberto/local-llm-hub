@@ -24,7 +24,7 @@ tray:
     - qwen35_4b                 # agentic_light role — fast lane
     - whisper                   # audio_transcribe role
     - whisper_translate         # audio_translate role (eager CPU)
-    - orpheus                   # audio_speech role — TTS default (3B GGUF + SNAC, ~3-4 GB)
+    - piper                     # audio_speech role — fast TTS default (~1 s through hub)
   hub_ready_timeout_s: 30
 
 hosts:
@@ -35,7 +35,7 @@ hosts:
     # but are out of the active rotation. To bring one up: add its id back
     # to this list and run `python -m src.install --fix`, or just launch
     # `launchers/run_qwen.bat` directly.
-    enabled: [qwen35_4b, gemma4_e4b, gemma4_26b, whisper, whisper_translate, whisper_vanilla, chatterbox, orpheus]
+    enabled: [qwen35_4b, gemma4_e4b, gemma4_26b, whisper, whisper_translate, whisper_vanilla, piper, chatterbox, orpheus, kokoro]
 
   mac-mini-m4:
     platform: darwin
@@ -445,9 +445,29 @@ models:
       - "--device"
       - "auto"
 
-  # --- Local Orpheus TTS (3B) — llama.cpp GGUF + SNAC decoder ---
+  # --- Local Piper TTS — fast CPU VITS voices ---
   # The auto-loaded default speech engine (tray.autostart_models) and the
-  # `audio_speech` role alias. Orpheus is an LLM-based TTS (Llama-3B
+  # `audio_speech` role alias. Piper is optimized for local short-form TTS
+  # and is the low-latency path for assistant confirmations. The installer
+  # downloads the standalone Piper binary into vendor/piper and voices into
+  # models/piper.
+  piper:
+    display_name: piper-tts
+    # `audio_speech` is the role alias — clients (e.g. Home Assistant and
+    # app-launcher) address the role, not this specific engine. Move the alias
+    # to the successor row if the speech role is ever repointed.
+    aliases: ["audio_speech"]
+    backend: tts
+    engine: tts-server
+    tts_engine: piper
+    port: 8096
+    model_path: "models/piper/en_US-ryan-medium.onnx"
+    args:
+      - "--device"
+      - "cpu"
+
+  # --- Local Orpheus TTS (3B) — llama.cpp GGUF + SNAC decoder ---
+  # Expressive on-demand speech. Orpheus is an LLM-based TTS (Llama-3B
   # finetune) that emits SNAC audio tokens; the most expressive and natural
   # of the local options (inline emotion tags), and faster than real-time on
   # the reference GPU. Its reference runtime is vLLM, which has no usable
@@ -462,10 +482,6 @@ models:
   # docs/add-tts.md.
   orpheus:
     display_name: orpheus-tts
-    # `audio_speech` is the role alias — clients (e.g. app-launcher #190)
-    # address the role, not this specific engine. Move the alias to the
-    # successor row if the speech role is ever repointed.
-    aliases: ["audio_speech"]
     backend: tts
     engine: tts-server
     tts_engine: orpheus
@@ -474,6 +490,23 @@ models:
     hf_repo: "isaiahbjork/orpheus-3b-0.1-ft-Q4_K_M-GGUF"
     hf_pattern: "*q4_k_m*.gguf"
     model_path: "models/orpheus-3b-0.1-ft-q4_k_m.gguf"
+    args:
+      - "--device"
+      - "auto"
+
+  # --- Local Kokoro TTS (82M) — ONNX Runtime comparison option ---
+  # Tiny Kokoro-82M path for voice comparison. Kept as an
+  # explicit model (`model: kokoro-tts`) instead of the `audio_speech` role
+  # alias because the current Windows ONNX path is not the fast option. The
+  # installer downloads the kokoro-onnx release
+  # assets into models/kokoro/: an int8 ONNX model plus voices-v1.0.bin.
+  kokoro:
+    display_name: kokoro-tts
+    backend: tts
+    engine: tts-server
+    tts_engine: kokoro
+    port: 8095
+    model_path: "models/kokoro/kokoro-v1.0.int8.onnx"
     args:
       - "--device"
       - "auto"
@@ -497,4 +530,4 @@ roles:
     translate:
       model_id: whisper_translate  # whisper-medium on :8091, eager CPU
     speech:
-      model_id: orpheus            # orpheus-tts on :8093 (chatterbox on :8092, on demand)
+      model_id: piper              # piper-tts on :8096 (orpheus/kokoro on demand)

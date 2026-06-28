@@ -1,6 +1,6 @@
 """TTS synthesis engines for the hub's ``/v1/audio/speech`` backend.
 
-Two engines behind one interface, selected per registry row's
+Engines behind one interface, selected per registry row's
 ``tts_engine`` field by :func:`build_engine`:
 
   - ``chatterbox`` — Resemble AI Chatterbox loaded in-process via the
@@ -12,6 +12,10 @@ Two engines behind one interface, selected per registry row's
     decoded with the SNAC neural codec in-process. The most expressive
     option, but heavier. Orpheus's reference runtime (vLLM) has no usable
     Windows build, hence the llama.cpp + SNAC route.
+  - ``kokoro`` — Kokoro-82M via ONNX Runtime. Tiny comparison option;
+    loads a local ONNX model plus packed voice styles from ``models/kokoro``.
+  - ``piper`` — Piper VITS voices through the standalone Piper binary. Fast
+    CPU path for short assistant replies; voices live in ``models/piper``.
 
 Heavy deps (torch, chatterbox-tts, snac, soundfile) are imported **lazily
 inside ``load``/``synthesize``** so this module imports cleanly under
@@ -28,8 +32,10 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+import wave
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Iterator, List, Optional
@@ -301,6 +307,283 @@ class ChatterboxEngine(TTSEngine):
 
     def close(self) -> None:
         self.model = None
+
+
+class KokoroEngine(TTSEngine):
+    """Kokoro-82M through kokoro-onnx / ONNX Runtime."""
+
+    AVAILABLE_VOICES = [
+        "af_heart", "af_alloy", "af_aoede", "af_bella", "af_jessica",
+        "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah",
+        "af_sky", "am_adam", "am_echo", "am_eric", "am_fenrir",
+        "am_liam", "am_michael", "am_onyx", "am_puck", "am_santa",
+        "bf_alice", "bf_emma", "bf_isabella", "bf_lily",
+        "bm_daniel", "bm_fable", "bm_george", "bm_lewis",
+    ]
+    # Calm male American voice; closest built-in Kokoro starting point for
+    # a Jarvis-like assistant voice on this model family.
+    DEFAULT_VOICE = "am_michael"
+
+    def __init__(self, model: Model, device: str = "auto") -> None:
+        self.model_row = model
+        self.device_arg = device
+        self.device = "cpu"
+        self.model = None
+        self._dll_dirs: list = []
+        self.sample_rate = 24000
+
+    def _prepare_cuda_dll_path(self) -> None:
+        """Make Torch's bundled CUDA/cuDNN DLLs visible to ONNX Runtime."""
+        if sys.platform != "win32":
+            return
+        try:
+            import torch
+
+            torch_lib = Path(torch.__file__).resolve().parent / "lib"
+        except Exception:  # noqa: BLE001
+            return
+        if not torch_lib.is_dir():
+            return
+        os.environ["PATH"] = str(torch_lib) + os.pathsep + os.environ.get("PATH", "")
+        try:
+            self._dll_dirs.append(os.add_dll_directory(str(torch_lib)))
+        except (AttributeError, OSError):
+            pass
+
+    def load(self) -> None:
+        from kokoro_onnx import Kokoro
+        import onnxruntime as ort
+
+        if not self.model_row.model_path:
+            raise RuntimeError("kokoro row has no model_path (ONNX)")
+        model_path = (PROJECT_ROOT / self.model_row.model_path).resolve()
+        voices_path = model_path.parent / "voices-v1.0.bin"
+        if not model_path.exists() or not voices_path.exists():
+            raise RuntimeError(
+                f"Kokoro model files not found at {model_path.parent} - "
+                "run scripts/install_tts.py"
+            )
+
+        want = (self.device_arg or "auto").strip().lower()
+        providers = set(ort.get_available_providers())
+        use_cuda = want in ("cuda", "gpu") or (
+            want == "auto" and "CUDAExecutionProvider" in providers
+        )
+        self.device = "cuda" if use_cuda else "cpu"
+        previous_provider = os.environ.get("ONNX_PROVIDER")
+        if use_cuda:
+            # kokoro-onnx otherwise tries every available provider. On hosts
+            # with TensorRT installed that can add startup cost or fail on
+            # models we only need to run through plain CUDA.
+            self._prepare_cuda_dll_path()
+            os.environ["ONNX_PROVIDER"] = "CUDAExecutionProvider"
+        else:
+            os.environ.pop("ONNX_PROVIDER", None)
+        log.info("loading Kokoro ONNX on %s from %s", self.device, model_path)
+        try:
+            self.model = Kokoro(str(model_path), str(voices_path))
+        except Exception:
+            if want != "auto" or not use_cuda:
+                raise
+            log.warning("Kokoro CUDA load failed; falling back to CPU", exc_info=True)
+            os.environ.pop("ONNX_PROVIDER", None)
+            self.device = "cpu"
+            self.model = Kokoro(str(model_path), str(voices_path))
+        finally:
+            if previous_provider is not None:
+                os.environ["ONNX_PROVIDER"] = previous_provider
+        actual_providers = []
+        try:
+            actual_providers = list(self.model.sess.get_providers()) if self.model is not None else []
+        except Exception:  # noqa: BLE001
+            pass
+        if "CUDAExecutionProvider" in actual_providers:
+            self.device = "cuda"
+        elif use_cuda and want != "auto":
+            raise RuntimeError(
+                f"Kokoro requested CUDA but ONNX Runtime used {actual_providers or 'no providers'}"
+            )
+        else:
+            self.device = "cpu"
+        self.sample_rate = 24000
+        log.info("Kokoro ready (sr=%d, default_voice=%s)", self.sample_rate, self.DEFAULT_VOICE)
+
+    def ready(self) -> bool:
+        return self.model is not None
+
+    @classmethod
+    def _voice_for(cls, voice: str) -> str:
+        v = (voice or "").strip()
+        if not v or v.lower() in ("default", "none"):
+            return cls.DEFAULT_VOICE
+        return v if v in cls.AVAILABLE_VOICES else cls.DEFAULT_VOICE
+
+    @staticmethod
+    def _lang_for_voice(voice: str) -> str:
+        if voice.startswith(("af_", "am_")):
+            return "en-us"
+        if voice.startswith(("bf_", "bm_")):
+            return "en-gb"
+        return "en-us"
+
+    def synthesize(self, req: SpeechRequest):
+        if self.model is None:
+            raise RuntimeError("Kokoro not loaded")
+        speed = max(0.5, min(2.0, float(req.speed or 1.0)))
+        voice = self._voice_for(req.voice)
+        audio, sample_rate = self.model.create(
+            req.text,
+            voice=voice,
+            speed=speed,
+            lang=self._lang_for_voice(voice),
+        )
+        self.sample_rate = int(sample_rate or 24000)
+        return _to_mono_f32(audio)
+
+    def close(self) -> None:
+        self.model = None
+
+
+class PiperEngine(TTSEngine):
+    """Piper standalone binary with local ONNX voices."""
+
+    DEFAULT_VOICE = "ryan"
+    VOICE_FILES = {
+        "default": "en_US-ryan-medium.onnx",
+        "ryan": "en_US-ryan-medium.onnx",
+        "ryan-medium": "en_US-ryan-medium.onnx",
+        "en_us-ryan-medium": "en_US-ryan-medium.onnx",
+        "en_us_ryan_medium": "en_US-ryan-medium.onnx",
+        "ryan-high": "en_US-ryan-high.onnx",
+        "en_us-ryan-high": "en_US-ryan-high.onnx",
+        "en_us_ryan_high": "en_US-ryan-high.onnx",
+        "lessac": "en_US-lessac-medium.onnx",
+        "lessac-medium": "en_US-lessac-medium.onnx",
+        "en_us-lessac-medium": "en_US-lessac-medium.onnx",
+        "en_us_lessac_medium": "en_US-lessac-medium.onnx",
+    }
+
+    def __init__(self, model: Model, device: str = "auto") -> None:
+        self.model_row = model
+        self.device_arg = device
+        self.device = "cpu"
+        self.binary = self._default_binary()
+        self.default_model: Optional[Path] = None
+        self.sample_rate = 22050
+
+    @staticmethod
+    def _default_binary() -> Path:
+        name = "piper.exe" if sys.platform == "win32" else "piper"
+        return PROJECT_ROOT / "vendor" / "piper" / name
+
+    @staticmethod
+    def _config_path(model_path: Path) -> Path:
+        return Path(str(model_path) + ".json")
+
+    @staticmethod
+    def _read_sample_rate(config_path: Path) -> int:
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+            return int(data.get("audio", {}).get("sample_rate") or 22050)
+        except Exception:  # noqa: BLE001
+            return 22050
+
+    def load(self) -> None:
+        if not self.model_row.model_path:
+            raise RuntimeError("piper row has no model_path (ONNX voice)")
+        model_path = (PROJECT_ROOT / self.model_row.model_path).resolve()
+        config_path = self._config_path(model_path)
+        if not self.binary.exists():
+            raise RuntimeError(f"Piper binary not found at {self.binary} - run scripts/install_tts.py")
+        if not model_path.exists() or not config_path.exists():
+            raise RuntimeError(
+                f"Piper voice files not found at {model_path.parent} - run scripts/install_tts.py"
+            )
+        self.default_model = model_path
+        self.sample_rate = self._read_sample_rate(config_path)
+        self.device = "cpu"
+        log.info(
+            "Piper ready (binary=%s, voice=%s, sr=%d)",
+            self.binary,
+            model_path.name,
+            self.sample_rate,
+        )
+
+    def ready(self) -> bool:
+        return self.default_model is not None
+
+    def _model_for_voice(self, voice: str) -> Path:
+        assert self.default_model is not None
+        raw = (voice or "").strip()
+        key = raw.lower().replace(" ", "-")
+        if not key or key == "none":
+            return self.default_model
+        direct = Path(raw)
+        if direct.is_file():
+            return direct.resolve()
+        filename = self.VOICE_FILES.get(key)
+        if filename:
+            candidate = self.default_model.parent / filename
+            if candidate.exists():
+                return candidate
+        candidate = self.default_model.parent / f"{raw}.onnx"
+        if candidate.exists():
+            return candidate
+        log.info("unknown Piper voice %r; using %s", raw, self.default_model.name)
+        return self.default_model
+
+    def synthesize(self, req: SpeechRequest):
+        import numpy as np
+
+        if self.default_model is None:
+            raise RuntimeError("Piper not loaded")
+        model_path = self._model_for_voice(req.voice)
+        config_path = self._config_path(model_path)
+        self.sample_rate = self._read_sample_rate(config_path)
+        # Piper's length_scale is inverse speed: lower scale speaks faster.
+        speed = max(0.5, min(2.0, float(req.speed or 1.0)))
+        length_scale = 1.0 / speed
+        espeak_dir = self.binary.parent / "espeak-ng-data"
+        cmd = [
+            str(self.binary),
+            "--model", str(model_path),
+            "--config", str(config_path),
+            "--length_scale", f"{length_scale:.4f}",
+            "--sentence_silence", "0.05",
+            "--quiet",
+        ]
+        if espeak_dir.is_dir():
+            cmd.extend(["--espeak_data", str(espeak_dir)])
+        with tempfile.NamedTemporaryFile(prefix="piper-", suffix=".wav", delete=False) as tmp:
+            out_path = Path(tmp.name)
+        try:
+            proc = subprocess.run(
+                [*cmd, "--output_file", str(out_path)],
+                input=(req.text.strip() + "\n").encode("utf-8"),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=str(PROJECT_ROOT),
+                timeout=60,
+                check=False,
+            )
+            if proc.returncode != 0:
+                err = proc.stderr.decode("utf-8", errors="replace").strip()
+                raise RuntimeError(f"Piper exited {proc.returncode}: {err}")
+            if not out_path.exists() or out_path.stat().st_size <= 44:
+                return np.zeros(0, dtype=np.float32)
+            with wave.open(str(out_path), "rb") as wav:
+                self.sample_rate = int(wav.getframerate())
+                channels = int(wav.getnchannels())
+                frames = wav.readframes(wav.getnframes())
+            pcm = np.frombuffer(frames, dtype="<i2").astype(np.float32)
+            if channels > 1:
+                pcm = pcm.reshape(-1, channels).mean(axis=1)
+            return pcm / 32768.0
+        finally:
+            try:
+                out_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 class OrpheusEngine(TTSEngine):
@@ -715,9 +998,13 @@ def build_engine(model: Model, device: str = "auto") -> TTSEngine:
     eng = (model.tts_engine or "").strip().lower()
     if eng == "chatterbox":
         return ChatterboxEngine(device)
+    if eng == "kokoro":
+        return KokoroEngine(model, device)
     if eng == "orpheus":
         return OrpheusEngine(model, device)
+    if eng == "piper":
+        return PiperEngine(model, device)
     raise ValueError(
         f"unknown tts_engine {model.tts_engine!r} for model {model.id!r} "
-        f"(expected 'chatterbox' or 'orpheus')"
+        f"(expected 'chatterbox', 'kokoro', 'orpheus', or 'piper')"
     )
