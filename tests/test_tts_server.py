@@ -303,7 +303,9 @@ def test_piper_engine_voice_mapping_and_build():
     )
     eng = build_engine(model, device="cpu")
     assert isinstance(eng, PiperEngine)
-    assert PiperEngine.VOICE_FILES["default"] == "en_US-ryan-medium.onnx"
+    assert PiperEngine.VOICE_FILES["default"] == "en_US-amy-medium.onnx"
+    assert PiperEngine.VOICE_FILES["amy"] == "en_US-amy-medium.onnx"
+    assert PiperEngine.VOICE_FILES["ryan"] == "en_US-ryan-medium.onnx"
     assert PiperEngine.VOICE_FILES["ryan-high"] == "en_US-ryan-high.onnx"
     assert PiperEngine.VOICE_FILES["lessac"] == "en_US-lessac-medium.onnx"
 

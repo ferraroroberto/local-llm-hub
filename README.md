@@ -102,8 +102,9 @@ Local entries in active use as of the May 2026 frontier reading:
   on `127.0.0.1:8096`. OpenAI-compatible `POST /v1/audio/speech`. POST to
   the hub's proxy at `:8000/v1/audio/speech` with `model="audio_speech"`
   (captured in the observability ring). Uses the standalone Piper binary plus
-  ONNX voices in `models/piper/`; default voice is `ryan`
-  (`en_US-ryan-medium`). `piper.exe` runs **resident** (one process per
+  ONNX voices in `models/piper/`; default voice is `amy`
+  (`en_US-amy-medium`; `ryan`, `ryan-high`, `lessac` remain selectable).
+  `piper.exe` runs **resident** (one process per
   voice+speed, ONNX voice loaded once and reused) so short phrases skip the
   per-request model-load tax: integrated latency for `Arming the perimeter.`
   is ~0.06 s direct to `:8096` and ~0.06 s through the hub (warm, connection
@@ -852,10 +853,10 @@ directly to the backend port (lower overhead):
 
 ```bash
 # through the hub proxy (lands in the observability ring)
-# audio_speech → Piper; voice picks ryan, ryan-high, or lessac
+# audio_speech → Piper; voice picks amy (default), ryan, ryan-high, or lessac
 curl -s -X POST http://127.0.0.1:8000/v1/audio/speech \
   -H "Content-Type: application/json" \
-  -d '{"model":"audio_speech","input":"Hey, listen to this.","voice":"ryan","response_format":"wav"}' \
+  -d '{"model":"audio_speech","input":"Hey, listen to this.","voice":"amy","response_format":"wav"}' \
   --output reply.wav
 
 # kokoro-tts → Kokoro-82M; empty/default voice uses am_michael
@@ -869,12 +870,12 @@ curl -s -X POST http://127.0.0.1:8000/v1/audio/speech \
 from openai import OpenAI
 tts = OpenAI(api_key="local-dummy", base_url="http://127.0.0.1:8000/v1")
 # model="audio_speech" → Piper (auto-loaded); model="orpheus-tts" → Orpheus.
-audio = tts.audio.speech.create(model="audio_speech", voice="ryan", input="Hey, listen to this.")
+audio = tts.audio.speech.create(model="audio_speech", voice="amy", input="Hey, listen to this.")
 audio.stream_to_file("reply.wav")
 ```
 
 `exaggeration` / `cfg_weight` are Chatterbox's emotion/"tone" dial; `voice`
-selects a Piper voice (`ryan`, `ryan-high`, `lessac`), an Orpheus preset
+selects a Piper voice (`amy`, `ryan`, `ryan-high`, `lessac`), an Orpheus preset
 (`tara`, `leah`, …), a Kokoro voice id (`am_michael`, `af_bella`,
 `am_fenrir`, …), or a Chatterbox cloning clip at
 `config/tts_voices/<voice>.wav`. Piper and Kokoro honor `speed` in the

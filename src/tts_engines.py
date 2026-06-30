@@ -555,9 +555,13 @@ class PiperEngine(TTSEngine):
     single one-shot subprocess for that request and is recycled.
     """
 
-    DEFAULT_VOICE = "ryan"
+    DEFAULT_VOICE = "amy"
     VOICE_FILES = {
-        "default": "en_US-ryan-medium.onnx",
+        "default": "en_US-amy-medium.onnx",
+        "amy": "en_US-amy-medium.onnx",
+        "amy-medium": "en_US-amy-medium.onnx",
+        "en_us-amy-medium": "en_US-amy-medium.onnx",
+        "en_us_amy_medium": "en_US-amy-medium.onnx",
         "ryan": "en_US-ryan-medium.onnx",
         "ryan-medium": "en_US-ryan-medium.onnx",
         "en_us-ryan-medium": "en_US-ryan-medium.onnx",

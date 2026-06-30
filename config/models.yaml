@@ -487,7 +487,7 @@ models:
     engine: tts-server
     tts_engine: piper
     port: 8096
-    model_path: "models/piper/en_US-ryan-medium.onnx"
+    model_path: "models/piper/en_US-amy-medium.onnx"
     args:
       - "--device"
       - "cpu"
