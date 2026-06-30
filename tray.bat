@@ -4,7 +4,7 @@ REM ============================================================================
 REM  LOCAL LLM HUB TRAY - tray icon that owns the FastAPI hub lifecycle
 REM ----------------------------------------------------------------------------
 REM  Resident system-tray icon. Starts the FastAPI hub on :8000 and (if
-REM  configured) the autostart model from `config/models.yaml -> tray:`.
+REM  configured) the autostart models from `config/models.yaml -> tray:`.
 REM  Drop a shortcut to this file in the Windows Startup folder for
 REM  always-on local-LLM hosting.
 REM

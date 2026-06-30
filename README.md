@@ -579,8 +579,9 @@ Starts a resident system-tray icon (silent — no terminal window) that:
 
 - Auto-starts the hub on :8000 and the models listed in
   `config/models.yaml` under `tray.autostart_models` (default
-  `[qwen35_4b, whisper, whisper_translate, piper]` — the last is the
-  text-to-speech default). Set it to `[]` to skip
+  `[qwen35_4b, whisper, whisper_translate, piper, orpheus]` — Qwen fast
+  lane, both eager ASR slots, fast Piper speech, and expressive Orpheus
+  speech). Set it to `[]` to skip
   model autostart, or change the list to any subset of enabled model
   ids.
 - Lets you toggle any other enabled local model on/off from the

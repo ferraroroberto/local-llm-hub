@@ -25,6 +25,7 @@ tray:
     - whisper                   # audio_transcribe role
     - whisper_translate         # audio_translate role (eager CPU)
     - piper                     # audio_speech role — fast TTS default (~1 s through hub)
+    - orpheus                   # expressive TTS, kept warm for quality speech
   hub_ready_timeout_s: 30
 
 hosts:
