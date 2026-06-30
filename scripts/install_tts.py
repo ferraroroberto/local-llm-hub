@@ -60,6 +60,14 @@ _PIPER_RELEASE_URL = os.environ.get(
     "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip",
 )
 _PIPER_VOICES = {
+    "en_US-amy-medium.onnx": (
+        "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/"
+        "en/en_US/amy/medium/en_US-amy-medium.onnx?download=true"
+    ),
+    "en_US-amy-medium.onnx.json": (
+        "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/"
+        "en/en_US/amy/medium/en_US-amy-medium.onnx.json?download=true"
+    ),
     "en_US-ryan-medium.onnx": (
         "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/"
         "en/en_US/ryan/medium/en_US-ryan-medium.onnx?download=true"
@@ -301,10 +309,10 @@ def _warm_piper() -> None:
     try:
         from src.tts_engines import PiperEngine, SpeechRequest  # type: ignore
 
-        log.info("warming Piper with ryan …")
+        log.info("warming Piper with amy …")
         eng = PiperEngine(rows[0], device="cpu")
         eng.load()
-        eng.synthesize(SpeechRequest(text="Arming the perimeter.", voice="ryan"))
+        eng.synthesize(SpeechRequest(text="Arming the perimeter.", voice="amy"))
         log.info("  Piper ready")
     except Exception as exc:  # noqa: BLE001
         log.warning("Piper warm-up skipped: %s", exc)
