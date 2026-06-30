@@ -317,3 +317,110 @@ def test_chat_completions_stream_upstream_error(monkeypatch):
         body = "".join(r.iter_text())
     assert "boom" in body
     assert "[DONE]" in body
+
+
+# ---- response_format / chat_template_kwargs passthrough (issue #159) ----
+
+_RESPONSE_FORMAT = {"type": "json_schema", "json_schema": {"name": "ok", "schema": {"type": "object"}}}
+_TEMPLATE_KWARGS = {"enable_thinking": False}
+
+
+def test_chat_completions_forwards_structured_params_non_stream(monkeypatch):
+    """response_format + chat_template_kwargs reach the upstream `extra` (non-stream)."""
+    captured: dict = {}
+
+    def fake_call(base_url, model, messages, *, max_tokens=None, temperature=None,
+                  timeout=600.0, extra=None):
+        captured["extra"] = extra
+        return {
+            "id": "x", "object": "chat.completion", "model": model,
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": "{}"},
+                "finish_reason": "stop",
+            }],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        }
+
+    monkeypatch.setattr(server_mod, "call_openai_chat", fake_call)
+
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "qwen3.5-4b",
+            "messages": [{"role": "user", "content": "hi"}],
+            "response_format": _RESPONSE_FORMAT,
+            "chat_template_kwargs": _TEMPLATE_KWARGS,
+        },
+    )
+    assert r.status_code == 200, r.text
+    extra = captured["extra"]
+    assert extra is not None
+    assert extra["response_format"] == _RESPONSE_FORMAT
+    assert extra["chat_template_kwargs"] == _TEMPLATE_KWARGS
+
+
+def test_chat_completions_forwards_structured_params_stream(monkeypatch):
+    """response_format + chat_template_kwargs reach the upstream `extra` (stream)."""
+    captured: dict = {}
+
+    def fake_stream(base_url, model, messages, *, max_tokens=None, temperature=None,
+                    timeout=600.0, extra=None) -> Iterator[str]:
+        captured["extra"] = extra
+        for line in _sse_lines(_delta("ok")):
+            yield line
+
+    monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
+
+    client = TestClient(server_mod.app)
+    with client.stream(
+        "POST",
+        "/v1/chat/completions",
+        json={
+            "model": "qwen3.5-4b",
+            "stream": True,
+            "messages": [{"role": "user", "content": "hi"}],
+            "response_format": _RESPONSE_FORMAT,
+            "chat_template_kwargs": _TEMPLATE_KWARGS,
+        },
+    ) as r:
+        assert r.status_code == 200
+        _ = "".join(r.iter_text())
+
+    extra = captured["extra"]
+    assert extra is not None
+    assert extra["response_format"] == _RESPONSE_FORMAT
+    assert extra["chat_template_kwargs"] == _TEMPLATE_KWARGS
+
+
+def test_chat_completions_omits_structured_params_when_absent(monkeypatch):
+    """No response_format/chat_template_kwargs in `extra` when the client omits them."""
+    captured: dict = {}
+
+    def fake_call(base_url, model, messages, *, max_tokens=None, temperature=None,
+                  timeout=600.0, extra=None):
+        captured["extra"] = extra
+        return {
+            "id": "x", "object": "chat.completion", "model": model,
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": "hi"},
+                "finish_reason": "stop",
+            }],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        }
+
+    monkeypatch.setattr(server_mod, "call_openai_chat", fake_call)
+
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "qwen3.5-4b",
+            "messages": [{"role": "user", "content": "hi"}],
+        },
+    )
+    assert r.status_code == 200, r.text
+    # extra collapses to None when nothing optional is sent.
+    assert captured["extra"] is None
