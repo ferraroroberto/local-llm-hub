@@ -396,8 +396,8 @@ class TrayApp:
             self._notify("Hub", f"⚠️ not reachable after {self.cfg.hub_ready_timeout_s:.0f}s")
             return
         self._update_menu()
-        for model_id in self.cfg.autostart_models:
-            self._start_model_worker(model_id, autostart=True)
+        # Model autostart runs inside the hub startup path so tray and
+        # direct hub launches share one behavior.
 
     def _restart_worker(self) -> None:
         self._notify("Hub", "🔄 restarting…")
@@ -412,12 +412,7 @@ class TrayApp:
             return
         self._notify("Hub", "✅ restarted")
         self._update_menu()
-        # The tray stops the hub with a normal teardown (CTRL_BREAK), which
-        # kills the model backends — unlike the admin restart, which keeps
-        # them alive for adoption. Re-autostart the configured models so a
-        # tray restart leaves them running again (mirrors _autostart_worker).
-        for model_id in self.cfg.autostart_models:
-            self._start_model_worker(model_id, autostart=True)
+        # Hub startup owns configured model autostart; no tray-side duplicate.
 
     def _toggle_model_worker(self, model_id: str) -> None:
         """Toggle a model's lifecycle via the hub's admin API.
@@ -635,3 +630,4 @@ def _set_clipboard(text: str) -> None:
 
 def main() -> int:
     return TrayApp(load_tray_config()).run()
+

@@ -156,6 +156,11 @@ def _assign_to_job(job, proc: "subprocess.Popen") -> bool:
     return bool(k32.AssignProcessToJobObject(job, int(proc._handle)))
 
 
+def _no_window_flags() -> int:
+    """Suppress console windows for native helper binaries on Windows."""
+    return subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+
 def resolve_device(arg: Optional[str]) -> str:
     """Map ``--device`` (auto|cuda|cpu|mps) to a concrete torch device.
 
@@ -474,6 +479,7 @@ class _PiperProc:
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             cwd=str(PROJECT_ROOT),
+            creationflags=_no_window_flags(),
         )
         _assign_to_job(job, self._proc)
         threading.Thread(target=self._reader, args=(self._proc,), daemon=True).start()
@@ -748,6 +754,7 @@ class PiperEngine(TTSEngine):
                 cwd=str(PROJECT_ROOT),
                 timeout=60,
                 check=False,
+                creationflags=_no_window_flags(),
             )
             if proc.returncode != 0:
                 err = proc.stderr.decode("utf-8", errors="replace").strip()
@@ -1220,3 +1227,5 @@ def build_engine(model: Model, device: str = "auto") -> TTSEngine:
         f"unknown tts_engine {model.tts_engine!r} for model {model.id!r} "
         f"(expected 'chatterbox', 'kokoro', 'orpheus', or 'piper')"
     )
+
+
