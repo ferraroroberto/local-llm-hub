@@ -577,13 +577,13 @@ tray.bat
 
 Starts a resident system-tray icon (silent — no terminal window) that:
 
-- Auto-starts the hub on :8000 and the models listed in
-  `config/models.yaml` under `tray.autostart_models` (default
-  `[qwen35_4b, whisper, whisper_translate, piper, orpheus]` — Qwen fast
-  lane, both eager ASR slots, fast Piper speech, and expressive Orpheus
-  speech). Set it to `[]` to skip
-  model autostart, or change the list to any subset of enabled model
-  ids.
+- Auto-starts the hub on :8000. Hub startup then starts the models listed
+  in `config/models.yaml` under `tray.autostart_models` for every launch
+  surface (tray, `run_hub.bat`, or `python -m src.run_backend hub`). The
+  default is `[qwen35_4b, whisper, whisper_translate, piper, orpheus]` —
+  Qwen fast lane, both eager ASR slots, fast Piper speech, and expressive
+  Orpheus speech. Set it to `[]` to skip model autostart, or change the
+  list to any subset of enabled model ids.
 - Lets you toggle any other enabled local model on/off from the
   **🧠 Models** submenu (multiple may run concurrently).
 - Surfaces the admin webapp via **🚀 Open admin** — same `:8000/admin/`

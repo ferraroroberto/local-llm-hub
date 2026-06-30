@@ -136,6 +136,23 @@ def enabled_models(host: Optional[HostProfile] = None) -> List[Model]:
     return result
 
 
+def autostart_model_ids(host: Optional[HostProfile] = None) -> List[str]:
+    """Configured local backend ids to start with the hub.
+
+    The YAML list is user-editable, so filter it through the active host and
+    launchable backend rows. Virtual aliases share a real backend and never
+    own a process, so they are excluded even if listed by mistake.
+    """
+    cfg = _load_config()
+    raw = (cfg.get("tray") or {}).get("autostart_models") or []
+    if not isinstance(raw, list):
+        return []
+    valid = {
+        m.id for m in enabled_models(host)
+        if m.backend in ("openai", "whisper", "tts") and not m.virtual
+    }
+    return [model_id for model_id in (str(item) for item in raw if item) if model_id in valid]
+
 def resolve(name: str, host: Optional[HostProfile] = None) -> Optional[Model]:
     """Look up a model by any of its names — registry id, display_name, or alias.
 
@@ -157,3 +174,4 @@ def known_names(host: Optional[HostProfile] = None) -> List[str]:
     for m in enabled_models(host):
         names.extend(m.all_names)
     return sorted(dict.fromkeys(names))
+

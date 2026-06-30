@@ -67,6 +67,31 @@ def test_env_override_wins(tmp_path, monkeypatch):
     assert "qwen" in ids
 
 
+def test_autostart_model_ids_filters_to_launchable_enabled_rows(tmp_path, monkeypatch):
+    cfg = _write_config(tmp_path, {
+        "hub": {"port": 8000},
+        "tray": {"autostart_models": [
+            "qwen", "qwen_virtual", "piper", "disabled", "claude", "missing",
+        ]},
+        "hosts": {
+            "pc": {"platform": "win32", "default": True, "enabled": ["qwen", "qwen_virtual", "piper"]},
+        },
+        "models": {
+            "qwen": {"display_name": "qwen3.5-9b", "backend": "openai", "port": 8081},
+            "qwen_virtual": {
+                "display_name": "qwen3.5-9b-nothink", "backend": "openai",
+                "port": 8081, "virtual": True,
+            },
+            "piper": {"display_name": "piper-tts", "backend": "tts", "port": 8096},
+            "disabled": {"display_name": "gemma", "backend": "openai", "port": 8087},
+            "claude": {"display_name": "claude-haiku-4-5", "backend": "claude"},
+        },
+    })
+    _patch_config_path(monkeypatch, cfg)
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "pc")
+
+    assert model_registry.autostart_model_ids() == ["qwen", "piper"]
+
 def test_resolve_by_alias(tmp_path, monkeypatch):
     cfg = _write_config(tmp_path, {
         "hub": {"port": 8000},
@@ -432,3 +457,4 @@ def test_model_url_from_port(tmp_path, monkeypatch):
 
     m = model_registry.resolve("qwen3.5-9b")
     assert m.url == "http://127.0.0.1:8081/v1"
+

@@ -479,6 +479,32 @@ async def _wire_observatory_loop() -> None:
     except Exception as exc:  # noqa: BLE001
         logger.warning("inherit_running_backends failed: %s", exc)
 
+    # The hub owns configured backend autostart so every launch surface
+    # (tray, run_hub.bat, python -m src.run_backend hub) behaves the same.
+    loop.create_task(_autostart_configured_backends())
+
+
+async def _autostart_configured_backends() -> None:
+    import asyncio as _asyncio
+
+    from . import backend_process as bp
+    from .model_registry import autostart_model_ids
+
+    model_ids = autostart_model_ids()
+    if not model_ids:
+        return
+    logger.info("autostart: configured backend set: %s", model_ids)
+    for model_id in model_ids:
+        try:
+            ok, msg = await _asyncio.to_thread(bp.start, model_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("autostart: %s raised: %s", model_id, exc)
+            continue
+        if ok or "already running" in msg.lower():
+            logger.info("autostart: %s -> %s", model_id, msg)
+        else:
+            logger.warning("autostart: %s -> %s", model_id, msg)
+
 
 async def _resource_sampler() -> None:
     """Background task that samples RAM + GPU usage every 2 s."""
@@ -1060,3 +1086,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
