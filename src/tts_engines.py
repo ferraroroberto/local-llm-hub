@@ -797,6 +797,12 @@ class OrpheusEngine(TTSEngine):
         self._job = None  # Windows Job handle: kills the llama child when we die
         self.internal_port = int(model.internal_port or 18093)
         self.sample_rate = 24000
+        # Persistent client for the loopback /completion calls to our own
+        # llama-server child. Constructing an httpx client is ~0.26s on Windows
+        # (#165), so a per-request client would tax every synthesis; one
+        # reused client costs ~1ms. This engine runs in the tts_server process,
+        # not the hub, so it can't use the hub's shared client.
+        self._client: Optional[httpx.Client] = None
 
     # ---- lifecycle ----
 
@@ -807,6 +813,7 @@ class OrpheusEngine(TTSEngine):
         self.device = resolve_device(self.device_arg)
         log.info("loading SNAC codec on %s …", self.device)
         self.snac = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval().to(self.device)
+        self._client = httpx.Client(timeout=300.0)
         self._spawn_llama()
         self._wait_llama_ready()
         log.info("Orpheus ready (llama-server :%d, SNAC on %s)", self.internal_port, self.device)
@@ -995,7 +1002,10 @@ class OrpheusEngine(TTSEngine):
 
         prompt = self._prompt_for(req, chunk)
         url = f"http://127.0.0.1:{self.internal_port}/completion"
-        r = httpx.post(url, json=self._completion_payload(prompt, stream=False), timeout=300.0)
+        assert self._client is not None
+        r = self._client.post(
+            url, json=self._completion_payload(prompt, stream=False), timeout=300.0
+        )
         r.raise_for_status()
         content = r.json().get("content", "")
         codes = self._parse_tokens(content)
@@ -1043,7 +1053,8 @@ class OrpheusEngine(TTSEngine):
         """Stream the llama-server ``/completion`` SSE, yielding each delta's
         ``content`` text as it arrives."""
         url = f"http://127.0.0.1:{self.internal_port}/completion"
-        with httpx.stream(
+        assert self._client is not None
+        with self._client.stream(
             "POST", url, json=self._completion_payload(prompt, stream=True), timeout=300.0
         ) as r:
             r.raise_for_status()
@@ -1160,6 +1171,12 @@ class OrpheusEngine(TTSEngine):
         return audio.detach().cpu().float().numpy().reshape(-1)
 
     def close(self) -> None:
+        if self._client is not None:
+            try:
+                self._client.close()
+            except Exception:  # noqa: BLE001
+                pass
+            self._client = None
         proc = self.proc
         self.proc = None
         if proc is not None and proc.poll() is None:

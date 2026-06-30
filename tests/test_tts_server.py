@@ -399,7 +399,9 @@ def test_synthesize_long_input_is_not_truncated(monkeypatch):
         calls.append(body)
         return _FakeResp(_capped_completion_content(body, json["n_predict"]))
 
-    monkeypatch.setattr(tts_engines.httpx, "post", fake_post)
+    # Orpheus now posts through its own persistent client (self._client),
+    # not the module-level httpx.post (#165); stub that client.
+    monkeypatch.setattr(eng, "_client", SimpleNamespace(post=fake_post))
 
     # The single-request ceiling: 4096 tokens → 585 frames → 585*2048 samples.
     ceiling = (_N_PREDICT // 7) * 2048

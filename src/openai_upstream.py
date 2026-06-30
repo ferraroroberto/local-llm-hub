@@ -27,6 +27,8 @@ from typing import Any, Dict, Iterator, List, Optional
 
 import httpx
 
+from .http_client import get_sync_client
+
 
 class UpstreamError(RuntimeError):
     pass
@@ -79,7 +81,7 @@ def call_openai_chat(
     if extra:
         payload.update(extra)
     try:
-        r = httpx.post(url, json=payload, timeout=timeout)
+        r = get_sync_client().post(url, json=payload, timeout=timeout)
     except httpx.HTTPError as e:
         raise UpstreamError(f"upstream {url} unreachable: {e}") from e
     if r.status_code >= 400:
@@ -120,18 +122,16 @@ def call_openai_chat_stream(
         payload.update(extra)
     headers = {"Accept": "text/event-stream"}
     try:
-        client = httpx.Client(timeout=timeout)
-        try:
-            with client.stream("POST", url, json=payload, headers=headers) as r:
-                if r.status_code >= 400:
-                    body = r.read().decode("utf-8", errors="replace")
-                    raise UpstreamError(
-                        f"upstream {url} HTTP {r.status_code}: {body[:500]}"
-                    )
-                for line in r.iter_lines():
-                    yield line
-        finally:
-            client.close()
+        with get_sync_client().stream(
+            "POST", url, json=payload, headers=headers, timeout=timeout
+        ) as r:
+            if r.status_code >= 400:
+                body = r.read().decode("utf-8", errors="replace")
+                raise UpstreamError(
+                    f"upstream {url} HTTP {r.status_code}: {body[:500]}"
+                )
+            for line in r.iter_lines():
+                yield line
     except httpx.HTTPError as e:
         raise UpstreamError(f"upstream {url} unreachable: {e}") from e
 

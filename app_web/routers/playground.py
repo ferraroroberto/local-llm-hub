@@ -11,6 +11,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 
 from src.host_profile import hub_port
+from src.http_client import get_async_client
 from src.model_registry import enabled_models, resolve as resolve_model
 
 logger = logging.getLogger(__name__)
@@ -127,18 +128,16 @@ async def playground_speak(
     url = f"http://127.0.0.1:{hub_port()}/v1/audio/speech"
 
     if stream:
-        client = httpx.AsyncClient(timeout=300.0)
-        stream_cm = client.stream("POST", url, json=payload)
+        client = get_async_client()
+        stream_cm = client.stream("POST", url, json=payload, timeout=300.0)
         try:
             upstream = await stream_cm.__aenter__()
         except httpx.HTTPError as exc:
-            await client.aclose()
             raise HTTPException(status_code=502, detail=f"upstream error: {exc}")
         if not upstream.is_success:
             detail = (await upstream.aread()).decode("utf-8", "replace") or f"HTTP {upstream.status_code}"
             status = upstream.status_code
             await stream_cm.__aexit__(None, None, None)
-            await client.aclose()
             raise HTTPException(status_code=status, detail=str(detail)[:500])
 
         async def _forward():
@@ -147,7 +146,6 @@ async def playground_speak(
                     yield piece
             finally:
                 await stream_cm.__aexit__(None, None, None)
-                await client.aclose()
 
         out_headers = {}
         sr = upstream.headers.get("x-sample-rate")
@@ -160,8 +158,7 @@ async def playground_speak(
         )
 
     try:
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            r = await client.post(url, json=payload)
+        r = await get_async_client().post(url, json=payload, timeout=300.0)
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"upstream error: {exc}")
     if not r.is_success:
@@ -239,8 +236,7 @@ async def playground_send(
 
     url = f"http://127.0.0.1:{hub_port()}/v1/messages"
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            r = await client.post(url, json=payload)
+        r = await get_async_client().post(url, json=payload, timeout=120.0)
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"upstream error: {exc}")
     body: Dict[str, Any] = {}
@@ -291,24 +287,25 @@ async def playground_generate_image(
         raise HTTPException(status_code=400, detail="prompt is empty")
 
     base = f"http://127.0.0.1:{hub_port()}"
+    client = get_async_client()
     try:
-        async with httpx.AsyncClient(timeout=900.0) as client:
-            if image is not None and image.filename:
-                raw = await image.read()
-                files = {
-                    "image": (
-                        image.filename, raw,
-                        image.content_type or "application/octet-stream",
-                    )
-                }
-                data = {"model": model, "prompt": prompt}
-                r = await client.post(
-                    base + "/v1/images/edits", files=files, data=data)
-            else:
-                r = await client.post(
-                    base + "/v1/images/generations",
-                    json={"model": model, "prompt": prompt},
+        if image is not None and image.filename:
+            raw = await image.read()
+            files = {
+                "image": (
+                    image.filename, raw,
+                    image.content_type or "application/octet-stream",
                 )
+            }
+            data = {"model": model, "prompt": prompt}
+            r = await client.post(
+                base + "/v1/images/edits", files=files, data=data, timeout=900.0)
+        else:
+            r = await client.post(
+                base + "/v1/images/generations",
+                json={"model": model, "prompt": prompt},
+                timeout=900.0,
+            )
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"upstream error: {exc}")
 

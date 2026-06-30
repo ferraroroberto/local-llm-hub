@@ -432,12 +432,13 @@ async def _stop_backend_children() -> None:
     signalling shutdown; we honour it by skipping teardown.
     """
     from . import backend_process as bp
-    from .server_audio import close_speech_client
+    from . import http_client
 
     try:
-        await close_speech_client()
+        await http_client.aclose()
+        http_client.close()
     except Exception as exc:  # noqa: BLE001
-        logger.warning("shutdown: closing TTS proxy client raised: %s", exc)
+        logger.warning("shutdown: closing shared httpx clients raised: %s", exc)
 
     if bp.restart_pending():
         survivors = list(bp.running_backends().keys())

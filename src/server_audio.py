@@ -20,40 +20,12 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 
 from .audio_proxy import build_whisper_upstream_request
+from .http_client import get_async_client
 from .server_common import current_otel_span, safe_span, stash_trace_id_on_ctx
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# Shared pooled httpx client for the loopback TTS proxy. A fresh AsyncClient
-# per request opens a new TCP connection to the backend port every call —
-# measured ~0.3 s/call of pure handshake on top of synthesis. Reusing one
-# keep-alive pool removes that. Created lazily inside the running event loop
-# (so it binds the right loop) and closed on hub shutdown via
-# close_speech_client(). The lazy init is race-free under asyncio: there is no
-# await between the None check and the assignment.
-_speech_client = None
-
-
-def _get_speech_client():
-    global _speech_client
-    import httpx as _httpx
-
-    if _speech_client is None or _speech_client.is_closed:
-        _speech_client = _httpx.AsyncClient(
-            timeout=300.0,
-            limits=_httpx.Limits(max_keepalive_connections=8, keepalive_expiry=60.0),
-        )
-    return _speech_client
-
-
-async def close_speech_client() -> None:
-    """Close the shared TTS proxy client (hub shutdown)."""
-    global _speech_client
-    if _speech_client is not None and not _speech_client.is_closed:
-        await _speech_client.aclose()
-    _speech_client = None
 
 
 def _audio_upstream_error(exc: Exception, *, backend: str, port: int) -> HTTPException:
@@ -211,8 +183,9 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
 
         upstream_url = f"http://127.0.0.1:{port}/v1/audio/transcriptions"
         try:
-            async with _httpx.AsyncClient(timeout=300.0) as client:
-                upstream = await client.post(upstream_url, files=files, data=data)
+            upstream = await get_async_client().post(
+                upstream_url, files=files, data=data, timeout=300.0
+            )
         except _httpx.HTTPError as exc:
             raise _audio_upstream_error(exc, backend="whisper-server", port=port)
     else:
@@ -222,8 +195,9 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
             if k.lower() in {"content-type", "accept"}
         }
         try:
-            async with _httpx.AsyncClient(timeout=300.0) as client:
-                upstream = await client.post(upstream_url, content=body, headers=headers)
+            upstream = await get_async_client().post(
+                upstream_url, content=body, headers=headers, timeout=300.0
+            )
         except _httpx.HTTPError as exc:
             raise _audio_upstream_error(exc, backend="whisper-server", port=port)
 
@@ -414,7 +388,7 @@ async def audio_speech(request: Request) -> Response:
     # they arrive, so time-to-first-audio stays low. The obs middleware still
     # records this entry on response, exactly like the chat-stream path.
     if stream_format == "audio":
-        client = _get_speech_client()
+        client = get_async_client()
         stream_cm = client.stream("POST", upstream_url, content=body, headers=headers)
         try:
             upstream = await stream_cm.__aenter__()
@@ -436,7 +410,7 @@ async def audio_speech(request: Request) -> Response:
         )
 
     try:
-        client = _get_speech_client()
+        client = get_async_client()
         upstream = await client.post(upstream_url, content=body, headers=headers)
     except _httpx.HTTPError as exc:
         raise _audio_upstream_error(exc, backend="tts-server", port=port)

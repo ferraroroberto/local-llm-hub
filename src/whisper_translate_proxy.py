@@ -51,6 +51,7 @@ from .backend_process import (
     whisper_server_binary,
     resolve_model_by_id,
 )
+from .http_client import aclose as _aclose_http, get_async_client
 from .model_registry import Model
 from .server_process import WIN_NEW_GROUP
 
@@ -249,6 +250,7 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
                 await watchdog
             except (asyncio.CancelledError, Exception):
                 pass
+            await _aclose_http()
             await sup.stop(reason="proxy shutdown")
 
     app = FastAPI(lifespan=lifespan)
@@ -315,8 +317,9 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
             )
 
         url = f"http://127.0.0.1:{internal_port}{inference_path}"
-        async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
-            r = await client.post(url, files=files, data=data)
+        r = await get_async_client().post(
+            url, files=files, data=data, timeout=httpx.Timeout(300.0)
+        )
         sup.touch()
         return Response(
             content=r.content,
