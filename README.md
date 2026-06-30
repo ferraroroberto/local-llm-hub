@@ -103,9 +103,11 @@ Local entries in active use as of the May 2026 frontier reading:
   the hub's proxy at `:8000/v1/audio/speech` with `model="audio_speech"`
   (captured in the observability ring). Uses the standalone Piper binary plus
   ONNX voices in `models/piper/`; default voice is `ryan`
-  (`en_US-ryan-medium`). Integrated latency for `Arming the perimeter.` is
-  ~0.79 s direct to `:8096` and ~1.10 s through the hub. Fills the
-  `audio_speech` role and is auto-loaded by the tray.
+  (`en_US-ryan-medium`). `piper.exe` runs **resident** (one process per
+  voice+speed, ONNX voice loaded once and reused) so short phrases skip the
+  per-request model-load tax: integrated latency for `Arming the perimeter.`
+  is ~0.06 s direct to `:8096` and ~0.06 s through the hub (warm, connection
+  reused; #163). Fills the `audio_speech` role and is auto-loaded by the tray.
 - **`orpheus-tts`** — expressive local text-to-speech, served
   by the in-repo FastAPI shim [src/tts_server.py](src/tts_server.py) on
   `127.0.0.1:8093`. OpenAI-compatible `POST /v1/audio/speech`. POST to the

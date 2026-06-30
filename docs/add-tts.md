@@ -278,9 +278,12 @@ The hub exposes every enabled TTS model on the same `/v1/audio/speech`
 route, addressed by `model`:
 
 - `model="audio_speech"` (or `model="piper-tts"`) → Piper on :8096
-  (the autostarted default). Default voice is `ryan`. Measured on the
-  reference Windows box: ~0.79 s direct to :8096 and ~1.10 s through the
-  observable hub route for `Arming the perimeter.`
+  (the autostarted default). Default voice is `ryan`. `piper.exe` runs
+  resident (one process per voice+speed, ONNX voice loaded once), so short
+  phrases skip the per-request model load: measured on the reference Windows
+  box ~0.06 s direct to :8096 and ~0.06 s through the observable hub route for
+  `Arming the perimeter.` (warm, connection reused; #163). The pre-resident
+  path re-loaded the voice every call (~0.79 s / ~1.10 s).
 - `model="orpheus-tts"` → Orpheus on :8093 (start it first from the Models tab
   or `launchers/run_tts_orpheus.bat`).
 - `model="chatterbox-tts"` → Chatterbox on :8092 (start it first from the
