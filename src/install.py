@@ -311,7 +311,7 @@ def _check_ports() -> List[Check]:
     for label, port in [("hub", hub_port())] + [
         (m.display_name, m.port)
         for m in enabled_models()
-        if m.backend in ("openai", "whisper", "tts") and m.port
+        if m.backend in ("openai", "whisper", "tts") and m.port and not m.virtual
     ]:
         if _port_in_use(port):
             rows.append(Check(

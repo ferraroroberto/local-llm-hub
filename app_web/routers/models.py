@@ -72,7 +72,9 @@ async def list_models_for_admin() -> Dict[str, Any]:
 
     rows: List[Dict[str, Any]] = []
     for m, reachable in zip(models, reach_results):
-        controllable = m.backend in ("openai", "whisper", "tts")
+        # Virtual aliases share an existing backend's port and own no process,
+        # so they're reachable but never independently start/stop-able.
+        controllable = m.backend in ("openai", "whisper", "tts") and not m.virtual
         own = OWNERSHIP_NONE
         pid: Any = None
         if controllable:
@@ -101,6 +103,11 @@ async def model_start(model_id: str) -> Dict[str, Any]:
     target = bp.resolve_model_by_id(model_id)
     if target is None:
         raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
+    if target.virtual:
+        raise HTTPException(
+            status_code=400,
+            detail=f"model {model_id!r} is a virtual alias of another backend — nothing to start",
+        )
     if not (target.backend in ("openai", "whisper", "tts")):
         raise HTTPException(
             status_code=400,

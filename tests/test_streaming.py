@@ -424,3 +424,81 @@ def test_chat_completions_omits_structured_params_when_absent(monkeypatch):
     assert r.status_code == 200, r.text
     # extra collapses to None when nothing optional is sent.
     assert captured["extra"] is None
+
+
+# ---- no-think virtual alias injection (issue #161) ----
+# These hit the real config/models.yaml (host pc-cuda set at module import),
+# so they also verify the qwen35_4b_nothink wiring end-to-end.
+
+def _capture_call(captured: dict):
+    def fake_call(base_url, model, messages, *, max_tokens=None, temperature=None,
+                  timeout=600.0, extra=None):
+        captured["extra"] = extra
+        captured["base_url"] = base_url
+        return {
+            "id": "x", "object": "chat.completion", "model": model,
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": "ok"},
+                "finish_reason": "stop",
+            }],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        }
+    return fake_call
+
+
+def test_nothink_alias_injects_chat_template_kwargs(monkeypatch):
+    """model=qwen3.5-4b-nothink folds enable_thinking:false into the upstream
+    payload AND routes to qwen's :8088 backend — no second process."""
+    captured: dict = {}
+    monkeypatch.setattr(server_mod, "call_openai_chat", _capture_call(captured))
+
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "qwen3.5-4b-nothink",
+            "messages": [{"role": "user", "content": "hi"}],
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert captured["extra"] == {"chat_template_kwargs": {"enable_thinking": False}}
+    assert captured["base_url"] == "http://127.0.0.1:8088/v1"   # shares qwen
+
+
+def test_plain_agentic_light_does_not_inject(monkeypatch):
+    """Plain agentic_light (qwen3.5-4b) stays thinking-capable — no overlay."""
+    captured: dict = {}
+    monkeypatch.setattr(server_mod, "call_openai_chat", _capture_call(captured))
+
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "agentic_light",
+            "messages": [{"role": "user", "content": "hi"}],
+        },
+    )
+    assert r.status_code == 200, r.text
+    # No tools, no inject_extra → extra collapses to None.
+    assert captured["extra"] is None
+    assert captured["base_url"] == "http://127.0.0.1:8088/v1"
+
+
+def test_nothink_alias_caller_chat_template_kwargs_wins(monkeypatch):
+    """A caller that sends its own chat_template_kwargs overrides the injected
+    default (caller wins)."""
+    captured: dict = {}
+    monkeypatch.setattr(server_mod, "call_openai_chat", _capture_call(captured))
+
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "qwen3.5-4b-nothink",
+            "messages": [{"role": "user", "content": "hi"}],
+            "chat_template_kwargs": {"enable_thinking": True},
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert captured["extra"] == {"chat_template_kwargs": {"enable_thinking": True}}

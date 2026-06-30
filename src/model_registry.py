@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -43,6 +43,19 @@ class Model:
     # child stays loaded after the last request before it's torn down.
     internal_port: Optional[int] = None
     idle_seconds: Optional[int] = None
+    # A *virtual* model is an alias of another backend: it shares an existing
+    # backend's ``port`` (so ``url`` already points at the running process) and
+    # has no engine / weights of its own. It is never launched, downloaded, or
+    # offered as a controllable process in the admin UI — it only exists to
+    # route the chat shape with an ``inject_extra`` overlay. See the
+    # ``qwen35_4b_nothink`` row in config/models.yaml.
+    virtual: bool = False
+    # Server-side defaults folded into the upstream OpenAI ``extra`` payload on
+    # every /v1/chat/completions for this id (caller-sent fields win). Used by
+    # the no-think alias to deliver ``chat_template_kwargs={enable_thinking:
+    # false}`` to clients that can't send it themselves (e.g. Home Assistant's
+    # extended_openai_conversation).
+    inject_extra: Optional[Dict[str, Any]] = None
 
     @property
     def all_names(self) -> List[str]:
@@ -96,6 +109,8 @@ def _row_to_model(model_id: str, row: Dict) -> Model:
         args=list(row.get("args", []) or []),
         internal_port=int(row["internal_port"]) if row.get("internal_port") is not None else None,
         idle_seconds=int(row["idle_seconds"]) if row.get("idle_seconds") is not None else None,
+        virtual=bool(row.get("virtual", False)),
+        inject_extra=row.get("inject_extra") or None,
     )
 
 
