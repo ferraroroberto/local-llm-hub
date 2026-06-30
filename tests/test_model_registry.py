@@ -368,6 +368,57 @@ def test_resolve_by_registry_id(tmp_path, monkeypatch):
     assert "agentic_light" in qwen.all_names
 
 
+def test_virtual_nothink_alias_shares_backend(tmp_path, monkeypatch):
+    """The no-think alias (#161) is a virtual model: it shares qwen's :8088
+    backend URL, carries an inject_extra overlay, and is flagged virtual so the
+    admin UI never treats it as a startable process. Plain qwen35_4b stays a
+    real, non-virtual, no-overlay row.
+    """
+    cfg = _write_config(tmp_path, {
+        "hub": {"port": 8000},
+        "hosts": {
+            "pc": {"platform": "win32", "default": True,
+                   "enabled": ["qwen35_4b", "qwen35_4b_nothink"]},
+        },
+        "models": {
+            "qwen35_4b": {
+                "display_name": "qwen3.5-4b",
+                "backend": "openai",
+                "port": 8088,
+                "aliases": ["agentic_light"],
+            },
+            "qwen35_4b_nothink": {
+                "display_name": "qwen3.5-4b-nothink",
+                "backend": "openai",
+                "port": 8088,                      # shared with qwen35_4b
+                "virtual": True,
+                "aliases": ["agentic_light_nothink"],
+                "inject_extra": {"chat_template_kwargs": {"enable_thinking": False}},
+            },
+        },
+    })
+    _patch_config_path(monkeypatch, cfg)
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "pc")
+
+    # Resolves via id, display_name, and role alias — all to the same row,
+    # pointing at qwen's running backend (no own port/process).
+    by_id = model_registry.resolve("qwen35_4b_nothink")
+    by_name = model_registry.resolve("qwen3.5-4b-nothink")
+    by_alias = model_registry.resolve("agentic_light_nothink")
+    assert by_id is not None and by_name is not None and by_alias is not None
+    assert by_id.id == by_name.id == by_alias.id == "qwen35_4b_nothink"
+    assert by_id.url == "http://127.0.0.1:8088/v1"   # shares qwen's :8088
+    assert by_id.virtual is True
+    assert by_id.inject_extra == {"chat_template_kwargs": {"enable_thinking": False}}
+
+    # Plain qwen is untouched: real backend, no overlay, same :8088 process.
+    plain = model_registry.resolve("agentic_light")
+    assert plain.id == "qwen35_4b"
+    assert plain.virtual is False
+    assert plain.inject_extra is None
+    assert plain.url == by_id.url                    # same single backend
+
+
 def test_model_url_from_port(tmp_path, monkeypatch):
     cfg = _write_config(tmp_path, {
         "hub": {"port": 8000},

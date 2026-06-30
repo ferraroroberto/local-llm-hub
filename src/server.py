@@ -742,7 +742,10 @@ def _stream_openai_passthrough(
     """
     if not model.url:
         raise HTTPException(status_code=500, detail="model has no url")
-    extra: Dict[str, Any] = {}
+    # Seed from the model's server-side inject_extra (e.g. the no-think alias's
+    # chat_template_kwargs), then layer caller-sent fields on top so the caller
+    # always wins.
+    extra: Dict[str, Any] = dict(model.inject_extra or {})
     if req.tools is not None:
         extra["tools"] = req.tools
     if req.tool_choice is not None:
@@ -958,7 +961,8 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
             if not model.url:
                 error_type = "config_error"
                 raise HTTPException(status_code=500, detail="model has no url")
-            extra: Dict[str, Any] = {}
+            # Seed from inject_extra (no-think alias), then caller fields win.
+            extra: Dict[str, Any] = dict(model.inject_extra or {})
             if req.tools is not None:
                 extra["tools"] = req.tools
             if req.tool_choice is not None:

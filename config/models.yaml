@@ -35,7 +35,7 @@ hosts:
     # but are out of the active rotation. To bring one up: add its id back
     # to this list and run `python -m src.install --fix`, or just launch
     # `launchers/run_qwen.bat` directly.
-    enabled: [qwen35_4b, gemma4_e4b, gemma4_26b, whisper, whisper_translate, whisper_vanilla, piper, chatterbox, orpheus, kokoro]
+    enabled: [qwen35_4b, qwen35_4b_nothink, gemma4_e4b, gemma4_26b, whisper, whisper_translate, whisper_vanilla, piper, chatterbox, orpheus, kokoro]
 
   mac-mini-m4:
     platform: darwin
@@ -214,6 +214,31 @@ models:
       # like openClaw's vllm provider ignore — they then see empty content.
       - "--reasoning-format"
       - "none"
+
+  # --- No-think alias of qwen35_4b (virtual; shares the :8088 backend) ---
+  # Same running llama-server as qwen35_4b — NOT a second process, NOT extra
+  # VRAM. `virtual: true` + the shared `port: 8088` mean `url` already points
+  # at the live backend; this row is never launched, downloaded, or shown as a
+  # controllable process in the admin Models tab.
+  #
+  # Why it exists: #159 lets `/v1/chat/completions` forward
+  # `chat_template_kwargs`, but some clients can't send it — Home Assistant's
+  # `extended_openai_conversation` only emits model/messages/max_tokens/
+  # temperature/top_p/tools. So the hub delivers the no-think switch itself,
+  # keyed off this model id: `inject_extra` is folded into the upstream `extra`
+  # on every chat request (a caller that sends its own chat_template_kwargs
+  # still wins). Plain `qwen3.5-4b` / `agentic_light` stay thinking-capable.
+  qwen35_4b_nothink:
+    display_name: qwen3.5-4b-nothink
+    # Role-style alias, parallel to agentic_light — clients that want the
+    # no-think fast lane address the role, not the concrete id.
+    aliases: ["agentic_light_nothink"]
+    backend: openai
+    port: 8088                       # shared with qwen35_4b (virtual alias)
+    virtual: true
+    inject_extra:
+      chat_template_kwargs:
+        enable_thinking: false
 
   # --- Local Gemma 4 E4B IT via llama.cpp (8B dense; full GPU offload) ---
   # Gemma 4 edge variant. Single-file Q4_K_M GGUF, ~5 GB on disk, fits

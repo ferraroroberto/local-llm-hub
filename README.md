@@ -49,6 +49,14 @@ Local entries in active use as of the May 2026 frontier reading:
   `agentic_light` role: OpenClaw fast lane, classification, edge.
   Also addressable as `model="agentic_light"` — clients that hit the
   role alias survive future `/swap-model` rotations unchanged.
+  A **virtual no-think alias** `qwen3.5-4b-nothink` (role alias
+  `agentic_light_nothink`) shares this same `:8088` backend — no second
+  process, no extra VRAM — and makes the hub inject
+  `chat_template_kwargs={enable_thinking:false}` into every request, so
+  clients that can't send that field themselves (e.g. Home Assistant's
+  `extended_openai_conversation`) still reach Qwen's fast, no-reasoning
+  path. Plain `qwen3.5-4b` / `agentic_light` stay thinking-capable; a
+  caller that sends its own `chat_template_kwargs` always wins.
 - **`gemma4-26b-a4b-it`** — local `llama-server` running
   [unsloth/gemma-4-26B-A4B-it-GGUF](https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF)
   on `127.0.0.1:8087` (25 B / 3.8 B-active MoE, IQ4_XS i-matrix quant
