@@ -697,6 +697,8 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = False
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+    response_format: Optional[Dict[str, Any]] = None
+    chat_template_kwargs: Optional[Dict[str, Any]] = None
 
 
 def _wrap_as_openai(text: str, *, model_name: str, in_toks: int, out_toks: int, finish: str = "stop") -> Dict[str, Any]:
@@ -745,6 +747,10 @@ def _stream_openai_passthrough(
         extra["tools"] = req.tools
     if req.tool_choice is not None:
         extra["tool_choice"] = req.tool_choice
+    if req.response_format is not None:
+        extra["response_format"] = req.response_format
+    if req.chat_template_kwargs is not None:
+        extra["chat_template_kwargs"] = req.chat_template_kwargs
 
     if start_ns is None:
         start_ns = time.monotonic_ns()
@@ -957,6 +963,10 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
                 extra["tools"] = req.tools
             if req.tool_choice is not None:
                 extra["tool_choice"] = req.tool_choice
+            if req.response_format is not None:
+                extra["response_format"] = req.response_format
+            if req.chat_template_kwargs is not None:
+                extra["chat_template_kwargs"] = req.chat_template_kwargs
             try:
                 raw = call_openai_chat(
                     model.url,
