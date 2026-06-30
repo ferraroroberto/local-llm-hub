@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import queue
 import re
 import signal
 import subprocess
@@ -444,8 +445,109 @@ class KokoroEngine(TTSEngine):
         self.model = None
 
 
+class _PiperProc:
+    """One resident ``piper.exe`` for a fixed (voice model, length_scale).
+
+    The whole point of resident mode: the ONNX voice is loaded **once** at
+    spawn and reused across requests, instead of paying a fresh model load on
+    every call (measured ~0.40 s → ~0.07 s per short utterance — the inference
+    itself is ~0.06 s; the rest was startup tax). Utterances are fed as
+    ``--json-input`` lines; piper prints each finished WAV's path on stdout
+    (emitted even under ``--quiet``) as the per-utterance completion signal.
+
+    A single piper process synthesises one utterance at a time, so
+    :meth:`synth` serialises access with a lock — concurrent hub requests for
+    the *same* (voice, speed) queue here, while a different combination runs on
+    its own resident process. Death is detected via a sentinel pushed by the
+    reader thread, so a crashed child is recycled on the next call.
+    """
+
+    def __init__(self, cmd: List[str], out_dir: Path, job) -> None:
+        self._cmd = cmd
+        self._out_dir = out_dir
+        self._lock = threading.Lock()
+        self._done: "queue.Queue[Optional[str]]" = queue.Queue()
+        self._counter = 0
+        self._proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            cwd=str(PROJECT_ROOT),
+        )
+        _assign_to_job(job, self._proc)
+        threading.Thread(target=self._reader, args=(self._proc,), daemon=True).start()
+
+    def _reader(self, proc: subprocess.Popen) -> None:
+        assert proc.stdout is not None
+        for raw in proc.stdout:
+            line = raw.decode("utf-8", "replace").strip()
+            if line:
+                self._done.put(line)
+        self._done.put(None)  # EOF — the child exited
+
+    def alive(self) -> bool:
+        return self._proc.poll() is None
+
+    def synth(self, text: str, timeout: float = 60.0) -> bytes:
+        """Synthesise one utterance and return its WAV bytes. Raises on any
+        failure (dead child, broken pipe, timeout) so the caller can fall back
+        to a one-shot subprocess and recycle this process."""
+        with self._lock:
+            if self._proc.poll() is not None:
+                raise RuntimeError("piper resident process is not running")
+            # Drain any stale completion lines (shouldn't happen under the lock,
+            # but keeps one synth strictly paired with one stdout line).
+            try:
+                while True:
+                    self._done.get_nowait()
+            except queue.Empty:
+                pass
+            self._counter += 1
+            out_path = self._out_dir / f"u{self._counter}.wav"
+            line = json.dumps({"text": text.strip(), "output_file": str(out_path)}) + "\n"
+            assert self._proc.stdin is not None
+            try:
+                self._proc.stdin.write(line.encode("utf-8"))
+                self._proc.stdin.flush()
+            except OSError as exc:
+                raise RuntimeError(f"piper resident stdin write failed: {exc}")
+            signal_line = self._done.get(timeout=timeout)
+            if signal_line is None:
+                raise RuntimeError("piper resident process exited mid-synthesis")
+            try:
+                return out_path.read_bytes()
+            finally:
+                try:
+                    out_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+
+    def close(self) -> None:
+        proc = self._proc
+        if proc.poll() is not None:
+            return
+        try:
+            if proc.stdin is not None:
+                proc.stdin.close()
+            proc.terminate()
+            try:
+                proc.wait(timeout=5.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        except Exception:  # noqa: BLE001
+            pass
+
+
 class PiperEngine(TTSEngine):
-    """Piper standalone binary with local ONNX voices."""
+    """Piper standalone binary with local ONNX voices.
+
+    Keeps a pool of **resident** ``piper.exe`` processes (one per (voice,
+    speed) combination, lazily spawned) so the ONNX voice is loaded once and
+    reused, instead of spawning — and re-loading — a fresh binary per request.
+    A resident process whose synthesis fails for any reason falls back to a
+    single one-shot subprocess for that request and is recycled.
+    """
 
     DEFAULT_VOICE = "ryan"
     VOICE_FILES = {
@@ -470,6 +572,11 @@ class PiperEngine(TTSEngine):
         self.binary = self._default_binary()
         self.default_model: Optional[Path] = None
         self.sample_rate = 22050
+        # Resident piper.exe pool, keyed by (model_path_str, length_scale).
+        self._procs: dict = {}
+        self._procs_lock = threading.Lock()
+        self._out_dir: Optional[Path] = None
+        self._job = None  # Windows kill-on-close job for the resident children
 
     @staticmethod
     def _default_binary() -> Path:
@@ -502,12 +609,23 @@ class PiperEngine(TTSEngine):
         self.default_model = model_path
         self.sample_rate = self._read_sample_rate(config_path)
         self.device = "cpu"
+        self._out_dir = Path(tempfile.mkdtemp(prefix="piper-resident-"))
+        # Tie resident children to a kill-on-close job so a TerminateProcess on
+        # this backend (the hub's stop path) can't leak piper.exe processes.
+        self._job = _win_kill_on_close_job()
         log.info(
-            "Piper ready (binary=%s, voice=%s, sr=%d)",
+            "Piper ready (resident mode, binary=%s, voice=%s, sr=%d)",
             self.binary,
             model_path.name,
             self.sample_rate,
         )
+        # Pre-warm the default voice so the first real request is already warm
+        # (the cold model load happens here, in the background load thread,
+        # rather than on the first user-facing synthesis).
+        try:
+            self.synthesize(SpeechRequest(text="warming up", voice=self.DEFAULT_VOICE))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Piper pre-warm failed (non-fatal): %s", exc)
 
     def ready(self) -> bool:
         return self.default_model is not None
@@ -532,9 +650,56 @@ class PiperEngine(TTSEngine):
         log.info("unknown Piper voice %r; using %s", raw, self.default_model.name)
         return self.default_model
 
-    def synthesize(self, req: SpeechRequest):
+    def _resident_cmd(self, model_path: Path, config_path: Path, length_scale: float) -> List[str]:
+        assert self._out_dir is not None
+        espeak_dir = self.binary.parent / "espeak-ng-data"
+        cmd = [
+            str(self.binary),
+            "--model", str(model_path),
+            "--config", str(config_path),
+            "--length_scale", f"{length_scale:.4f}",
+            "--sentence_silence", "0.05",
+            "--quiet",
+            "--json-input",
+            "--output_dir", str(self._out_dir),
+        ]
+        if espeak_dir.is_dir():
+            cmd.extend(["--espeak_data", str(espeak_dir)])
+        return cmd
+
+    def _get_proc(self, model_path: Path, config_path: Path, length_scale: float) -> _PiperProc:
+        # length_scale (not voice+speed) keys speed; rounded so float jitter
+        # doesn't fragment the pool. The common case (default voice, 1.0) maps
+        # to a single warm process.
+        key = (str(model_path), round(length_scale, 4))
+        with self._procs_lock:
+            proc = self._procs.get(key)
+            if proc is not None and proc.alive():
+                return proc
+            if proc is not None:  # dead — recycle
+                proc.close()
+            cmd = self._resident_cmd(model_path, config_path, length_scale)
+            proc = _PiperProc(cmd, self._out_dir, self._job)
+            self._procs[key] = proc
+            return proc
+
+    def _wav_bytes_to_samples(self, data: bytes):
+        import io
+
         import numpy as np
 
+        if not data or len(data) <= 44:
+            return np.zeros(0, dtype=np.float32)
+        with wave.open(io.BytesIO(data), "rb") as wav:
+            self.sample_rate = int(wav.getframerate())
+            channels = int(wav.getnchannels())
+            frames = wav.readframes(wav.getnframes())
+        pcm = np.frombuffer(frames, dtype="<i2").astype(np.float32)
+        if channels > 1:
+            pcm = pcm.reshape(-1, channels).mean(axis=1)
+        return pcm / 32768.0
+
+    def synthesize(self, req: SpeechRequest):
         if self.default_model is None:
             raise RuntimeError("Piper not loaded")
         model_path = self._model_for_voice(req.voice)
@@ -543,6 +708,24 @@ class PiperEngine(TTSEngine):
         # Piper's length_scale is inverse speed: lower scale speaks faster.
         speed = max(0.5, min(2.0, float(req.speed or 1.0)))
         length_scale = 1.0 / speed
+        try:
+            proc = self._get_proc(model_path, config_path, length_scale)
+            return self._wav_bytes_to_samples(proc.synth(req.text))
+        except Exception as exc:  # noqa: BLE001
+            # Resident path wedged or the child died — never fail the request:
+            # drop that process and synthesise this one with a fresh one-shot.
+            log.warning("resident Piper synth failed (%s); falling back to one-shot", exc)
+            with self._procs_lock:
+                stale = self._procs.pop((str(model_path), round(length_scale, 4)), None)
+            if stale is not None:
+                stale.close()
+            return self._synthesize_oneshot(model_path, config_path, length_scale, req.text)
+
+    def _synthesize_oneshot(self, model_path: Path, config_path: Path, length_scale: float, text: str):
+        """Fallback: a single fresh piper.exe per call (the pre-resident path).
+        Used only when the resident process fails, so synthesis is resilient."""
+        import numpy as np
+
         espeak_dir = self.binary.parent / "espeak-ng-data"
         cmd = [
             str(self.binary),
@@ -559,7 +742,7 @@ class PiperEngine(TTSEngine):
         try:
             proc = subprocess.run(
                 [*cmd, "--output_file", str(out_path)],
-                input=(req.text.strip() + "\n").encode("utf-8"),
+                input=(text.strip() + "\n").encode("utf-8"),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=str(PROJECT_ROOT),
@@ -569,21 +752,33 @@ class PiperEngine(TTSEngine):
             if proc.returncode != 0:
                 err = proc.stderr.decode("utf-8", errors="replace").strip()
                 raise RuntimeError(f"Piper exited {proc.returncode}: {err}")
-            if not out_path.exists() or out_path.stat().st_size <= 44:
+            if not out_path.exists():
                 return np.zeros(0, dtype=np.float32)
-            with wave.open(str(out_path), "rb") as wav:
-                self.sample_rate = int(wav.getframerate())
-                channels = int(wav.getnchannels())
-                frames = wav.readframes(wav.getnframes())
-            pcm = np.frombuffer(frames, dtype="<i2").astype(np.float32)
-            if channels > 1:
-                pcm = pcm.reshape(-1, channels).mean(axis=1)
-            return pcm / 32768.0
+            return self._wav_bytes_to_samples(out_path.read_bytes())
         finally:
             try:
                 out_path.unlink(missing_ok=True)
             except OSError:
                 pass
+
+    def close(self) -> None:
+        with self._procs_lock:
+            for proc in self._procs.values():
+                proc.close()
+            self._procs.clear()
+        if self._job is not None and sys.platform == "win32":
+            try:
+                import ctypes
+
+                ctypes.WinDLL("kernel32").CloseHandle(int(self._job))
+            except Exception:  # noqa: BLE001
+                pass
+            self._job = None
+        if self._out_dir is not None:
+            import shutil
+
+            shutil.rmtree(self._out_dir, ignore_errors=True)
+            self._out_dir = None
 
 
 class OrpheusEngine(TTSEngine):
