@@ -39,6 +39,12 @@ class InstallError(RuntimeError):
     pass
 
 
+def _no_window_flags() -> int:
+    """CREATE_NO_WINDOW on Windows — this also runs from the windowless hub
+    when triggered via the admin SPA's "Fix" button (issue #174)."""
+    return subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+
 def _server_binary() -> Path:
     name = "llama-server.exe" if sys.platform == "win32" else "llama-server"
     return VENDOR_DIR / name
@@ -50,7 +56,8 @@ def already_installed() -> bool:
         return False
     try:
         r = subprocess.run([str(bin_path), "--version"],
-                           capture_output=True, text=True, timeout=10)
+                           capture_output=True, text=True, timeout=10,
+                           creationflags=_no_window_flags())
         return r.returncode == 0
     except Exception:
         return False
