@@ -44,6 +44,12 @@ class InstallError(RuntimeError):
     pass
 
 
+def _no_window_flags() -> int:
+    """CREATE_NO_WINDOW on Windows — this also runs from the windowless hub
+    when triggered via the admin SPA's "Fix" button (issue #174)."""
+    return subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+
 def _server_binary() -> Path:
     name = "whisper-server.exe" if sys.platform == "win32" else "whisper-server"
     return VENDOR_DIR / name
@@ -69,7 +75,8 @@ def already_installed() -> bool:
             # whisper-server prints usage on --help and exits non-zero, so just
             # check that the binary can execute at all.
             r = subprocess.run([str(bin_path), "--help"],
-                               capture_output=True, text=True, timeout=10)
+                               capture_output=True, text=True, timeout=10,
+                               creationflags=_no_window_flags())
             if r.returncode in (0, 1):
                 return True
         except Exception:

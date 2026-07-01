@@ -110,14 +110,22 @@ _CUDA_TORCH_SPEC = os.environ.get(
 _CUDA_ORT_SPEC = os.environ.get("HUB_TTS_ORT_SPEC", "onnxruntime-gpu==1.27.0")
 
 
+def _no_window_flags() -> int:
+    """CREATE_NO_WINDOW on Windows — this also runs from the windowless hub
+    when triggered via the admin SPA's "Fix" button (issue #174)."""
+    return subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+
 def _pip_install_requirements() -> None:
     req = PROJECT_ROOT / "requirements-tts.txt"
     log.info("pip install -r %s", req)
-    subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(req)], check=True)
+    subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(req)],
+                   check=True, creationflags=_no_window_flags())
     log.info("pip install --no-deps %s", _CHATTERBOX_PIN)
     subprocess.run(
         [sys.executable, "-m", "pip", "install", "--no-deps", _CHATTERBOX_PIN],
         check=True,
+        creationflags=_no_window_flags(),
     )
 
 
@@ -137,6 +145,7 @@ def _install_cuda_torch() -> None:
             [sys.executable, "-m", "pip", "install", "--upgrade",
              "--index-url", _CUDA_TORCH_INDEX, *_CUDA_TORCH_SPEC],
             check=True,
+            creationflags=_no_window_flags(),
         )
         log.info("  CUDA torch installed")
     except subprocess.CalledProcessError as exc:
@@ -156,6 +165,7 @@ def _install_cuda_onnxruntime() -> None:
         subprocess.run(
             [sys.executable, "-m", "pip", "install", "--upgrade", _CUDA_ORT_SPEC],
             check=True,
+            creationflags=_no_window_flags(),
         )
         log.info("  ONNX Runtime GPU installed")
     except subprocess.CalledProcessError as exc:
