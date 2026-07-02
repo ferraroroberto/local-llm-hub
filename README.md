@@ -330,8 +330,8 @@ Demoted (defined in config/models.yaml, not in any host's enabled list):
 Replaced as agentic_light on 2026-05-10 (still enabled on pc-cuda for fallback):
   gemma4-e4b-it — bring up via launchers/run_gemma4_e4b.bat
 Mac Mini (mac-mini-m4), proxied through this hub's own base_url — see below:
-  qwen3.5-9b  → this hub 127.0.0.1:8000  → mac hub 192.168.0.241:8000 → llama-server :8081
-  parakeet    → this hub 127.0.0.1:8000  → mac hub 192.168.0.241:8000 → parakeet-server :8098
+  qwen3.5-9b  → this hub 127.0.0.1:8000  → mac hub 192.168.0.14:8000 → llama-server :8081
+  parakeet    → this hub 127.0.0.1:8000  → mac hub 192.168.0.14:8000 → parakeet-server :8098
 ```
 
 See [docs/project-structure.md](docs/project-structure.md) for the full
@@ -359,7 +359,7 @@ own `:8000` (not its raw backend port) — so the proxied call still lands in
 the owning hub's own observability ring. This is symmetric: the Mac Mini's
 own hub can equally proxy to a Windows-owned model.
 
-Today this powers the `mac-mini-m4` host (`192.168.0.241`, Apple M4):
+Today this powers the `mac-mini-m4` host (`192.168.0.14`, Apple M4):
 
 - **`qwen3.5-9b`** — moved here from `pc-cuda` (see
   [Demoted candidates](#demoted-candidates-kept-defined-not-in-active-rotation)

@@ -53,7 +53,7 @@ hosts:
     # LAN address the pc-cuda host dials to reach this host's own hub when
     # proxying to a model this host owns (`host: mac-mini-m4`) — e.g. qwen,
     # parakeet. Mac-native TTS (mac_say) is a follow-up, not yet enrolled.
-    address: 192.168.0.241
+    address: 192.168.0.14
     # Same cross-enable pattern as pc-cuda's list above, reversed: every
     # pc-cuda-owned model is listed here too so the Mac's hub can resolve
     # and proxy to it — genuinely bidirectional (#178), not Windows-only.

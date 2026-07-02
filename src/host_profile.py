@@ -31,7 +31,7 @@ class HostProfile:
     default: bool = False
     source: str = ""  # human-readable description of how we picked it
     # LAN address (IP or resolvable hostname) other hosts dial to reach this
-    # machine's own hub — e.g. "192.168.0.241". Unset on hosts nothing ever
+    # machine's own hub — e.g. "192.168.0.14". Unset on hosts nothing ever
     # proxies to (today, that's fine; only a host that owns a remote-tagged
     # model row needs one). See src/remote_proxy.py.
     address: Optional[str] = None
