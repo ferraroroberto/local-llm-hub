@@ -152,19 +152,28 @@ review. Direct hits to `:8090`/`:8091` bypass the glossary (and the
 observability ring). See
 [docs/add-whisper-asr.md](docs/add-whisper-asr.md) for the schema, the
 in-app editor + miner, and the companion recognition-boosting mechanism.
-NVIDIA Parakeet (`parakeet.cpp`) was evaluated as a replacement transcribe
-backend and rejected — ~4× worse WER and no boosting lever on this
-jargon-heavy workload; see
-[docs/parakeet-asr-evaluation.md](docs/parakeet-asr-evaluation.md).
+NVIDIA Parakeet on Windows+CUDA (`parakeet.cpp`) was evaluated as a
+*replacement* for this role and rejected — ~4× worse WER and no boosting
+lever on this jargon-heavy workload. Parakeet running on the **Mac Mini's
+Apple Neural Engine** (via FluidAudio/CoreML) is a different story: it's
+enrolled as a selectable, non-default alternative — see
+[Multi-host: the Mac Mini](#multi-host-the-mac-mini) below and
+[docs/parakeet-asr-evaluation.md](docs/parakeet-asr-evaluation.md) for the
+full trade-off writeup.
 
 ## Demoted candidates (kept defined, not in active rotation)
 
-`qwen3.5-9b` and `glm-4.5-air` are **defined in `config/models.yaml`**
-but not in any host's `enabled:` list anymore. Their launchers still
-exist (`launchers/run_qwen.bat`, `launchers/run_glm.bat`) for ad-hoc
-bring-up. Demoted on 2026-05-10 per the May 2026 frontier reading —
-see [docs/frontier-via-slash-commands.md](docs/frontier-via-slash-commands.md)
+`glm-4.5-air` is **defined in `config/models.yaml`** but not in any
+host's `enabled:` list anymore. Its launcher still exists
+(`launchers/run_glm.bat`) for ad-hoc bring-up. Demoted on 2026-05-10 per
+the May 2026 frontier reading — see
+[docs/frontier-via-slash-commands.md](docs/frontier-via-slash-commands.md)
 for the reasoning.
+
+`qwen3.5-9b` was demoted the same day, but is **active again as of the
+Mac Mini multi-host work** — it now runs on `mac-mini-m4` instead of
+`pc-cuda` and is reachable through the Windows hub's own `base_url` like
+any other model. See [Multi-host: the Mac Mini](#multi-host-the-mac-mini).
 
 GLM **5.2** (the newer flagship) was evaluated for the local coding lane
 and rejected — it is a single 744B-A40B MoE with no Air/Flash variant,
@@ -317,9 +326,12 @@ audio clients  ──►  tts shim       127.0.0.1:8092   (chatterbox, text→sp
                            POST via the hub proxy for observability, or direct to the port to skip it)
 
 Demoted (defined in config/models.yaml, not in any host's enabled list):
-  qwen3.5-9b, glm-4.5-air — bring up via launchers/run_qwen.bat / run_glm.bat
+  glm-4.5-air — bring up via launchers/run_glm.bat
 Replaced as agentic_light on 2026-05-10 (still enabled on pc-cuda for fallback):
   gemma4-e4b-it — bring up via launchers/run_gemma4_e4b.bat
+Mac Mini (mac-mini-m4), proxied through this hub's own base_url — see below:
+  qwen3.5-9b  → this hub 127.0.0.1:8000  → mac hub 192.168.0.241:8000 → llama-server :8081
+  parakeet    → this hub 127.0.0.1:8000  → mac hub 192.168.0.241:8000 → parakeet-server :8098
 ```
 
 See [docs/project-structure.md](docs/project-structure.md) for the full
@@ -330,6 +342,44 @@ for the original hub post-mortem,
 how the whisper backend slotted in, and
 [docs/add-tts.md](docs/add-tts.md) for the text-to-speech backend
 (`/v1/audio/speech`).
+
+## Multi-host: the Mac Mini
+
+`local-llm-hub` runs as **one full install per machine**, but a model can
+be *owned* by one host and made reachable through any other host's own
+`base_url` — a client never needs to know or care which machine actually
+runs a given model. Each `hosts:` entry in `config/models.yaml` gets an
+`address:` (LAN IP), and each `models:` row gets an optional `host:` (which
+host owns it — omitted means "whichever host resolves this config", i.e.
+every existing single-host model is unaffected). A model listed in a
+*non-owning* host's `enabled:` is transparently proxied: the request lands
+on that hub exactly like any other, gets resolved, sees `host` doesn't
+match the active machine, and is forwarded verbatim to the owning host's
+own `:8000` (not its raw backend port) — so the proxied call still lands in
+the owning hub's own observability ring. This is symmetric: the Mac Mini's
+own hub can equally proxy to a Windows-owned model.
+
+Today this powers the `mac-mini-m4` host (`192.168.0.241`, Apple M4):
+
+- **`qwen3.5-9b`** — moved here from `pc-cuda` (see
+  [Demoted candidates](#demoted-candidates-kept-defined-not-in-active-rotation)
+  above); same `llama-server`, just running on the Mac.
+- **`parakeet-tdt-0.6b-v3`** — NVIDIA Parakeet TDT 0.6B v3 on the Apple
+  Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio)
+  (CoreML), served by the vendored Swift worker in `mac/parakeet-worker/`
+  + `src/parakeet_server.py`. A **selectable, non-default**
+  `audio_transcribe` alternative (`model="parakeet"`) — faster than
+  whisper-turbo but drops the "Claude Code" wake phrase and mangles
+  "YOLO", so it's opt-in for latency-sensitive callers (e.g. Home
+  Assistant voice commands) rather than the role default. Full
+  measurement + trade-off writeup:
+  [docs/parakeet-asr-evaluation.md](docs/parakeet-asr-evaluation.md).
+
+The Windows hub's admin UI Services card shows a live Mac Mini reachability
+pill alongside Docker/Langfuse. Cross-host auth reuses `extra_allowlist` in
+`config/webapp_config.json` (per-machine, not committed) — each host's LAN
+IP is allowlisted on the other, the same bypass the bearer-token middleware
+already grants loopback callers.
 
 ## Layout
 
