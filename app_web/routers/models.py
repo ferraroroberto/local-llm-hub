@@ -9,10 +9,14 @@ import time
 import wave
 from typing import Any, Dict, List
 
+import httpx
 from fastapi import APIRouter, HTTPException
 
 from src import backend_process as bp
+from src import services as svc
+from src.host_profile import get_host, resolve as resolve_host
 from src.model_registry import Model, enabled_models, resolve as resolve_model
+from src.remote_proxy import remote_auth_token, remote_base_url
 from src.server_process import (
     OWNERSHIP_EXTERNAL,
     OWNERSHIP_NONE,
@@ -22,6 +26,66 @@ from src.server_process import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _remote_admin_headers(model: Model) -> Dict[str, str]:
+    token = remote_auth_token(model.host) if model.host else None
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def _offline_remote_row(m: Model, host_id: str) -> Dict[str, Any]:
+    """Fallback row for a remote-owned model when its owning hub couldn't
+    be reached — shown as unreachable rather than silently dropped from
+    the list (a remote host being offline shouldn't hide the model that
+    normally lives there).
+    """
+    return {
+        "id": m.id,
+        "display_name": m.display_name,
+        "backend": m.backend,
+        "engine": m.engine,
+        "port": m.port,
+        "url": None,
+        "aliases": list(m.aliases or []),
+        "controllable": m.backend in ("openai", "whisper", "tts") and not m.virtual,
+        "ownership": OWNERSHIP_NONE,
+        "pid": None,
+        "reachable": False,
+        "model_path": m.model_path,
+        "host": host_id,
+        "host_unreachable": True,
+    }
+
+
+async def _forward_admin_call(
+    target: Model, method: str, suffix: str, **kwargs: Any
+) -> Dict[str, Any]:
+    """Forward an admin models-API call to the host that actually owns
+    ``target`` (#178) — used by start/stop/force-stop/log when the
+    resolved model isn't local. Mirrors the local handlers' error shape
+    (404/400/409 from the remote surface verbatim; 502 if the remote
+    hub itself is unreachable).
+    """
+    remote = remote_base_url(target)
+    assert remote is not None
+    url = f"{remote}/admin/api/models/{target.id}{suffix}"
+    headers = _remote_admin_headers(target)
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.request(method, url, headers=headers, **kwargs)
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"host {target.host!r} (owns {target.id!r}) unreachable: {exc}",
+        )
+    try:
+        body = r.json()
+    except Exception:  # noqa: BLE001
+        body = {"detail": r.text[:300]}
+    if r.status_code >= 400:
+        detail = body.get("detail", body) if isinstance(body, dict) else body
+        raise HTTPException(status_code=r.status_code, detail=detail)
+    return body
 
 
 def _ownership_from_snapshot(m: Model, listening: Dict[int, list]) -> tuple[str, Any]:
@@ -41,8 +105,17 @@ def _ownership_from_snapshot(m: Model, listening: Dict[int, list]) -> tuple[str,
 
 
 @router.get("/api/models")
-async def list_models_for_admin() -> Dict[str, Any]:
-    """Per-tile state for every enabled model.
+async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
+    """Per-tile state for every enabled model — local rows computed here,
+    plus (#178) any remote-owned rows merged in from the host that
+    actually runs them.
+
+    ``local_only=true`` skips the remote-merge step and returns just this
+    host's own rows — used when a peer hub fetches *this* endpoint to
+    build its own merge (``svc.remote_models``). Without it, two
+    bidirectionally cross-enabled hosts recurse into each other forever:
+    A's merge calls B's `/api/models`, which (unless told not to) tries to
+    merge in A's rows by calling A's `/api/models` again, and so on.
 
     Two pieces are expensive: probing reachability over HTTP per backend
     (each costs up to 0.5 s) and resolving port → PID via netstat (one
@@ -51,7 +124,11 @@ async def list_models_for_admin() -> Dict[str, Any]:
     O(N) → O(1) subprocesses, O(N) → O(0.5 s) wall time when all
     backends are alive.
     """
-    models = list(enabled_models())
+    active = resolve_host()
+    all_enabled = list(enabled_models())
+    local_models = [m for m in all_enabled if not (m.host and m.host != active.id)]
+    remote_owned = [m for m in all_enabled if m.host and m.host != active.id]
+
     # psutil gives us every listening port in ~2 ms — use it both for
     # ownership *and* as a cheap reachability gate so we never fire an
     # HTTP probe at a port that isn't bound.
@@ -68,10 +145,10 @@ async def list_models_for_admin() -> Dict[str, Any]:
             return False
         return await asyncio.to_thread(bp.is_reachable, m, 0.4)
 
-    reach_results = await asyncio.gather(*(_probe_reach(m) for m in models))
+    reach_results = await asyncio.gather(*(_probe_reach(m) for m in local_models))
 
     rows: List[Dict[str, Any]] = []
-    for m, reachable in zip(models, reach_results):
+    for m, reachable in zip(local_models, reach_results):
         # Virtual aliases share an existing backend's port and own no process,
         # so they're reachable but never independently start/stop-able.
         controllable = m.backend in ("openai", "whisper", "tts") and not m.virtual
@@ -93,8 +170,33 @@ async def list_models_for_admin() -> Dict[str, Any]:
                 "pid": pid,
                 "reachable": bool(reachable),
                 "model_path": m.model_path,
+                "host": active.id,
             }
         )
+
+    if local_only:
+        return {"models": rows}
+
+    # Remote-owned rows: one fetch per distinct owning host, merged in.
+    # Trust the owner's own reachable/ownership/pid values — this hub has
+    # no local visibility into another machine's ports.
+    owners: Dict[str, List[Model]] = {}
+    for m in remote_owned:
+        owners.setdefault(m.host, []).append(m)
+
+    for host_id, models_for_host in owners.items():
+        owner_profile = get_host(host_id)
+        fetched = await svc.remote_models(owner_profile) if owner_profile else None
+        by_id = {r.get("id"): r for r in fetched if isinstance(r, dict)} if fetched is not None else None
+        for m in models_for_host:
+            remote_row = by_id.get(m.id) if by_id is not None else None
+            if remote_row is not None:
+                row = dict(remote_row)
+                row.setdefault("host", host_id)
+                rows.append(row)
+            else:
+                rows.append(_offline_remote_row(m, host_id))
+
     return {"models": rows}
 
 
@@ -103,6 +205,8 @@ async def model_start(model_id: str) -> Dict[str, Any]:
     target = bp.resolve_model_by_id(model_id)
     if target is None:
         raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
+    if remote_base_url(target):
+        return await _forward_admin_call(target, "POST", "/start")
     if target.virtual:
         raise HTTPException(
             status_code=400,
@@ -125,6 +229,8 @@ async def model_stop(model_id: str) -> Dict[str, Any]:
     target = bp.resolve_model_by_id(model_id)
     if target is None:
         raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
+    if remote_base_url(target):
+        return await _forward_admin_call(target, "POST", "/stop")
     ok, msg = bp.stop(model_id)
     if not ok:
         raise HTTPException(status_code=409, detail=msg)
@@ -144,6 +250,8 @@ async def model_force_stop(model_id: str) -> Dict[str, Any]:
     target = bp.resolve_model_by_id(model_id)
     if target is None:
         raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
+    if remote_base_url(target):
+        return await _forward_admin_call(target, "POST", "/force-stop")
     ok, msg = bp.force_stop_external(model_id)
     if not ok:
         raise HTTPException(status_code=409, detail=msg)
@@ -162,6 +270,8 @@ async def model_log(model_id: str, limit: int = 400) -> Dict[str, Any]:
     target = bp.resolve_model_by_id(model_id)
     if target is None:
         raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
+    if remote_base_url(target):
+        return await _forward_admin_call(target, "GET", "/log", params={"limit": limit})
     if not (target.backend in ("openai", "whisper", "tts")):
         raise HTTPException(
             status_code=400,
@@ -176,12 +286,14 @@ async def model_log(model_id: str, limit: int = 400) -> Dict[str, Any]:
     }
 
 
-def _silent_wav(seconds: float = 0.1, rate: int = 16000) -> bytes:
+def _silent_wav(seconds: float = 0.5, rate: int = 16000) -> bytes:
     """A tiny mono 16-bit PCM WAV of silence, built in memory.
 
     Just enough for whisper-server to decode and return a (blank)
     transcription — proves the backend can actually run inference, not
-    merely that its port is open.
+    merely that its port is open. 0.5s (not the original 0.1s): FluidAudio's
+    Parakeet worker (#138) rejects anything under ~0.3s as invalidAudioData;
+    whisper.cpp tolerates any length so the longer default doesn't regress it.
     """
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:

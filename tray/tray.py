@@ -42,7 +42,7 @@ import pystray
 import yaml
 
 from src.host_profile import CONFIG_PATH, hub_port
-from src.model_registry import Model, enabled_models
+from src.model_registry import Model, local_models
 from src.server_process import WIN_NEW_GROUP
 from src.webapp_config import append_auth_token, ensure_auth_token, load_webapp_config
 
@@ -96,7 +96,7 @@ def load_tray_config() -> TrayConfig:
         )
         candidates = []
 
-    valid_ids = {m.id for m in enabled_models() if m.backend in ("openai", "whisper", "tts")}
+    valid_ids = {m.id for m in local_models() if m.backend in ("openai", "whisper", "tts")}
     autostart_models = [m for m in candidates if m in valid_ids]
     return TrayConfig(
         autostart_hub=autostart_hub,
@@ -217,8 +217,13 @@ class TrayApp:
         self.hub = HubProcess()
         self._icon: Optional[pystray.Icon] = None
         self._stop_event = threading.Event()
+        # Remote-owned rows (m.host set to a *different* host, e.g. a
+        # Mac-hosted model cross-enabled here for hub routing) are excluded
+        # from the tray menu — the tray only launches/stops processes on
+        # this machine; use the admin webapp's Models tab to control a
+        # remote host's backend (it proxies there automatically).
         self._models: List[Model] = [
-            m for m in enabled_models() if m.backend in ("openai", "whisper", "tts")
+            m for m in local_models() if m.backend in ("openai", "whisper", "tts")
         ]
         # The webapp config holds the bearer token we append to copied URLs.
         # Generate one on first boot so we never have an unprotected non-

@@ -24,20 +24,31 @@ from typing import Any, Dict
 from fastapi import APIRouter
 
 from src import services as svc
+from src.host_profile import resolve as resolve_host
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+MAC_MINI_HOST_ID = "mac-mini-m4"
+
 
 @router.get("/api/services/status")
 async def services_status() -> Dict[str, Any]:
-    """Combined Docker + Langfuse probe.
+    """Combined Docker + Langfuse + Mac Mini probe.
 
-    Both probes have a 2 s timeout so the worst case is ~4 s when both
-    services are down; in steady state both return in <100 ms.
+    All probes have a short timeout so the worst case is a few seconds
+    when everything is down; in steady state each returns in <100 ms.
     """
     docker = await svc.docker_status()
     langfuse = await svc.langfuse_health()
+    # Informational only (#179) — skip self-probing when this hub *is*
+    # the Mac Mini; the indicator exists to tell the other host's story.
+    active = resolve_host()
+    mac_mini = (
+        await svc.mac_mini_health(MAC_MINI_HOST_ID)
+        if active.id != MAC_MINI_HOST_ID
+        else None
+    )
 
     # The "launch" button is only meaningful on platforms where we know
     # how to spawn Docker Desktop. Surface that to the SPA so the card
@@ -50,6 +61,7 @@ async def services_status() -> Dict[str, Any]:
     return {
         "docker": docker,
         "langfuse": langfuse,
+        "mac_mini": mac_mini,
         "launchable": launchable,
         "platform": sys.platform,
     }

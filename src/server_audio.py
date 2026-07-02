@@ -21,11 +21,22 @@ from fastapi.responses import Response, StreamingResponse
 
 from .audio_proxy import build_whisper_upstream_request
 from .http_client import get_async_client
+from .model_registry import Model
+from .remote_proxy import remote_auth_token, remote_base_url
 from .server_common import current_otel_span, safe_span, stash_trace_id_on_ctx
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _remote_audio_headers(model: Model) -> Optional[dict]:
+    """``Authorization`` header for a remote-hub audio call, mirrors
+    ``server._remote_headers`` — kept local to avoid a circular import
+    (``server.py`` imports this module's router).
+    """
+    token = remote_auth_token(model.host) if model.host else None
+    return {"Authorization": f"Bearer {token}"} if token else None
 
 
 def _audio_upstream_error(exc: Exception, *, backend: str, port: int) -> HTTPException:
@@ -57,12 +68,15 @@ def _audio_upstream_error(exc: Exception, *, backend: str, port: int) -> HTTPExc
     return HTTPException(status_code=502, detail=f"{backend} upstream error: {exc}")
 
 
-def _whisper_port_for_model(model_name: str, *, default_role: str) -> Optional[int]:
-    """Pick a whisper backend port for a request.
+def _whisper_model_for_request(model_name: str, *, default_role: str) -> Optional[Model]:
+    """Pick a whisper-shaped backend for a request.
 
     If the caller passed ``model=...`` in the multipart form, try to
-    resolve it through the registry first. Otherwise fall back to a
-    heuristic based on the endpoint's role:
+    resolve it through the registry first — this is the only path that
+    can return a *remote* (``host:`` set) model, e.g. ``model=parakeet``.
+    Otherwise fall back to a heuristic based on the endpoint's role,
+    restricted to locally-owned backends only — the default role never
+    silently starts proxying to a remote host:
 
       * ``audio_transcribe`` → first whisper backend whose id does NOT
         contain "translate" (the turbo / GPU one).
@@ -72,27 +86,27 @@ def _whisper_port_for_model(model_name: str, *, default_role: str) -> Optional[i
     Returns ``None`` if no whisper backend is enabled on this host —
     the caller surfaces that as 503.
     """
-    from .model_registry import enabled_models, resolve as _resolve_model
+    from .model_registry import local_models, resolve as _resolve_model
 
     if model_name:
         m = _resolve_model(model_name)
         if m and m.backend == "whisper" and m.port:
-            return m.port
+            return m
 
-    whispers = [m for m in enabled_models() if m.backend == "whisper" and m.port]
+    whispers = [m for m in local_models() if m.backend == "whisper" and m.port]
     if not whispers:
         return None
 
     if default_role == "audio_translate":
         for m in whispers:
             if "translate" in m.id.lower():
-                return m.port
+                return m
     else:  # audio_transcribe — anything that isn't the translate sibling
         for m in whispers:
             if "translate" not in m.id.lower():
-                return m.port
+                return m
 
-    return whispers[0].port
+    return whispers[0]
 
 
 async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) -> Response:
@@ -138,12 +152,14 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
     except Exception:  # noqa: BLE001
         pass
 
-    port = _whisper_port_for_model(model_name, default_role=default_role)
-    if port is None:
+    target = _whisper_model_for_request(model_name, default_role=default_role)
+    if target is None:
         raise HTTPException(
             status_code=503,
             detail="no whisper backend enabled on this host",
         )
+    port = target.port
+    remote = remote_base_url(target)
 
     ctx = getattr(request.state, "obs_ctx", None)
     if ctx is not None:
@@ -181,19 +197,23 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
                 detail="missing required form field: file",
             )
 
-        upstream_url = f"http://127.0.0.1:{port}/v1/audio/transcriptions"
+        upstream_url = f"{remote}/v1/audio/transcriptions" if remote else f"http://127.0.0.1:{port}/v1/audio/transcriptions"
         try:
             upstream = await get_async_client().post(
-                upstream_url, files=files, data=data, timeout=300.0
+                upstream_url, files=files, data=data,
+                headers=_remote_audio_headers(target) if remote else None,
+                timeout=300.0,
             )
         except _httpx.HTTPError as exc:
             raise _audio_upstream_error(exc, backend="whisper-server", port=port)
     else:
-        upstream_url = f"http://127.0.0.1:{port}{ctx_path}"
+        upstream_url = f"{remote}{ctx_path}" if remote else f"http://127.0.0.1:{port}{ctx_path}"
         headers = {
             k: v for k, v in request.headers.items()
             if k.lower() in {"content-type", "accept"}
         }
+        if remote:
+            headers.update(_remote_audio_headers(target) or {})
         try:
             upstream = await get_async_client().post(
                 upstream_url, content=body, headers=headers, timeout=300.0
@@ -275,13 +295,14 @@ def audio_health() -> Response:
     import json as _json
 
     from .backend_process import is_reachable
-    from .model_registry import enabled_models
+    from .model_registry import local_models
 
     backends = []
-    audio = [
-        m for m in enabled_models()
-        if m.backend in ("whisper", "tts") and m.port
-    ]
+    # Local backends only — a remote-owned row's liveness is the owning
+    # host's own /v1/audio/health concern, not something this loopback
+    # probe can answer correctly (see app_web/routers/models.py for the
+    # cross-host merge that *does* surface remote rows, in the admin UI).
+    audio = [m for m in local_models() if m.backend in ("whisper", "tts") and m.port]
     for m in audio:
         reachable = is_reachable(m, timeout=1.0)
         backends.append({
@@ -305,27 +326,29 @@ def audio_health() -> Response:
     )
 
 
-def _tts_port_for_model(model_name: str) -> Optional[int]:
-    """Pick a TTS backend port for a ``/v1/audio/speech`` request.
+def _tts_model_for_request(model_name: str) -> Optional[Model]:
+    """Pick a TTS backend for a ``/v1/audio/speech`` request.
 
-    Resolve an explicit ``model`` through the registry first; otherwise fall
-    back to the ``audio_speech`` role (Piper), then the first enabled
-    TTS backend. Returns ``None`` if no TTS backend is enabled on this host.
+    Resolve an explicit ``model`` through the registry first — the only path
+    that can return a *remote* (``host:`` set) model, e.g. ``model=mac_say``.
+    Otherwise fall back to the ``audio_speech`` role (Piper), then the first
+    enabled *local* TTS backend — the default role never silently proxies to
+    a remote host. Returns ``None`` if no TTS backend is enabled on this host.
     """
-    from .model_registry import enabled_models, resolve as _resolve_model
+    from .model_registry import local_models, resolve as _resolve_model
 
     if model_name:
         m = _resolve_model(model_name)
         if m and m.backend == "tts" and m.port:
-            return m.port
+            return m
 
-    tts = [m for m in enabled_models() if m.backend == "tts" and m.port]
+    tts = [m for m in local_models() if m.backend == "tts" and m.port]
     if not tts:
         return None
     for m in tts:
         if "audio_speech" in (m.aliases or []):
-            return m.port
-    return tts[0].port
+            return m
+    return tts[0]
 
 
 @router.post("/v1/audio/speech")
@@ -353,9 +376,11 @@ async def audio_speech(request: Request) -> Response:
     except Exception:  # noqa: BLE001
         pass
 
-    port = _tts_port_for_model(model_name)
-    if port is None:
+    target = _tts_model_for_request(model_name)
+    if target is None:
         raise HTTPException(status_code=503, detail="no TTS backend enabled on this host")
+    port = target.port
+    remote = remote_base_url(target)
 
     ctx = getattr(request.state, "obs_ctx", None)
     if ctx is not None:
@@ -372,11 +397,13 @@ async def audio_speech(request: Request) -> Response:
             span.set_attribute("tts.port", int(port))
     stash_trace_id_on_ctx(ctx, span)
 
-    upstream_url = f"http://127.0.0.1:{port}/v1/audio/speech"
+    upstream_url = f"{remote}/v1/audio/speech" if remote else f"http://127.0.0.1:{port}/v1/audio/speech"
     headers = {
         k: v for k, v in request.headers.items()
         if k.lower() in {"content-type", "accept"}
     }
+    if remote:
+        headers.update(_remote_audio_headers(target) or {})
 
     def _passthrough_headers(upstream) -> dict:
         return {

@@ -33,7 +33,7 @@ def _fake_openai_response(text: str = "pong"):
 def test_messages_routes_openai_backend(monkeypatch):
     captured = {}
 
-    def fake_call(base_url, model, messages, *, max_tokens=None, temperature=None, timeout=600.0, extra=None):
+    def fake_call(base_url, model, messages, *, max_tokens=None, temperature=None, timeout=600.0, extra=None, headers=None):
         captured["base_url"] = base_url
         captured["model"] = model
         captured["messages"] = messages
@@ -80,7 +80,7 @@ def test_messages_unknown_model_400():
 
 
 def test_chat_completions_passthrough_openai(monkeypatch):
-    def fake_call(base_url, model, messages, *, max_tokens=None, temperature=None, timeout=600.0, extra=None):
+    def fake_call(base_url, model, messages, *, max_tokens=None, temperature=None, timeout=600.0, extra=None, headers=None):
         return _fake_openai_response("hi")
 
     monkeypatch.setattr(server_mod, "call_openai_chat", fake_call)
