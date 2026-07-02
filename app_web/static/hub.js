@@ -299,9 +299,8 @@ function renderServices() {
     els.langfuseDetail.textContent = lf.reachable ? '' : (lf.error || '');
   }
 
-  // Mac Mini (#179): informational only, doesn't factor into the overall
-  // pill or the launch button — the hub has no way to remote-launch the
-  // Mac's own hub process, this just tells the story.
+  // Mac Mini (#179): the pill itself doesn't factor into the overall
+  // status/launch-button logic above — it tells the Mac's own story.
   const macMini = body.mac_mini;
   if (els.macMiniRow) els.macMiniRow.hidden = !macMini;
   if (macMini) {
@@ -309,7 +308,31 @@ function renderServices() {
     const mmLabel = macMini.reachable ? 'up' : 'down';
     setStatusPill(els.macMiniStatus, els.macMiniStatusText, mmKind, mmLabel);
     if (els.macMiniDetail) {
-      els.macMiniDetail.textContent = macMini.reachable ? '' : (macMini.error || '');
+      // git_sha_match is null until both sides answer; only warn on an
+      // explicit false, never on "haven't compared yet" (#181).
+      const outOfSync = macMini.reachable && macMini.git_sha_match === false;
+      els.macMiniDetail.innerHTML = !macMini.reachable
+        ? escapeHtml(macMini.error || '')
+        : outOfSync
+          ? '<span class="badge warn">out of sync</span> ' +
+            escapeHtml(macMini.remote_git_sha || '?') + ' vs ' + escapeHtml(macMini.local_git_sha || '?')
+          : '';
+    }
+    // Wake/Sync (#181): mirrors the Docker/Langfuse launch-button pattern —
+    // one action visible at a time depending on reachability.
+    if (els.macMiniWakeBtn) {
+      els.macMiniWakeBtn.hidden = macMini.reachable;
+      els.macMiniWakeBtn.disabled = state.macMiniBusy;
+      els.macMiniWakeBtn.innerHTML = state.macMiniBusy
+        ? 'Waking…'
+        : icon('play') + 'Wake';
+    }
+    if (els.macMiniSyncBtn) {
+      els.macMiniSyncBtn.hidden = !macMini.reachable;
+      els.macMiniSyncBtn.disabled = state.macMiniBusy;
+      els.macMiniSyncBtn.innerHTML = state.macMiniBusy
+        ? 'Syncing…'
+        : icon('refresh-cw') + 'Sync';
     }
   }
 
@@ -368,6 +391,26 @@ async function onServicesLaunchClick() {
     await fetchServicesStatus();
   }
 }
+
+const MAC_MINI_HOST_ID = 'mac-mini-m4';
+
+async function onMacMiniAction(action, pastTense) {
+  if (state.macMiniBusy) return;
+  state.macMiniBusy = true;
+  renderServices();
+  try {
+    await postJson('/admin/api/hosts/' + MAC_MINI_HOST_ID + '/' + action, {});
+    toast('Mac Mini ' + pastTense, 'good');
+  } catch (exc) {
+    toast('Mac Mini ' + action + ' failed: ' + (exc.message || exc), 'error');
+  } finally {
+    state.macMiniBusy = false;
+    await fetchServicesStatus();
+  }
+}
+
+function onMacMiniWakeClick() { return onMacMiniAction('bootstrap', 'woken up'); }
+function onMacMiniSyncClick() { return onMacMiniAction('sync', 'synced'); }
 
 // --------------------------------------------------------- density toggle
 function applyDensity(density) {
@@ -468,6 +511,12 @@ export function wireHub() {
 
   if (els.servicesLaunchBtn) {
     els.servicesLaunchBtn.addEventListener('click', onServicesLaunchClick);
+  }
+  if (els.macMiniWakeBtn) {
+    els.macMiniWakeBtn.addEventListener('click', onMacMiniWakeClick);
+  }
+  if (els.macMiniSyncBtn) {
+    els.macMiniSyncBtn.addEventListener('click', onMacMiniSyncClick);
   }
 
   // Sparklines: lightweight inline-SVG renderer driven by /admin/api/hub/stats.
