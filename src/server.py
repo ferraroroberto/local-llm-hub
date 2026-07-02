@@ -69,6 +69,7 @@ from .host_profile import hub_bind_host, hub_port
 from .hub_log import HUB_LOG, install_root_handler
 from .hub_observability import OBS, ObservatoryMiddleware
 from .model_registry import Model, enabled_models
+from .remote_proxy import remote_auth_token, remote_base_url
 from .observability import (
     genai_meters,
     init_otel,
@@ -333,8 +334,20 @@ def _run_gemini_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
             raise HTTPException(status_code=502, detail=str(e))
 
 
+def _remote_headers(model: Model) -> Optional[Dict[str, str]]:
+    """``Authorization`` header for a remote-hub call, if a token is
+    configured for that host — see ``remote_proxy.remote_auth_token``.
+    Most setups rely on the receiving hub's IP allowlist instead, so this
+    is commonly ``None``.
+    """
+    token = remote_auth_token(model.host) if model.host else None
+    return {"Authorization": f"Bearer {token}"} if token else None
+
+
 def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
-    if not model.url:
+    remote = remote_base_url(model)
+    base_url = f"{remote}/v1" if remote else model.url
+    if not base_url:
         raise HTTPException(status_code=500, detail=f"model {model.id} has no url")
     if any(
         isinstance(m.content, list)
@@ -355,11 +368,12 @@ def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     )
     try:
         raw = call_openai_chat(
-            model.url,
-            model=model.display_name,
+            base_url,
+            model=model.id if remote else model.display_name,
             messages=messages,
             max_tokens=req.max_tokens,
             temperature=req.temperature,
+            headers=_remote_headers(model) if remote else None,
         )
     except UpstreamError as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -773,7 +787,9 @@ def _stream_openai_passthrough(
     span events to expose time-to-first-token and tokens-per-second on
     the active span, and updates the GenAI metrics on stream close.
     """
-    if not model.url:
+    remote = remote_base_url(model)
+    base_url = f"{remote}/v1" if remote else model.url
+    if not base_url:
         raise HTTPException(status_code=500, detail="model has no url")
     # Seed from the model's server-side inject_extra (e.g. the no-think alias's
     # chat_template_kwargs), then layer caller-sent fields on top so the caller
@@ -801,12 +817,13 @@ def _stream_openai_passthrough(
         error_type = ""
         try:
             raw = call_openai_chat_stream(
-                model.url,
-                model=model.display_name,
+                base_url,
+                model=model.id if remote else model.display_name,
                 messages=req.messages,
                 max_tokens=req.max_tokens,
                 temperature=req.temperature,
                 extra=extra or None,
+                headers=_remote_headers(model) if remote else None,
             )
             for cleaned in iter_cleaned_sse(raw):
                 if cleaned.startswith("data:"):
@@ -991,7 +1008,9 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
             raise reject
 
         if model.backend == "openai":
-            if not model.url:
+            remote = remote_base_url(model)
+            base_url = f"{remote}/v1" if remote else model.url
+            if not base_url:
                 error_type = "config_error"
                 raise HTTPException(status_code=500, detail="model has no url")
             # Seed from inject_extra (no-think alias), then caller fields win.
@@ -1006,12 +1025,13 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
                 extra["chat_template_kwargs"] = req.chat_template_kwargs
             try:
                 raw = call_openai_chat(
-                    model.url,
-                    model=model.display_name,
+                    base_url,
+                    model=model.id if remote else model.display_name,
                     messages=req.messages,
                     max_tokens=req.max_tokens,
                     temperature=req.temperature,
                     extra=extra or None,
+                    headers=_remote_headers(model) if remote else None,
                 )
             except UpstreamError as e:
                 error_type = "upstream_http_error"

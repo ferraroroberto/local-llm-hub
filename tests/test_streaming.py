@@ -170,7 +170,7 @@ def test_iter_cleaned_sse_passes_blank_lines():
 
 def test_chat_completions_strips_think_non_stream(monkeypatch):
     def fake_call(base_url, model, messages, *, max_tokens=None, temperature=None,
-                  timeout=600.0, extra=None):
+                  timeout=600.0, extra=None, headers=None):
         return {
             "id": "x", "object": "chat.completion", "model": model,
             "choices": [{
@@ -203,7 +203,7 @@ def test_chat_completions_streaming_proxies_sse(monkeypatch):
     """End-to-end: stream=true returns SSE with cleaned content deltas."""
 
     def fake_stream(base_url, model, messages, *, max_tokens=None, temperature=None,
-                    timeout=600.0, extra=None) -> Iterator[str]:
+                    timeout=600.0, extra=None, headers=None) -> Iterator[str]:
         for line in _sse_lines(
             _delta("<think>plan"),
             _delta(" some</think>"),
@@ -255,7 +255,7 @@ def test_chat_completions_streaming_usage_populated_from_trailing_frame(monkeypa
     """
 
     def fake_stream(base_url, model, messages, *, max_tokens=None, temperature=None,
-                    timeout=600.0, extra=None) -> Iterator[str]:
+                    timeout=600.0, extra=None, headers=None) -> Iterator[str]:
         # Two content deltas first (these set first_token_ns), then a trailing
         # usage-only chunk (no choices/delta, just a usage field).
         content_chunks = [_delta("Hello "), _delta("world!")]
@@ -330,7 +330,7 @@ def test_chat_completions_forwards_structured_params_non_stream(monkeypatch):
     captured: dict = {}
 
     def fake_call(base_url, model, messages, *, max_tokens=None, temperature=None,
-                  timeout=600.0, extra=None):
+                  timeout=600.0, extra=None, headers=None):
         captured["extra"] = extra
         return {
             "id": "x", "object": "chat.completion", "model": model,
@@ -366,7 +366,7 @@ def test_chat_completions_forwards_structured_params_stream(monkeypatch):
     captured: dict = {}
 
     def fake_stream(base_url, model, messages, *, max_tokens=None, temperature=None,
-                    timeout=600.0, extra=None) -> Iterator[str]:
+                    timeout=600.0, extra=None, headers=None) -> Iterator[str]:
         captured["extra"] = extra
         for line in _sse_lines(_delta("ok")):
             yield line
@@ -399,7 +399,7 @@ def test_chat_completions_omits_structured_params_when_absent(monkeypatch):
     captured: dict = {}
 
     def fake_call(base_url, model, messages, *, max_tokens=None, temperature=None,
-                  timeout=600.0, extra=None):
+                  timeout=600.0, extra=None, headers=None):
         captured["extra"] = extra
         return {
             "id": "x", "object": "chat.completion", "model": model,
@@ -432,7 +432,7 @@ def test_chat_completions_omits_structured_params_when_absent(monkeypatch):
 
 def _capture_call(captured: dict):
     def fake_call(base_url, model, messages, *, max_tokens=None, temperature=None,
-                  timeout=600.0, extra=None):
+                  timeout=600.0, extra=None, headers=None):
         captured["extra"] = extra
         captured["base_url"] = base_url
         return {

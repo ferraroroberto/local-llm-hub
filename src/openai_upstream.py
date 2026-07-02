@@ -71,6 +71,7 @@ def call_openai_chat(
     temperature: Optional[float] = None,
     timeout: float = 600.0,
     extra: Optional[Dict[str, Any]] = None,
+    headers: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     url = base_url.rstrip("/") + "/chat/completions"
     payload: Dict[str, Any] = {"model": model, "messages": messages}
@@ -81,7 +82,7 @@ def call_openai_chat(
     if extra:
         payload.update(extra)
     try:
-        r = get_sync_client().post(url, json=payload, timeout=timeout)
+        r = get_sync_client().post(url, json=payload, headers=headers, timeout=timeout)
     except httpx.HTTPError as e:
         raise UpstreamError(f"upstream {url} unreachable: {e}") from e
     if r.status_code >= 400:
@@ -101,6 +102,7 @@ def call_openai_chat_stream(
     temperature: Optional[float] = None,
     timeout: float = 600.0,
     extra: Optional[Dict[str, Any]] = None,
+    headers: Optional[Dict[str, str]] = None,
 ) -> Iterator[str]:
     """POST with ``stream: true`` and yield SSE *lines* from the upstream.
 
@@ -120,10 +122,10 @@ def call_openai_chat_stream(
         payload["temperature"] = float(temperature)
     if extra:
         payload.update(extra)
-    headers = {"Accept": "text/event-stream"}
+    req_headers = {"Accept": "text/event-stream", **(headers or {})}
     try:
         with get_sync_client().stream(
-            "POST", url, json=payload, headers=headers, timeout=timeout
+            "POST", url, json=payload, headers=req_headers, timeout=timeout
         ) as r:
             if r.status_code >= 400:
                 body = r.read().decode("utf-8", errors="replace")

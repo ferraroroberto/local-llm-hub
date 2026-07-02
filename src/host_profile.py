@@ -30,6 +30,11 @@ class HostProfile:
     hostname: Optional[str] = None
     default: bool = False
     source: str = ""  # human-readable description of how we picked it
+    # LAN address (IP or resolvable hostname) other hosts dial to reach this
+    # machine's own hub — e.g. "192.168.0.241". Unset on hosts nothing ever
+    # proxies to (today, that's fine; only a host that owns a remote-tagged
+    # model row needs one). See src/remote_proxy.py.
+    address: Optional[str] = None
 
 
 # Parsed-YAML cache, keyed by the resolved config path. The README's
@@ -66,6 +71,7 @@ def _row_to_profile(host_id: str, row: Dict[str, Any], *, source: str) -> HostPr
         hostname=row.get("hostname"),
         default=bool(row.get("default", False)),
         source=source,
+        address=row.get("address"),
     )
 
 
@@ -112,6 +118,20 @@ def resolve() -> HostProfile:
         f"no host row matched platform={this_platform} "
         f"hostname={this_host} (available: {sorted(hosts.keys())})"
     )
+
+
+def get_host(host_id: str) -> Optional[HostProfile]:
+    """Look up any declared host row by id — including hosts other than the
+    one this process is running on. Used to resolve a remote model's owning
+    host's ``address`` (see src/remote_proxy.py); ``resolve()`` above only
+    ever returns the *active* host's profile, not an arbitrary one.
+    """
+    cfg = _load_config()
+    hosts: Dict[str, Any] = cfg.get("hosts") or {}
+    row = hosts.get(host_id)
+    if row is None:
+        return None
+    return _row_to_profile(host_id, row, source=f"lookup {host_id!r}")
 
 
 def hub_port() -> int:

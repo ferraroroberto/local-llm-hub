@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 
 from .backend_process import llama_server_binary, whisper_server_binary
 from .host_profile import hub_port, resolve as resolve_host
-from .model_registry import Model, enabled_models
+from .model_registry import Model, local_models
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -222,7 +222,7 @@ def _check_llama_cpp() -> Check:
 
 def _check_models() -> List[Check]:
     rows: List[Check] = []
-    for m in enabled_models():
+    for m in local_models():
         if m.backend not in ("openai", "whisper", "tts") or not m.model_path:
             continue
         path = (PROJECT_ROOT / m.model_path).resolve()
@@ -241,8 +241,10 @@ def _check_models() -> List[Check]:
 
 
 def _whisper_enabled() -> bool:
-    return any(m.engine == "whisper-server" or m.backend == "whisper"
-               for m in enabled_models())
+    # Engine-specific, not just `backend == "whisper"` — a whisper-*shaped*
+    # backend (e.g. Parakeet's `engine: parakeet-server`, #138) doesn't need
+    # the whisper.cpp binary this check is actually gating.
+    return any(m.engine in ("whisper-server", "whisper-server-lazy") for m in local_models())
 
 
 def _check_whisper_cpp() -> Check:
@@ -261,9 +263,33 @@ def _check_whisper_cpp() -> Check:
     )
 
 
+def _parakeet_enabled() -> bool:
+    return any(m.engine == "parakeet-server" for m in local_models())
+
+
+def _check_parakeet_worker() -> Check:
+    """Is the FluidAudio Swift binary (mac/parakeet-worker) built? (#138)
+
+    darwin-only in practice — gated on a `engine: parakeet-server` row
+    being locally enabled, which only ever happens on mac-mini-m4. No
+    CLI-version probe (`_probe_cli_version`): the worker isn't a real CLI,
+    it blocks on stdin waiting for a request — existence is all we can
+    check without actually spinning up the CoreML model.
+    """
+    bin_path = PROJECT_ROOT / "mac" / "parakeet-worker" / ".build" / "release" / "ParakeetWorker"
+    if bin_path.exists():
+        return Check("parakeet_worker", "ParakeetWorker binary built", "ok", str(bin_path))
+    return Check(
+        "parakeet_worker", "ParakeetWorker binary built", "missing",
+        f"expected at {bin_path}",
+        fix_id="parakeet_worker",
+        fix_label="swift build -c release in mac/parakeet-worker/ (downloads FluidAudio + builds, first run also fetches the CoreML model on first request)",
+    )
+
+
 def _tts_enabled() -> bool:
     return any(m.backend == "tts" or m.engine == "tts-server"
-               for m in enabled_models())
+               for m in local_models())
 
 
 def _check_tts() -> Check:
@@ -289,7 +315,7 @@ def _check_tts() -> Check:
                      f"missing: {', '.join(missing)}",
                      fix_id="tts",
                      fix_label="scripts/install_tts.py (pip install -r requirements-tts.txt + warm weights)")
-    piper_rows = [m for m in enabled_models()
+    piper_rows = [m for m in local_models()
                   if m.backend == "tts" and m.tts_engine == "piper" and m.model_path]
     if piper_rows:
         exe_name = "piper.exe" if sys.platform == "win32" else "piper"
@@ -318,7 +344,7 @@ def _check_ports() -> List[Check]:
     rows: List[Check] = []
     for label, port in [("hub", hub_port())] + [
         (m.display_name, m.port)
-        for m in enabled_models()
+        for m in local_models()
         if m.backend in ("openai", "whisper", "tts") and m.port and not m.virtual
     ]:
         if _port_in_use(port):
@@ -347,6 +373,8 @@ def run_all_checks() -> Report:
         checks.append(_check_whisper_cpp())
     if _tts_enabled():
         checks.append(_check_tts())
+    if _parakeet_enabled():
+        checks.append(_check_parakeet_worker())
     checks.extend(_check_models())
     checks.extend(_check_ports())
     return Report(checks=checks)
@@ -378,6 +406,20 @@ def _fix_tts() -> None:
     install_tts.main()
 
 
+def _fix_parakeet_worker() -> None:
+    swift = shutil.which("swift")
+    if not swift:
+        raise RuntimeError(
+            "swift not found on PATH — install Xcode Command Line Tools "
+            "(headless: `softwareupdate --install \"Command Line Tools for Xcode\"`)"
+        )
+    subprocess.run(
+        [swift, "build", "-c", "release"],
+        cwd=str(PROJECT_ROOT / "mac" / "parakeet-worker"),
+        check=True,
+    )
+
+
 def _fix_download(model_id: str) -> Callable[[], None]:
     def _fix() -> None:
         from scripts import download_models  # type: ignore
@@ -394,6 +436,8 @@ def fix_fn_for(check: Check) -> Optional[FixFn]:
         return _fix_whisper_cpp
     if check.fix_id == "tts":
         return _fix_tts
+    if check.fix_id == "parakeet_worker":
+        return _fix_parakeet_worker
     if check.fix_id and check.fix_id.startswith("download_"):
         return _fix_download(check.fix_id[len("download_"):])
     return None

@@ -56,6 +56,13 @@ class Model:
     # false}`` to clients that can't send it themselves (e.g. Home Assistant's
     # extended_openai_conversation).
     inject_extra: Optional[Dict[str, Any]] = None
+    # Which host profile *owns* (spawns/manages) this model's process. Unset
+    # means "whichever host resolves this row locally" (the pre-#178
+    # behavior — every model was implicitly local). When set and it differs
+    # from the active host, this row is a *remote* model: the active host
+    # never spawns/health-checks it locally and instead proxies requests to
+    # the owning host's own hub. See src/remote_proxy.py.
+    host: Optional[str] = None
 
     @property
     def all_names(self) -> List[str]:
@@ -111,6 +118,7 @@ def _row_to_model(model_id: str, row: Dict) -> Model:
         idle_seconds=int(row["idle_seconds"]) if row.get("idle_seconds") is not None else None,
         virtual=bool(row.get("virtual", False)),
         inject_extra=row.get("inject_extra") or None,
+        host=row.get("host"),
     )
 
 
@@ -136,19 +144,34 @@ def enabled_models(host: Optional[HostProfile] = None) -> List[Model]:
     return result
 
 
+def local_models(host: Optional[HostProfile] = None) -> List[Model]:
+    """``enabled_models()`` filtered to rows this host actually runs —
+    excludes any row owned by a *different* host (``m.host`` set and not
+    this one). The generalization of "give me the models I might spawn,
+    manage, download weights for, or health-check" — every place a
+    remote-owned row (cross-enabled so it *resolves* here, but proxied
+    rather than run here) would otherwise be mistaken for a local one:
+    install checks, port-liveness checks, spawn/inherit loops, tray menus.
+    """
+    profile = host or resolve_host()
+    return [m for m in enabled_models(host) if not (m.host and m.host != profile.id)]
+
+
 def autostart_model_ids(host: Optional[HostProfile] = None) -> List[str]:
     """Configured local backend ids to start with the hub.
 
     The YAML list is user-editable, so filter it through the active host and
     launchable backend rows. Virtual aliases share a real backend and never
-    own a process, so they are excluded even if listed by mistake.
+    own a process, so they are excluded even if listed by mistake. Rows
+    owned by a *different* host (``m.host`` set and not this one) are remote
+    — never autostarted locally, the owning host's own tray does that.
     """
     cfg = _load_config()
     raw = (cfg.get("tray") or {}).get("autostart_models") or []
     if not isinstance(raw, list):
         return []
     valid = {
-        m.id for m in enabled_models(host)
+        m.id for m in local_models(host)
         if m.backend in ("openai", "whisper", "tts") and not m.virtual
     }
     return [model_id for model_id in (str(item) for item in raw if item) if model_id in valid]

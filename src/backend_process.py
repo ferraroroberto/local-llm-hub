@@ -33,7 +33,8 @@ from typing import Dict, Optional
 
 import httpx
 
-from .model_registry import Model, enabled_models, resolve as resolve_model
+from .host_profile import resolve as resolve_host
+from .model_registry import Model, enabled_models, local_models, resolve as resolve_model
 from .server_process import (
     OWNERSHIP_EXTERNAL,
     OWNERSHIP_NONE,
@@ -197,8 +198,11 @@ def is_reachable(model: Model, timeout: float = 1.5) -> bool:
     # takes a set of chars, so `"...:8091/v1".rstrip("/v1")` eats the port's
     # trailing "1" too and yields ":809" — a dead port. removesuffix is exact.
     base = model.url.removesuffix("/v1").rstrip("/")
-    if _is_whisper(model):
+    if model.engine in ("whisper-server", "whisper-server-lazy"):
         # whisper.cpp server has no /health; GET / returns 200 once loaded.
+        # Engine-specific, not `_is_whisper` (backend == "whisper") — a
+        # whisper-*shaped* backend on a different engine (e.g. Parakeet's
+        # `engine: parakeet-server`, #138) has its own real /health route.
         try:
             r = httpx.get(f"{base}/", timeout=timeout)
             return r.status_code == 200
@@ -276,6 +280,16 @@ def build_command(model: Model) -> list[str]:
         cmd.extend(model.args or [])
         return cmd
 
+    # Parakeet (#138): the in-repo FastAPI shim (src/parakeet_server) owns a
+    # persistent FluidAudio Swift subprocess. No model_path — the CoreML
+    # weights are fetched/cached by FluidAudio itself on first load, not by
+    # this repo's download_models.py, so it must skip the model_path guard
+    # below same as the tts-server branch above.
+    if model.engine == "parakeet-server":
+        cmd = [sys.executable, "-m", "src.parakeet_server", "--model-id", model.id]
+        cmd.extend(model.args or [])
+        return cmd
+
     if not model.model_path:
         raise RuntimeError(f"model {model.id} has no model_path")
     model_path = (PROJECT_ROOT / model.model_path).resolve()
@@ -338,6 +352,14 @@ def start(model_id: str) -> tuple[bool, str]:
     model = resolve_model_by_id(model_id)
     if model is None:
         return False, f"model {model_id!r} not enabled on this host"
+    model_host = getattr(model, "host", None)
+    active = resolve_host()
+    if model_host and model_host != active.id:
+        return False, (
+            f"model {model_id!r} is owned by host {model_host!r} — "
+            "start it there, or via the admin API which proxies this "
+            "call automatically"
+        )
     if is_running(model_id):
         return False, "already running"
 
@@ -441,7 +463,7 @@ def inherit_running_backends() -> int:
 
     listening = snapshot_listening_pids()
     count = 0
-    for m in enabled_models():
+    for m in local_models():
         if m.backend not in ("openai", "whisper", "tts"):
             continue
         if not m.port:
@@ -492,7 +514,7 @@ def resolve_model_by_id(model_id: str) -> Optional[Model]:
 def running_backends() -> Dict[str, Model]:
     """Return {model_id: Model} for each local backend whose process is alive."""
     out: Dict[str, Model] = {}
-    for m in enabled_models():
+    for m in local_models():
         if m.backend in ("openai", "whisper", "tts") and is_running(m.id):
             out[m.id] = m
     return out

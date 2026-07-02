@@ -32,16 +32,32 @@ hosts:
   pc-cuda:
     platform: win32
     default: true
-    # qwen and glm are kept defined below as candidates for ad-hoc bring-up,
-    # but are out of the active rotation. To bring one up: add its id back
-    # to this list and run `python -m src.install --fix`, or just launch
-    # `launchers/run_qwen.bat` directly.
-    enabled: [qwen35_4b, qwen35_4b_nothink, gemma4_e4b, gemma4_26b, whisper, whisper_translate, whisper_vanilla, piper, chatterbox, orpheus, kokoro]
+    # LAN address other hosts dial to reach this host's own hub (:8000) when
+    # proxying to a model this host owns (`host: pc-cuda` in a models: row).
+    address: 192.168.0.13
+    # glm is kept defined below as a candidate for ad-hoc bring-up, but is
+    # out of the active rotation. To bring it up: add its id back to this
+    # list and run `python -m src.install --fix`, or just launch
+    # `launchers/run_qwen.bat`-style directly.
+    #
+    # `qwen` (host: mac-mini-m4) is cross-enabled here, not owned — #178
+    # lets pc-cuda *resolve* it and proxy to the Mac's own hub instead of
+    # spawning it locally. install.py's local_models() filter (only rows
+    # this host actually owns) keeps this from triggering a download/port
+    # check for a model pc-cuda will never run itself.
+    enabled: [qwen35_4b, qwen35_4b_nothink, gemma4_e4b, gemma4_26b, whisper, whisper_translate, whisper_vanilla, piper, chatterbox, orpheus, kokoro, qwen, parakeet]
 
   mac-mini-m4:
     platform: darwin
     default: true
-    enabled: [qwen]
+    # LAN address the pc-cuda host dials to reach this host's own hub when
+    # proxying to a model this host owns (`host: mac-mini-m4`) — e.g. qwen,
+    # parakeet. Mac-native TTS (mac_say) is a follow-up, not yet enrolled.
+    address: 192.168.0.241
+    # Same cross-enable pattern as pc-cuda's list above, reversed: every
+    # pc-cuda-owned model is listed here too so the Mac's hub can resolve
+    # and proxy to it — genuinely bidirectional (#178), not Windows-only.
+    enabled: [qwen, parakeet, qwen35_4b, qwen35_4b_nothink, gemma4_e4b, gemma4_26b, whisper, whisper_translate, whisper_vanilla, piper, chatterbox, orpheus, kokoro]
 
 models:
   # --- Claude subscription path (`claude -p` CLI) ---
@@ -110,6 +126,10 @@ models:
     display_name: qwen3.5-9b
     backend: openai
     engine: llama-server
+    # Owning host (#178) — cross-enabled on pc-cuda below so the Windows
+    # hub can resolve `model=qwen` and proxy it here instead of spawning
+    # it locally (127.0.0.1 wouldn't have a qwen process on Windows).
+    host: mac-mini-m4
     port: 8081
     hf_repo: "unsloth/Qwen3.5-9B-GGUF"
     hf_pattern: "Qwen3.5-9B-Q4_K_M.gguf"
@@ -184,6 +204,7 @@ models:
     # to the successor's row so the contract stays stable.
     aliases: ["agentic_light"]
     backend: openai
+    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: llama-server
     port: 8088
     hf_repo: "unsloth/Qwen3.5-4B-GGUF"
@@ -235,6 +256,7 @@ models:
     # no-think fast lane address the role, not the concrete id.
     aliases: ["agentic_light_nothink"]
     backend: openai
+    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
     port: 8088                       # shared with qwen35_4b (virtual alias)
     virtual: true
     inject_extra:
@@ -247,6 +269,7 @@ models:
   gemma4_e4b:
     display_name: gemma4-e4b-it
     backend: openai
+    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: llama-server
     port: 8086
     hf_repo: "unsloth/gemma-4-E4B-it-GGUF"
@@ -272,6 +295,7 @@ models:
     # this alias with the role pointer when swap-model upgrades the slot.
     aliases: ["agentic_heavy"]
     backend: openai
+    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: llama-server
     port: 8087
     hf_repo: "unsloth/gemma-4-26B-A4B-it-GGUF"
@@ -305,6 +329,7 @@ models:
   whisper:
     display_name: whisper-large-v3-turbo
     backend: whisper
+    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: whisper-server
     port: 8090
     hf_repo: "ggerganov/whisper.cpp"
@@ -370,6 +395,7 @@ models:
   whisper_translate:
     display_name: whisper-medium-translate
     backend: whisper
+    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: whisper-server
     port: 8091
     hf_repo: "ggerganov/whisper.cpp"
@@ -425,6 +451,7 @@ models:
   whisper_vanilla:
     display_name: whisper-vanilla
     backend: whisper
+    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: whisper-server-lazy
     port: 8094
     internal_port: 18094
@@ -446,6 +473,29 @@ models:
       - "--inference-path"
       - "/v1/audio/transcriptions"
 
+  # --- Parakeet TDT v3 on the Mac Mini's ANE (CoreML, FluidAudio) ---
+  # Selectable alternative to whisper-turbo, NOT the audio_transcribe
+  # default (#138). Faster end-to-end than whisper-turbo's own loopback
+  # latency, but drops the "Claude Code" wake phrase and mangles
+  # "YOLO"→"yellow" — accepted trade-off for use cases that value speed
+  # over perfect jargon recognition (e.g. Home Assistant voice commands).
+  # Call it explicitly with model=parakeet. See docs/parakeet-asr-evaluation.md
+  # for the full spike write-up and the accepted-trade-offs decision.
+  #
+  # engine: parakeet-server (not whisper-server) — src/parakeet_server.py
+  # owns a persistent mac/parakeet-worker Swift subprocess (FluidAudio),
+  # not whisper.cpp. backend: whisper reuses the hub's existing
+  # audio_transcribe dispatch/role-resolution unchanged (its API is
+  # already OpenAI-transcription-shaped) — see backend_process.py's
+  # engine == "parakeet-server" branch for why this needs no model_path.
+  parakeet:
+    display_name: parakeet-tdt-0.6b-v3
+    backend: whisper
+    engine: parakeet-server
+    host: mac-mini-m4  # owning host (#178) — cross-enabled on pc-cuda below
+    port: 8098
+    aliases: ["parakeet"]
+
   # --- Local Chatterbox TTS (Resemble AI) — OpenAI /v1/audio/speech ---
   # The inverse of the whisper STT pair: text -> speech. Served by the
   # in-repo FastAPI shim src/tts_server.py (engine `tts-server`), proxied
@@ -464,6 +514,7 @@ models:
   chatterbox:
     display_name: chatterbox-tts
     backend: tts
+    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: tts-server
     tts_engine: chatterbox
     port: 8092
@@ -484,6 +535,7 @@ models:
     # to the successor row if the speech role is ever repointed.
     aliases: ["audio_speech"]
     backend: tts
+    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: tts-server
     tts_engine: piper
     port: 8096
@@ -509,6 +561,7 @@ models:
   orpheus:
     display_name: orpheus-tts
     backend: tts
+    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: tts-server
     tts_engine: orpheus
     port: 8093
@@ -529,6 +582,7 @@ models:
   kokoro:
     display_name: kokoro-tts
     backend: tts
+    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: tts-server
     tts_engine: kokoro
     port: 8095
