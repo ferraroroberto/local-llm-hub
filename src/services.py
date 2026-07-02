@@ -30,6 +30,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from src.host_profile import HostProfile, hub_port
 from src.observability import langfuse_host
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 DOCKER_PROBE_TIMEOUT_S = 2.0
 LANGFUSE_PROBE_TIMEOUT_S = 2.0
+# /admin/api/models on the remote peer health-probes every local model it
+# owns before responding (observed 2-5.5s under normal load), so this needs
+# real headroom above that, not just network RTT — this only guards the
+# admin Models-tab merge poll, not any request hot path.
+REMOTE_HUB_PROBE_TIMEOUT_S = 8.0
 
 # Used by POST /admin/api/services/launch — total budget for `docker info`
 # to start succeeding after we spawn Docker Desktop. The engine usually
@@ -149,6 +155,77 @@ async def langfuse_health(timeout_s: float = LANGFUSE_PROBE_TIMEOUT_S) -> Dict[s
             "status_code": 0,
             "error": f"{type(exc).__name__}: {exc}",
             "host": host,
+        }
+
+
+# ------------------------------------------------------------ remote hosts
+
+
+async def remote_models(
+    owner: HostProfile, timeout_s: float = REMOTE_HUB_PROBE_TIMEOUT_S
+) -> Optional[List[Dict[str, Any]]]:
+    """GET ``{owner's hub}/admin/api/models`` — used to merge a remote
+    host's own model rows into this hub's Models tab (#178).
+
+    Returns ``None`` (not ``[]``) on any failure — lets the caller tell
+    "peer unreachable" apart from "peer reachable, reports zero models"
+    and fall back to a locally-synthesized offline row instead of
+    silently dropping the model from the list.
+    """
+    if not owner.address:
+        return None
+    from src.remote_proxy import remote_auth_token
+
+    base = f"http://{owner.address}:{hub_port()}"
+    token = remote_auth_token(owner.id)
+    headers = {"Authorization": f"Bearer {token}"} if token else None
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s) as client:
+            # local_only=true: two bidirectionally cross-enabled hosts would
+            # otherwise recurse into each other's /api/models forever.
+            r = await client.get(
+                f"{base}/admin/api/models", params={"local_only": "true"}, headers=headers
+            )
+        if r.status_code >= 400:
+            return None
+        body = r.json()
+        rows = body.get("models") if isinstance(body, dict) else None
+        return rows if isinstance(rows, list) else None
+    except Exception:  # noqa: BLE001 — network / connection / DNS / bad JSON
+        return None
+
+
+async def mac_mini_health(
+    host_id: str = "mac-mini-m4", timeout_s: float = REMOTE_HUB_PROBE_TIMEOUT_S
+) -> Dict[str, Any]:
+    """Probe the Mac Mini host's own hub `/health` endpoint (#179).
+
+    Clone of ``langfuse_health()``'s try/timeout shape, but the address
+    comes from ``HostProfile.address`` (config/models.yaml) + ``hub_port()``
+    — the same single source of truth #178's remote proxy already resolves
+    against, not a new env var.
+    """
+    from src.host_profile import get_host
+
+    owner = get_host(host_id)
+    if owner is None or not owner.address:
+        return {"reachable": False, "error": f"host {host_id!r} has no address configured", "address": None}
+    base = f"http://{owner.address}:{hub_port()}"
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s) as client:
+            r = await client.get(f"{base}/health")
+        return {
+            "reachable": r.status_code < 500,
+            "status_code": r.status_code,
+            "error": "" if r.status_code < 500 else f"HTTP {r.status_code}",
+            "address": base,
+        }
+    except Exception as exc:  # noqa: BLE001 — network / connection / DNS
+        return {
+            "reachable": False,
+            "status_code": 0,
+            "error": f"{type(exc).__name__}: {exc}",
+            "address": base,
         }
 
 
