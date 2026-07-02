@@ -61,6 +61,8 @@ def _sse_pack(data: Any, event: str = "") -> str:
 
 @router.get("/api/hub/status")
 async def hub_status(request: Request) -> Dict[str, Any]:
+    from src.host_profile import resolve as resolve_host
+
     port = _hub_port()
     lan = lan_ip()
     uptime_s = max(0.0, time.time() - OBS.started_at())
@@ -72,6 +74,7 @@ async def hub_status(request: Request) -> Dict[str, Any]:
         "lan_url": f"http://{lan}:{port}" if lan else "",
         "started_at": OBS.started_at(),
         "uptime_s": round(uptime_s, 1),
+        "host": resolve_host().id,
     }
 
 
@@ -222,13 +225,30 @@ async def hub_stop() -> Dict[str, Any]:
 
 @router.post("/api/hub/restart")
 async def hub_restart() -> Dict[str, Any]:
-    logger.info("🔄 /admin/api/hub/restart — spawning respawn watchdog")
     # Tell the shutdown handler to leave the model backends running so the
     # respawned hub adopts them, instead of killing the survivors that
     # inherit_running_backends() exists to reclaim.
     from src import backend_process as bp
 
     bp.set_restart_pending(True)
+
+    if sys.platform == "darwin":
+        # On darwin the LaunchAgent (#181) is the sole supervisor — its
+        # KeepAlive.SuccessfulExit=false only respawns on an *abnormal*
+        # exit, so spawning our own detached respawn-watchdog here would
+        # race it: two processes competing for the same port. Instead, ask
+        # launchd itself to kill+relaunch the job; no self-exit needed,
+        # launchd already owns that half.
+        from src.install import LAUNCHAGENT_LABEL
+
+        logger.info("🔄 /admin/api/hub/restart — launchctl kickstart")
+        subprocess.run(
+            ["launchctl", "kickstart", "-k", f"gui/{os.getuid()}/{LAUNCHAGENT_LABEL}"],
+            capture_output=True,
+        )
+        return {"ok": True, "detail": "hub will restart shortly via launchd"}
+
+    logger.info("🔄 /admin/api/hub/restart — spawning respawn watchdog")
     _spawn_respawn_watchdog()
     _delayed_shutdown(delay=0.8)
     return {"ok": True, "detail": "hub will restart shortly"}

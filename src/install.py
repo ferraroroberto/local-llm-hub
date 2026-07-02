@@ -16,6 +16,7 @@ import argparse
 import importlib
 import json
 import logging
+import os
 import platform
 import shutil
 import socket
@@ -287,6 +288,44 @@ def _check_parakeet_worker() -> Check:
     )
 
 
+LAUNCHAGENT_LABEL = "com.ferraroroberto.local-llm-hub"
+
+
+def _launchagent_plist_path() -> Path:
+    return Path.home() / "Library" / "LaunchAgents" / f"{LAUNCHAGENT_LABEL}.plist"
+
+
+def _check_launchagent() -> Check:
+    """Is the boot-time LaunchAgent installed and loaded? (#181, darwin-only)
+
+    Boot autostart + crash respawn for the Mac Mini's otherwise-unsupervised
+    hub process — the macOS analogue of the Windows tray's spawn-on-launch.
+    Existence + ``launchctl print`` are all we check; installing registers
+    and loads the job (``RunAtLoad`` fires it immediately if not already
+    running).
+    """
+    plist_path = _launchagent_plist_path()
+    if not plist_path.exists():
+        return Check(
+            "launchagent", "Boot-time LaunchAgent installed", "missing",
+            f"expected at {plist_path}",
+            fix_id="launchagent",
+            fix_label="writes the plist + `launchctl bootstrap` (boot autostart + crash respawn)",
+        )
+    loaded = subprocess.run(
+        ["launchctl", "print", f"gui/{os.getuid()}/{LAUNCHAGENT_LABEL}"],
+        capture_output=True, text=True,
+    ).returncode == 0
+    if not loaded:
+        return Check(
+            "launchagent", "Boot-time LaunchAgent installed", "warn",
+            f"plist exists at {plist_path} but is not loaded",
+            fix_id="launchagent",
+            fix_label="`launchctl bootstrap gui/<uid> <plist>` to (re)load it",
+        )
+    return Check("launchagent", "Boot-time LaunchAgent installed", "ok", str(plist_path))
+
+
 def _tts_enabled() -> bool:
     return any(m.backend == "tts" or m.engine == "tts-server"
                for m in local_models())
@@ -369,6 +408,8 @@ def run_all_checks() -> Report:
         _check_gpu(),
         _check_llama_cpp(),
     ]
+    if sys.platform == "darwin":
+        checks.append(_check_launchagent())
     if _whisper_enabled():
         checks.append(_check_whisper_cpp())
     if _tts_enabled():
@@ -420,6 +461,32 @@ def _fix_parakeet_worker() -> None:
     )
 
 
+def _fix_launchagent() -> None:
+    if sys.platform != "darwin":
+        raise RuntimeError("LaunchAgent install only applies on macOS")
+    template_path = PROJECT_ROOT / "mac" / "launchagent" / f"{LAUNCHAGENT_LABEL}.plist"
+    rendered = (
+        template_path.read_text(encoding="utf-8")
+        .replace("__PYTHON__", sys.executable)
+        .replace("__PROJECT_ROOT__", str(PROJECT_ROOT))
+    )
+    (PROJECT_ROOT / "data" / "logs").mkdir(parents=True, exist_ok=True)
+    plist_path = _launchagent_plist_path()
+    plist_path.parent.mkdir(parents=True, exist_ok=True)
+    plist_path.write_text(rendered, encoding="utf-8")
+    uid = os.getuid()
+    # bootout first so a re-run picks up a changed plist (bootstrap alone
+    # errors "already bootstrapped" on a still-loaded label); ignore its
+    # failure when nothing was loaded yet.
+    subprocess.run(["launchctl", "bootout", f"gui/{uid}/{LAUNCHAGENT_LABEL}"], capture_output=True)
+    result = subprocess.run(
+        ["launchctl", "bootstrap", f"gui/{uid}", str(plist_path)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"launchctl bootstrap failed: {result.stderr.strip()}")
+
+
 def _fix_download(model_id: str) -> Callable[[], None]:
     def _fix() -> None:
         from scripts import download_models  # type: ignore
@@ -438,6 +505,8 @@ def fix_fn_for(check: Check) -> Optional[FixFn]:
         return _fix_tts
     if check.fix_id == "parakeet_worker":
         return _fix_parakeet_worker
+    if check.fix_id == "launchagent":
+        return _fix_launchagent
     if check.fix_id and check.fix_id.startswith("download_"):
         return _fix_download(check.fix_id[len("download_"):])
     return None

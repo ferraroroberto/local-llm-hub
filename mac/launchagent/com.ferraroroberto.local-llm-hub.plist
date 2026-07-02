@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template — not installed as-is. `src/install.py`'s `_fix_launchagent()`
+  (#181) substitutes __PYTHON__ / __PROJECT_ROOT__ with this machine's
+  concrete paths and writes the result to
+  ~/Library/LaunchAgents/com.ferraroroberto.local-llm-hub.plist.
+
+  KeepAlive.SuccessfulExit=false means: only respawn on an abnormal exit
+  (crash). A deliberate `/admin/api/hub/stop` self-exits cleanly (SIGTERM
+  through uvicorn's graceful shutdown, exit code 0) so it is NOT respawned —
+  "stop" actually stops. `/admin/api/hub/restart` on darwin uses
+  `launchctl kickstart -k` instead of self-respawning, so this LaunchAgent
+  is the *only* thing that ever spawns `python -m src.server` here.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ferraroroberto.local-llm-hub</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__PYTHON__</string>
+        <string>-m</string>
+        <string>src.server</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__PROJECT_ROOT__</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>__PROJECT_ROOT__/data/logs/launchagent.log</string>
+    <key>StandardErrorPath</key>
+    <string>__PROJECT_ROOT__/data/logs/launchagent.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONIOENCODING</key>
+        <string>utf-8</string>
+        <key>PYTHONUTF8</key>
+        <string>1</string>
+    </dict>
+</dict>
+</plist>
