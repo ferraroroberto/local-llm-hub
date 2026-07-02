@@ -54,6 +54,10 @@ hosts:
     # proxying to a model this host owns (`host: mac-mini-m4`) — e.g. qwen,
     # parakeet. Mac-native TTS (mac_say) is a follow-up, not yet enrolled.
     address: 192.168.0.14
+    # SSH login used for the remote-bootstrap/sync endpoints (#181) — not a
+    # secret, just which account the forced-command key logs in as. The
+    # private key itself lives outside git (LOCAL_LLM_HUB_SSH_KEY in .env).
+    ssh_user: roberto
     # Same cross-enable pattern as pc-cuda's list above, reversed: every
     # pc-cuda-owned model is listed here too so the Mac's hub can resolve
     # and proxy to it — genuinely bidirectional (#178), not Windows-only.

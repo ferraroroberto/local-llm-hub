@@ -47,6 +47,7 @@ export const state = {
   // Services card — Docker + Langfuse status (issue #27).
   services: null,
   servicesLaunching: false,
+  macMiniBusy: false,   // wake/sync in flight (#181)
 };
 
 // ES modules are deferred; document.getElementById is safe at top level.
@@ -100,6 +101,8 @@ export const els = {
   macMiniStatus: document.getElementById('macMiniStatus'),
   macMiniStatusText: document.getElementById('macMiniStatusText'),
   macMiniDetail: document.getElementById('macMiniDetail'),
+  macMiniWakeBtn: document.getElementById('macMiniWakeBtn'),
+  macMiniSyncBtn: document.getElementById('macMiniSyncBtn'),
   servicesActions: document.getElementById('servicesActions'),
   servicesLaunchBtn: document.getElementById('servicesLaunchBtn'),
   servicesHint: document.getElementById('servicesHint'),

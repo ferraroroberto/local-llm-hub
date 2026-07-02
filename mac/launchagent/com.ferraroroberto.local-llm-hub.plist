@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template — not installed as-is. `src/install.py`'s `_fix_launchagent()`
+  (#181) substitutes __PYTHON__ / __PROJECT_ROOT__ with this machine's
+  concrete paths and writes the result to
+  ~/Library/LaunchAgents/com.ferraroroberto.local-llm-hub.plist.
+
+  KeepAlive.SuccessfulExit=false is launchd's crash-only-respawn intent,
+  but empirically (confirmed live on this machine) launchd treats ANY
+  signal-terminated exit as "unsuccessful" — a plain self-SIGTERM and even
+  an explicit `launchctl stop` both got immediately respawned. So a
+  deliberate stop can't just kill the process: `/admin/api/hub/stop` on
+  darwin runs `launchctl bootout` instead, which unloads the job entirely
+  (nothing left to respawn). `/admin/api/hub/restart` uses
+  `launchctl kickstart -k` (job still loaded, just needs restarting); the
+  bootstrap/sync SSH actions (`mac/bin/hub-remote-ctl.sh`) do
+  bootout-then-bootstrap since they must also cover a *fully unloaded*
+  job. This LaunchAgent is the only thing that ever spawns
+  `python -m src.server` here.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ferraroroberto.local-llm-hub</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__PYTHON__</string>
+        <string>-m</string>
+        <string>src.server</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__PROJECT_ROOT__</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>__PROJECT_ROOT__/data/logs/launchagent.log</string>
+    <key>StandardErrorPath</key>
+    <string>__PROJECT_ROOT__/data/logs/launchagent.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONIOENCODING</key>
+        <string>utf-8</string>
+        <key>PYTHONUTF8</key>
+        <string>1</string>
+    </dict>
+</dict>
+</plist>

@@ -61,6 +61,8 @@ def _sse_pack(data: Any, event: str = "") -> str:
 
 @router.get("/api/hub/status")
 async def hub_status(request: Request) -> Dict[str, Any]:
+    from src.host_profile import resolve as resolve_host
+
     port = _hub_port()
     lan = lan_ip()
     uptime_s = max(0.0, time.time() - OBS.started_at())
@@ -72,6 +74,7 @@ async def hub_status(request: Request) -> Dict[str, Any]:
         "lan_url": f"http://{lan}:{port}" if lan else "",
         "started_at": OBS.started_at(),
         "uptime_s": round(uptime_s, 1),
+        "host": resolve_host().id,
     }
 
 
@@ -94,6 +97,31 @@ def _delayed_shutdown(delay: float = 0.4) -> None:
         except Exception as exc:  # noqa: BLE001 — fall back
             logger.error("⚠️ shutdown signal failed: %s — using os._exit", exc)
             os._exit(0)
+
+    import threading
+    threading.Thread(target=_runner, daemon=True).start()
+
+
+def _delayed_darwin_bootout(label: str, delay: float = 0.4) -> None:
+    """Unload the LaunchAgent job entirely, so a deliberate stop actually
+    stays stopped (#181).
+
+    Confirmed empirically on this machine: launchd's ``KeepAlive`` respawns
+    the job after *any* signal-terminated exit — a plain self-SIGTERM
+    (``_delayed_shutdown``) and even an explicit ``launchctl stop`` both got
+    immediately relaunched. ``launchctl bootout`` is the only thing that
+    actually removes the job from launchd's active registry, so nothing is
+    left to respawn. Bringing it back requires ``launchctl bootstrap``
+    again — the ``bootstrap`` action in ``mac/bin/hub-remote-ctl.sh`` and
+    ``src/install.py``'s ``_fix_launchagent()`` both already do this.
+    """
+
+    def _runner() -> None:
+        time.sleep(delay)
+        subprocess.run(
+            ["launchctl", "bootout", f"gui/{os.getuid()}/{label}"],
+            capture_output=True,
+        )
 
     import threading
     threading.Thread(target=_runner, daemon=True).start()
@@ -215,6 +243,13 @@ def _spawn_respawn_watchdog() -> None:
 
 @router.post("/api/hub/stop")
 async def hub_stop() -> Dict[str, Any]:
+    if sys.platform == "darwin":
+        from src.install import LAUNCHAGENT_LABEL
+
+        logger.info("🛑 /admin/api/hub/stop — launchctl bootout (unload; a signaled exit alone respawns under KeepAlive)")
+        _delayed_darwin_bootout(LAUNCHAGENT_LABEL)
+        return {"ok": True, "detail": "hub will exit shortly (LaunchAgent unloaded)"}
+
     logger.info("🛑 /admin/api/hub/stop — scheduling self-shutdown")
     _delayed_shutdown()
     return {"ok": True, "detail": "hub will exit shortly"}
@@ -222,13 +257,30 @@ async def hub_stop() -> Dict[str, Any]:
 
 @router.post("/api/hub/restart")
 async def hub_restart() -> Dict[str, Any]:
-    logger.info("🔄 /admin/api/hub/restart — spawning respawn watchdog")
     # Tell the shutdown handler to leave the model backends running so the
     # respawned hub adopts them, instead of killing the survivors that
     # inherit_running_backends() exists to reclaim.
     from src import backend_process as bp
 
     bp.set_restart_pending(True)
+
+    if sys.platform == "darwin":
+        # On darwin the LaunchAgent (#181) is the sole supervisor — its
+        # KeepAlive.SuccessfulExit=false only respawns on an *abnormal*
+        # exit, so spawning our own detached respawn-watchdog here would
+        # race it: two processes competing for the same port. Instead, ask
+        # launchd itself to kill+relaunch the job; no self-exit needed,
+        # launchd already owns that half.
+        from src.install import LAUNCHAGENT_LABEL
+
+        logger.info("🔄 /admin/api/hub/restart — launchctl kickstart")
+        subprocess.run(
+            ["launchctl", "kickstart", "-k", f"gui/{os.getuid()}/{LAUNCHAGENT_LABEL}"],
+            capture_output=True,
+        )
+        return {"ok": True, "detail": "hub will restart shortly via launchd"}
+
+    logger.info("🔄 /admin/api/hub/restart — spawning respawn watchdog")
     _spawn_respawn_watchdog()
     _delayed_shutdown(delay=0.8)
     return {"ok": True, "detail": "hub will restart shortly"}

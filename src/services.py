@@ -203,8 +203,12 @@ async def mac_mini_health(
     Clone of ``langfuse_health()``'s try/timeout shape, but the address
     comes from ``HostProfile.address`` (config/models.yaml) + ``hub_port()``
     — the same single source of truth #178's remote proxy already resolves
-    against, not a new env var.
+    against, not a new env var. When reachable, also compares build
+    identity against the peer's ``/admin/api/version`` (#181) — its own
+    try/except so a reachable-but-erroring version fetch never flips
+    ``reachable`` back to ``False``.
     """
+    from src.build_info import git_sha
     from src.host_profile import get_host
 
     owner = get_host(host_id)
@@ -214,7 +218,7 @@ async def mac_mini_health(
     try:
         async with httpx.AsyncClient(timeout=timeout_s) as client:
             r = await client.get(f"{base}/health")
-        return {
+        result: Dict[str, Any] = {
             "reachable": r.status_code < 500,
             "status_code": r.status_code,
             "error": "" if r.status_code < 500 else f"HTTP {r.status_code}",
@@ -227,6 +231,26 @@ async def mac_mini_health(
             "error": f"{type(exc).__name__}: {exc}",
             "address": base,
         }
+
+    local_sha = git_sha()
+    result["local_git_sha"] = local_sha
+    result["remote_git_sha"] = None
+    result["git_sha_match"] = None
+    if result["reachable"]:
+        try:
+            async with httpx.AsyncClient(timeout=timeout_s) as client:
+                v = await client.get(f"{base}/admin/api/version")
+            remote_sha = v.json().get("git_sha") if v.status_code < 500 else None
+            result["remote_git_sha"] = remote_sha
+            result["git_sha_match"] = (
+                remote_sha is not None
+                and remote_sha != "unknown"
+                and local_sha != "unknown"
+                and remote_sha == local_sha
+            )
+        except Exception:  # noqa: BLE001 — version probe is best-effort
+            pass
+    return result
 
 
 # ---------------------------------------------------------------- launch

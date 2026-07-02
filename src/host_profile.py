@@ -35,6 +35,11 @@ class HostProfile:
     # proxies to (today, that's fine; only a host that owns a remote-tagged
     # model row needs one). See src/remote_proxy.py.
     address: Optional[str] = None
+    # SSH login for the remote-bootstrap/sync endpoints (#181) — not a
+    # secret, just which account to log in as; the private key path lives
+    # in .env (LOCAL_LLM_HUB_SSH_KEY), never in this committed file. Unset
+    # on hosts nothing ever SSHes into. See src/remote_bootstrap.py.
+    ssh_user: Optional[str] = None
 
 
 # Parsed-YAML cache, keyed by the resolved config path. The README's
@@ -72,6 +77,7 @@ def _row_to_profile(host_id: str, row: Dict[str, Any], *, source: str) -> HostPr
         default=bool(row.get("default", False)),
         source=source,
         address=row.get("address"),
+        ssh_user=row.get("ssh_user"),
     )
 
 

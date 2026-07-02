@@ -61,7 +61,14 @@ function fillItem(li, m) {
   const ownership = m.ownership || 'none';
   const reachable = !!m.reachable;
   const adopted = ownership === 'external';
+  const localHost = state.status && state.status.host;
+  const remote = !!(m.host && localHost && m.host !== localHost);
   const pidNote = m.pid && adopted ? ' <span class="muted small">PID ' + m.pid + '</span>' : '';
+  // Host badge (#181): every remote-owned tile gets one, independent of
+  // whether a PID happens to be shown — the PID note alone (adopted-only)
+  // isn't enough to tell "qwen3.5-9b"/"parakeet-tdt-0.6b-v3" apart from a
+  // purely local row.
+  const hostNote = remote ? ' <span class="muted small">on ' + escapeHtml(m.host) + '</span>' : '';
 
   // Rebuild the .app-main block in place rather than wiping the whole <li>,
   // so an open dictionary panel (a sibling, below) survives the 5 s poll
@@ -81,7 +88,7 @@ function fillItem(li, m) {
   // pill nested inside it gets pushed past the clip boundary and vanishes.
   // As siblings in the title row they are never clipped.
   titleRow.innerHTML =
-    '<span class="app-title"><span class="app-name">' + escapeHtml(m.display_name) + '</span></span>' + badge(m) + pidNote;
+    '<span class="app-title"><span class="app-name">' + escapeHtml(m.display_name) + '</span></span>' + badge(m) + pidNote + hostNote;
 
   const icons = document.createElement('div');
   icons.className = 'app-icons';

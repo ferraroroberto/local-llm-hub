@@ -381,6 +381,38 @@ pill alongside Docker/Langfuse. Cross-host auth reuses `extra_allowlist` in
 IP is allowlisted on the other, the same bypass the bearer-token middleware
 already grants loopback callers.
 
+### Mac Mini lifecycle: autostart, remote bootstrap, sync (#181)
+
+The Mac Mini's hub has no tray-equivalent process supervisor — a
+`~/Library/LaunchAgents/com.ferraroroberto.local-llm-hub.plist`
+LaunchAgent fills that role instead (`RunAtLoad` + `KeepAlive`, installed
+by `python -m src.install --fix` on the Mac itself — see
+`mac/launchagent/`). A **deliberate** stop (`POST /admin/api/hub/stop`)
+`launchctl bootout`s the job so it stays down; a restart
+(`POST /admin/api/hub/restart`) uses `launchctl kickstart -k`. (macOS
+detail worth knowing if you touch this: launchd respawns a job under
+`KeepAlive` after *any* signal-terminated exit — a plain self-SIGTERM and
+even `launchctl stop` both get relaunched — `bootout` is the only thing
+that actually unloads it.)
+
+For the case where the Mac's hub is fully dead (crashed before
+`RunAtLoad` fires, or manually killed), Windows can bring it back over a
+**dedicated, forced-command-restricted** SSH key
+(`~/.ssh/local-llm-hub-remote-ctl`, path in `.env`'s
+`LOCAL_LLM_HUB_SSH_KEY`) — the Mac's `authorized_keys` restricts that key
+to `mac/bin/hub-remote-ctl.sh`, which only allows two verbs
+(`bootstrap` / `sync`), no general shell. The Services card's Mac Mini row
+gets a **Wake** button (visible when unreachable →
+`POST /admin/api/hosts/mac-mini-m4/bootstrap`) and a **Sync** button
+(visible when reachable → `.../sync`, which `git pull --ff-only`s the
+Mac's checkout before restarting it). An **out-of-sync** badge appears on
+the pill when the two hubs' `git_sha` (from `/admin/api/version`) differ —
+`sync` is the fix.
+
+The Models tab tags every remote-owned tile with a small `on <host-id>`
+badge (e.g. `qwen3.5-9b` / `parakeet-tdt-0.6b-v3` both show `on
+mac-mini-m4`) so a displayed PID is never mistaken for a local process.
+
 ## Layout
 
 ```
