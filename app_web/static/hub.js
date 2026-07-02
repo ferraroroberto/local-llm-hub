@@ -299,6 +299,20 @@ function renderServices() {
     els.langfuseDetail.textContent = lf.reachable ? '' : (lf.error || '');
   }
 
+  // Mac Mini (#179): informational only, doesn't factor into the overall
+  // pill or the launch button — the hub has no way to remote-launch the
+  // Mac's own hub process, this just tells the story.
+  const macMini = body.mac_mini;
+  if (els.macMiniRow) els.macMiniRow.hidden = !macMini;
+  if (macMini) {
+    const mmKind = macMini.reachable ? 'good' : 'danger';
+    const mmLabel = macMini.reachable ? 'up' : 'down';
+    setStatusPill(els.macMiniStatus, els.macMiniStatusText, mmKind, mmLabel);
+    if (els.macMiniDetail) {
+      els.macMiniDetail.textContent = macMini.reachable ? '' : (macMini.error || '');
+    }
+  }
+
   // Overall pill summarises both.
   let overallKind = 'good';
   let overallText = 'all up';
