@@ -20,7 +20,7 @@ from .model_registry import Model
 
 
 def remote_base_url(model: Model) -> Optional[str]:
-    """Owning host's hub base URL (e.g. ``http://192.168.0.241:8000``, no
+    """Owning host's hub base URL (e.g. ``http://192.168.0.14:8000``, no
     trailing slash, no ``/v1``) when ``model`` is remote relative to the
     active host — ``None`` when it's local (no ``host`` set, or it matches
     the active host) or when the owning host has no ``address`` configured.
