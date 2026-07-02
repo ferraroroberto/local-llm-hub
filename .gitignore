@@ -71,3 +71,11 @@ test-results/
 
 # Spike scratch (issue #123 Parakeet bench — binaries, weights, clips)
 .scratch/
+
+# Swift build artifacts (mac/parakeet-worker/) — rebuilt by `swift build`,
+# analogous to .venv/ for the Python side. Source (Package.swift, Sources/)
+# is committed; the resolved dependency lockfile is not (SPM re-resolves
+# against FluidAudio's version constraint on next build).
+mac/*/.build/
+mac/*/.swiftpm/
+mac/*/Package.resolved
