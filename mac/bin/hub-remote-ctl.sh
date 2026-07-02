@@ -21,9 +21,22 @@ REPO="$HOME/local-llm-hub"
 # /admin/api/hub/stop's own bootout, or the LaunchAgent was never
 # registered) — `kickstart` alone only operates on an already-loaded job
 # and fails outright on the dead case this endpoint exists to recover from.
+#
+# launchd needs a beat to fully release the label after bootout — an
+# immediate bootstrap right after can transiently fail with "Input/output
+# error" (confirmed live). Retry a few times with a short pause instead of
+# a single blind sleep.
 restart_hub() {
   launchctl bootout "gui/$(id -u)/${LABEL}" 2>/dev/null || true
-  launchctl bootstrap "gui/$(id -u)" "$PLIST"
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    sleep 1
+    if launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null; then
+      return 0
+    fi
+  done
+  echo "hub-remote-ctl: launchctl bootstrap failed after 5 attempts" >&2
+  exit 1
 }
 
 case "${SSH_ORIGINAL_COMMAND:-}" in

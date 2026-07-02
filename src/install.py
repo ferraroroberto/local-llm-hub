@@ -22,6 +22,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, List, Optional
@@ -477,14 +478,23 @@ def _fix_launchagent() -> None:
     uid = os.getuid()
     # bootout first so a re-run picks up a changed plist (bootstrap alone
     # errors "already bootstrapped" on a still-loaded label); ignore its
-    # failure when nothing was loaded yet.
+    # failure when nothing was loaded yet. launchd needs a beat to fully
+    # release the label after an actual bootout — an immediate bootstrap
+    # can transiently fail with "Input/output error" (confirmed live) —
+    # so retry a few times with a short pause rather than a single attempt.
     subprocess.run(["launchctl", "bootout", f"gui/{uid}/{LAUNCHAGENT_LABEL}"], capture_output=True)
-    result = subprocess.run(
-        ["launchctl", "bootstrap", f"gui/{uid}", str(plist_path)],
-        capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"launchctl bootstrap failed: {result.stderr.strip()}")
+    result = None
+    for _ in range(5):
+        time.sleep(1)
+        result = subprocess.run(
+            ["launchctl", "bootstrap", f"gui/{uid}", str(plist_path)],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            break
+    if result is None or result.returncode != 0:
+        detail = result.stderr.strip() if result else "no attempt ran"
+        raise RuntimeError(f"launchctl bootstrap failed after retries: {detail}")
 
 
 def _fix_download(model_id: str) -> Callable[[], None]:
