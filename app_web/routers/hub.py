@@ -102,6 +102,31 @@ def _delayed_shutdown(delay: float = 0.4) -> None:
     threading.Thread(target=_runner, daemon=True).start()
 
 
+def _delayed_darwin_bootout(label: str, delay: float = 0.4) -> None:
+    """Unload the LaunchAgent job entirely, so a deliberate stop actually
+    stays stopped (#181).
+
+    Confirmed empirically on this machine: launchd's ``KeepAlive`` respawns
+    the job after *any* signal-terminated exit — a plain self-SIGTERM
+    (``_delayed_shutdown``) and even an explicit ``launchctl stop`` both got
+    immediately relaunched. ``launchctl bootout`` is the only thing that
+    actually removes the job from launchd's active registry, so nothing is
+    left to respawn. Bringing it back requires ``launchctl bootstrap``
+    again — the ``bootstrap`` action in ``mac/bin/hub-remote-ctl.sh`` and
+    ``src/install.py``'s ``_fix_launchagent()`` both already do this.
+    """
+
+    def _runner() -> None:
+        time.sleep(delay)
+        subprocess.run(
+            ["launchctl", "bootout", f"gui/{os.getuid()}/{label}"],
+            capture_output=True,
+        )
+
+    import threading
+    threading.Thread(target=_runner, daemon=True).start()
+
+
 def _restart_log_path() -> Path:
     """File the detached watchdog redirects the relaunched server into.
 
@@ -218,6 +243,13 @@ def _spawn_respawn_watchdog() -> None:
 
 @router.post("/api/hub/stop")
 async def hub_stop() -> Dict[str, Any]:
+    if sys.platform == "darwin":
+        from src.install import LAUNCHAGENT_LABEL
+
+        logger.info("🛑 /admin/api/hub/stop — launchctl bootout (unload; a signaled exit alone respawns under KeepAlive)")
+        _delayed_darwin_bootout(LAUNCHAGENT_LABEL)
+        return {"ok": True, "detail": "hub will exit shortly (LaunchAgent unloaded)"}
+
     logger.info("🛑 /admin/api/hub/stop — scheduling self-shutdown")
     _delayed_shutdown()
     return {"ok": True, "detail": "hub will exit shortly"}

@@ -12,16 +12,28 @@
 set -euo pipefail
 
 LABEL="com.ferraroroberto.local-llm-hub"
+PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 REPO="$HOME/local-llm-hub"
+
+# bootout-then-bootstrap (not `kickstart -k`) so this works whether the job
+# is currently loaded (a live, reachable hub — bootout+rebootstrap is a
+# clean restart) or fully unloaded (a genuinely dead hub, e.g. after
+# /admin/api/hub/stop's own bootout, or the LaunchAgent was never
+# registered) — `kickstart` alone only operates on an already-loaded job
+# and fails outright on the dead case this endpoint exists to recover from.
+restart_hub() {
+  launchctl bootout "gui/$(id -u)/${LABEL}" 2>/dev/null || true
+  launchctl bootstrap "gui/$(id -u)" "$PLIST"
+}
 
 case "${SSH_ORIGINAL_COMMAND:-}" in
   bootstrap)
-    launchctl kickstart -k "gui/$(id -u)/${LABEL}"
+    restart_hub
     ;;
   sync)
     cd "$REPO"
     git pull --ff-only
-    launchctl kickstart -k "gui/$(id -u)/${LABEL}"
+    restart_hub
     ;;
   *)
     echo "hub-remote-ctl: rejected command: ${SSH_ORIGINAL_COMMAND:-<empty>}" >&2
