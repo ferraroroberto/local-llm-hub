@@ -19,7 +19,8 @@ from typing import Any, List
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import Response
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,9 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self._get_token = get_token
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         # ``request.url.path`` here is the original *parent* path — e.g.
         # ``/admin/static/styles.css`` — because Starlette's ``BaseHTTPMiddleware``
         # runs BEFORE the parent's Mount strips the mount prefix. Strip
@@ -173,7 +176,9 @@ class ParentBearerTokenMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self._get_token = get_token
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         path = request.url.path
         client_host = request.client.host if request.client else ""
         is_loopback = client_host in LOOPBACK_HOSTS and not _is_proxied(request.headers)

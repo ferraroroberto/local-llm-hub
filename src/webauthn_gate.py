@@ -34,6 +34,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .webapp_config import WebappConfig
+
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -98,7 +100,7 @@ class WebAuthnGate:
         return _WEBAUTHN_AVAILABLE
 
     @staticmethod
-    def configured(cfg) -> bool:
+    def configured(cfg: WebappConfig) -> bool:
         """True when a relying party is set — i.e. the passkey gate is live."""
         if not _WEBAUTHN_AVAILABLE:
             return False
@@ -166,7 +168,7 @@ class WebAuthnGate:
         return True
 
     # ----------------------------------------------------- registration
-    def begin_registration(self, cfg, label: str) -> Dict[str, Any]:
+    def begin_registration(self, cfg: WebappConfig, label: str) -> Dict[str, Any]:
         if not _WEBAUTHN_AVAILABLE:
             raise PermissionError("webauthn package not installed")
         if not self.enrollment_open():
@@ -200,7 +202,7 @@ class WebAuthnGate:
             )
         return json.loads(options_to_json(options))
 
-    def finish_registration(self, cfg, credential: Any) -> Dict[str, Any]:
+    def finish_registration(self, cfg: WebappConfig, credential: Any) -> Dict[str, Any]:
         if not _WEBAUTHN_AVAILABLE:
             raise PermissionError("webauthn package not installed")
         with self._lock:
@@ -237,7 +239,7 @@ class WebAuthnGate:
         return {"id": device["id"], "label": device["label"]}
 
     # --------------------------------------------------- authentication
-    def begin_authentication(self, cfg) -> Dict[str, Any]:
+    def begin_authentication(self, cfg: WebappConfig) -> Dict[str, Any]:
         if not _WEBAUTHN_AVAILABLE:
             raise PermissionError("webauthn package not installed")
         devices = self.load_devices()
@@ -261,7 +263,7 @@ class WebAuthnGate:
             )
         return json.loads(options_to_json(options))
 
-    def finish_authentication(self, cfg, credential: Any) -> str:
+    def finish_authentication(self, cfg: WebappConfig, credential: Any) -> str:
         if not _WEBAUTHN_AVAILABLE:
             raise PermissionError("webauthn package not installed")
         with self._lock:
