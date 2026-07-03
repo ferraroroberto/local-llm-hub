@@ -9,7 +9,9 @@
 > `qwen3.5-4b` and `agentic_heavy` is `gemma4-26b-a4b-it`. This doc is
 > kept as the durable performance record behind the demotion.
 
-Follow-up to [hub-with-qwen-and-glm.md](hub-with-qwen-and-glm.md).
+Follow-up to the original three-backend hub bring-up (Claude + Qwen +
+GLM); see [project-structure.md](project-structure.md) for the current
+architecture.
 Morning test: ~400 input tokens / ~1000 output tokens in ~120 s on the
 Windows PC (5060 Ti 16 GB + 128 GB RAM), CPU pinned at 100 %, GPU
 barely loaded. Concern: is this fast enough for openclaw, and is the

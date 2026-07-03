@@ -150,7 +150,7 @@ JSON. **✨ Suggest from transcripts** mines the last *N* days of real
 dictation from voice-transcriber's session API and proposes additions to
 review. Direct hits to `:8090`/`:8091` bypass the glossary (and the
 observability ring). See
-[docs/add-whisper-asr.md](docs/add-whisper-asr.md) for the schema, the
+[docs/whisper-asr.md](docs/whisper-asr.md) for the schema, the
 in-app editor + miner, and the companion recognition-boosting mechanism.
 NVIDIA Parakeet on Windows+CUDA (`parakeet.cpp`) was evaluated as a
 *replacement* for this role and rejected — ~4× worse WER and no boosting
@@ -167,7 +167,7 @@ full trade-off writeup.
 host's `enabled:` list anymore. Its launcher still exists
 (`launchers/run_glm.bat`) for ad-hoc bring-up. Demoted on 2026-05-10 per
 the May 2026 frontier reading — see
-[docs/frontier-via-slash-commands.md](docs/frontier-via-slash-commands.md)
+[docs/frontier-workflow.md](docs/frontier-workflow.md)
 for the reasoning.
 
 `qwen3.5-9b` was demoted the same day, but is **active again as of the
@@ -336,10 +336,8 @@ Mac Mini (mac-mini-m4), proxied through this hub's own base_url — see below:
 
 See [docs/project-structure.md](docs/project-structure.md) for the full
 mermaid diagrams (components, modules, request lifecycle),
-[docs/hub-with-qwen-and-glm.md](docs/hub-with-qwen-and-glm.md)
-for the original hub post-mortem,
-[docs/add-whisper-asr.md](docs/add-whisper-asr.md) for
-how the whisper backend slotted in, and
+[docs/whisper-asr.md](docs/whisper-asr.md) for the whisper ASR backend
+(glossary, boosting, tuning), and
 [docs/add-tts.md](docs/add-tts.md) for the text-to-speech backend
 (`/v1/audio/speech`).
 
@@ -518,7 +516,7 @@ local-llm-hub/
 └── docs/
     ├── project-structure.md
     ├── model-comparison.md
-    ├── add-whisper-asr.md        # how the whisper STT backend slotted in
+    ├── whisper-asr.md            # whisper STT backend: glossary, boosting, tuning
     ├── add-tts.md                # how the TTS backend (/v1/audio/speech) slotted in
     ├── image-generation.md       # Imagen via agy → /v1/images/generations
     ├── playbook-cli-backend-migration.md  # reusable method when a vendor CLI changes

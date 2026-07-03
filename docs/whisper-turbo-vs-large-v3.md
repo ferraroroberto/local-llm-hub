@@ -3,7 +3,7 @@
 Short rationale for shipping `ggml-large-v3-turbo.bin` as the single
 whisper model in this repo, instead of `ggml-large-v3.bin` or the
 previous `ggml-small.bin`. Pairs with
-[add-whisper-asr.md](add-whisper-asr.md) — that doc
+[whisper-asr.md](whisper-asr.md) — that doc
 covers *how* whisper slots into the hub; this one covers *which
 weights*.
 

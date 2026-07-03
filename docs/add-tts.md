@@ -1,6 +1,6 @@
 # Adding a TTS backend at `/v1/audio/speech`
 
-Companion to [add-whisper-asr.md](add-whisper-asr.md). Where whisper gave
+Companion to [whisper-asr.md](whisper-asr.md). Where whisper gave
 the hub **speech → text**, this adds the inverse — **text → speech** — at
 the canonical OpenAI route `POST /v1/audio/speech`, proxied through the hub
 so it lands in the observability ring exactly like the transcription proxy.
