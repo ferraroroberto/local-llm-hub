@@ -92,6 +92,45 @@ def test_autostart_model_ids_filters_to_launchable_enabled_rows(tmp_path, monkey
 
     assert model_registry.autostart_model_ids() == ["qwen", "piper"]
 
+def test_launchable_local_ids_excludes_remote_virtual_and_nonspawnable(tmp_path, monkeypatch):
+    """The bulk launchers (run_all.*) enumerate this. It must honour every
+    rule run_backend enforces: only enabled rows, only spawnable backends
+    (openai/whisper/tts — not claude/gemini), drop virtual aliases, and drop
+    rows owned by another host (cross-enabled but proxied, not run here).
+    """
+    cfg = _write_config(tmp_path, {
+        "hub": {"port": 8000},
+        "hosts": {
+            "pc":  {"platform": "win32", "default": True,
+                    "enabled": ["local_llm", "virt", "whisp", "remote", "claude"]},
+            "mac": {"platform": "darwin",
+                    "enabled": ["local_llm", "virt", "whisp", "remote", "claude"]},
+        },
+        "models": {
+            "local_llm": {"display_name": "local", "backend": "openai", "port": 8081},
+            "virt": {"display_name": "virt", "backend": "openai", "port": 8081,
+                     "virtual": True},
+            "whisp": {"display_name": "w", "backend": "whisper", "engine": "whisper-server",
+                      "port": 8090},
+            # Cross-enabled here but owned by mac — proxied, never spawned locally.
+            "remote": {"display_name": "r", "backend": "openai", "port": 8082,
+                       "host": "mac"},
+            # Subscription path: enabled everywhere, nothing to launch.
+            "claude": {"display_name": "claude-haiku-4-5", "backend": "claude"},
+        },
+    })
+    _patch_config_path(monkeypatch, cfg)
+
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "pc")
+    ids = model_registry.launchable_local_ids()
+    assert ids == ["local_llm", "whisp"]          # virt/remote/claude all dropped
+
+    # On the owning host, the previously-remote row becomes launchable.
+    # (Order follows the YAML `models:` mapping — safe_dump sorts keys here.)
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "mac")
+    assert model_registry.launchable_local_ids() == ["local_llm", "remote", "whisp"]
+
+
 def test_resolve_by_alias(tmp_path, monkeypatch):
     cfg = _write_config(tmp_path, {
         "hub": {"port": 8000},

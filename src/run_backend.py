@@ -25,7 +25,7 @@ from .backend_process import (
     vendor_dir_for,
 )
 from .host_profile import resolve as resolve_host
-from .model_registry import enabled_models
+from .model_registry import enabled_models, launchable_local_ids
 from .server_process import (
     BASE_URL as HUB_BASE_URL,
     external_pid as hub_external_pid,
@@ -87,13 +87,30 @@ def _run_backend(model_id: str) -> int:
     return subprocess.call(cmd, env=env, cwd=str(PROJECT_ROOT))
 
 
+def _launchable_targets() -> list[str]:
+    """The hub plus every model this host can spawn locally — the exact set
+    the bulk launchers (run_all.bat / run_all.sh) enumerate so they mirror
+    the active host's ``enabled:`` contract instead of a stale hardcoded
+    roster. Remote-owned rows (proxied, not run here) and disabled rows are
+    absent by construction; each id here is one ``run_backend`` will start.
+    """
+    return ["hub", *launchable_local_ids()]
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     args = argv if argv is not None else sys.argv[1:]
     if not args:
-        log.error("usage: python -m src.run_backend (hub|<model_id>)")
+        log.error("usage: python -m src.run_backend (hub|<model_id>|--list-launchable)")
         return 2
     target = args[0]
+    if target == "--list-launchable":
+        # One id per line on stdout so the bulk launchers can enumerate us.
+        # Logging goes to stderr, keeping stdout a clean id list for `for /f`
+        # (batch) and the `while read` loop (bash).
+        for name in _launchable_targets():
+            print(name)
+        return 0
     if target == "hub":
         return _run_hub()
     return _run_backend(target)
