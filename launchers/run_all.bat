@@ -1,26 +1,22 @@
 @echo off
 REM ==========================================================
-REM  local-llm-hub - start every enabled backend in its
-REM  own console window. Close each window individually or run
-REM  stop_all.bat (TODO) to shut them down.
+REM  local-llm-hub - start every locally-launchable backend in
+REM  its own console window. The roster is NOT hardcoded here:
+REM  it is derived live from config/models.yaml by
+REM  `run_backend --list-launchable`, so it always reflects the
+REM  active host's `enabled:` contract (owned, enabled, non-virtual
+REM  rows only). Remote-owned and disabled models are skipped.
+REM  Close each window individually or run stop_all.bat (TODO).
 REM ==========================================================
 cd /d "%~dp0.."
 
-REM Hub now lives at the repo root as run_hub.bat (same Python under
-REM the hood). Keep launching it via run_backend so this script stays
-REM self-contained and behaves identically to the per-model lines.
-start "Local LLM Hub - hub"             cmd /k .venv\Scripts\python.exe -m src.run_backend hub
-start "Local LLM Hub - qwen"            cmd /k .venv\Scripts\python.exe -m src.run_backend qwen
-start "Local LLM Hub - glm"             cmd /k .venv\Scripts\python.exe -m src.run_backend glm
-start "Local LLM Hub - qwen3.5-4b"      cmd /k .venv\Scripts\python.exe -m src.run_backend qwen35_4b
-start "Local LLM Hub - gemma4-e4b"      cmd /k .venv\Scripts\python.exe -m src.run_backend gemma4_e4b
-start "Local LLM Hub - gemma4-26b-a4b"  cmd /k .venv\Scripts\python.exe -m src.run_backend gemma4_26b
-start "Local LLM Hub - whisper"         cmd /k .venv\Scripts\python.exe -m src.run_backend whisper
-start "Local LLM Hub - whisper-translate" cmd /k .venv\Scripts\python.exe -m src.run_backend whisper_translate
-start "Local LLM Hub - piper-tts"       cmd /k .venv\Scripts\python.exe -m src.run_backend piper
-start "Local LLM Hub - chatterbox-tts"  cmd /k .venv\Scripts\python.exe -m src.run_backend chatterbox
-start "Local LLM Hub - orpheus-tts"     cmd /k .venv\Scripts\python.exe -m src.run_backend orpheus
-start "Local LLM Hub - kokoro-tts"      cmd /k .venv\Scripts\python.exe -m src.run_backend kokoro
+REM Enumerate the hub + every backend this host can actually spawn,
+REM then open one console window per id via run_backend (identical
+REM to the per-model launchers). `for /f` captures the id list on
+REM stdout; run_backend logs to stderr so this stays clean.
+for /f "usebackq delims=" %%m in (`.venv\Scripts\python.exe -m src.run_backend --list-launchable`) do (
+    start "Local LLM Hub - %%m" cmd /k .venv\Scripts\python.exe -m src.run_backend %%m
+)
 
-echo Launched hub + qwen + glm + qwen3.5-4b + gemma4-e4b + gemma4-26b-a4b + whisper + whisper-translate + piper-tts + chatterbox-tts + orpheus-tts + kokoro-tts in separate windows.
-echo (If a model is not enabled on this host its window will exit immediately.)
+echo Launched the hub + every locally-launchable backend (derived from config/models.yaml) in separate windows.
+echo (Models owned by another host, disabled on this host, or virtual are skipped.)
