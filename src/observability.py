@@ -42,9 +42,25 @@ import socket
 import threading
 import uuid
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, Protocol
+
+from fastapi import FastAPI
 
 logger = logging.getLogger(__name__)
+
+
+class _SpanLike(Protocol):
+    """Structural type for the subset of an OTel ``Span`` these helpers use.
+
+    A ``Protocol`` (rather than importing ``opentelemetry.trace.Span``
+    directly) keeps this module's careful lazy-import discipline —
+    ``init_otel`` is the only place that imports the SDK, so a missing/broken
+    OTel install still lets the rest of the hub boot. Every span passed in
+    here (real or no-op) only needs ``set_attribute``.
+    """
+
+    def set_attribute(self, key: str, value: Any) -> None: ...
+
 
 _INIT_LOCK = threading.Lock()
 _INITIALISED = False
@@ -149,7 +165,9 @@ def _hash_payload(text: str) -> str:
     return f"blake2b:{digest}"
 
 
-def set_genai_payload(span, prompt: Optional[str], completion: Optional[str]) -> None:
+def set_genai_payload(
+    span: Optional[_SpanLike], prompt: Optional[str], completion: Optional[str]
+) -> None:
     """Attach the prompt + completion bodies to a span per the PII flag.
 
     Sets two parallel attribute families:
@@ -285,13 +303,13 @@ def backend_to_genai_system(backend: str) -> str:
 
 
 def set_genai_request_attrs(
-    span,
+    span: Optional[_SpanLike],
     *,
     model: str,
     backend: str,
     operation: str = "chat",
-    temperature=None,
-    max_tokens=None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
     client_id: str = "",
 ) -> None:
     """Set the standard GenAI request attributes on the active span.
@@ -316,7 +334,7 @@ def set_genai_request_attrs(
 
 
 def set_genai_response_attrs(
-    span,
+    span: Optional[_SpanLike],
     *,
     input_tokens: int = 0,
     output_tokens: int = 0,
@@ -552,7 +570,7 @@ def init_otel(
             return False
 
 
-def instrument_fastapi_app(app) -> None:
+def instrument_fastapi_app(app: FastAPI) -> None:
     """Wrap a FastAPI app with the OTel ASGI middleware (idempotent)."""
     if is_sdk_disabled():
         return

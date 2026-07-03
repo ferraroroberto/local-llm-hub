@@ -27,7 +27,7 @@ import sys
 import threading
 import wave
 from contextlib import asynccontextmanager
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -37,6 +37,9 @@ from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 from .backend_process import resolve_model_by_id
 from .model_registry import Model
 from .tts_engines import SpeechRequest, TTSEngine, build_engine
+
+if TYPE_CHECKING:  # numpy is imported lazily at runtime (see encode_audio)
+    import numpy as np
 
 # Disable tqdm progress bars for the whole backend process (#104). Chatterbox's
 # t3.inference draws a "Sampling" bar to stdout on every synthesis. This backend
@@ -104,7 +107,7 @@ def _wav_bytes(samples, sample_rate: int) -> bytes:
     return buf.getvalue()
 
 
-def encode_audio(samples, sample_rate: int, fmt: str) -> Tuple[bytes, str]:
+def encode_audio(samples: "np.ndarray", sample_rate: int, fmt: str) -> Tuple[bytes, str]:
     """Encode mono float32 samples to the requested ``response_format``.
 
     ``wav`` (default) and ``pcm`` are produced with the stdlib — no extra
