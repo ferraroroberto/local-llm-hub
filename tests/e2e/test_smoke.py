@@ -215,8 +215,9 @@ def test_live_requests_stream_rolls_forward(page, admin_url):
 
     # Both markers must arrive in the live list. 4000ms was tight enough that
     # the multi-host proxying routing added by #181 pushed CI runners (slower
-    # than local) past it on every run since 2026-07-02; 10000ms matches the
-    # window already used elsewhere in this file for slower CI operations.
+    # than local) past it on every run since 2026-07-02 (tracked + resolved in
+    # #192); 10000ms matches the window already used elsewhere in this file
+    # for slower CI operations.
     page.wait_for_function(
         "(args) => {"
         "  const ul = document.getElementById('liveRequestsList');"
