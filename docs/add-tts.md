@@ -28,8 +28,11 @@ So instead of a binary we run a thin in-repo FastAPI shim
 [src/tts_server.py](../src/tts_server.py) launched as
 `python -m src.tts_server --model-id <id>` — the same pattern as
 [whisper_translate_proxy.py](../src/whisper_translate_proxy.py). The engine
-implementations live behind one interface in
-[src/tts_engines.py](../src/tts_engines.py).
+implementations live behind one common interface
+([src/tts_engines/common.py](../src/tts_engines/common.py)) in the
+[src/tts_engines/](../src/tts_engines/) package, one module per engine
+(`chatterbox.py`, `kokoro.py`, `orpheus.py`, `piper.py`) plus a shared
+`process.py` for the Windows job-object process-lifecycle helpers.
 
 ## The TTS registry rows ([config/models.yaml](../config/models.yaml))
 
@@ -93,7 +96,7 @@ the fast option.
 | ---- | ------ |
 | `config/models.yaml` | TTS rows (`piper`, `chatterbox`, `orpheus`, `kokoro`) on `pc-cuda`; `roles.audio.speech` points at `piper` |
 | `src/model_registry.py` | `+tts_engine` field |
-| `src/tts_engines.py` | Piper + Chatterbox + Orpheus + Kokoro engines behind one interface |
+| `src/tts_engines/` | Piper + Chatterbox + Orpheus + Kokoro engines, one module each, behind one common interface (`common.py`) |
 | `src/tts_server.py` | new — FastAPI shim (`/v1/audio/speech`, `/health`) |
 | `src/backend_process.py` | `build_command` branch for `engine: tts-server`; widen filters to `tts` |
 | `src/run_backend.py` | widen spawnable backends to `tts` |

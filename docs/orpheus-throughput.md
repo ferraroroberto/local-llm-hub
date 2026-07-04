@@ -10,7 +10,7 @@ into the hub) and the streaming work in #102 (perceived latency).
 
 - Orpheus runs as a GGUF on a loopback `llama-server` child; total
   synthesis time is set by how fast that child generates SNAC audio
-  tokens (`src/tts_engines.py::OrpheusEngine`).
+  tokens (`src/tts_engines/orpheus.py::OrpheusEngine`).
 - On the reference GPU (RTX 5060 Ti, 16 GB) it generates **~150 tok/s**.
 - That rate is **memory-bandwidth bound**, not a missing flag. The model
   is fully GPU-offloaded and llama.cpp already auto-enables flash
