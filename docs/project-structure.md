@@ -149,7 +149,7 @@ flowchart TB
     SRC --> S8["server_process.py<br/>hub Popen + kill-port"]
     SRC --> S9["backend_process.py<br/>per-model Popen (llama-server + whisper-server + tts shim)"]
     SRC --> S11["whisper_translate_proxy.py<br/>FastAPI shim for optional lazy-load mode<br/>(dormant; whisper_translate runs eager)"]
-    SRC --> S12["tts_server.py + tts_engines.py<br/>FastAPI shim for /v1/audio/speech<br/>(piper + chatterbox + orpheus + kokoro engines)"]
+    SRC --> S12["tts_server.py + tts_engines/<br/>FastAPI shim for /v1/audio/speech<br/>(common.py interface + process.py helpers +<br/>piper/kokoro/orpheus/chatterbox.py engines)"]
 
     ROOT --> APPDIR["app_web/<br/>admin SPA sub-app (mounted at /admin)"]
     APPDIR --> A1["server.py<br/>create_app() + versioned static"]

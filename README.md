@@ -469,7 +469,11 @@ local-llm-hub/
 │   │                         #   stdout/stderr → data/logs/backend-<id>.log (child-owned)
 │   ├── whisper_translate_proxy.py  # FastAPI shim for optional lazy-load mode
 │   ├── tts_server.py            # FastAPI shim for /v1/audio/speech (engine: tts-server)
-│   ├── tts_engines.py           # TTS engines: piper + chatterbox + orpheus + kokoro
+│   ├── tts_engines/             # TTS engines: piper + chatterbox + orpheus + kokoro
+│   │   ├── common.py                #   shared TTSEngine interface, SpeechRequest, audio helpers
+│   │   ├── process.py               #   shared Windows job-object process-lifecycle helpers
+│   │   ├── chatterbox.py, kokoro.py, orpheus.py, piper.py  #   one module per engine
+│   │   └── __init__.py              #   build_engine() dispatch + re-exports
 │   ├── webapp_config.py      # admin webapp config loader (bearer token, webauthn, allowlist)
 │   ├── webauthn_gate.py      # passkey gate (optional — needs `webauthn` package)
 │   ├── static_versioning.py  # ?v=<hash> stamping for /admin/static assets
