@@ -213,7 +213,10 @@ def test_live_requests_stream_rolls_forward(page, admin_url):
         )
         assert r.status_code == 400, r.text
 
-    # Both markers must arrive in the live list within a couple of seconds.
+    # Both markers must arrive in the live list. 4000ms was tight enough that
+    # the multi-host proxying routing added by #181 pushed CI runners (slower
+    # than local) past it on every run since 2026-07-02; 10000ms matches the
+    # window already used elsewhere in this file for slower CI operations.
     page.wait_for_function(
         "(args) => {"
         "  const ul = document.getElementById('liveRequestsList');"
@@ -222,7 +225,7 @@ def test_live_requests_stream_rolls_forward(page, admin_url):
         "  return text.indexOf(args.a) !== -1 && text.indexOf(args.b) !== -1;"
         "}",
         arg={"a": marker_a, "b": marker_b},
-        timeout=4000,
+        timeout=10000,
     )
 
     def _marker_counts():
