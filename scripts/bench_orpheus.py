@@ -30,6 +30,7 @@ The phrase defaults to "this is a test" (the ~1.8 s clip the issue measured).
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import statistics
 import subprocess
@@ -39,6 +40,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import httpx
+
+log = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -183,10 +186,10 @@ def run_trial(port: int, text: str, voice: str, reps: int, greedy: bool) -> Dict
 
 
 def run_sweep(port: int, text: str, voice: str, reps: int) -> None:
-    print(f"Orpheus llama-server flag sweep — phrase={text!r} voice={voice} reps={reps}\n")
+    log.info("Orpheus llama-server flag sweep — phrase=%r voice=%s reps=%d", text, voice, reps)
     rows: List[Tuple[str, Dict[str, float]]] = []
     for name, flags, greedy in SWEEP:
-        print(f"… {name}: spawning scratch llama-server on :{port} …", flush=True)
+        log.info("… %s: spawning scratch llama-server on :%d …", name, port)
         proc = _spawn(port, flags)
         try:
             _wait_ready(port, proc)
@@ -195,27 +198,26 @@ def run_sweep(port: int, text: str, voice: str, reps: int) -> None:
             _stop(proc)
             time.sleep(1.0)  # let the OS release the port before the next spawn
         rows.append((name, res))
-        print(
-            f"   → {res['tok_s']:7.1f} tok/s | {res['wall_ms']:8.1f} ms wall "
-            f"| {int(res['tokens'])} tok\n",
-            flush=True,
+        log.info(
+            "   → %7.1f tok/s | %8.1f ms wall | %d tok",
+            res["tok_s"], res["wall_ms"], int(res["tokens"]),
         )
 
     base = rows[0][1]["tok_s"] if rows else 0.0
-    print("\n" + "=" * 64)
-    print(f"{'flag set':<26}{'tok/s':>10}{'wall ms':>11}{'vs base':>10}")
-    print("-" * 64)
+    log.info("=" * 64)
+    log.info("%-26s%10s%11s%10s", "flag set", "tok/s", "wall ms", "vs base")
+    log.info("-" * 64)
     for name, res in rows:
         speedup = (res["tok_s"] / base) if base else 0.0
-        print(f"{name:<26}{res['tok_s']:>10.1f}{res['wall_ms']:>11.1f}{speedup:>9.2f}x")
-    print("=" * 64)
+        log.info("%-26s%10.1f%11.1f%9.2fx", name, res["tok_s"], res["wall_ms"], speedup)
+    log.info("=" * 64)
 
 
 def run_hub_e2e(text: str, voice: str, reps: int) -> None:
     """Time the live hub's POST /v1/audio/speech end-to-end."""
     url = f"{HUB_BASE}/v1/audio/speech"
     body = {"model": "orpheus", "input": text, "voice": voice, "response_format": "wav"}
-    print(f"Hub end-to-end /v1/audio/speech — phrase={text!r} voice={voice} reps={reps}\n")
+    log.info("Hub end-to-end /v1/audio/speech — phrase=%r voice=%s reps=%d", text, voice, reps)
     # Warmup (loads engine / fills cache) — not measured.
     httpx.post(url, json=body, timeout=300.0).raise_for_status()
     walls: List[float] = []
@@ -227,13 +229,14 @@ def run_hub_e2e(text: str, voice: str, reps: int) -> None:
         r.raise_for_status()
         nbytes = len(r.content)
         walls.append(wall)
-        print(f"   → {wall:8.1f} ms ({nbytes} bytes)", flush=True)
-    print("\n" + "=" * 48)
-    print(f"median end-to-end: {statistics.median(walls):.1f} ms  ({nbytes} bytes wav)")
-    print("=" * 48)
+        log.info("   → %8.1f ms (%d bytes)", wall, nbytes)
+    log.info("=" * 48)
+    log.info("median end-to-end: %.1f ms  (%d bytes wav)", statistics.median(walls), nbytes)
+    log.info("=" * 48)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=int, default=18099, help="scratch llama-server port (default 18099)")
     ap.add_argument("--reps", type=int, default=5, help="measured repetitions per trial (default 5)")
