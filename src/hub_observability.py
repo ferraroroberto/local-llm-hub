@@ -24,7 +24,9 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, List, Optional, Set
+from typing import Any, Deque, Dict, List, Optional
+
+from .async_fanout import AsyncFanout
 
 logger = logging.getLogger(__name__)
 
@@ -111,10 +113,7 @@ class Observatory:
         self._errors: Deque[RequestRecord] = deque(maxlen=ERROR_RING_MAX)
         self._counters: Dict[str, BackendCounters] = {}
         self._stats: Deque[StatSample] = deque(maxlen=STATS_RING_MAX)
-        self._subs: Set["asyncio.Queue[RequestRecord]"] = set()
-        # Loop is captured lazily so we don't fight with uvicorn's
-        # event-loop selection at import time.
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._pubsub: AsyncFanout[RequestRecord] = AsyncFanout(maxsize=200)
         self._started_at = time.time()
 
     # ----------------------------------------------------------- writes
@@ -135,7 +134,7 @@ class Observatory:
             # only the most-recent 1000 samples per backend feed p50/p95.
             if len(c.latencies_ms) > 1000:
                 c.latencies_ms = c.latencies_ms[-1000:]
-        self._fanout(rec)
+        self._pubsub.push(rec)
 
     def record_stat(self, sample: StatSample) -> None:
         with self._lock:
@@ -191,39 +190,13 @@ class Observatory:
     def attach_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         """Capture the running event loop so non-async callers can fan
         out without grabbing the loop themselves."""
-        self._loop = loop
+        self._pubsub.attach_loop(loop)
 
     def subscribe(self) -> "asyncio.Queue[RequestRecord]":
-        q: "asyncio.Queue[RequestRecord]" = asyncio.Queue(maxsize=200)
-        with self._lock:
-            self._subs.add(q)
-        return q
+        return self._pubsub.subscribe()
 
     def unsubscribe(self, q: "asyncio.Queue[RequestRecord]") -> None:
-        with self._lock:
-            self._subs.discard(q)
-
-    def _fanout(self, rec: RequestRecord) -> None:
-        loop = self._loop
-        if loop is None or loop.is_closed():
-            return
-        with self._lock:
-            subs = list(self._subs)
-        if not subs:
-            return
-
-        def _push() -> None:
-            for q in subs:
-                try:
-                    q.put_nowait(rec)
-                except asyncio.QueueFull:
-                    pass
-
-        try:
-            loop.call_soon_threadsafe(_push)
-        except RuntimeError:
-            # Loop closed in the gap — drop the event.
-            pass
+        self._pubsub.unsubscribe(q)
 
 
 def _percentile(values: List[float], pct: float) -> float:

@@ -49,7 +49,7 @@ from .audio_proxy import build_whisper_upstream_request
 from .backend_process import (
     VENDOR_WHISPER,
     whisper_server_binary,
-    resolve_model_by_id,
+    resolve_model_for_engine,
 )
 from .http_client import aclose as _aclose_http, get_async_client
 from .model_registry import Model
@@ -213,23 +213,8 @@ async def _idle_watchdog(sup: _ChildSupervisor) -> None:
                 log.warning("idle stop failed: %s", exc)
 
 
-def _resolve_model(model_id: str) -> Model:
-    model = resolve_model_by_id(model_id)
-    if model is None:
-        raise SystemExit(
-            f"model {model_id!r} not enabled on this host — "
-            f"add it to the host's enabled list in config/models.yaml"
-        )
-    if model.engine != "whisper-server-lazy":
-        raise SystemExit(
-            f"model {model_id!r} has engine={model.engine!r}; "
-            f"this proxy only supports engine=whisper-server-lazy"
-        )
-    return model
-
-
 def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
-    model = _resolve_model(model_id)
+    model = resolve_model_for_engine(model_id, "whisper-server-lazy")
     internal_port = model.internal_port or DEFAULT_INTERNAL_PORT
     idle_seconds = model.idle_seconds or DEFAULT_IDLE_SECONDS
     sup = _ChildSupervisor(model, internal_port, idle_seconds)
@@ -375,7 +360,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                    help="registry id of the lazy whisper model")
     args = p.parse_args(argv)
 
-    model = _resolve_model(args.model_id)
+    model = resolve_model_for_engine(args.model_id, "whisper-server-lazy")
     if not model.port:
         raise SystemExit(f"model {model.id!r} has no port configured")
 

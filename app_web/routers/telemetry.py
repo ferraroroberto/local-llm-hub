@@ -16,14 +16,13 @@ background task so the client gets a 202 in <50 ms.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
 import re
 import threading
 import time
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
@@ -38,6 +37,8 @@ from src.observability import (
     langfuse_host as _langfuse_host_url,
     service_instance_id,
 )
+
+from ._helpers import sse_stream
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -180,32 +181,11 @@ async def telemetry_stream(request: Request) -> StreamingResponse:
     """SSE stream of new routed requests. Same fan-out as the Hub tab's
     ``/api/hub/requests/stream`` but exposed under the telemetry prefix
     so the Telemetry tab's UI code is self-contained."""
-    q = OBS.subscribe()
-    seed = OBS.recent_requests(limit=20)
-
-    async def _gen() -> AsyncIterator[str]:
-        try:
-            for rec in reversed(seed):
-                yield f"data: {json.dumps(rec)}\n\n"
-            while True:
-                if await request.is_disconnected():
-                    break
-                try:
-                    rec = await asyncio.wait_for(q.get(), timeout=10.0)
-                    yield f"data: {json.dumps(_rec_to_dict(rec))}\n\n"
-                except asyncio.TimeoutError:
-                    yield ":keepalive\n\n"
-        finally:
-            OBS.unsubscribe(q)
-
-    return StreamingResponse(
-        _gen(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-        },
+    return sse_stream(
+        request, OBS.subscribe, OBS.unsubscribe,
+        seed=OBS.recent_requests(limit=20),
+        to_dict=_rec_to_dict,
+        reverse_seed=True,
     )
 
 

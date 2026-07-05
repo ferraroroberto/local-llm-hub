@@ -511,6 +511,31 @@ def resolve_model_by_id(model_id: str) -> Optional[Model]:
     return None
 
 
+def resolve_model_for_engine(model_id: str, expected_engine: str) -> Model:
+    """Resolve ``model_id`` and assert it's wired to ``expected_engine``, or
+    raise ``SystemExit`` with a message naming the mismatch.
+
+    Shared by the shim servers each of which handles exactly one engine —
+    ``parakeet_server.py`` (``parakeet-server``), ``tts_server.py``
+    (``tts-server``), ``whisper_translate_proxy.py``
+    (``whisper-server-lazy``). ``SystemExit`` (not a plain exception) because
+    every caller is a ``build_app(model_id)`` bring-up path meant to abort
+    the process on a config mismatch, not to be caught and handled.
+    """
+    model = resolve_model_by_id(model_id)
+    if model is None:
+        raise SystemExit(
+            f"model {model_id!r} not enabled on this host — "
+            f"add it to the host's enabled list in config/models.yaml"
+        )
+    if model.engine != expected_engine:
+        raise SystemExit(
+            f"model {model_id!r} has engine={model.engine!r}; "
+            f"only engine={expected_engine} is supported here"
+        )
+    return model
+
+
 def running_backends() -> Dict[str, Model]:
     """Return {model_id: Model} for each local backend whose process is alive."""
     out: Dict[str, Model] = {}

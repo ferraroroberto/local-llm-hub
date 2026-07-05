@@ -34,8 +34,7 @@ import uvicorn
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-from .backend_process import resolve_model_by_id
-from .model_registry import Model
+from .backend_process import resolve_model_for_engine
 
 log = logging.getLogger("parakeet_server")
 
@@ -49,21 +48,6 @@ class _State:
     def __init__(self) -> None:
         self.proc: Optional[subprocess.Popen] = None
         self.lock = asyncio.Lock()
-
-
-def _resolve_model(model_id: str) -> Model:
-    model = resolve_model_by_id(model_id)
-    if model is None:
-        raise SystemExit(
-            f"model {model_id!r} not enabled on this host — "
-            f"add it to the host's enabled list in config/models.yaml"
-        )
-    if model.engine != "parakeet-server":
-        raise SystemExit(
-            f"model {model_id!r} has engine={model.engine!r}; "
-            f"this server only handles engine=parakeet-server"
-        )
-    return model
 
 
 def _start_worker() -> subprocess.Popen:
@@ -102,7 +86,7 @@ def _to_wav16k_mono(src: Path) -> Path:
 
 
 def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
-    model = _resolve_model(model_id)
+    model = resolve_model_for_engine(model_id, "parakeet-server")
     state = _State()
 
     @asynccontextmanager
@@ -176,7 +160,7 @@ def main(argv: Optional[list] = None) -> int:
     p.add_argument("--model-id", default=DEFAULT_MODEL_ID, help="registry id of the parakeet-server row")
     args = p.parse_args(argv)
 
-    model = _resolve_model(args.model_id)
+    model = resolve_model_for_engine(args.model_id, "parakeet-server")
     if not model.port:
         raise SystemExit(f"model {model.id!r} has no port configured")
 

@@ -18,11 +18,12 @@ import platform
 import shutil
 import subprocess
 import sys
-import tarfile
 import urllib.request
-import zipfile
 from pathlib import Path
 from typing import List, Optional, Tuple
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _lib import InstallError, download, extract, flatten_if_nested, no_window_flags  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -33,16 +34,6 @@ RELEASES_URL = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
 # Prefer CUDA 13.1 on Windows (matches current driver/toolkit line; Blackwell
 # requires CUDA >=12.8 so the older 12.4 build is the fallback only).
 WIN_CUDA_PREFS = ["cuda-13.1", "cuda-12.4"]
-
-
-class InstallError(RuntimeError):
-    pass
-
-
-def _no_window_flags() -> int:
-    """CREATE_NO_WINDOW on Windows — this also runs from the windowless hub
-    when triggered via the admin SPA's "Fix" button (issue #174)."""
-    return subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 def _server_binary() -> Path:
@@ -57,7 +48,7 @@ def already_installed() -> bool:
     try:
         r = subprocess.run([str(bin_path), "--version"],
                            capture_output=True, text=True, timeout=10,
-                           creationflags=_no_window_flags())
+                           creationflags=no_window_flags())
         return r.returncode == 0
     except Exception:
         return False
@@ -112,51 +103,6 @@ def _pick_assets(release: dict) -> List[dict]:
     raise InstallError(f"unsupported platform: {sys.platform}")
 
 
-def _download(url: str, dest: Path) -> None:
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    log.info("downloading %s", url)
-    log.info("       -> %s", dest)
-    with urllib.request.urlopen(url, timeout=120) as r:
-        total = int(r.headers.get("Content-Length", 0))
-        seen = 0
-        next_report = 0
-        with dest.open("wb") as f:
-            while True:
-                chunk = r.read(1024 * 1024)
-                if not chunk:
-                    break
-                f.write(chunk)
-                seen += len(chunk)
-                if total and seen >= next_report:
-                    pct = 100 * seen / total
-                    log.info("  %6.1f / %6.1f MB (%5.1f%%)", seen/1_048_576, total/1_048_576, pct)
-                    next_report = seen + total // 20
-    log.info("  done: %.1f MB", seen/1_048_576)
-
-
-def _extract(archive: Path, dest_dir: Path) -> None:
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    log.info("extracting %s -> %s", archive.name, dest_dir)
-    if archive.suffix == ".zip":
-        with zipfile.ZipFile(archive) as zf:
-            zf.extractall(dest_dir)
-    elif archive.name.endswith(".tar.gz"):
-        with tarfile.open(archive, "r:gz") as tf:
-            tf.extractall(dest_dir)
-    else:
-        raise InstallError(f"unknown archive type: {archive}")
-
-
-def _flatten_if_nested(target: Path) -> None:
-    """Some releases extract into a single subdir; collapse it into target."""
-    entries = [p for p in target.iterdir() if not p.name.startswith(".")]
-    if len(entries) == 1 and entries[0].is_dir():
-        inner = entries[0]
-        for child in inner.iterdir():
-            shutil.move(str(child), str(target / child.name))
-        inner.rmdir()
-
-
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     if already_installed():
@@ -172,11 +118,11 @@ def main() -> int:
     for a in assets:
         archive = VENDOR_DIR / a["name"]
         if not archive.exists():
-            _download(a["browser_download_url"], archive)
-        _extract(archive, VENDOR_DIR)
+            download(a["browser_download_url"], archive)
+        extract(archive, VENDOR_DIR)
         archive.unlink(missing_ok=True)
 
-    _flatten_if_nested(VENDOR_DIR)
+    flatten_if_nested(VENDOR_DIR)
 
     bin_path = _server_binary()
     if not bin_path.exists():

@@ -4,6 +4,10 @@ The registry keeps per-host settings (which models are enabled, etc.)
 keyed by a short id. At runtime we pick the matching row based on
 `sys.platform` and hostname, with `default: true` as a tiebreaker and
 the `LOCAL_LLM_HUB_HOST` env var as an explicit override.
+
+``_load_config()`` below is also the single cached YAML loader for
+``config/models.yaml`` — ``src/model_registry.py`` imports it directly
+rather than keeping its own parallel cache of the same file.
 """
 
 from __future__ import annotations
@@ -45,9 +49,9 @@ class HostProfile:
 # Parsed-YAML cache, keyed by the resolved config path. The README's
 # contract is "edit the YAML and restart the hub to pick up changes," so a
 # single hub request shouldn't pay several YAML parses behind the scenes
-# (resolve() + hub_port() + hub_bind_host() each used to re-read). Keying on
-# the path means swapping ``CONFIG_PATH`` (as the tests do) transparently
-# busts the cache.
+# (resolve() + hub_port() + hub_bind_host() + model_registry's all_models()/
+# autostart_model_ids() all read the same file). Keying on the path means
+# swapping ``CONFIG_PATH`` (as the tests do) transparently busts the cache.
 _CONFIG_CACHE: Dict[str, Dict[str, Any]] = {}
 
 

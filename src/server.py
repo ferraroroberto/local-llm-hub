@@ -264,7 +264,14 @@ def _extract_media_blocks(
 
 
 def _flatten_messages(messages: List[Message]) -> str:
-    """Flatten multi-turn into one prompt for `claude -p` (Claude path only)."""
+    """Flatten multi-turn into one prompt for the claude/gemini CLI dispatch.
+
+    Shared by both the Anthropic-shape ``/v1/messages`` route (via
+    ``_run_claude_backend``/``_run_gemini_backend``) and the OpenAI-shape
+    ``/v1/chat/completions`` route (via ``_openai_messages_to_anthropic``
+    below) — one prompt scaffold, so a format change applied here reaches
+    both routes instead of only whichever one happened to get edited.
+    """
     if not messages:
         raise ValueError("messages must not be empty")
     if len(messages) == 1 and messages[0].role == "user":
@@ -278,6 +285,30 @@ def _flatten_messages(messages: List[Message]) -> str:
     lines.append(f"Current {last.role} message:")
     lines.append(_content_to_text(last.content))
     return "\n".join(lines)
+
+
+def _openai_messages_to_anthropic(
+    messages: List[Dict[str, Any]],
+) -> Tuple[List[Message], Optional[str]]:
+    """Normalize OpenAI-shape dict messages into Anthropic-shape ``Message``
+    objects plus an extracted system prompt, so ``/v1/chat/completions`` can
+    reuse ``_flatten_messages`` instead of hand-rolling its own prompt
+    scaffold (issue #195 — the two routes previously diverged silently).
+    """
+    sys_text: Optional[str] = None
+    turns: List[Message] = []
+    for m in messages:
+        role = m.get("role", "user")
+        content = m.get("content", "")
+        if isinstance(content, list):
+            content = "\n".join(
+                p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"
+            )
+        if role == "system":
+            sys_text = content
+        else:
+            turns.append(Message(role=role, content=content))
+    return turns, sys_text
 
 
 def _envelope_to_anthropic(env: Dict[str, Any], requested_model: str) -> Dict[str, Any]:
@@ -958,23 +989,12 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
     error_type = ""
     try:
         if model.backend in ("claude", "gemini"):
-            # Flatten OpenAI messages into a single prompt for the CLI path.
-            sys_text: Optional[str] = None
-            turns: List[str] = []
-            for m in req.messages:
-                role = m.get("role", "user")
-                content = m.get("content", "")
-                if isinstance(content, list):
-                    content = "\n".join(
-                        p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"
-                    )
-                if role == "system":
-                    sys_text = content
-                elif role == "user":
-                    turns.append(f"User: {content}")
-                else:
-                    turns.append(f"Assistant: {content}")
-            prompt = "\n".join(turns) if len(turns) > 1 else (turns[0].split(": ", 1)[-1] if turns else "")
+            # Normalize OpenAI-shape dict messages to Message objects and
+            # flatten with the same helper /v1/messages uses (issue #195),
+            # so both routes produce the same prompt shape for the same
+            # conversation instead of two independently-maintained scaffolds.
+            turns, sys_text = _openai_messages_to_anthropic(req.messages)
+            prompt = _flatten_messages(turns) if turns else ""
             try:
                 if model.backend == "claude":
                     env = call_claude(prompt, model=model.display_name, system=sys_text)

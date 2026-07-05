@@ -229,3 +229,68 @@ def test_chat_completions_routes_gemini(monkeypatch):
     body = r.json()
     assert body["choices"][0]["message"]["content"] == "chat-ok"
     assert body["object"] == "chat.completion"
+
+
+def test_chat_completions_multi_turn_flattens_same_as_messages(monkeypatch):
+    """issue #195: /v1/chat/completions and /v1/messages must produce the
+    same prompt shape for the same conversation — they now share
+    _flatten_messages via _openai_messages_to_anthropic instead of each
+    hand-rolling its own scaffold."""
+    captured = {}
+
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
+        captured["prompt"] = prompt
+        captured["system"] = system
+        return {
+            "type": "result", "is_error": False, "result": "ok",
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
+
+    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "claude-haiku-4-5",
+            "messages": [
+                {"role": "system", "content": "Be brief."},
+                {"role": "user", "content": "hi"},
+                {"role": "assistant", "content": "hello"},
+                {"role": "user", "content": "how are you"},
+            ],
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert captured["system"] == "Be brief."
+    assert "Previous conversation:" in captured["prompt"]
+    assert "User: hi" in captured["prompt"]
+    assert "Assistant: hello" in captured["prompt"]
+    assert "how are you" in captured["prompt"]
+
+
+def test_chat_completions_single_turn_unwraps_like_messages(monkeypatch):
+    """Single-turn stays a bare prompt (no framing) on both routes."""
+    captured = {}
+
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
+        captured["prompt"] = prompt
+        return {
+            "type": "result", "is_error": False, "result": "ok",
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
+
+    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "claude-haiku-4-5",
+            "messages": [{"role": "user", "content": "Capital of France?"}],
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert captured["prompt"] == "Capital of France?"

@@ -48,6 +48,22 @@ def current_otel_span():
         return None
 
 
+def get_tracer(name: str):
+    """Return the named OTel tracer, or ``None`` when the SDK is unavailable.
+
+    Shared by ``claude_cli.py`` / ``gemini_cli.py`` (each used to carry its
+    own near-identical ``_tracer()`` behind a bare ``try/except``) so a CLI
+    wrapper that starts its own span for the subprocess call doesn't
+    re-import ``opentelemetry.trace`` inline.
+    """
+    try:
+        from opentelemetry import trace as _trace
+
+        return _trace.get_tracer(name)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 @contextmanager
 def safe_span(label: str = "span") -> Iterator[None]:
     """Swallow-and-log wrapper for best-effort OTel span mutations.
