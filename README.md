@@ -483,7 +483,8 @@ local-llm-hub/
 │   ├── server.py             #   create_app() — middleware, routers, static mount
 │   ├── middleware.py         #   bearer-token gate (loopback bypasses)
 │   ├── icons.py              #   render placeholder PNG icons at first boot
-│   ├── routers/              #   misc / version / auth / webauthn / hub / models / playground
+│   ├── routers/              #   misc / version / auth / webauthn / hub / models / playground /
+│   │                         #   services / telemetry / code_usage / glossary / hosts
 │   └── static/               #   index.html + main.js + state.js + tabs.js + api.js +
 │                             #   hub.js + models.js + playground.js + styles.css +
 │                             #   manifest.webmanifest + placeholder icons

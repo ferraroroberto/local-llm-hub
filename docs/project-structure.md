@@ -33,17 +33,21 @@ flowchart LR
 
     subgraph Hub["FastAPI hub (src/)"]
         SRV["src/server.py<br/>POST /v1/messages<br/>POST /v1/chat/completions<br/>GET /v1/models /health /info<br/>GET / → 307 /admin/<br/>mounts /admin sub-app"]
+        IMG["src/server_images.py<br/>POST /v1/images/generations<br/>POST /v1/images/edits"]
         REG["src/model_registry.py<br/>YAML → Model rows"]
         HP["src/host_profile.py<br/>resolve active host"]
         CLI_WRAP["src/claude_cli.py<br/>call_claude()"]
-        GEM_WRAP["src/gemini_cli.py<br/>call_gemini()<br/>serialized model switch + ConPTY"]
+        GEM_WRAP["src/gemini_cli.py<br/>call_gemini() / call_gemini_image()<br/>serialized model switch + ConPTY"]
         OAI_UP["src/openai_upstream.py<br/>call_openai_chat()<br/>+ shape translators"]
+        RPROXY["src/remote_proxy.py<br/>resolve owning host's base URL<br/>for non-local model rows"]
     end
 
     subgraph Procs["Process managers"]
         SP["src/server_process.py<br/>hub Popen + log ring<br/>+ kill-port helper"]
         LP["src/backend_process.py<br/>per-model llama-server + whisper-server<br/>Popen + log ring"]
     end
+
+    REMOTE["Remote owning-host hub<br/>e.g. mac-mini-m4 :8000<br/>(qwen3.5-9b, parakeet ASR)"]
 
     CLAUDE["claude -p CLI<br/>(Claude Code subscription)"]
     GEMINI["agy Antigravity CLI<br/>(Google AI Pro/Ultra subscription)<br/>ConPTY-hosted · Pro/Flash/Flash-Lite"]
@@ -80,6 +84,8 @@ flowchart LR
     SRV -->|backend=claude| CLI_WRAP
     SRV -->|backend=gemini| GEM_WRAP
     SRV -->|backend=openai| OAI_UP
+    SRV -.->|mounts images router| IMG
+    IMG -->|call_gemini_image()| GEM_WRAP
     CLI_WRAP -->|subprocess.run<br/>--output-format json| CLAUDE
     GEM_WRAP -->|ConPTY (pywinpty)<br/>agy -p print mode| GEMINI
     OAI_UP -->|POST /v1/chat/completions| QWEN4B
@@ -87,6 +93,9 @@ flowchart LR
     OAI_UP -->|POST /v1/chat/completions| QWEN
     OAI_UP -->|POST /v1/chat/completions| GLM
     OAI_UP -->|POST /v1/chat/completions| GEMMA4E
+
+    SRV -.->|non-local model row| RPROXY
+    RPROXY -->|forwards request verbatim| REMOTE
 
     WSRV --> WROUT
     WSRV --> WSTATIC
@@ -115,7 +124,7 @@ flowchart LR
     classDef ui fill:#2a1d2a,stroke:#a47,color:#eee
     classDef backend fill:#2a281d,stroke:#a94,color:#eee
     class Clients ext
-    class CLAUDE,GEMINI,QWEN4B,GEMMA426,QWEN,GLM,GEMMA4E backend
+    class CLAUDE,GEMINI,QWEN4B,GEMMA426,QWEN,GLM,GEMMA4E,REMOTE backend
     class Hub hub
     class UI ui
 ```
@@ -144,6 +153,7 @@ flowchart TB
     SRC --> S3["openai_upstream.py<br/>llama-server client +<br/>Anthropic ↔ OpenAI shapes"]
     SRC --> S4["model_registry.py<br/>YAML loader + Model class"]
     SRC --> S5["host_profile.py<br/>pick active host row"]
+    SRC --> S5b["remote_proxy.py<br/>owning-host base URL for non-local rows<br/>(Mac Mini multi-host proxying)"]
     SRC --> S6["install.py<br/>checks + fix dispatch"]
     SRC --> S7["run_backend.py<br/>hub|qwen|glm|qwen35_4b|gemma4*|whisper|tts dispatcher"]
     SRC --> S8["server_process.py<br/>hub Popen + kill-port"]
@@ -325,6 +335,21 @@ the envelope into OpenAI shape; for the local llama-server backends
     `/admin` inside the hub process, so it comes up with the hub on
     `:8000`. Browse `http://127.0.0.1:8000/admin/` (`GET /` redirects
     there); no separate launcher.
+- **Image generation.** `POST /v1/images/generations` and `/edits`
+  (OpenAI Images shape) are handled by
+  [`src/server_images.py`](../src/server_images.py), which calls
+  `call_gemini_image()` in `src/gemini_cli.py`. The only reachable image
+  backend is Google **Imagen**, hosted as an agentic tool inside an `agy`
+  Gemini text session (there is no Nano Banana / picker image model) — see
+  [docs/image-generation.md](image-generation.md) for the full rationale.
+- **Multi-host: the Mac Mini.** A model row can declare an owning `host:`
+  in `config/models.yaml`; when the active machine isn't that owner,
+  [`src/remote_proxy.py`](../src/remote_proxy.py) resolves the owning
+  host's own hub `base_url` and the request is forwarded there verbatim —
+  a client never needs to know or care which machine actually runs a
+  model. Today `qwen3.5-9b` and Parakeet ASR are owned by `mac-mini-m4`
+  and proxied through this hub's `base_url`; see the README's "Multi-host:
+  the Mac Mini" section for the full walkthrough.
 - **Only three places shell out.**
   [`src/claude_cli.py`](../src/claude_cli.py) owns
   `subprocess.run(["claude", "-p", ...])`.

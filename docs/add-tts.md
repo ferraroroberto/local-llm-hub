@@ -44,7 +44,7 @@ piper:                          # auto-loaded default (tray.autostart_models)
   engine: tts-server
   tts_engine: piper
   port: 8096
-  model_path: "models/piper/en_US-ryan-medium.onnx"
+  model_path: "models/piper/en_US-amy-medium.onnx"
   args: ["--device", "cpu"]
 
 orpheus:                        # on demand — expressive
@@ -185,8 +185,9 @@ Chatterbox's `exaggeration` + `cfg_weight`. Defaults / notes:
   `soundfile` and **fall back to wav** (with a logged note) when the encoder
   isn't available, so a request never fails on format alone.
 - **`voice`** — `default`/empty uses the engine's built-in voice. For Piper,
-  `default`/`ryan` maps to `en_US-ryan-medium`, `ryan-high` trades a little
-  latency for quality, and `lessac` is the standard Piper female voice. For
+  `default`/`amy` maps to `en_US-amy-medium`, `ryan` is the standard Piper
+  male voice (`ryan-high` trades a little latency for quality), and `lessac`
+  is the standard Piper female voice. For
   Chatterbox, any other name maps to a reference clip
   `config/tts_voices/<voice>.wav` (gitignored) → zero-shot cloning. For
   Orpheus, `voice` selects a preset (`tara`, `leah`, `jess`, `leo`, `dan`,
@@ -281,7 +282,7 @@ The hub exposes every enabled TTS model on the same `/v1/audio/speech`
 route, addressed by `model`:
 
 - `model="audio_speech"` (or `model="piper-tts"`) → Piper on :8096
-  (the autostarted default). Default voice is `ryan`. `piper.exe` runs
+  (the autostarted default). Default voice is `amy`. `piper.exe` runs
   resident (one process per voice+speed, ONNX voice loaded once), so short
   phrases skip the per-request model load: measured on the reference Windows
   box ~0.06 s direct to :8096 and ~0.06 s through the observable hub route for
