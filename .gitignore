@@ -48,7 +48,7 @@ config/machine_specs.yaml
 .tray.pid
 
 # /admin webapp runtime data — bearer token, webauthn devices, auth.log,
-# user cloudflared config, placeholder PNG icons generated at boot.
+# user cloudflared config.
 config/webapp_config.json
 config/webauthn_devices.json
 # TTS voice-cloning reference clips (config/tts_voices/<voice>.wav) — local audio
@@ -57,8 +57,6 @@ webapp/cloudflared.yml
 webapp/auth.log
 webapp/last_tunnel_url.txt
 webapp/certificates/
-app_web/static/icon-180.png
-app_web/static/icon-512.png
 
 # Playwright autoboot log + caches
 tests/e2e/autoboot-hub.log
