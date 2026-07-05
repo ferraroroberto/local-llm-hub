@@ -47,7 +47,7 @@ class HostProfile:
 # single hub request shouldn't pay several YAML parses behind the scenes
 # (resolve() + hub_port() + hub_bind_host() each used to re-read). Keying on
 # the path means swapping ``CONFIG_PATH`` (as the tests do) transparently
-# busts the cache; ``reload()`` is the explicit escape hatch.
+# busts the cache.
 _CONFIG_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
@@ -61,11 +61,6 @@ def _load_config() -> Dict[str, Any]:
     data = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
     _CONFIG_CACHE[key] = data
     return data
-
-
-def reload() -> None:
-    """Drop the parsed-YAML cache (call after editing models.yaml in-process)."""
-    _CONFIG_CACHE.clear()
 
 
 def _row_to_profile(host_id: str, row: Dict[str, Any], *, source: str) -> HostProfile:

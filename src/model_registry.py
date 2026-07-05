@@ -78,10 +78,9 @@ class Model:
 
 
 # Parsed-YAML cache, keyed by the resolved config path. ``all_models()`` is
-# called by ``enabled_models()`` / ``resolve()`` / ``known_names()`` — often
-# several times per request — and each call used to re-parse the YAML. Keying
-# on the path means swapping ``CONFIG_PATH`` (as the tests do) busts the cache
-# transparently; ``reload()`` is the explicit escape hatch.
+# called by ``enabled_models()`` / ``resolve()`` — often several times per
+# request — and each call used to re-parse the YAML. Keying on the path means
+# swapping ``CONFIG_PATH`` (as the tests do) busts the cache transparently.
 _CONFIG_CACHE: Dict[str, Dict] = {}
 
 
@@ -93,11 +92,6 @@ def _load_config() -> Dict:
     data = yaml.safe_load(Path(CONFIG_PATH).read_text(encoding="utf-8")) or {}
     _CONFIG_CACHE[key] = data
     return data
-
-
-def reload() -> None:
-    """Drop the parsed-YAML cache (call after editing models.yaml in-process)."""
-    _CONFIG_CACHE.clear()
 
 
 def _row_to_model(model_id: str, row: Dict) -> Model:
@@ -209,11 +203,4 @@ def resolve(name: str, host: Optional[HostProfile] = None) -> Optional[Model]:
         if name == m.id or name == m.display_name or name in m.aliases:
             return m
     return None
-
-
-def known_names(host: Optional[HostProfile] = None) -> List[str]:
-    names: List[str] = []
-    for m in enabled_models(host):
-        names.extend(m.all_names)
-    return sorted(dict.fromkeys(names))
 
