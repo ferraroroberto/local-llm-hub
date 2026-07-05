@@ -12,6 +12,7 @@ Idempotent: if the binary already runs, exits fast.
 from __future__ import annotations
 
 import json
+import logging
 import platform
 import shutil
 import subprocess
@@ -22,6 +23,8 @@ import urllib.request
 import zipfile
 from pathlib import Path
 from typing import List, Optional
+
+log = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 VENDOR_DIR = PROJECT_ROOT / "vendor" / "whisper.cpp"
@@ -87,7 +90,7 @@ def already_installed() -> bool:
 
 
 def _fetch_release() -> dict:
-    print(f"querying {RELEASES_URL} ...")
+    log.info("querying %s ...", RELEASES_URL)
     req = urllib.request.Request(RELEASES_URL, headers={"Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.load(r)
@@ -103,7 +106,7 @@ def _purge_vendor() -> None:
     """
     if not VENDOR_DIR.exists():
         return
-    print(f"--force: removing existing {VENDOR_DIR}")
+    log.info("--force: removing existing %s", VENDOR_DIR)
     try:
         shutil.rmtree(VENDOR_DIR)
     except (PermissionError, OSError) as exc:
@@ -152,8 +155,8 @@ def _pick_assets(release: dict) -> List[dict]:
 
 def _download(url: str, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
-    print(f"downloading {url}")
-    print(f"       -> {dest}")
+    log.info("downloading %s", url)
+    log.info("       -> %s", dest)
     with urllib.request.urlopen(url, timeout=120) as r:
         total = int(r.headers.get("Content-Length", 0))
         seen = 0
@@ -167,14 +170,14 @@ def _download(url: str, dest: Path) -> None:
                 seen += len(chunk)
                 if total and seen >= next_report:
                     pct = 100 * seen / total
-                    print(f"  {seen/1_048_576:6.1f} / {total/1_048_576:6.1f} MB ({pct:5.1f}%)")
+                    log.info("  %6.1f / %6.1f MB (%5.1f%%)", seen/1_048_576, total/1_048_576, pct)
                     next_report = seen + total // 20
-    print(f"  done: {seen/1_048_576:.1f} MB")
+    log.info("  done: %.1f MB", seen/1_048_576)
 
 
 def _extract(archive: Path, dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
-    print(f"extracting {archive.name} -> {dest_dir}")
+    log.info("extracting %s -> %s", archive.name, dest_dir)
     if archive.suffix == ".zip":
         with zipfile.ZipFile(archive) as zf:
             zf.extractall(dest_dir)
@@ -207,7 +210,7 @@ def _normalise_binary_name() -> None:
             # so sibling DLLs (cudart, whisper.dll, ggml.dll, ...) travel with it.
             src_dir = candidate.parent
             if src_dir != VENDOR_DIR:
-                print(f"flattening {src_dir} -> {VENDOR_DIR}")
+                log.info("flattening %s -> %s", src_dir, VENDOR_DIR)
                 for child in list(src_dir.iterdir()):
                     target = VENDOR_DIR / child.name
                     if target.exists():
@@ -218,25 +221,26 @@ def _normalise_binary_name() -> None:
                     shutil.move(str(child), str(target))
             src = VENDOR_DIR / candidate_name
             if src.exists() and src != want:
-                print(f"renaming {src.name} -> {want.name}")
+                log.info("renaming %s -> %s", src.name, want.name)
                 src.rename(want)
             return
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     args = list(sys.argv[1:] if argv is None else argv)
     force = "--force" in args
 
     if force:
         _purge_vendor()
     elif already_installed():
-        print(f"whisper.cpp already installed at {_server_binary()}")
+        log.info("whisper.cpp already installed at %s", _server_binary())
         return 0
 
     release = _fetch_release()
     tag = release.get("tag_name", "?")
     assets = _pick_assets(release)
-    print(f"release {tag}: picking {len(assets)} asset(s)")
+    log.info("release %s: picking %d asset(s)", tag, len(assets))
 
     VENDOR_DIR.mkdir(parents=True, exist_ok=True)
     for a in assets:
@@ -254,7 +258,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             f"extracted archives but {_server_binary()} still missing or non-runnable"
         )
 
-    print(f"installed: {_server_binary()}")
+    log.info("installed: %s", _server_binary())
     return 0
 
 
