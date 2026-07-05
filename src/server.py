@@ -66,8 +66,8 @@ from pydantic import BaseModel
 from .claude_cli import ClaudeCLIError, call_claude
 from .gemini_cli import GeminiCLIError, call_gemini
 from .host_profile import hub_bind_host, hub_port
-from .hub_log import HUB_LOG, install_root_handler
-from .hub_observability import OBS, ObservatoryMiddleware
+from .hub_log import install_root_handler
+from .hub_observability import ObservatoryMiddleware
 from .model_registry import Model, enabled_models
 from .remote_proxy import remote_auth_token, remote_base_url
 from .observability import (
@@ -431,123 +431,16 @@ except Exception as _exc:  # noqa: BLE001
     logger.warning("⚠️ could not load webapp_config: %s", _exc)
 
 
-@app.on_event("shutdown")
-async def _stop_backend_children() -> None:
-    """Tear down every model subprocess the hub spawned.
+# Startup/shutdown handlers + the background resource sampler live in
+# server_lifecycle.py (issue #198) — server.py stays app construction +
+# route registration. ``_stop_backend_children`` is re-exported under its
+# original name since tests/test_restart_keepalive.py calls it directly.
+from .server_lifecycle import (  # noqa: E402
+    register as _register_lifecycle,
+    stop_backend_children as _stop_backend_children,
+)
 
-    The hub owns its backend children (since the tray drives them via
-    the admin API). Without this, a clean ``CTRL+C`` would leave
-    orphan ``llama-server`` / ``whisper-server`` processes holding
-    their ports until the user logged out.
-
-    Exception: on an admin **restart** the children must survive so the
-    respawned hub re-adopts them (``inherit_running_backends``). The
-    restart endpoint sets ``backend_process.restart_pending()`` before
-    signalling shutdown; we honour it by skipping teardown.
-    """
-    from . import backend_process as bp
-    from . import http_client
-
-    try:
-        await http_client.aclose()
-        http_client.close()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("shutdown: closing shared httpx clients raised: %s", exc)
-
-    if bp.restart_pending():
-        survivors = list(bp.running_backends().keys())
-        logger.info(
-            "shutdown: restart in progress — leaving %d backend(s) running for adoption: %s",
-            len(survivors), survivors,
-        )
-        return
-
-    for model_id in list(bp.running_backends().keys()):
-        try:
-            ok, msg = bp.stop(model_id)
-            logger.info("shutdown: stop %s -> %s %s", model_id, ok, msg)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("shutdown: stop %s raised: %s", model_id, exc)
-
-
-@app.on_event("startup")
-async def _wire_observatory_loop() -> None:
-    """Capture the running event loop so the synchronous middleware can
-    fan out SSE events from non-async callers."""
-    import asyncio as _asyncio
-
-    loop = _asyncio.get_running_loop()
-    OBS.attach_loop(loop)
-    HUB_LOG.attach_loop(loop)
-    # Start the resource sampler. 2s tick × 150 samples = 5 min ring.
-    loop.create_task(_resource_sampler())
-
-    # Inherit any backend process left running on one of our ports by a
-    # previous hub instance. Without this, every hub restart shows the
-    # surviving model backends as "adopted" rather than "running".
-    try:
-        from . import backend_process as bp
-        inherited = await _asyncio.to_thread(bp.inherit_running_backends)
-        if inherited:
-            logger.info("📎 Inherited %d running backend(s) from a previous hub", inherited)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("inherit_running_backends failed: %s", exc)
-
-    # The hub owns configured backend autostart so every launch surface
-    # (tray, run_hub.bat, python -m src.run_backend hub) behaves the same.
-    loop.create_task(_autostart_configured_backends())
-
-
-async def _autostart_configured_backends() -> None:
-    import asyncio as _asyncio
-
-    from . import backend_process as bp
-    from .model_registry import autostart_model_ids
-
-    model_ids = autostart_model_ids()
-    if not model_ids:
-        return
-    logger.info("autostart: configured backend set: %s", model_ids)
-    for model_id in model_ids:
-        try:
-            ok, msg = await _asyncio.to_thread(bp.start, model_id)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("autostart: %s raised: %s", model_id, exc)
-            continue
-        if ok or "already running" in msg.lower():
-            logger.info("autostart: %s -> %s", model_id, msg)
-        else:
-            logger.warning("autostart: %s -> %s", model_id, msg)
-
-
-async def _resource_sampler() -> None:
-    """Background task that samples RAM + GPU usage every 2 s."""
-    import asyncio as _asyncio
-
-    from . import system_stats
-    from .hub_observability import StatSample
-
-    while True:
-        try:
-            ram = system_stats.ram_stats()
-            gpus = system_stats.gpu_stats()
-            gpu0_vram = None
-            gpu0_util = None
-            if gpus:
-                first = gpus[0]
-                gpu0_vram = first.get("vram_percent")
-                gpu0_util = first.get("util_percent")
-            OBS.record_stat(
-                StatSample(
-                    ts=time.time(),
-                    ram_percent=float(ram.get("percent", 0.0)),
-                    gpu0_vram_percent=gpu0_vram,
-                    gpu0_util_percent=gpu0_util,
-                )
-            )
-        except Exception:  # noqa: BLE001 — sampler must not die
-            pass
-        await _asyncio.sleep(2.0)
+_register_lifecycle(app)
 
 
 # Mount the admin sub-app at /admin. Done at import time so a fresh

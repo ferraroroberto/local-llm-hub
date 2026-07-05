@@ -42,3 +42,65 @@ def test_fix_fn_for_known_ids():
     assert install_mod.fix_fn_for(Check("x", "x", "missing", fix_id="download_qwen")) is not None
     assert install_mod.fix_fn_for(Check("x", "x", "missing", fix_id=None)) is None
     assert install_mod.fix_fn_for(Check("x", "x", "ok")) is None
+
+
+def _reset_cache(monkeypatch):
+    monkeypatch.setattr(install_mod, "_cached_report", None)
+    monkeypatch.setattr(install_mod, "_cached_at", 0.0)
+
+
+def _counting_venv_check(monkeypatch):
+    """Replace the cheapest check with a call-counting stub so cache
+    hit/miss is observable without shelling out to claude/nvidia-smi."""
+    calls = {"n": 0}
+
+    def _stub():
+        calls["n"] += 1
+        from src.install import Check
+        return Check("python", "stub", "ok")
+
+    monkeypatch.setattr(install_mod, "_check_python_venv", _stub)
+    return calls
+
+
+def test_use_cache_true_reuses_a_recent_report(monkeypatch):
+    _reset_cache(monkeypatch)
+    calls = _counting_venv_check(monkeypatch)
+
+    install_mod.run_all_checks(use_cache=True)
+    assert calls["n"] == 1  # cache was empty -> ran fresh
+
+    install_mod.run_all_checks(use_cache=True)
+    assert calls["n"] == 1  # cache hit -> did not re-run the battery
+
+
+def test_use_cache_true_falls_back_to_fresh_when_stale(monkeypatch):
+    _reset_cache(monkeypatch)
+    calls = _counting_venv_check(monkeypatch)
+
+    install_mod.run_all_checks(use_cache=True)
+    assert calls["n"] == 1
+
+    # Simulate the TTL having elapsed.
+    monkeypatch.setattr(install_mod, "_cached_at", 0.0)
+    install_mod.run_all_checks(use_cache=True)
+    assert calls["n"] == 2  # cache expired -> ran fresh again
+
+
+def test_use_cache_false_always_runs_fresh(monkeypatch):
+    _reset_cache(monkeypatch)
+    calls = _counting_venv_check(monkeypatch)
+
+    install_mod.run_all_checks()  # default use_cache=False
+    install_mod.run_all_checks()
+    assert calls["n"] == 2  # no caching applied on the default path
+
+
+def test_run_all_checks_always_refreshes_the_cache_for_later_use_cache_calls(monkeypatch):
+    _reset_cache(monkeypatch)
+    calls = _counting_venv_check(monkeypatch)
+
+    install_mod.run_all_checks()  # fresh, non-cached call — still warms the cache
+    assert calls["n"] == 1
+    install_mod.run_all_checks(use_cache=True)
+    assert calls["n"] == 1  # served from the cache the plain call just warmed

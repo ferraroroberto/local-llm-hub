@@ -399,7 +399,31 @@ def _check_ports() -> List[Check]:
 
 # ---------- report + fixes ----------
 
-def run_all_checks() -> Report:
+# Brief cache for run_all_checks(use_cache=True) (issue #198). The battery
+# shells out to `claude --version` / `nvidia-smi` / `llama-server --version`
+# via blocking subprocess.run and "can pin the entire uvicorn worker for
+# seconds" (see app_web/routers/hub.py's install_status docstring) — yet
+# install_fix/install_fix_all only need it to *locate* one check by
+# fix_id, and the admin UI always calls install_status (which populates
+# this cache) moments before a user clicks a fix button. A short TTL means
+# a fix click right after a status load reuses that report instead of
+# re-running the whole battery; a stale/empty cache still falls back to a
+# fresh run, so correctness never depends on the cache being warm.
+_CACHE_TTL_S = 5.0
+_cached_report: Optional[Report] = None
+_cached_at: float = 0.0
+
+
+def run_all_checks(*, use_cache: bool = False) -> Report:
+    """Run every install check. Every call refreshes the brief cache used
+    by ``use_cache=True`` callers; pass ``use_cache=True`` to reuse a
+    report computed within the last ``_CACHE_TTL_S`` seconds instead of
+    forcing a fresh (expensive) battery run.
+    """
+    global _cached_report, _cached_at
+    if use_cache and _cached_report is not None and (time.monotonic() - _cached_at) < _CACHE_TTL_S:
+        return _cached_report
+
     checks: List[Check] = [
         _check_python_venv(),
         _check_deps(),
@@ -419,7 +443,10 @@ def run_all_checks() -> Report:
         checks.append(_check_parakeet_worker())
     checks.extend(_check_models())
     checks.extend(_check_ports())
-    return Report(checks=checks)
+    report = Report(checks=checks)
+    _cached_report = report
+    _cached_at = time.monotonic()
+    return report
 
 
 FixFn = Callable[[], None]
