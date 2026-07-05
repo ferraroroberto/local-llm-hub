@@ -34,7 +34,6 @@ from src.static_versioning import (
 from src.webapp_config import load_webapp_config
 from src.webauthn_gate import WebAuthnGate
 
-from .icons import ensure_placeholders
 from .middleware import BearerTokenMiddleware
 from .routers import auth, code_usage, glossary, hosts, hub, misc, models, playground, services, telemetry, version, webauthn
 from .routers._helpers import STATIC_DIR
@@ -120,10 +119,6 @@ def create_app() -> FastAPI:
 
     app.state.webapp_config = webapp_cfg
     app.state.webauthn_gate = WebAuthnGate()
-
-    # Render placeholder PWA icons before hashing static assets so the
-    # icon URLs in the manifest resolve on first boot.
-    ensure_placeholders(STATIC_DIR)
 
     asset_hashes = compute_asset_hashes(STATIC_DIR)
     app.state.asset_hashes = asset_hashes

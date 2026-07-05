@@ -9,12 +9,17 @@ pyyaml>=6.0
 huggingface_hub>=0.24
 psutil>=5.9
 
-# Tray launcher + admin SPA placeholder icons. Pillow renders both the
-# pystray glyph and the `/admin/static/icon-180.png` family at runtime;
-# winotify gives WinRT toast fallback on Windows.
+# Tray launcher. Pillow underlies pystray's icon images; winotify gives
+# WinRT toast fallback on Windows.
 pystray>=0.19
 Pillow>=10.0
 winotify>=1.1; platform_system == "Windows"
+
+# tray/icon.py renders the Lucide hub glyph via resvg-py at runtime — the
+# live tray re-renders it on every health-state change (green/amber/grey),
+# so unlike project-scaffolding's brand_gen.py callers, this is a real
+# runtime dependency, not dev-only.
+resvg-py>=0.3.0
 
 # Passkey gate for /admin (issue #7). Optional at runtime — when
 # absent, WebAuthnGate.available() returns False and the bearer-token
