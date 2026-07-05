@@ -18,11 +18,13 @@ flowchart TB
 
   subgraph core["src/server.py — FastAPI hub (:8000)"]
     SRV["POST /v1/messages (Anthropic shape)\nPOST /v1/chat/completions (OpenAI shape)\nGET /v1/models · /health · /info\nGET / -> 307 /admin/"]
+    LIFECYCLE["server_lifecycle.py\nstartup/shutdown hooks + resource sampler\n(split out of server.py, issue #198)"]
     REG["model_registry.py\nModel rows from config/models.yaml"]
     HOSTP["host_profile.py\nresolve active host"]
   end
   TRAY --> SRV
   RUNHUB --> SRV
+  SRV --> LIFECYCLE
   SRV --> REG
   REG --> HOSTP
 
@@ -43,6 +45,7 @@ flowchart TB
   subgraph procmgr["Process managers"]
     SERVPROC["server_process.py\nhub's own Popen + kill-port"]
     BACKPROC["backend_process.py\nper-model Popen: llama-server ·\nwhisper-server · tts_server shim"]
+    WATCHDOG["_respawn_watchdog.py\ndetached: wait for parent PID to die,\nthen relaunch (stdlib-only, issue #198)"]
   end
   RUNMODEL --> BACKPROC
   TRAY -->|Models submenu| BACKPROC
@@ -73,6 +76,7 @@ flowchart TB
   WSRV --> WROUT
   WSRV --> WSTATIC
   WROUT -->|hub tab| SERVPROC
+  WROUT -->|hub restart| WATCHDOG
   WROUT -->|models tab| BACKPROC
   WROUT -->|playground tab| SRV
 
