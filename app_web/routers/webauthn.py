@@ -16,7 +16,7 @@ from fastapi import APIRouter, HTTPException, Request
 from src.webapp_config import WebappConfig
 from src.webauthn_gate import WebAuthnGate
 
-from ..middleware import LOOPBACK_HOSTS
+from ..middleware import LOOPBACK_HOSTS, _is_proxied
 from ._helpers import client_ip, maybe_json
 
 router = APIRouter()
@@ -38,9 +38,17 @@ async def webauthn_status(request: Request) -> Dict[str, Any]:
 
 @router.post("/api/webauthn/enroll/window")
 async def webauthn_open_window(request: Request) -> Dict[str, Any]:
-    """Open the one-time passkey enrollment window. PC-only (loopback)."""
+    """Open the one-time passkey enrollment window. PC-only (loopback).
+
+    Checking ``client_host`` alone isn't enough: a request tunneled in
+    through tailscale/cloudflared/nginx and forwarded to loopback still
+    shows up with a loopback ``client.host`` even though the caller isn't
+    physically at the PC. Reuse the same proxied-loopback detection
+    ``BearerTokenMiddleware`` already applies (``app_web/middleware.py``)
+    so a valid bearer token from off-PC can't defeat this gate.
+    """
     client_host = request.client.host if request.client else ""
-    if client_host not in LOOPBACK_HOSTS:
+    if client_host not in LOOPBACK_HOSTS or _is_proxied(request.headers):
         raise HTTPException(
             status_code=403,
             detail="the enrollment window can only be opened from the PC",
