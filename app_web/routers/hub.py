@@ -18,7 +18,6 @@ Plus /admin/api/install/{status,fix-all} which fold in the old install tab.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import signal
@@ -27,7 +26,7 @@ import sys
 import time
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, List
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -35,6 +34,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from src.hub_log import HUB_LOG
 from src.hub_observability import OBS
 from src.server_process import lan_ip
+
+from ._helpers import sse_stream
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -49,12 +50,6 @@ def _hub_port() -> int:
     from src.host_profile import hub_port
 
     return int(hub_port())
-
-
-def _sse_pack(data: Any, event: str = "") -> str:
-    body = data if isinstance(data, str) else json.dumps(data)
-    head = f"event: {event}\n" if event else ""
-    return f"{head}data: {body}\n\n"
 
 
 # ---------------------------------------------------------------- status
@@ -295,30 +290,10 @@ async def log_recent(limit: int = 400) -> Dict[str, Any]:
 
 @router.get("/api/hub/log/tail")
 async def log_tail(request: Request) -> StreamingResponse:
-    q = HUB_LOG.subscribe()
-    seed = HUB_LOG.lines(limit=200)
-
-    async def _gen() -> AsyncIterator[str]:
-        try:
-            for line in seed:
-                yield _sse_pack(line)
-            while True:
-                if await request.is_disconnected():
-                    break
-                try:
-                    line = await asyncio.wait_for(q.get(), timeout=10.0)
-                    yield _sse_pack(line)
-                except asyncio.TimeoutError:
-                    # Heartbeat keeps the connection (and any proxy) alive.
-                    yield ":keepalive\n\n"
-        finally:
-            HUB_LOG.unsubscribe(q)
-
-    return StreamingResponse(_gen(), media_type="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-        "Connection": "keep-alive",
-    })
+    return sse_stream(
+        request, HUB_LOG.subscribe, HUB_LOG.unsubscribe,
+        seed=HUB_LOG.lines(limit=200),
+    )
 
 
 # ----------------------------------------------------------------- requests
@@ -330,30 +305,14 @@ async def requests_recent(limit: int = 50) -> Dict[str, Any]:
 
 @router.get("/api/hub/requests/stream")
 async def requests_stream(request: Request) -> StreamingResponse:
-    q = OBS.subscribe()
-    seed = OBS.recent_requests(limit=20)
+    from src.hub_observability import _rec_to_dict
 
-    async def _gen() -> AsyncIterator[str]:
-        try:
-            for rec in reversed(seed):  # send oldest-first so order matches stream
-                yield _sse_pack(rec)
-            while True:
-                if await request.is_disconnected():
-                    break
-                try:
-                    rec = await asyncio.wait_for(q.get(), timeout=10.0)
-                    from src.hub_observability import _rec_to_dict
-                    yield _sse_pack(_rec_to_dict(rec))
-                except asyncio.TimeoutError:
-                    yield ":keepalive\n\n"
-        finally:
-            OBS.unsubscribe(q)
-
-    return StreamingResponse(_gen(), media_type="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-        "Connection": "keep-alive",
-    })
+    return sse_stream(
+        request, OBS.subscribe, OBS.unsubscribe,
+        seed=OBS.recent_requests(limit=20),
+        to_dict=_rec_to_dict,
+        reverse_seed=True,  # send oldest-first so order matches the stream
+    )
 
 
 @router.get("/api/hub/errors/recent")

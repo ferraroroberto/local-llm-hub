@@ -7,12 +7,9 @@ port they listen on, and how the hub should route by model-name alias.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import yaml
-
-from .host_profile import CONFIG_PATH, HostProfile, resolve as resolve_host
+from .host_profile import HostProfile, _load_config, resolve as resolve_host
 
 
 @dataclass(frozen=True)
@@ -77,21 +74,9 @@ class Model:
         return f"http://127.0.0.1:{self.port}/v1" if self.port else None
 
 
-# Parsed-YAML cache, keyed by the resolved config path. ``all_models()`` is
-# called by ``enabled_models()`` / ``resolve()`` — often several times per
-# request — and each call used to re-parse the YAML. Keying on the path means
-# swapping ``CONFIG_PATH`` (as the tests do) busts the cache transparently.
-_CONFIG_CACHE: Dict[str, Dict] = {}
-
-
-def _load_config() -> Dict:
-    key = str(CONFIG_PATH)
-    cached = _CONFIG_CACHE.get(key)
-    if cached is not None:
-        return cached
-    data = yaml.safe_load(Path(CONFIG_PATH).read_text(encoding="utf-8")) or {}
-    _CONFIG_CACHE[key] = data
-    return data
+# ``_load_config()`` (imported above) is host_profile's cached YAML loader
+# for config/models.yaml — both modules read the same file, so there is one
+# cache rather than two kept in sync by convention.
 
 
 def _row_to_model(model_id: str, row: Dict) -> Model:

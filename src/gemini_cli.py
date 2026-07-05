@@ -45,14 +45,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-
-def _tracer():
-    try:
-        from opentelemetry import trace
-
-        return trace.get_tracer("local_llm_hub.gemini_cli")
-    except Exception:  # noqa: BLE001
-        return None
+from .server_common import get_tracer, safe_span
 
 logger = logging.getLogger(__name__)
 
@@ -361,7 +354,7 @@ def call_gemini(
     global _current_model
     exe = _resolve_agy()
 
-    tracer = _tracer()
+    tracer = get_tracer("local_llm_hub.gemini_cli")
     cm = (
         tracer.start_as_current_span("gemini_cli.invoke")
         if tracer is not None
@@ -369,21 +362,17 @@ def call_gemini(
     )
     with cm as span:
         if span is not None and hasattr(span, "set_attribute"):
-            try:
+            with safe_span("gemini_cli.invoke"):
                 if model:
                     span.set_attribute("gemini_cli.model", model)
                 span.set_attribute("gemini_cli.attachments", len(attachments or []))
-            except Exception:  # noqa: BLE001
-                pass
 
         with _LOCK:
             model_switched = bool(model and model != _current_model)
             if model_switched:
                 if span is not None and hasattr(span, "add_event"):
-                    try:
+                    with safe_span("gemini_cli.invoke"):
                         span.add_event("model_switch", attributes={"target": model})
-                    except Exception:  # noqa: BLE001
-                        pass
                 _switch_model(exe, model)
                 _current_model = model
 
@@ -411,11 +400,9 @@ def call_gemini(
                 exe, full_prompt, run_cwd, timeout, add_dirs=add_dirs or None)
 
         if span is not None and hasattr(span, "set_attribute"):
-            try:
+            with safe_span("gemini_cli.invoke"):
                 span.set_attribute("gemini_cli.reply_bytes", len(reply))
                 span.set_attribute("gemini_cli.model_switched", model_switched)
-            except Exception:  # noqa: BLE001
-                pass
 
     return {
         "type": "result",
@@ -464,7 +451,7 @@ def call_gemini_image(
     if timeout is None:
         timeout = 600.0 if editing else 300.0
 
-    tracer = _tracer()
+    tracer = get_tracer("local_llm_hub.gemini_cli")
     cm = (
         tracer.start_as_current_span("gemini_cli.image")
         if tracer is not None
@@ -472,11 +459,9 @@ def call_gemini_image(
     )
     with cm as span:
         if span is not None and hasattr(span, "set_attribute"):
-            try:
+            with safe_span("gemini_cli.image"):
                 span.set_attribute("gemini_cli.model", _IMAGE_HOST_MODEL)
                 span.set_attribute("gemini_cli.image_editing", editing)
-            except Exception:  # noqa: BLE001
-                pass
 
         with _LOCK:
             if _IMAGE_HOST_MODEL != _current_model:
@@ -528,11 +513,9 @@ def call_gemini_image(
             )
 
         if span is not None and hasattr(span, "set_attribute"):
-            try:
+            with safe_span("gemini_cli.image"):
                 span.set_attribute("gemini_cli.image_bytes", len(image_bytes))
                 span.set_attribute("gemini_cli.image_media_type", media_type)
-            except Exception:  # noqa: BLE001
-                pass
 
     return {
         "image_bytes": image_bytes,

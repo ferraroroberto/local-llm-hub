@@ -15,17 +15,9 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
+from .server_common import get_tracer, safe_span
+
 logger = logging.getLogger(__name__)
-
-
-def _tracer():
-    """Return the OTel tracer for this module (or a no-op on failure)."""
-    try:
-        from opentelemetry import trace
-
-        return trace.get_tracer("local_llm_hub.claude_cli")
-    except Exception:  # noqa: BLE001
-        return None
 
 
 def _argv_hash(args: List[str]) -> str:
@@ -71,7 +63,7 @@ def call_claude(
         refs = "\n".join(f"- {Path(p).resolve()}" for p in attachments)
         prompt = f"Attached files:\n{refs}\n\n{prompt}"
 
-    tracer = _tracer()
+    tracer = get_tracer("local_llm_hub.claude_cli")
     cm = (
         tracer.start_as_current_span("claude_cli.invoke")
         if tracer is not None
@@ -79,13 +71,11 @@ def call_claude(
     )
     with cm as span:
         if span is not None and hasattr(span, "set_attribute"):
-            try:
+            with safe_span("claude_cli.invoke"):
                 span.set_attribute("claude_cli.argv_hash", _argv_hash(args))
                 if model:
                     span.set_attribute("claude_cli.model", model)
                 span.set_attribute("claude_cli.attachments", len(attachments or []))
-            except Exception:  # noqa: BLE001
-                pass
         try:
             # Suppress the Windows Terminal window that would otherwise spawn
             # for every request when the hub itself is running under pythonw
@@ -109,11 +99,9 @@ def call_claude(
             ) from e
 
         if span is not None and hasattr(span, "set_attribute"):
-            try:
+            with safe_span("claude_cli.invoke"):
                 span.set_attribute("claude_cli.exit_code", int(proc.returncode))
                 span.set_attribute("claude_cli.stderr_bytes", len(proc.stderr or ""))
-            except Exception:  # noqa: BLE001
-                pass
 
         if proc.returncode != 0:
             raise ClaudeCLIError(

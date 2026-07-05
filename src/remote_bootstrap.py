@@ -83,23 +83,26 @@ async def _poll_health(host_id: str) -> Dict[str, Any]:
     return {"reachable": False, "address": base, "error": last_error or "timed out"}
 
 
-async def bootstrap_host(host_id: str) -> Dict[str, Any]:
-    """Trigger the remote host's ``bootstrap`` action, then poll ``/health``
-    for up to ~30s. ``ok`` is only true once the peer actually answers."""
-    logger.info("🛎️ bootstrap_host(%r)", host_id)
-    ssh_result = await asyncio.to_thread(_run_remote_command, host_id, "bootstrap")
+async def _trigger_and_poll(host_id: str, verb: str, emoji: str) -> Dict[str, Any]:
+    """Send ``verb`` over the forced-command SSH channel, then poll
+    ``/health`` for up to ~30s. ``ok`` is only true once the peer actually
+    answers. Shared by ``bootstrap_host``/``sync_host`` — same shape apart
+    from the verb and the log line's icon."""
+    logger.info("%s %s_host(%r)", emoji, verb, host_id)
+    ssh_result = await asyncio.to_thread(_run_remote_command, host_id, verb)
     if not ssh_result["ok"]:
         return {"ok": False, "detail": ssh_result["error"]}
     health = await _poll_health(host_id)
     return {"ok": health["reachable"], "detail": health}
+
+
+async def bootstrap_host(host_id: str) -> Dict[str, Any]:
+    """Trigger the remote host's ``bootstrap`` action, then poll ``/health``
+    for up to ~30s. ``ok`` is only true once the peer actually answers."""
+    return await _trigger_and_poll(host_id, "bootstrap", "🛎️")
 
 
 async def sync_host(host_id: str) -> Dict[str, Any]:
     """Trigger the remote host's ``sync`` action (git pull + restart), then
     poll ``/health`` for up to ~30s."""
-    logger.info("🔃 sync_host(%r)", host_id)
-    ssh_result = await asyncio.to_thread(_run_remote_command, host_id, "sync")
-    if not ssh_result["ok"]:
-        return {"ok": False, "detail": ssh_result["error"]}
-    health = await _poll_health(host_id)
-    return {"ok": health["reachable"], "detail": health}
+    return await _trigger_and_poll(host_id, "sync", "🔃")

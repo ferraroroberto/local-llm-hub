@@ -17,7 +17,9 @@ import asyncio
 import logging
 import threading
 from collections import deque
-from typing import Deque, List, Optional, Set
+from typing import Deque, List
+
+from .async_fanout import AsyncFanout
 
 RING_MAX = 2000
 
@@ -56,8 +58,7 @@ class RingHandler(logging.Handler):
         super().__init__()
         self._lock = threading.Lock()
         self._ring: Deque[str] = deque(maxlen=RING_MAX)
-        self._subs: Set["asyncio.Queue[str]"] = set()
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._pubsub: AsyncFanout[str] = AsyncFanout(maxsize=400)
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
@@ -77,7 +78,7 @@ class RingHandler(logging.Handler):
             line = msg
         with self._lock:
             self._ring.append(line)
-        self._fanout(line)
+        self._pubsub.push(line)
 
     def lines(self, limit: int = 400) -> List[str]:
         with self._lock:
@@ -86,38 +87,13 @@ class RingHandler(logging.Handler):
 
     # ------------------------------------------------------ live tail
     def attach_loop(self, loop: asyncio.AbstractEventLoop) -> None:
-        self._loop = loop
+        self._pubsub.attach_loop(loop)
 
     def subscribe(self) -> "asyncio.Queue[str]":
-        q: "asyncio.Queue[str]" = asyncio.Queue(maxsize=400)
-        with self._lock:
-            self._subs.add(q)
-        return q
+        return self._pubsub.subscribe()
 
     def unsubscribe(self, q: "asyncio.Queue[str]") -> None:
-        with self._lock:
-            self._subs.discard(q)
-
-    def _fanout(self, line: str) -> None:
-        loop = self._loop
-        if loop is None or loop.is_closed():
-            return
-        with self._lock:
-            subs = list(self._subs)
-        if not subs:
-            return
-
-        def _push() -> None:
-            for q in subs:
-                try:
-                    q.put_nowait(line)
-                except asyncio.QueueFull:
-                    pass
-
-        try:
-            loop.call_soon_threadsafe(_push)
-        except RuntimeError:
-            pass
+        self._pubsub.unsubscribe(q)
 
 
 # Module-level singleton — wired into the root logger from src/server.py.

@@ -15,7 +15,7 @@ from __future__ import annotations
 import hmac
 import ipaddress
 import logging
-from typing import Any, List
+from typing import Any, FrozenSet, List, Optional, Tuple
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -86,6 +86,56 @@ def _client_in_allowlist(client_host: str, allowlist: List[str]) -> bool:
     return False
 
 
+def _authenticate(
+    request: Request,
+    get_token,
+    path: str,
+    exempt_exact: FrozenSet[str],
+    exempt_prefixes: Tuple[str, ...],
+) -> Optional[JSONResponse]:
+    """Shared bearer-token gate for both :class:`BearerTokenMiddleware` (the
+    ``/admin`` sub-app) and :class:`ParentBearerTokenMiddleware` (the parent
+    hub app) — same loopback/proxy detection, allowlist check, and token
+    compare; only the exempt-path set differs between the two apps.
+
+    Returns ``None`` when the request should proceed (caller calls
+    ``call_next``), or the 401 :class:`JSONResponse` to return directly
+    when it must be blocked. Every pass-through condition below is an
+    independent OR — the *order* they're checked in doesn't change the
+    outcome, only whether a token check is even reached.
+    """
+    client_host = request.client.host if request.client else ""
+    is_loopback = client_host in LOOPBACK_HOSTS and not _is_proxied(request.headers)
+
+    token = (get_token() or "").strip()
+    if not token:
+        return None
+    if is_loopback:
+        return None
+    cfg = getattr(request.app.state, "webapp_config", None)
+    extra = getattr(cfg, "extra_allowlist", []) if cfg else []
+    if _client_in_allowlist(client_host, extra):
+        return None
+    if path in exempt_exact or any(path.startswith(p) for p in exempt_prefixes):
+        return None
+
+    presented = ""
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        presented = auth_header[7:].strip()
+    if not presented:
+        presented = request.query_params.get("token", "").strip()
+
+    if presented and hmac.compare_digest(presented, token):
+        return None
+
+    return JSONResponse(
+        status_code=401,
+        content={"detail": "missing or invalid bearer token"},
+        headers={"WWW-Authenticate": 'Bearer realm="local-llm-hub"'},
+    )
+
+
 class BearerTokenMiddleware(BaseHTTPMiddleware):
     """Require Authorization: Bearer <token> on /admin endpoints (non-loopback only).
 
@@ -104,45 +154,16 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
         # ``/admin/static/styles.css`` — because Starlette's ``BaseHTTPMiddleware``
         # runs BEFORE the parent's Mount strips the mount prefix. Strip
         # it manually so AUTH_EXEMPT_PREFIXES (``/static/``) matches.
-        raw_path = request.url.path
-        path = raw_path
+        path = request.url.path
         if path.startswith("/admin"):
             path = path[len("/admin"):] or "/"
 
-        client_host = request.client.host if request.client else ""
-        is_loopback = client_host in LOOPBACK_HOSTS and not _is_proxied(request.headers)
-
-        token = (self._get_token() or "").strip()
-        if not token:
-            return await call_next(request)
-
-        if is_loopback:
-            return await call_next(request)
-        cfg = getattr(request.app.state, "webapp_config", None)
-        extra = getattr(cfg, "extra_allowlist", []) if cfg else []
-        if _client_in_allowlist(client_host, extra):
-            return await call_next(request)
-
-        if path in AUTH_EXEMPT_EXACT or any(
-            path.startswith(p) for p in AUTH_EXEMPT_PREFIXES
-        ):
-            return await call_next(request)
-
-        presented = ""
-        auth_header = request.headers.get("authorization", "")
-        if auth_header.lower().startswith("bearer "):
-            presented = auth_header[7:].strip()
-        if not presented:
-            presented = request.query_params.get("token", "").strip()
-
-        if presented and hmac.compare_digest(presented, token):
-            return await call_next(request)
-
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "missing or invalid bearer token"},
-            headers={"WWW-Authenticate": 'Bearer realm="local-llm-hub"'},
+        blocked = _authenticate(
+            request, self._get_token, path, AUTH_EXEMPT_EXACT, AUTH_EXEMPT_PREFIXES
         )
+        if blocked is not None:
+            return blocked
+        return await call_next(request)
 
 
 # ----------------------------------------------------------------- parent
@@ -180,37 +201,10 @@ class ParentBearerTokenMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         path = request.url.path
-        client_host = request.client.host if request.client else ""
-        is_loopback = client_host in LOOPBACK_HOSTS and not _is_proxied(request.headers)
-
-        if path in PARENT_AUTH_EXEMPT_EXACT or any(
-            path.startswith(p) for p in PARENT_AUTH_EXEMPT_PREFIXES
-        ):
-            return await call_next(request)
-
-        token = (self._get_token() or "").strip()
-        if not token:
-            return await call_next(request)
-
-        if is_loopback:
-            return await call_next(request)
-        cfg = getattr(request.app.state, "webapp_config", None)
-        extra = getattr(cfg, "extra_allowlist", []) if cfg else []
-        if _client_in_allowlist(client_host, extra):
-            return await call_next(request)
-
-        presented = ""
-        auth_header = request.headers.get("authorization", "")
-        if auth_header.lower().startswith("bearer "):
-            presented = auth_header[7:].strip()
-        if not presented:
-            presented = request.query_params.get("token", "").strip()
-
-        if presented and hmac.compare_digest(presented, token):
-            return await call_next(request)
-
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "missing or invalid bearer token"},
-            headers={"WWW-Authenticate": 'Bearer realm="local-llm-hub"'},
+        blocked = _authenticate(
+            request, self._get_token, path,
+            PARENT_AUTH_EXEMPT_EXACT, PARENT_AUTH_EXEMPT_PREFIXES,
         )
+        if blocked is not None:
+            return blocked
+        return await call_next(request)

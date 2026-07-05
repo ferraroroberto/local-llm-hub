@@ -57,6 +57,17 @@ def _offline_remote_row(m: Model, host_id: str) -> Dict[str, Any]:
     }
 
 
+def _require_model(model_id: str) -> Model:
+    """Resolve ``model_id`` via ``bp.resolve_model_by_id`` or raise the same
+    404 every start/stop/force-stop/log handler needs — the identical
+    resolve-or-404 block each one opened with before this helper existed.
+    """
+    target = bp.resolve_model_by_id(model_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
+    return target
+
+
 async def _forward_admin_call(
     target: Model, method: str, suffix: str, **kwargs: Any
 ) -> Dict[str, Any]:
@@ -202,9 +213,7 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
 
 @router.post("/api/models/{model_id}/start")
 async def model_start(model_id: str) -> Dict[str, Any]:
-    target = bp.resolve_model_by_id(model_id)
-    if target is None:
-        raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
+    target = _require_model(model_id)
     if remote_base_url(target):
         return await _forward_admin_call(target, "POST", "/start")
     if target.virtual:
@@ -226,9 +235,7 @@ async def model_start(model_id: str) -> Dict[str, Any]:
 
 @router.post("/api/models/{model_id}/stop")
 async def model_stop(model_id: str) -> Dict[str, Any]:
-    target = bp.resolve_model_by_id(model_id)
-    if target is None:
-        raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
+    target = _require_model(model_id)
     if remote_base_url(target):
         return await _forward_admin_call(target, "POST", "/stop")
     ok, msg = bp.stop(model_id)
@@ -247,9 +254,7 @@ async def model_force_stop(model_id: str) -> Dict[str, Any]:
     know what's listening — that's the whole point — so the caller
     is implicitly saying "I take responsibility for this PID".
     """
-    target = bp.resolve_model_by_id(model_id)
-    if target is None:
-        raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
+    target = _require_model(model_id)
     if remote_base_url(target):
         return await _forward_admin_call(target, "POST", "/force-stop")
     ok, msg = bp.force_stop_external(model_id)
@@ -267,9 +272,7 @@ async def model_log(model_id: str, limit: int = 400) -> Dict[str, Any]:
     backend has never started; 404 only for an unknown/subscription-backed
     model that has no managed process.
     """
-    target = bp.resolve_model_by_id(model_id)
-    if target is None:
-        raise HTTPException(status_code=404, detail=f"model {model_id!r} not enabled")
+    target = _require_model(model_id)
     if remote_base_url(target):
         return await _forward_admin_call(target, "GET", "/log", params={"limit": limit})
     if not (target.backend in ("openai", "whisper", "tts")):

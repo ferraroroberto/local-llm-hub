@@ -34,8 +34,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
-from .backend_process import resolve_model_by_id
-from .model_registry import Model
+from .backend_process import resolve_model_for_engine
 from .tts_engines import SpeechRequest, TTSEngine, build_engine
 
 if TYPE_CHECKING:  # numpy is imported lazily at runtime (see encode_audio)
@@ -143,23 +142,8 @@ def encode_audio(samples: "np.ndarray", sample_rate: int, fmt: str) -> Tuple[byt
     return _wav_bytes(pcm, sample_rate), "audio/wav"
 
 
-def _resolve_model(model_id: str) -> Model:
-    model = resolve_model_by_id(model_id)
-    if model is None:
-        raise SystemExit(
-            f"model {model_id!r} not enabled on this host — "
-            f"add it to the host's enabled list in config/models.yaml"
-        )
-    if model.engine != "tts-server":
-        raise SystemExit(
-            f"model {model_id!r} has engine={model.engine!r}; "
-            f"this server only handles engine=tts-server"
-        )
-    return model
-
-
 def build_app(model_id: str = DEFAULT_MODEL_ID, device: str = "auto") -> FastAPI:
-    model = _resolve_model(model_id)
+    model = resolve_model_for_engine(model_id, "tts-server")
     state = _State()
 
     def _load() -> None:
@@ -312,7 +296,7 @@ def main(argv: Optional[list] = None) -> int:
     p.add_argument("--device", default="auto", help="auto|cuda|cpu|mps")
     args = p.parse_args(argv)
 
-    model = _resolve_model(args.model_id)
+    model = resolve_model_for_engine(args.model_id, "tts-server")
     if not model.port:
         raise SystemExit(f"model {model.id!r} has no port configured")
 
