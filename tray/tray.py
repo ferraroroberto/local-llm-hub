@@ -172,14 +172,23 @@ class HubProcess:
                 try:
                     import signal
                     p.send_signal(signal.CTRL_BREAK_EVENT)
+                    # Give uvicorn's own shutdown handler (src/server.py's
+                    # "shutdown" event) a chance to run before escalating —
+                    # terminate() is an immediate hard TerminateProcess on
+                    # Windows, so calling it right away never lets the
+                    # graceful signal land.
+                    p.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
                 except Exception:
                     pass
-            p.terminate()
-            try:
-                p.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                p.kill()
-                p.wait(timeout=5)
+            if p.poll() is None:
+                p.terminate()
+                try:
+                    p.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    p.kill()
+                    p.wait(timeout=5)
         except Exception as exc:  # noqa: BLE001
             return False, f"error stopping: {exc}"
         self.proc = None
