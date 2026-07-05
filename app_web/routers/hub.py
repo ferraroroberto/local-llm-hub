@@ -138,96 +138,37 @@ def _spawn_respawn_watchdog() -> None:
     """Spawn a detached Python that waits for our PID to die then re-launches us.
 
     The relaunch is made the way ``src/server_process.start()`` spawns the
-    hub — never a bare ``pythonw`` with no stdout. Two things matter:
-
-    * **Executable.** When the hub is tray-launched ``sys.executable`` is
-      ``pythonw.exe``. A console-less ``pythonw -m src.server`` dies on its
-      first logging write at import, so normalise it to ``python.exe``.
-    * **stdout/stderr.** Redirect the child into a log file (not a pipe —
-      the watchdog exits right after spawning, leaving a pipe with no
-      reader). Then health-check the port and record the outcome.
+    hub — never a bare ``pythonw`` with no stdout. The actual wait/relaunch
+    logic lives in ``src/_respawn_watchdog.py`` (issue #198 — this used to
+    be a ~60-line string literal built up line-by-line and fed to
+    ``python -c``, invisible to lint/type-check and one quoting slip away
+    from a silently-failed restart). That module is deliberately
+    stdlib-only with no import from any other ``src.*`` module: it's the
+    thing recovering *from* a broken deploy, so it can't assume the rest
+    of the hub's package still imports cleanly — only its own module and
+    the empty ``src/__init__.py`` need to load.
     """
     parent_pid = os.getpid()
     port = _hub_port()
     log_path = _restart_log_path()
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logger.info("🔄 respawn watchdog: relaunch log → %s", log_path)
-    # The inline ``creationflags`` below (and the watchdog spawn further
-    # down) intentionally re-derive the Windows flags rather than import
-    # ``WIN_NEW_GROUP`` from src.server_process: this is the *source* of a
-    # standalone script run by a fresh, detached interpreter that must not
-    # depend on the hub's own modules.
-    script = (
-        "import os, sys, time, socket, subprocess, datetime\n"
-        f"parent={parent_pid}\n"
-        f"port={port}\n"
-        "log_path=" + repr(str(log_path)) + "\n"
-        "root=" + repr(str(PROJECT_ROOT)) + "\n"
-        "def alive(pid):\n"
-        "    try:\n"
-        "        if sys.platform == 'win32':\n"
-        "            r = subprocess.run(['tasklist','/FI', f'PID eq {pid}'], capture_output=True, text=True)\n"
-        "            return str(pid) in r.stdout\n"
-        "        os.kill(pid, 0); return True\n"
-        "    except OSError:\n"
-        "        return False\n"
-        "deadline = time.time() + 30\n"
-        "while time.time() < deadline and alive(parent):\n"
-        "    time.sleep(0.3)\n"
-        "# wait briefly for the port to free\n"
-        "for _ in range(60):\n"
-        "    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
-        "    s.settimeout(0.3)\n"
-        "    try:\n"
-        "        s.bind(('127.0.0.1', port)); s.close(); break\n"
-        "    except OSError:\n"
-        "        s.close(); time.sleep(0.3)\n"
-        "# normalise pythonw.exe -> python.exe: a console-less child crashes\n"
-        "# on src.server's import-time logging write.\n"
-        "exe = sys.executable\n"
-        "if exe.lower().endswith('pythonw.exe'):\n"
-        "    cand = exe[:-len('pythonw.exe')] + 'python.exe'\n"
-        "    if os.path.exists(cand):\n"
-        "        exe = cand\n"
-        "env = os.environ.copy()\n"
-        "env['PYTHONIOENCODING'] = 'utf-8'\n"
-        "env['PYTHONUTF8'] = '1'\n"
-        "flags = 0\n"
-        "if sys.platform == 'win32':\n"
-        "    flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW\n"
-        "logf = open(log_path, 'a', encoding='utf-8', errors='replace')\n"
-        "stamp = lambda: datetime.datetime.now().isoformat(timespec='seconds')\n"
-        "logf.write(f'{stamp()} [respawn] relaunching {exe} -m src.server\\n'); logf.flush()\n"
-        "child = subprocess.Popen([exe,'-m','src.server'], cwd=root, env=env,\n"
-        "                         stdin=subprocess.DEVNULL, stdout=logf, stderr=subprocess.STDOUT,\n"
-        "                         creationflags=flags)\n"
-        "ok = False\n"
-        "for _ in range(100):  # ~30s\n"
-        "    time.sleep(0.3)\n"
-        "    if child.poll() is not None:\n"
-        "        break\n"
-        "    c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
-        "    c.settimeout(0.3)\n"
-        "    try:\n"
-        "        c.connect(('127.0.0.1', port)); c.close(); ok = True; break\n"
-        "    except OSError:\n"
-        "        c.close()\n"
-        "if ok:\n"
-        "    logf.write(f'{stamp()} [respawn] hub back up on :{port} (pid={child.pid})\\n')\n"
-        "else:\n"
-        "    logf.write(f'{stamp()} [respawn] FAILED to bring hub up on :{port} (child rc={child.poll()})\\n')\n"
-        "logf.flush()\n"
-    )
     creationflags = 0
     if sys.platform == "win32":
         DETACHED = 0x00000008
         creationflags = DETACHED | subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
-    # Capture the watchdog script's own stdout/stderr to the same log so a
-    # failure *before* it opens its handle (e.g. a script-level exception)
-    # is still visible rather than swallowed by DEVNULL.
+    # Capture the watchdog's own stdout/stderr to the same log so a
+    # failure *before* it opens its own handle (e.g. a bad argv) is still
+    # visible rather than swallowed by DEVNULL.
     wd_log = open(log_path, "a", encoding="utf-8", errors="replace")
     subprocess.Popen(
-        [sys.executable, "-c", script],
+        [
+            sys.executable, "-m", "src._respawn_watchdog",
+            "--parent-pid", str(parent_pid),
+            "--port", str(port),
+            "--log-path", str(log_path),
+            "--root", str(PROJECT_ROOT),
+        ],
         cwd=str(PROJECT_ROOT),
         stdin=subprocess.DEVNULL,
         stdout=wd_log,
@@ -359,14 +300,20 @@ async def install_status() -> Dict[str, Any]:
 
 @router.post("/api/install/fix")
 async def install_fix(request: Request) -> Dict[str, Any]:
-    """Run a single fix by ``fix_id``."""
+    """Run a single fix by ``fix_id``.
+
+    Uses the brief use_cache=True report (issue #198): the admin UI always
+    calls install_status() — which populates that cache — moments before a
+    user clicks a fix button, so locating one check by fix_id doesn't need
+    to force a second full (expensive) battery run.
+    """
     from src import install
 
     body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
     fix_id = (body or {}).get("fix_id")
     if not fix_id:
         raise HTTPException(status_code=400, detail="fix_id is required")
-    report = await asyncio.to_thread(install.run_all_checks)
+    report = await asyncio.to_thread(install.run_all_checks, use_cache=True)
     target = next((c for c in report.checks if c.fix_id == fix_id), None)
     if target is None:
         raise HTTPException(status_code=404, detail=f"no fixable check with fix_id={fix_id!r}")
@@ -382,9 +329,11 @@ async def install_fix(request: Request) -> Dict[str, Any]:
 
 @router.post("/api/install/fix-all")
 async def install_fix_all() -> Dict[str, Any]:
+    """Run every currently-fixable check. Same brief use_cache=True reuse
+    as install_fix() — see its docstring."""
     from src import install
 
-    report = await asyncio.to_thread(install.run_all_checks)
+    report = await asyncio.to_thread(install.run_all_checks, use_cache=True)
     ran: List[Dict[str, Any]] = []
     for c in report.checks:
         if c.status not in ("missing", "error"):
