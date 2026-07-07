@@ -391,10 +391,17 @@ function _makeChart(canvas, existing, labels, ts, families, field, isTok) {
   });
 }
 
+/* Chart.js cannot read CSS custom properties from the canvas itself, so
+ * resolve the theme tokens at (re)creation time — and again on theme flip
+ * via restyleCodeUsageCharts(). */
+function _cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
 function _chartOptions(isTok) {
-  var gridColor  = 'rgba(42,47,66,0.8)';  // --border
-  var tickColor  = '#9a9a9a';              // --muted
-  var fgColor    = '#f3f3f3';              // --fg
+  var gridColor  = _cssVar('--border');
+  var tickColor  = _cssVar('--muted');
+  var fgColor    = _cssVar('--fg');
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -430,6 +437,24 @@ function _chartOptions(isTok) {
       },
     },
   };
+}
+
+/* Re-resolve the axis/legend token colors on the live charts after a theme
+ * flip (called from main.js's applyTheme). Dataset fills are saturated and
+ * theme-stable, so only grid/tick/legend colors need the update. */
+export function restyleCodeUsageCharts() {
+  var gridColor = _cssVar('--border');
+  var tickColor = _cssVar('--muted');
+  var fgColor   = _cssVar('--fg');
+  [_chartInput, _chartOutput, _chartReqs, _chartCache].forEach(function (chart) {
+    if (!chart) return;
+    chart.options.scales.x.grid.color = gridColor;
+    chart.options.scales.x.ticks.color = tickColor;
+    chart.options.scales.y.grid.color = gridColor;
+    chart.options.scales.y.ticks.color = tickColor;
+    chart.options.plugins.legend.labels.color = fgColor;
+    chart.update('none');
+  });
 }
 
 // ---------------------------------------------------------------------------
