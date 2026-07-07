@@ -60,6 +60,10 @@ html, body {
 }
 ```
 
+## Navigation
+
+Primary nav is the **vendored fleet component** at `app_web/static/_vendored/nav/` (copied byte-for-byte from `project-scaffolding`; never edited per-app). Desktop renders a sticky top segmented control; coarse pointers get the floating bottom-tab pill, with the standalone-PWA fixed-inset `.app` scroller shell (home-automation#303). `tabs.js` is a thin adapter bridging `initNavTabs` to the app's `onTabChange`/`setTab` API; the active tab persists under `llmhub.tab`. The login overlay hides the bar via `body.nav-hidden` (the non-`<dialog>` hook).
+
 ## Buttons
 
 Three primitives, no modifier matrix:

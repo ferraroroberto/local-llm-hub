@@ -68,7 +68,7 @@ ul.tel-traces > li > .tel-trace-detail {
   margin-top: 8px;
   padding: 10px 12px;
   background: var(--code-bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   display: flex;
   flex-direction: column;
@@ -94,7 +94,7 @@ ul.tel-traces > li > .tel-trace-detail .tel-detail-section {
 }
 ul.tel-traces > li > .tel-trace-detail .tel-detail-pre {
   background: var(--card);
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: 6px 8px;
   margin: 0;

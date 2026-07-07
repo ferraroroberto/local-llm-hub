@@ -99,11 +99,15 @@ export function eventStream(path, handlers) {
 export function showLogin() {
   if (!els.loginOverlay) return;
   els.loginOverlay.hidden = false;
+  // Non-<dialog> overlay: hide the floating nav bar while it's open
+  // (the vendored nav's body.nav-hidden hook — _vendored/nav/README.md).
+  document.body.classList.add('nav-hidden');
   if (els.loginPassword) { els.loginPassword.value = ''; els.loginPassword.focus(); }
 }
 
 export function hideLogin() {
   if (els.loginOverlay) els.loginOverlay.hidden = true;
+  document.body.classList.remove('nav-hidden');
 }
 
 export function wireLoginForm(onLoginSuccess) {

@@ -6,7 +6,7 @@
 import { state, els, THEME_KEY, STATUS_POLL_MS, COUNTERS_POLL_MS, MODELS_POLL_MS } from './state.js';
 import { jsonApi, tokenFromUrl, urlWithToken, writeToken, wireLoginForm, toast } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
-import { wireTabs, setTab, onTabChange } from './tabs.js';
+import { wireTabs, onTabChange } from './tabs.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchInstallStatus, fetchServicesStatus } from './hub.js';
 import { wireModels, fetchModels } from './models.js';
 import { wirePlayground, fetchPlaygroundModels, fetchTtsModels, fetchImageModels } from './playground.js';
@@ -54,7 +54,6 @@ async function boot() {
   const fromUrl = tokenFromUrl();
   if (fromUrl) writeToken(fromUrl);
 
-  wireTabs();
   wireLoginForm(function () { return resumeAfterLogin(); });
   wireHub();
   wireModels();
@@ -63,6 +62,9 @@ async function boot() {
   wireCodeUsage();
   wireFrontierLink();
 
+  // Register the tab-change hook BEFORE wiring the nav: the vendored
+  // component restores the persisted tab during wireTabs() and fires
+  // onChange for it, which is what starts the right streams/polls.
   onTabChange(function (tab) {
     if (tab === 'hub') {
       startHubStreams();
@@ -80,6 +82,7 @@ async function boot() {
       stopCodeUsagePolls();
     }
   });
+  wireTabs();
 
   await Promise.allSettled([
     fetchVersion(),
@@ -94,7 +97,9 @@ async function boot() {
     fetchImageModels(),
   ]);
 
-  startHubStreams();
+  // The vendored nav already restored the persisted tab (and its streams)
+  // in wireTabs(); only (re)start the hub streams if that's where we are.
+  if (state.tab === 'hub') startHubStreams();
 
   // Poll loops — light, no SSE for these
   setInterval(function () { fetchHubStatus().catch(function () {}); }, STATUS_POLL_MS);
@@ -102,8 +107,6 @@ async function boot() {
   setInterval(function () {
     if (state.tab === 'models') fetchModels().catch(function () {});
   }, MODELS_POLL_MS);
-
-  setTab('hub');
 }
 
 function wireFrontierLink() {
@@ -126,7 +129,7 @@ async function resumeAfterLogin() {
     fetchTtsModels(),
     fetchImageModels(),
   ]);
-  startHubStreams();
+  if (state.tab === 'hub') startHubStreams();
 }
 
 window.addEventListener('DOMContentLoaded', function () {
