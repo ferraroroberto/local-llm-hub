@@ -8,7 +8,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, postJson, toast } from './api.js';
+import { jsonApi, postJson, toast, escapeHtml } from './api.js';
 import { mountGlossaryEditor } from './glossary.js';
 import { icon } from './_vendored/icons/icons.js';
 
@@ -216,11 +216,7 @@ function cssEscape(s) {
   return String(s).replace(/["\\]/g, '\\$&');
 }
 
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"']/g, function (c) {
-    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]);
-  });
-}
+/* escapeHtml lives in api.js (sibling dedup, #211). */
 
 function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 

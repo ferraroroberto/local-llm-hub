@@ -60,6 +60,10 @@ html, body {
 }
 ```
 
+## Vendored components
+
+Beyond `icons/` and `nav/`, the hub adopts the fleet's vendored components (byte-for-byte from `project-scaffolding`, per-app variation is markup + tokens only): **card** (the base `.card` contract — the hub's own `.card-header`/`.card-actions` patterns layer on top), **disclosure** (`.card--collapsible`, used by the Health & install card), **switch** (the one boolean control — the Playground Stream toggle; green on-track), and **empty-state** (every zero-items list renders the icon + reason block, never a bare dash). `escapeHtml`/`fmtClock` live once in `api.js` (sibling dedup).
+
 ## Navigation
 
 Primary nav is the **vendored fleet component** at `app_web/static/_vendored/nav/` (copied byte-for-byte from `project-scaffolding`; never edited per-app). Desktop renders a sticky top segmented control; coarse pointers get the floating bottom-tab pill, with the standalone-PWA fixed-inset `.app` scroller shell (home-automation#303). `tabs.js` is a thin adapter bridging `initNavTabs` to the app's `onTabChange`/`setTab` API; the active tab persists under `llmhub.tab`. The login overlay hides the bar via `body.nav-hidden` (the non-`<dialog>` hook).

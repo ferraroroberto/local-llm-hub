@@ -4,6 +4,7 @@
 
 import { els, state } from './state.js';
 import { api, jsonApi, toast } from './api.js';
+import { setSwitch } from './_vendored/switch/switch.js';
 
 let ttsModels = [];
 
@@ -100,7 +101,13 @@ export function wirePlayground() {
   }
 }
 
-// Disable the Stream checkbox (and uncheck it) when the selected TTS engine
+// The Stream control is the vendored fleet switch (_vendored/switch) —
+// a .toggle button whose state lives in aria-checked, not a checkbox.
+function _streamOn() {
+  return !!(els.ttsStream && els.ttsStream.getAttribute('aria-checked') === 'true');
+}
+
+// Disable the Stream switch (and flip it off) when the selected TTS engine
 // does not support true streaming.  Only Orpheus has an incremental decoder;
 // Chatterbox synthesises the whole clip first and then yields it as one chunk,
 // which causes the Web Audio scheduler to cut audio short (#109).
@@ -110,7 +117,7 @@ function _syncStreamCheckbox() {
   const engine = sel ? (sel.dataset.engine || '') : '';
   const orpheus = engine === 'orpheus';
   els.ttsStream.disabled = !orpheus;
-  if (!orpheus) els.ttsStream.checked = false;
+  if (!orpheus) setSwitch(els.ttsStream, false);
 }
 
 function wireTts() {
@@ -127,6 +134,12 @@ function wireTts() {
   }
   if (els.ttsModel) {
     els.ttsModel.addEventListener('change', _syncStreamCheckbox);
+  }
+  if (els.ttsStream) {
+    els.ttsStream.addEventListener('click', function () {
+      if (els.ttsStream.disabled) return;
+      setSwitch(els.ttsStream, !_streamOn());
+    });
   }
   if (els.ttsSpeakBtn) {
     els.ttsSpeakBtn.addEventListener('click', speak);
@@ -161,7 +174,7 @@ async function speak() {
   els.ttsSpeakBtn.disabled = true;
   els.ttsLatency.textContent = 'synthesizing…';
 
-  const streaming = !!(els.ttsStream && els.ttsStream.checked);
+  const streaming = _streamOn();
   if (streaming) {
     try {
       await speakStream(text);

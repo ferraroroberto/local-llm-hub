@@ -31,7 +31,7 @@ ul.tel-traces > li > .tel-trace-meta {
   margin-top: 2px;
 }
 ul.tel-traces > li > .tel-trace-meta code {
-  color: var(--fg);
+  color: var(--ink);
   background: var(--card-off);
   padding: 1px 5px;
   border-radius: var(--radius-sm);
@@ -81,7 +81,7 @@ ul.tel-traces > li > .tel-trace-detail .tel-detail-row {
   font-size: var(--font-caption);
 }
 ul.tel-traces > li > .tel-trace-detail .tel-detail-row code {
-  color: var(--fg);
+  color: var(--ink);
   background: var(--card-off);
   padding: 1px 5px;
   border-radius: var(--radius-sm);
@@ -104,5 +104,5 @@ ul.tel-traces > li > .tel-trace-detail .tel-detail-pre {
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--fg);
+  color: var(--ink);
 }
