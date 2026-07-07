@@ -63,12 +63,6 @@ function fillItem(li, m) {
   const adopted = ownership === 'external';
   const localHost = state.status && state.status.host;
   const remote = !!(m.host && localHost && m.host !== localHost);
-  const pidNote = m.pid && adopted ? ' <span class="muted small">PID ' + m.pid + '</span>' : '';
-  // Host badge (#181): every remote-owned tile gets one, independent of
-  // whether a PID happens to be shown — the PID note alone (adopted-only)
-  // isn't enough to tell "qwen3.5-9b"/"parakeet-tdt-0.6b-v3" apart from a
-  // purely local row.
-  const hostNote = remote ? ' <span class="muted small">on ' + escapeHtml(m.host) + '</span>' : '';
 
   // Rebuild the .app-main block in place rather than wiping the whole <li>,
   // so an open dictionary panel (a sibling, below) survives the 5 s poll
@@ -83,12 +77,13 @@ function fillItem(li, m) {
 
   const titleRow = document.createElement('div');
   titleRow.className = 'app-title-row';
-  // Badge + adopted-PID note live OUTSIDE .app-title: that span ellipsises
-  // long display names (whisper-large-v3-turbo, gemma4-26b-a4b-it), and a
-  // pill nested inside it gets pushed past the clip boundary and vanishes.
-  // As siblings in the title row they are never clipped.
+  // The badge lives OUTSIDE .app-title: that span ellipsises long display
+  // names (whisper-large-v3-turbo, gemma4-26b-a4b-it), and a pill nested
+  // inside it gets pushed past the clip boundary and vanishes. As a sibling
+  // in the title row it is never clipped. PID/host details moved to the
+  // meta line (#215) — as title-row extras they crushed the name on phones.
   titleRow.innerHTML =
-    '<span class="app-title"><span class="app-name">' + escapeHtml(m.display_name) + '</span></span>' + badge(m) + pidNote + hostNote;
+    '<span class="app-title"><span class="app-name">' + escapeHtml(m.display_name) + '</span></span>' + badge(m);
 
   const icons = document.createElement('div');
   icons.className = 'app-icons';
@@ -128,9 +123,14 @@ function fillItem(li, m) {
 
   const meta = document.createElement('div');
   meta.className = 'app-meta';
+  // Host note (#181) + adopted PID live here with the port (#215): in the
+  // title row they wrapped the tile to two title lines and squeezed the
+  // name to nothing on a phone ("parakeet … on mac-mini-m4").
   meta.textContent =
     m.backend +
     (m.port ? ' · :' + m.port : '') +
+    (remote ? ' on ' + m.host : '') +
+    (m.pid && adopted ? ' · PID ' + m.pid : '') +
     (m.aliases && m.aliases.length ? ' · ' + m.aliases.join(', ') : '');
   main.appendChild(meta);
 

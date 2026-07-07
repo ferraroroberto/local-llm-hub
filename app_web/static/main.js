@@ -4,7 +4,7 @@
  */
 
 import { state, els, THEME_KEY, STATUS_POLL_MS, COUNTERS_POLL_MS, MODELS_POLL_MS } from './state.js';
-import { jsonApi, tokenFromUrl, urlWithToken, writeToken, wireLoginForm, toast } from './api.js';
+import { jsonApi, tokenFromUrl, writeToken, wireLoginForm, toast } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { wireTabs, onTabChange } from './tabs.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchInstallStatus, fetchServicesStatus } from './hub.js';
@@ -60,7 +60,6 @@ async function boot() {
   wirePlayground();
   wireTelemetry();
   wireCodeUsage();
-  wireFrontierLink();
 
   // Register the tab-change hook BEFORE wiring the nav: the vendored
   // component restores the persisted tab during wireTabs() and fires
@@ -107,13 +106,6 @@ async function boot() {
   setInterval(function () {
     if (state.tab === 'models') fetchModels().catch(function () {});
   }, MODELS_POLL_MS);
-}
-
-function wireFrontierLink() {
-  if (!els.frontierLink) return;
-  els.frontierLink.addEventListener('click', function () {
-    els.frontierLink.href = urlWithToken('/admin/frontier');
-  });
 }
 
 async function resumeAfterLogin() {

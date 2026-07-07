@@ -10,7 +10,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock } from './api.js';
+import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, fmtSecs, tokPair } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 
 const HEALTH_POLL_MS = 8000;
@@ -82,20 +82,19 @@ function renderTelCounters() {
   tbody.innerHTML = '';
   if (!rows.length) {
     const tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="7" class="muted small">No requests yet.</td>';
+    tr.innerHTML = '<td colspan="6" class="muted small">No requests yet.</td>';
     tbody.appendChild(tr);
     return;
   }
   rows.forEach(function (r) {
     const tr = document.createElement('tr');
     tr.innerHTML =
-      '<td>' + escapeHtml(r.key) + '</td>' +
+      '<td class="td-trunc" title="' + escapeAttr(r.key) + '">' + escapeHtml(r.key) + '</td>' +
       '<td>' + r.requests + '</td>' +
       '<td>' + r.errors + '</td>' +
-      '<td>' + r.p50_ms + ' ms</td>' +
-      '<td>' + r.p95_ms + ' ms</td>' +
-      '<td>' + r.in_tok + '</td>' +
-      '<td>' + r.out_tok + '</td>';
+      '<td>' + fmtSecs(r.p50_ms) + '</td>' +
+      '<td>' + fmtSecs(r.p95_ms) + '</td>' +
+      '<td>' + tokPair(r.in_tok, r.out_tok) + '</td>';
     tbody.appendChild(tr);
   });
 }

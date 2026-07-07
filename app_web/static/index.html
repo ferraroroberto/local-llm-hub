@@ -55,7 +55,7 @@
     </button>
   </nav>
 
-  <main class="app density-compact">
+  <main class="app">
     <section id="paneHub" class="pane" role="tabpanel" aria-labelledby="tabHub">
       <!-- Hub card: title + inline live status, PID + Uptime (one line),
            sparklines. Stop + Restart sit in the header as direct icons. -->
@@ -141,98 +141,75 @@
         </div>
       </details>
 
-      <!-- Density toggle -->
-      <div class="card" id="hubDensityCard">
-        <div class="card-header" style="margin-bottom: 8px;">
-          <h2>Layout</h2>
-          <div id="hubDensity" class="segmented" role="tablist" aria-label="Hub density">
-            <button type="button" data-density="compact" class="active">Compact</button>
-            <button type="button" data-density="expanded">Expanded</button>
-          </div>
-        </div>
-        <p class="muted small" style="margin: 0;">Compact merges live requests, counters, errors, and log into one tabbed pane.</p>
-      </div>
-
-      <!-- Compact mode: a single card with sub-tabs -->
-      <section class="card compact-card" id="hubCompactCard">
-        <div id="hubCompactTabs" class="segmented stretch" role="tablist" aria-label="Hub details">
-          <button type="button" data-section="live" class="active"><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Live</button>
-          <button type="button" data-section="counters"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Counters</button>
-          <button type="button" data-section="errors"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>Errors</button>
-          <button type="button" data-section="log"><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Log</button>
-        </div>
-        <div class="compact-section active" data-section="live">
-          <div class="card-header"><h2>Live requests</h2><span id="liveRequestsBadge" class="badge">0</span></div>
+      <!-- Diagnostic surfaces (#215): four vendored disclosure cards
+           (_vendored/disclosure), folded by default — same pattern as
+           Health & install. The density toggle + compact tabbed pane are gone. -->
+      <details class="card card--collapsible">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>
+            <h3 class="collapse-title">Live requests</h3>
+            <span id="liveRequestsBadge" class="collapse-count">0</span>
+          </span>
+          <span class="collapse-chevron" aria-hidden="true">›</span>
+        </summary>
+        <div class="collapse-body">
           <ul id="liveRequestsList" class="card-list dense" aria-label="Live request stream"></ul>
           <div id="liveRequestsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No requests yet — the ring fills as clients call the hub.</p></div>
           <p class="muted small" style="margin: 8px 0 0;">Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and don't show here.</p>
         </div>
-        <div class="compact-section" data-section="counters">
-          <div class="card-header"><h2>Per-backend counters</h2><span class="muted small">since hub start · resets on restart</span></div>
+      </details>
+
+      <details class="card card--collapsible">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>
+            <h3 class="collapse-title">Counters</h3>
+            <span class="collapse-count">since hub start</span>
+          </span>
+          <span class="collapse-chevron" aria-hidden="true">›</span>
+        </summary>
+        <div class="collapse-body">
           <div class="counters-wrap">
             <table id="countersTable" class="counters">
-              <thead><tr><th>Backend</th><th>Req</th><th>Err</th><th>p50</th><th>p95</th><th>In tok</th><th>Out tok</th></tr></thead>
+              <thead><tr><th>Backend</th><th>Req</th><th>Err</th><th>p50</th><th>p95</th><th>I/O tok</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
-          <p class="muted small" style="margin: 8px 0 0;">Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and aren't counted.</p>
+          <p class="muted small" style="margin: 8px 0 0;">Resets on hub restart. Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and aren't counted.</p>
         </div>
-        <div class="compact-section" data-section="errors">
-          <div class="card-header"><h2>Recent errors</h2><span id="recentErrorsBadge" class="badge danger">0</span></div>
+      </details>
+
+      <details class="card card--collapsible">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>
+            <h3 class="collapse-title">Errors</h3>
+            <span id="recentErrorsBadge" class="collapse-count">0</span>
+          </span>
+          <span class="collapse-chevron" aria-hidden="true">›</span>
+        </summary>
+        <div class="collapse-body">
           <ul id="recentErrorsList" class="card-list dense" aria-label="Recent errors"></ul>
           <div id="recentErrorsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-circle-check"></use></svg><p class="empty-state-message">No non-2xx responses in the ring.</p></div>
         </div>
-        <div class="compact-section" data-section="log">
-          <div class="card-header">
-            <h2>Hub log</h2>
+      </details>
+
+      <details class="card card--collapsible">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
+            <h3 class="collapse-title">Log</h3>
+          </span>
+          <span class="collapse-chevron" aria-hidden="true">›</span>
+        </summary>
+        <div class="collapse-body">
+          <div class="logpane-actions">
             <button id="hubLogPauseBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-pause"></use></svg>Pause</button>
           </div>
           <pre id="hubLog" class="logpane" aria-label="Hub server log"></pre>
         </div>
-      </section>
-
-      <!-- Expanded mode: the six classic cards (Live / Counters / Errors / Log) -->
-      <!-- The Hub status card + Health card above are shared between modes. -->
-      <section class="card hub-expanded-only">
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Live requests</h2>
-          <span id="liveRequestsBadgeExp" class="badge">0</span>
-        </div>
-        <ul id="liveRequestsListExp" class="card-list dense" aria-label="Live request stream (expanded)"></ul>
-        <div id="liveRequestsEmptyExp" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No requests yet — the ring fills as clients call the hub.</p></div>
-        <p class="muted small" style="margin: 8px 0 0;">Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and don't show here.</p>
-      </section>
-
-      <section class="card hub-expanded-only">
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Per-backend counters</h2>
-          <span class="muted small">since hub start · resets on restart</span>
-        </div>
-        <div class="counters-wrap">
-          <table id="countersTableExp" class="counters">
-            <thead><tr><th>Backend</th><th>Req</th><th>Err</th><th>p50</th><th>p95</th><th>In tok</th><th>Out tok</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <p class="muted small" style="margin: 8px 0 0;">Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and aren't counted.</p>
-      </section>
-
-      <section class="card hub-expanded-only">
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>Recent errors</h2>
-          <span id="recentErrorsBadgeExp" class="badge danger">0</span>
-        </div>
-        <ul id="recentErrorsListExp" class="card-list dense" aria-label="Recent errors (expanded)"></ul>
-        <div id="recentErrorsEmptyExp" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-circle-check"></use></svg><p class="empty-state-message">No non-2xx responses in the ring.</p></div>
-      </section>
-
-      <section class="card hub-expanded-only">
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Hub log</h2>
-          <button id="hubLogPauseBtnExp" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-pause"></use></svg>Pause</button>
-        </div>
-        <pre id="hubLogExp" class="logpane" aria-label="Hub server log (expanded)"></pre>
-      </section>
+      </details>
     </section>
 
     <section id="paneModels" class="pane" hidden role="tabpanel">
@@ -264,7 +241,11 @@
 
         <div class="opt-stack">
           <label for="playgroundAttachment">Attachment <span class="muted small">(image / PDF / text — claude &amp; gemini only)</span></label>
-          <input id="playgroundAttachment" type="file" aria-label="Attach a file — image, PDF, or any text/data file (claude/gemini only)">
+          <div class="file-row">
+            <button id="playgroundAttachmentBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
+            <span id="playgroundAttachmentName" class="file-name muted small">No file selected</span>
+            <input id="playgroundAttachment" type="file" hidden aria-label="Attach a file — image, PDF, or any text/data file (claude/gemini only)">
+          </div>
         </div>
 
         <details class="opt-stack" id="playgroundMore">
@@ -311,7 +292,11 @@
 
         <div class="opt-stack">
           <label for="imageAttachment">Reference image <span class="muted small">(optional — edits the upload instead of generating; slow &amp; experimental, can take minutes)</span></label>
-          <input id="imageAttachment" type="file" accept="image/*" aria-label="Reference image to edit (optional)">
+          <div class="file-row">
+            <button id="imageAttachmentBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
+            <span id="imageAttachmentName" class="file-name muted small">No file selected</span>
+            <input id="imageAttachment" type="file" accept="image/*" hidden aria-label="Reference image to edit (optional)">
+          </div>
           <p class="muted small" style="margin: 4px 0 0;">Tip: dimensions are model-controlled — ask for an aspect ratio in the prompt (e.g. “16:9”).</p>
         </div>
 
@@ -423,7 +408,7 @@
         </div>
         <div class="counters-wrap">
           <table id="telCountersTable" class="counters">
-            <thead><tr><th>Model</th><th>Req</th><th>Err</th><th>p50</th><th>p95</th><th>In tok</th><th>Out tok</th></tr></thead>
+            <thead><tr><th>Model</th><th>Req</th><th>Err</th><th>p50</th><th>p95</th><th>I/O tok</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -512,7 +497,7 @@
           <table id="cldVendorTable" class="counters">
             <thead>
               <tr>
-                <th>Vendor</th><th>Req</th><th>In tok</th><th>Out tok</th><th>Cache rd</th><th>≈ $</th>
+                <th>Vendor</th><th>Req</th><th>I/O tok</th><th>Cache rd</th><th>≈ $</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -530,7 +515,7 @@
           <table id="cldModelTable" class="counters">
             <thead>
               <tr>
-                <th>Model</th><th>Req</th><th>In tok</th><th>Out tok</th><th>Cache rd</th>
+                <th>Model</th><th>Req</th><th>I/O tok</th><th>Cache rd</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -548,7 +533,7 @@
           <table id="cldProjectTable" class="counters">
             <thead>
               <tr>
-                <th>Project</th><th>Req</th><th>In tok</th><th>Out tok</th>
+                <th>Project</th><th>Req</th><th>I/O tok</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -593,16 +578,10 @@
 
     </section>
 
-    <footer class="footer">
-      <div class="footer-row">
-        <a href="https://github.com/ferraroroberto/local-llm-hub#readme" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#i-book-open"></use></svg>README</a>
-        <a href="https://github.com/ferraroroberto/local-llm-hub/blob/main/docs/model-comparison.md" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Model comparison</a>
-        <a id="frontierLink" href="/admin/frontier" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>Frontier</a>
-      </div>
-      <div class="footer-row">
-        <span class="small">tests: <code>pytest -q</code></span>
-        <span id="buildReadout" class="small footer-build"></span>
-      </div>
+    <!-- Build identity: which build the PWA is running. Filled by main.js.
+         (Frontier report stays reachable at /admin/frontier by URL.) -->
+    <footer class="page-foot">
+      <p id="buildReadout" class="muted small"></p>
     </footer>
 
   </main>

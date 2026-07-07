@@ -66,17 +66,8 @@
 .cld-delta.up   { color: var(--on); }
 .cld-delta.down { color: var(--danger); }
 
-/* Truncate long left-column names (per-project) so the table never forces a
- * horizontal scroll on mobile; full name stays available via the title tooltip
- * (issue #71). .counters td is nowrap, so ellipsis needs an explicit cap. */
-.counters td.cld-trunc {
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-@media (max-width: 480px) {
-  .counters td.cld-trunc { max-width: 42vw; }
-}
+/* First-column truncation is the shared .counters td.td-trunc rule in
+ * styles.css (#215 — also used by the Hub counters + OTel leaderboard). */
 
 /* Chart wrappers (issue #50). */
 .cld-chart-wrap { margin-bottom: 20px; }
@@ -120,10 +111,13 @@ ul.cld-sessions > li > .cld-sess-meta  {
   color: var(--muted);
   font-size: var(--font-caption);
 }
+/* The one deliberate monospace survivor outside <pre> panes (#215): a session
+ * id is console output — the mono chip is what makes it read as one. */
 ul.cld-sessions > li > .cld-sess-meta code {
   color: var(--ink);
   background: var(--card-off);
   padding: 1px 4px;
   border-radius: var(--radius-sm);
   font-size: var(--font-caption);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }

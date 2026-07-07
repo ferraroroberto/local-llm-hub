@@ -32,6 +32,15 @@ the spec's and change with it).
 | `--font-heading-xl…caption` | `typography.*` | The five text roles — no ad-hoc sizes |
 | `--control-h` | `components.control.height` | 36px shared control height |
 
+**One card-title scale:** every card header h2 renders at `--font-body`
+(`.card-header h2`), matching the vendored disclosure's `.collapse-title` —
+no per-card title sizes (#215).
+
+**One app font:** monospace only where console output genuinely lives —
+`<pre>` panes (log tail, model reply, trace bodies) and the Recent-sessions
+session-id chip. Inline `<code>` and the dense card lists render in the app
+font (#215).
+
 Derived hub tokens (mapped onto the roles above, re-theme for free):
 `--input-bg`, `--code-bg` (logpane surface), `--scrim`, and the
 `--accent-soft`/`--danger-border`-style `color-mix()` status composites.
@@ -74,13 +83,23 @@ Three primitives, no modifier matrix:
 
 - **`.launch-btn`** — primary per-card action, `min-height: 48 px`
   (the spec's `button-primary` height), full-width, accent background.
-  Use for: Restart hub, Fix all, Send prompt, Sign in.
+  Use for: Restart hub, Fix all, Sign in.
 - **`.ghost-btn`** — secondary text-style button, `min-height: 36 px`,
   border + transparent background. Use for: Re-check, Clear, Pause
-  log, the individual install-row fixers.
+  log, Choose file, the individual install-row fixers.
+- **`.ghost-btn.primary`** — the in-form primary (Playground Send /
+  Generate / Speak / Download): an accent *tint*, never a solid fill —
+  home-automation's `.range-tab.active` recipe (`--accent-soft` background,
+  accent text, `--accent-border-strong` border; #215).
 - **`.icon-btn`** — row-level button, `52 × 60 px`, lives inside a
   `.row-actions` column on the right of an `.app-item`. Use for:
   Start / Stop / Log / Ping on the Models tab.
+
+Segmented controls (Code vendor/period, Playground max-tokens) follow the
+same ghost pattern: transparent container, card-off option pills, the active
+one an accent tint (home-automation `.range-tabs`; #215). File pickers hide
+the native input behind a ghost "Choose file" button with the selected
+filename to its right (`.file-row`).
 
 Every interactive element has `min-height: 36 px` and a
 `:focus-visible` ring (`2px solid var(--accent); outline-offset: 2px`).
@@ -111,20 +130,13 @@ the pane claim full container width — same trick as app-launcher's
 
 The hub diverges from app-launcher in one place — it has more
 diagnostic surfaces (live request ring, per-backend counters, error
-ring, server log) than the launcher needs. To keep the
-above-the-fold surface manageable on a phone:
-
-- A **density toggle** (`.segmented` with Compact / Expanded) lives
-  in a small "Layout" card. The preference is persisted to
-  `localStorage` under `llmhub.hub.density`.
-- **Compact** (default) collapses the four diagnostic surfaces into
-  one card with internal sub-tabs.
-- **Expanded** restores the classic stack of four cards.
-
-Both modes render to the same backing `state.*` arrays — `hub.js`
-writes to both DOM trees, CSS controls which is visible. This avoids
-DOM moves on toggle and means SSE updates land in both regardless of
-the active mode.
+ring, server log) than the launcher needs. Each of the four is a
+**vendored disclosure card** (`.card--collapsible`), folded by default —
+the same pattern as Health & install (#215; this replaced the earlier
+Compact/Expanded density toggle and its dual DOM trees). SSE/poll
+renders keep updating the lists while folded, so opening one is
+instant. The build-identity footer is home-automation's `.page-foot`:
+one centered muted line, no links.
 
 ## Live status indicator
 
@@ -158,7 +170,7 @@ The SPA's UI glyphs are **Lucide**, the canonical fleet icon set (`~/.claude/des
 | Aspect | Hub | app-launcher | Reason |
 |---|---|---|---|
 | `--code-bg` token | present | absent | The hub's logpane needs its own inset surface (mapped to `--card-off`); launcher uses xterm.js which paints its own background. |
-| Counters table | wrapped in `.counters-wrap` for horizontal scroll | n/a — launcher has no equivalent | Seven-column table doesn't fit 720 px phone width; alternative was bumping the container to 820 px (declined, would diverge from canonical). |
+| Counters table | compact columns (`p50`/`p95` in seconds, one `I/O tok` column, `.td-trunc` first column) inside `.counters-wrap` | n/a — launcher has no equivalent | Fits the phone width without horizontal scrolling (#215); the scroll wrap stays as a safety net only. |
 | Icon set | Lucide via vendored `_vendored/icons/` | varied | Adopted the canonical fleet Lucide set per `~/.claude/design.md` (issue #139); nav tabs now show icon + label. Backend-identity emoji were dropped (no faithful Lucide equivalent; the backend name labels the row). See the **Icons** section above. |
 
 ## When to update this file
