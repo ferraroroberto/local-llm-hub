@@ -153,6 +153,22 @@ export function toast(msg, kind) {
 }
 
 // --------------------------------------------------------------- fmt
+/* Shared across hub.js / models.js / telemetry.js — one definition (the
+ * sibling-dedup pass of local-llm-hub#211; the copies had drifted). */
+export function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]);
+  });
+}
+
+/* HH:MM:SS from a unix-seconds timestamp; '' when absent (append a
+ * placeholder at the call site where one is wanted). */
+export function fmtClock(ts) {
+  if (!ts) return '';
+  const d = new Date(ts * 1000);
+  return d.toTimeString().slice(0, 8);
+}
+
 export function fmtBytes(n) {
   if (!Number.isFinite(n)) return '—';
   if (n < 1024) return n + ' B';

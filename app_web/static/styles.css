@@ -17,17 +17,19 @@
   --bg: #ffffff;            /* canvas (page background) */
   --card: #ffffff;          /* elevated card surface */
   --card-off: #f6f8fa;      /* canvas-subtle (inset / off-card surfaces) */
-  --fg: #1f2328;            /* primary text */
+  --ink: #1f2328;            /* primary text */
   --muted: #656d76;         /* fg-muted (secondary text) */
   --line: #d1d9e0;          /* border (default hairline) */
   --line-muted: #d8dee4;    /* border-muted (dividers inside a card) */
   /* colors — accent + status (status colors signal state only, never decoration) */
   --accent: #0969da;
   --accent-fg: #ffffff;     /* text/icon on an accent fill */
-  --success: #1a7f37;
+  --on: #1a7f37;
   --danger: #cf222e;
   --attention: #9a6700;
   /* derived surface roles (mapped onto the neutral tokens above) */
+  --toggle-track: var(--line);  /* vendored switch: off-track */
+  --toggle-knob: #ffffff;       /* vendored switch: thumb */
   --input-bg: var(--card-off);
   --code-bg: var(--card-off);  /* logpane / trace-detail <pre> surfaces */
   --scrim: rgba(0, 0, 0, 0.5); /* login-overlay dim — theme-invariant by design */
@@ -38,7 +40,7 @@
   --danger-soft: color-mix(in srgb, var(--danger) 12%, transparent);
   --danger-strong: color-mix(in srgb, var(--danger) 18%, transparent);
   --danger-border: color-mix(in srgb, var(--danger) 45%, transparent);
-  --success-border: color-mix(in srgb, var(--success) 45%, transparent);
+  --success-border: color-mix(in srgb, var(--on) 45%, transparent);
   --attention-border: color-mix(in srgb, var(--attention) 45%, transparent);
   /* radii (rounded scale) */
   --radius-sm: 8px;
@@ -56,6 +58,10 @@
   --gap: 12px;
   /* shared height for inline controls (select / input) so they line up */
   --control-h: 36px;
+  /* canonical icon-size steps (icons.size.* — consumed by the vendored
+     disclosure / empty-state components) */
+  --icon-title: 18px;
+  --icon-feature: 24px;
   /* typography roles — system stack, weight (not case) for hierarchy.
      The five roles cover every text need; no ad-hoc sizes. */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -85,15 +91,16 @@
   --bg: #0d1117;            /* canvas (GitHub dark canvas) */
   --card: #161b22;          /* elevated card surface */
   --card-off: #010409;      /* canvas-subtle (true black inset) */
-  --fg: #e6edf3;
+  --ink: #e6edf3;
   --muted: #7d8590;
   --line: #30363d;
   --line-muted: #21262d;
   --accent: #2f81f7;
   --accent-fg: #ffffff;
-  --success: #3fb950;
+  --on: #3fb950;
   --danger: #f85149;
   --attention: #d29922;
+  --toggle-knob: var(--ink);
   /* Depth on a near-black canvas comes from surface lightness, not shadow. */
   --shadow: 0 8px 24px rgba(1, 4, 9, 0.6);
   --tabbar-bg: rgba(22, 27, 34, 0.86);
@@ -107,13 +114,13 @@
 @media (color-gamut: p3) {
   :root {
     --accent: oklch(0.52 0.18 256);
-    --success: oklch(0.55 0.14 150);
+    --on: oklch(0.55 0.14 150);
     --danger: oklch(0.55 0.20 25);
     --attention: oklch(0.55 0.11 80);
   }
   [data-theme="dark"] {
     --accent: oklch(0.64 0.18 256);
-    --success: oklch(0.72 0.18 150);
+    --on: oklch(0.72 0.18 150);
     --danger: oklch(0.68 0.20 25);
     --attention: oklch(0.77 0.13 85);
   }
@@ -140,7 +147,7 @@ html, body {
   margin: 0;
   padding: 0;
   background: var(--bg);
-  color: var(--fg);
+  color: var(--ink);
   font-family: var(--font);
   font-size: var(--font-body);
   line-height: 1.5;
@@ -210,15 +217,10 @@ h2 { display: flex; align-items: center; gap: 8px; }
 /* ---------- panes ---------- */
 .pane { display: flex; flex-direction: column; gap: var(--gap); }
 
-/* ---------- cards ---------- */
-.card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: var(--space-md);
-}
-.card > summary { list-style: none; cursor: pointer; user-select: none; }
-.card > summary::-webkit-details-marker { display: none; }
+/* ---------- cards ----------
+ * The base .card contract is the vendored component (_vendored/card/card.css);
+ * only the hub's own header/action patterns live here. Collapsible cards use
+ * the vendored disclosure (.card--collapsible — _vendored/disclosure). */
 .card-header {
   display: flex;
   align-items: center;
@@ -252,7 +254,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   cursor: pointer;
   border-radius: var(--radius-sm);
 }
-.icon-header-btn:hover { color: var(--fg); background: var(--card-off); }
+.icon-header-btn:hover { color: var(--ink); background: var(--card-off); }
 .icon-header-btn:active { background: var(--bg); }
 
 /* Hub card header — title + inline live status (dot + word), then
@@ -278,8 +280,8 @@ h2 { display: flex; align-items: center; gap: 8px; }
   background: var(--muted);
   flex-shrink: 0;
 }
-.hub-live-status.good   { color: var(--success); }
-.hub-live-status.good   .dot { background: var(--success); }
+.hub-live-status.good   { color: var(--on); }
+.hub-live-status.good   .dot { background: var(--on); }
 .hub-live-status.warn   { color: var(--attention); }
 .hub-live-status.warn   .dot { background: var(--attention); }
 .hub-live-status.danger { color: var(--danger); }
@@ -340,7 +342,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   border-radius: var(--radius-md);
   cursor: pointer;
 }
-.ghost-btn:hover { color: var(--fg); }
+.ghost-btn:hover { color: var(--ink); }
 .ghost-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
 .ghost-btn.danger { color: var(--danger); border-color: var(--danger-border); }
 .ghost-btn.danger:hover { background: var(--danger-soft); }
@@ -369,7 +371,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   color: var(--muted);
   cursor: pointer;
 }
-.icon-btn:active { background: var(--card-off); color: var(--fg); }
+.icon-btn:active { background: var(--card-off); color: var(--ink); }
 .icon-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
 .icon-btn.danger:active { color: var(--danger); background: var(--danger-strong); }
 
@@ -433,7 +435,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   gap: 8px;
 }
 .card-list.dense > li:last-child { border-bottom: 0; }
-.card-list .req-status.ok { color: var(--success); }
+.card-list .req-status.ok { color: var(--on); }
 .card-list .req-status.err { color: var(--danger); }
 .card-list .req-status.warn { color: var(--attention); }
 
@@ -467,7 +469,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--fg);
+  color: var(--ink);
 }
 
 /* ---------- sparklines ---------- */
@@ -604,7 +606,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   background: var(--input-bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  color: var(--fg);
+  color: var(--ink);
   font-size: var(--font-label);
 }
 .glossary-arrow { color: var(--muted); flex-shrink: 0; }
@@ -619,7 +621,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
   font-size: var(--font-label);
-  color: var(--fg);
+  color: var(--ink);
 }
 .glossary-chip-x {
   background: none;
@@ -645,7 +647,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   background: var(--input-bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  color: var(--fg);
+  color: var(--ink);
   font-size: var(--font-label);
 }
 .glossary-suggest {
@@ -677,7 +679,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .opt-stack > input,
 .opt-stack > select {
   background: var(--input-bg);
-  color: var(--fg);
+  color: var(--ink);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   padding: 10px 12px;
@@ -690,6 +692,13 @@ h2 { display: flex; align-items: center; gap: 8px; }
   resize: vertical;
   min-height: 80px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+/* Label + vendored switch on one row (the switch itself is _vendored/switch). */
+.opt-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
 }
 .opt-group-title {
   font-size: var(--font-caption);
@@ -708,7 +717,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .maxtokens-row input[type="number"] {
   width: 90px;
   background: var(--input-bg);
-  color: var(--fg);
+  color: var(--ink);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   padding: 8px 10px;
@@ -764,7 +773,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   font-size: var(--font-caption);
   white-space: nowrap;
 }
-.badge.good   { color: var(--success);   border-color: var(--success-border); }
+.badge.good   { color: var(--on);   border-color: var(--success-border); }
 .badge.warn   { color: var(--attention); border-color: var(--attention-border); }
 .badge.danger { color: var(--danger);    border-color: var(--danger-border); }
 
@@ -804,21 +813,14 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .install-row .install-detail { grid-column: 2 / -1; font-size: var(--font-caption); }
 /* Status glyph (Lucide) inherits currentColor — tint it per check status. */
 .install-glyph .icon { font-size: 16px; }
-.install-ok .install-glyph { color: var(--success); }
+.install-ok .install-glyph { color: var(--on); }
 .install-warn .install-glyph { color: var(--attention); }
 .install-missing .install-glyph { color: var(--muted); }
 .install-error .install-glyph { color: var(--danger); }
 
-/* ---------- empty state ---------- */
-.empty {
-  padding: 20px 24px;
-  background: var(--card);
-  border: 1px dashed var(--line);
-  border-radius: var(--radius);
-  color: var(--muted);
-  text-align: center;
-  font-size: var(--font-caption);
-}
+/* ---------- empty state ----------
+ * The canonical zero-items block is the vendored component
+ * (_vendored/empty-state) — no app-side .empty style anymore. */
 
 /* ---------- footer ---------- */
 .footer {
@@ -848,7 +850,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   bottom: calc(env(safe-area-inset-bottom, 0) + 20px);
   transform: translateX(-50%);
   background: var(--card);
-  color: var(--fg);
+  color: var(--ink);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   padding: 10px 16px;
@@ -857,7 +859,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   box-shadow: var(--shadow);
   z-index: 50;
 }
-.toast.good  { border-color: var(--success); }
+.toast.good  { border-color: var(--on); }
 .toast.error { border-color: var(--danger); }
 
 /* ---------- login overlay ---------- */
@@ -885,7 +887,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .login-card h2 { margin: 0; font-size: var(--font-heading-lg); }
 .login-card input {
   background: var(--input-bg);
-  color: var(--fg);
+  color: var(--ink);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   padding: 12px;

@@ -4,7 +4,7 @@
  */
 
 import { els, state, DENSITY_KEY } from './state.js';
-import { jsonApi, postJson, eventStream, toast } from './api.js';
+import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock } from './api.js';
 import { langfuseTraceUrl, fetchTelemetryHealth } from './telemetry.js';
 import { icon } from './_vendored/icons/icons.js';
 
@@ -213,7 +213,7 @@ function renderInstall(body) {
   const checks = body.checks || [];
   const overall = body.worst_status || 'ok';
   els.installSummary.textContent = checks.length + ' checks · overall ' + overall;
-  els.installSummary.className = 'muted small overall-' + overall;
+  els.installSummary.className = 'collapse-count overall-' + overall;
   els.installRows.innerHTML = '';
   checks.forEach(function (c) {
     const row = document.createElement('div');
@@ -591,14 +591,4 @@ function shortGpu(name) {
   return name.replace('NVIDIA ', '').replace('GeForce ', '').trim();
 }
 
-function fmtClock(ts) {
-  if (!ts) return '';
-  const d = new Date(ts * 1000);
-  return d.toTimeString().slice(0, 8);
-}
-
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"']/g, function (c) {
-    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]);
-  });
-}
+/* escapeHtml / fmtClock live in api.js (sibling dedup, #211). */

@@ -28,7 +28,7 @@
 .cld-counter-value {
   font-size: var(--font-heading-lg);
   font-weight: 600;
-  color: var(--fg);
+  color: var(--ink);
   letter-spacing: -0.5px;
 }
 
@@ -43,7 +43,7 @@
 .cld-counter-cost {
   font-size: var(--font-caption);
   font-weight: 500;
-  color: var(--success);
+  color: var(--on);
   min-height: 15px;
   letter-spacing: -0.2px;
 }
@@ -63,7 +63,7 @@
   min-height: 14px;
   color: var(--muted);
 }
-.cld-delta.up   { color: var(--success); }
+.cld-delta.up   { color: var(--on); }
 .cld-delta.down { color: var(--danger); }
 
 /* Truncate long left-column names (per-project) so the table never forces a
@@ -121,7 +121,7 @@ ul.cld-sessions > li > .cld-sess-meta  {
   font-size: var(--font-caption);
 }
 ul.cld-sessions > li > .cld-sess-meta code {
-  color: var(--fg);
+  color: var(--ink);
   background: var(--card-off);
   padding: 1px 4px;
   border-radius: var(--radius-sm);

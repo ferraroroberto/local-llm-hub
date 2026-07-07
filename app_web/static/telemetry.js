@@ -10,7 +10,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, postJson, eventStream, toast } from './api.js';
+import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 
 const HEALTH_POLL_MS = 8000;
@@ -68,12 +68,12 @@ export async function fetchTelemetryMetrics() {
   try {
     const body = await jsonApi('/admin/api/telemetry/metrics');
     state.telCounters = body.counters || [];
-    renderCounters();
+    renderTelCounters();
     renderSummary(body.summary || {});
   } catch (_) { /* ignore */ }
 }
 
-function renderCounters() {
+function renderTelCounters() {
   const rows = state.telCounters || [];
   const tbl = els.telCountersTable;
   if (!tbl) return;
@@ -165,7 +165,7 @@ function renderTraces() {
     if (rec.trace_id) li.classList.add('clickable');
     li.dataset.traceId = rec.trace_id || '';
     const statusCls = rec.status >= 500 ? 'err' : (rec.status >= 400 ? 'warn' : 'ok');
-    const tsStr = fmtClock(rec.ts);
+    const tsStr = fmtClock(rec.ts) || '—';
     const latency = (rec.latency_ms || 0).toFixed(0) + 'ms';
     const model = rec.model || '—';
     const tid = (rec.trace_id || '').slice(0, 8) || '—';
@@ -295,25 +295,8 @@ async function postFeedback(traceId, value) {
 }
 
 // --------------------------------------------------------- helpers
-function escapeHtml(s) {
-  return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
+/* escapeHtml / fmtClock live in api.js (sibling dedup, #211). */
 function escapeAttr(s) { return escapeHtml(s); }
-
-function fmtClock(ts) {
-  if (!ts) return '—';
-  const d = new Date(ts * 1000);
-  const h = String(d.getHours()).padStart(2, '0');
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const s = String(d.getSeconds()).padStart(2, '0');
-  return h + ':' + m + ':' + s;
-}
 
 // --------------------------------------------------------- lifecycle
 export function wireTelemetry() {

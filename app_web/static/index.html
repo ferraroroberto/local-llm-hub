@@ -12,6 +12,10 @@
   <link rel="icon" href="/admin/static/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="/admin/static/icon-180.png">
   <link rel="stylesheet" href="/admin/static/styles.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/card/card.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/disclosure/disclosure.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/switch/switch.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/empty-state/empty-state.css">
   <link rel="stylesheet" href="/admin/static/_vendored/nav/nav-tabs.css">
   <link rel="stylesheet" href="/admin/static/telemetry.css">
   <link rel="stylesheet" href="/admin/static/code_usage.css">
@@ -118,18 +122,22 @@
         <p id="servicesHint" class="muted small" style="margin: 6px 0 0;" hidden></p>
       </section>
 
-      <!-- Health & install -->
-      <details class="card" id="installCard">
-        <summary>
-          <div class="card-header" style="margin-bottom: 0;">
-            <h2><svg class="icon" aria-hidden="true"><use href="#i-stethoscope"></use></svg>Health &amp; install</h2>
-            <span id="installSummary" class="muted small">checking…</span>
-          </div>
+      <!-- Health & install — vendored disclosure card (_vendored/disclosure) -->
+      <details class="card card--collapsible" id="installCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon" aria-hidden="true"><use href="#i-stethoscope"></use></svg>
+            <h3 class="collapse-title">Health &amp; install</h3>
+            <span id="installSummary" class="collapse-count">checking…</span>
+          </span>
+          <span class="collapse-chevron" aria-hidden="true">›</span>
         </summary>
-        <div id="installRows" style="margin-top: 10px;"></div>
-        <div class="card-actions">
-          <button id="installFixAllBtn" type="button" class="launch-btn"><svg class="icon" aria-hidden="true"><use href="#i-wrench"></use></svg>Fix all</button>
-          <button id="installRefreshBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>Re-check</button>
+        <div class="collapse-body">
+          <div id="installRows"></div>
+          <div class="card-actions">
+            <button id="installFixAllBtn" type="button" class="launch-btn"><svg class="icon" aria-hidden="true"><use href="#i-wrench"></use></svg>Fix all</button>
+            <button id="installRefreshBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>Re-check</button>
+          </div>
         </div>
       </details>
 
@@ -156,7 +164,7 @@
         <div class="compact-section active" data-section="live">
           <div class="card-header"><h2>Live requests</h2><span id="liveRequestsBadge" class="badge">0</span></div>
           <ul id="liveRequestsList" class="card-list dense" aria-label="Live request stream"></ul>
-          <div id="liveRequestsEmpty" class="empty">No requests yet — the ring fills as clients call the hub.</div>
+          <div id="liveRequestsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No requests yet — the ring fills as clients call the hub.</p></div>
           <p class="muted small" style="margin: 8px 0 0;">Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and don't show here.</p>
         </div>
         <div class="compact-section" data-section="counters">
@@ -172,7 +180,7 @@
         <div class="compact-section" data-section="errors">
           <div class="card-header"><h2>Recent errors</h2><span id="recentErrorsBadge" class="badge danger">0</span></div>
           <ul id="recentErrorsList" class="card-list dense" aria-label="Recent errors"></ul>
-          <div id="recentErrorsEmpty" class="empty">No non-2xx responses in the ring.</div>
+          <div id="recentErrorsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-circle-check"></use></svg><p class="empty-state-message">No non-2xx responses in the ring.</p></div>
         </div>
         <div class="compact-section" data-section="log">
           <div class="card-header">
@@ -191,7 +199,7 @@
           <span id="liveRequestsBadgeExp" class="badge">0</span>
         </div>
         <ul id="liveRequestsListExp" class="card-list dense" aria-label="Live request stream (expanded)"></ul>
-        <div id="liveRequestsEmptyExp" class="empty">No requests yet — the ring fills as clients call the hub.</div>
+        <div id="liveRequestsEmptyExp" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No requests yet — the ring fills as clients call the hub.</p></div>
         <p class="muted small" style="margin: 8px 0 0;">Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and don't show here.</p>
       </section>
 
@@ -215,7 +223,7 @@
           <span id="recentErrorsBadgeExp" class="badge danger">0</span>
         </div>
         <ul id="recentErrorsListExp" class="card-list dense" aria-label="Recent errors (expanded)"></ul>
-        <div id="recentErrorsEmptyExp" class="empty">No non-2xx responses in the ring.</div>
+        <div id="recentErrorsEmptyExp" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-circle-check"></use></svg><p class="empty-state-message">No non-2xx responses in the ring.</p></div>
       </section>
 
       <section class="card hub-expanded-only">
@@ -232,7 +240,7 @@
         and <code>whisper-server</code> backends can be started or stopped individually; the
         Claude and Gemini rows are subscription-backed and don't have a managed process.</p>
       <ul id="modelsList" class="models-list"></ul>
-      <div id="modelsEmpty" class="empty" hidden>No models enabled for this host — check <code>config/models.yaml</code>.</div>
+      <div id="modelsEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-boxes"></use></svg><p class="empty-state-message">No models enabled for this host — check <code>config/models.yaml</code>.</p></div>
     </section>
 
     <section id="panePlayground" class="pane" hidden role="tabpanel">
@@ -338,10 +346,10 @@
         </div>
 
         <div class="opt-stack">
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-            <input type="checkbox" id="ttsStream" aria-label="Stream audio" checked>
+          <div class="opt-switch-row">
             <span>Stream <span class="muted small">(play as it synthesizes when supported; off = buffered clip with a player)</span></span>
-          </label>
+            <button type="button" id="ttsStream" class="toggle on" role="switch" aria-checked="true" aria-label="Stream audio"><span class="knob"></span><span class="toggle-label">ON</span></button>
+          </div>
         </div>
 
         <details class="opt-stack" id="ttsMore">
@@ -429,7 +437,7 @@
           <span id="telTracesBadge" class="badge">0</span>
         </div>
         <ul id="telTracesList" class="card-list dense tel-traces" aria-label="Live trace feed"></ul>
-        <div id="telTracesEmpty" class="empty">No traces yet — the ring fills as clients call the hub.</div>
+        <div id="telTracesEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No traces yet — the ring fills as clients call the hub.</p></div>
         <p class="muted small" style="margin: 8px 0 0;">Tap a row to expand prompt/completion preview. <svg class="icon" aria-hidden="true"><use href="#i-thumbs-up"></use></svg>/<svg class="icon" aria-hidden="true"><use href="#i-thumbs-down"></use></svg> sends a Langfuse score; <svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg> opens the full trace.</p>
       </section>
     </section>
@@ -510,7 +518,7 @@
             <tbody></tbody>
           </table>
         </div>
-        <div id="cldVendorEmpty" class="empty" hidden>No vendor data for this period.</div>
+        <div id="cldVendorEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg><p class="empty-state-message">No vendor data for this period.</p></div>
       </section>
 
       <!-- Per-model breakdown -->
@@ -528,7 +536,7 @@
             <tbody></tbody>
           </table>
         </div>
-        <div id="cldModelEmpty" class="empty" hidden>No model data for today.</div>
+        <div id="cldModelEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg><p class="empty-state-message">No model data for today.</p></div>
       </section>
 
       <!-- Per-project breakdown -->
@@ -546,7 +554,7 @@
             <tbody></tbody>
           </table>
         </div>
-        <div id="cldProjectEmpty" class="empty" hidden>No project data for today.</div>
+        <div id="cldProjectEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-folder"></use></svg><p class="empty-state-message">No project data for today.</p></div>
         <p class="muted small" style="margin: 6px 0 0;">Projects under the <code>automation</code> workspace show just the folder name (the <code>automation-</code> prefix is stripped; the workspace root itself stays <code>automation</code>). Long names are truncated with “…” — hover for the full path.</p>
       </section>
 
@@ -580,7 +588,7 @@
           <span id="cldSessionsBadge" class="badge">0</span>
         </div>
         <ul id="cldSessionsList" class="card-list dense cld-sessions" aria-label="Recent Claude Code sessions"></ul>
-        <div id="cldSessionsEmpty" class="empty">No sessions found in <code>~/.claude/projects/</code>.</div>
+        <div id="cldSessionsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-clock"></use></svg><p class="empty-state-message">No sessions found in <code>~/.claude/projects/</code>.</p></div>
       </section>
 
     </section>

@@ -122,7 +122,7 @@ async function fetchSummary() {
 
 function render(body) {
   if (!body) return;
-  renderCounters(body);
+  renderCldCounters(body);
   renderDeltas(body);
   renderCharts(body);
   renderVendorTable(body.by_vendor || []);
@@ -132,7 +132,7 @@ function render(body) {
   setFreshness('updated ' + new Date().toLocaleTimeString());
 }
 
-function renderCounters(body) {
+function renderCldCounters(body) {
   if (!body) return;
   const bucket = body.totals || {};
   set(els.cldRequests, fmtNum(bucket.requests));
@@ -401,7 +401,7 @@ function _cssVar(name) {
 function _chartOptions(isTok) {
   var gridColor  = _cssVar('--line');
   var tickColor  = _cssVar('--muted');
-  var fgColor    = _cssVar('--fg');
+  var fgColor    = _cssVar('--ink');
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -445,7 +445,7 @@ function _chartOptions(isTok) {
 export function restyleCodeUsageCharts() {
   var gridColor = _cssVar('--line');
   var tickColor = _cssVar('--muted');
-  var fgColor   = _cssVar('--fg');
+  var fgColor   = _cssVar('--ink');
   [_chartInput, _chartOutput, _chartReqs, _chartCache].forEach(function (chart) {
     if (!chart) return;
     chart.options.scales.x.grid.color = gridColor;
