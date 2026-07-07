@@ -37,8 +37,12 @@ _JS_IMPORT_RE = re.compile(
     r"""(from\s*['"])(\.{1,2}/(?:[\w\-.]+/)*)([\w\-.]+\.js)(\?v=[^'"]*)?(['"])"""
 )
 
+# The path segment allows subdirs (e.g. ``_vendored/nav/nav-tabs.css``) so a
+# vendored stylesheet linked from index.html is stamped too — any user-visible
+# asset outside the ?v= scheme rides iOS Safari's heuristic cache across
+# deploys (the app-launcher#372 lesson). The hash map is basename-keyed.
 _INDEX_ASSET_RE = re.compile(
-    r"""(href|src)=(['"])/admin/static/([\w\-.]+\.(?:css|js))(\?v=[^'"]*)?(['"])"""
+    r"""(href|src)=(['"])/admin/static/((?:[\w\-.]+/)*[\w\-.]+\.(?:css|js))(\?v=[^'"]*)?(['"])"""
 )
 
 
@@ -101,7 +105,7 @@ def rewrite_index_html(body: str, hashes: Dict[str, str]) -> str:
 
     def _sub(match: re.Match) -> str:
         attr, quote_open, filename, _existing, quote_close = match.group(1, 2, 3, 4, 5)
-        stamp = hashes.get(filename)
+        stamp = hashes.get(filename.rsplit("/", 1)[-1])
         if not stamp:
             return match.group(0)
         return f'{attr}={quote_open}/admin/static/{filename}?v={stamp}{quote_close}'

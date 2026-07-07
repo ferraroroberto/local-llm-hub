@@ -399,7 +399,7 @@ function _cssVar(name) {
 }
 
 function _chartOptions(isTok) {
-  var gridColor  = _cssVar('--border');
+  var gridColor  = _cssVar('--line');
   var tickColor  = _cssVar('--muted');
   var fgColor    = _cssVar('--fg');
   return {
@@ -443,7 +443,7 @@ function _chartOptions(isTok) {
  * flip (called from main.js's applyTheme). Dataset fills are saturated and
  * theme-stable, so only grid/tick/legend colors need the update. */
 export function restyleCodeUsageCharts() {
-  var gridColor = _cssVar('--border');
+  var gridColor = _cssVar('--line');
   var tickColor = _cssVar('--muted');
   var fgColor   = _cssVar('--fg');
   [_chartInput, _chartOutput, _chartReqs, _chartCache].forEach(function (chart) {

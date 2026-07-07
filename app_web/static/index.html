@@ -12,6 +12,7 @@
   <link rel="icon" href="/admin/static/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="/admin/static/icon-180.png">
   <link rel="stylesheet" href="/admin/static/styles.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/nav/nav-tabs.css">
   <link rel="stylesheet" href="/admin/static/telemetry.css">
   <link rel="stylesheet" href="/admin/static/code_usage.css">
   <title>🌐 Local LLM Hub</title>
@@ -24,16 +25,34 @@
   </script>
 </head>
 <body>
-  <main class="app density-compact">
-    <nav class="tabs" role="tablist">
-      <button id="tabHub" type="button" class="tab active" role="tab" data-tab="hub" aria-label="Hub"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>Hub</button>
-      <button id="tabModels" type="button" class="tab" role="tab" data-tab="models" aria-label="Models"><svg class="icon" aria-hidden="true"><use href="#i-boxes"></use></svg>Models</button>
-      <button id="tabPlayground" type="button" class="tab" role="tab" data-tab="playground" aria-label="Playground"><svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>Play</button>
-      <button id="tabTelemetry" type="button" class="tab" role="tab" data-tab="telemetry" aria-label="Telemetry"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg>OTel</button>
-      <button id="tabCodeUsage" type="button" class="tab" role="tab" data-tab="code-usage" aria-label="Claude Code usage"><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Code</button>
-    </nav>
+  <!-- Primary nav — the vendored fleet component (_vendored/nav). Body-level
+       sibling of the scrolling <main class="app">: iOS captures position:fixed
+       descendants of scroll containers (see _vendored/nav/README.md). -->
+  <nav class="tabs" role="tablist" aria-label="Sections" data-active-tab="hub">
+    <button id="tabHub" type="button" class="tab active" data-tab="hub" role="tab" aria-selected="true" aria-controls="paneHub">
+      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-house"></use></svg>
+      <span class="tab-label">Hub</span>
+    </button>
+    <button id="tabModels" type="button" class="tab" data-tab="models" role="tab" aria-selected="false" aria-controls="paneModels" tabindex="-1">
+      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-boxes"></use></svg>
+      <span class="tab-label">Models</span>
+    </button>
+    <button id="tabPlayground" type="button" class="tab" data-tab="playground" role="tab" aria-selected="false" aria-controls="panePlayground" tabindex="-1">
+      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>
+      <span class="tab-label">Play</span>
+    </button>
+    <button id="tabTelemetry" type="button" class="tab" data-tab="telemetry" role="tab" aria-selected="false" aria-controls="paneTelemetry" tabindex="-1">
+      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-activity"></use></svg>
+      <span class="tab-label">OTel</span>
+    </button>
+    <button id="tabCodeUsage" type="button" class="tab" data-tab="code-usage" role="tab" aria-selected="false" aria-controls="paneCodeUsage" tabindex="-1">
+      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-code"></use></svg>
+      <span class="tab-label">Code</span>
+    </button>
+  </nav>
 
-    <section id="paneHub" class="pane" role="tabpanel">
+  <main class="app density-compact">
+    <section id="paneHub" class="pane" role="tabpanel" aria-labelledby="tabHub">
       <!-- Hub card: title + inline live status, PID + Uptime (one line),
            sparklines. Stop + Restart sit in the header as direct icons. -->
       <section class="card">
@@ -578,18 +597,22 @@
       </div>
     </footer>
 
-    <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
-
-    <div id="loginOverlay" class="overlay" hidden role="dialog" aria-modal="true" aria-label="Login">
-      <form id="loginForm" class="login-card">
-        <h2><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>Sign in</h2>
-        <p class="muted small">This hub is locked. Enter the configured password to receive a bearer token.</p>
-        <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" required>
-        <button type="submit" class="launch-btn">Sign in</button>
-        <p id="loginError" class="error" hidden></p>
-      </form>
-    </div>
   </main>
+
+  <!-- Fixed layers live at body level, outside the .app scroller (the
+       standalone-PWA shell makes .app a fixed-inset element scroller —
+       fixed descendants of a scroller are an iOS capture hazard). -->
+  <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
+
+  <div id="loginOverlay" class="overlay" hidden role="dialog" aria-modal="true" aria-label="Login">
+    <form id="loginForm" class="login-card">
+      <h2><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>Sign in</h2>
+      <p class="muted small">This hub is locked. Enter the configured password to receive a bearer token.</p>
+      <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" required>
+      <button type="submit" class="launch-btn">Sign in</button>
+      <p id="loginError" class="error" hidden></p>
+    </form>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script type="module" src="/admin/static/main.js"></script>

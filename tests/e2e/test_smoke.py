@@ -100,6 +100,9 @@ def test_static_assets_versioned(admin_url: str):
     assert re.search(r"/admin/static/styles\.css\?v=[0-9a-f]{4,}", body), body[:1000]
     # main.js module
     assert re.search(r"/admin/static/main\.js\?v=[0-9a-f]{4,}", body), body[:1000]
+    # subdir (vendored) assets must be stamped too — anything outside the
+    # ?v= scheme rides iOS Safari's heuristic cache across deploys (#211).
+    assert re.search(r"/admin/static/_vendored/nav/nav-tabs\.css\?v=[0-9a-f]{4,}", body), body[:1200]
 
 
 def test_version_endpoint(admin_url: str):

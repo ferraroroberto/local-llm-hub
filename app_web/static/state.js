@@ -13,6 +13,9 @@ export const DENSITY_KEY = 'llmhub.hub.density';
 /* Theme override — same key the pre-paint boot script in index.html reads;
  * absent = follow the OS prefers-color-scheme. */
 export const THEME_KEY = 'llmhub.theme';
+/* Active tab — persisted by the vendored nav so the installed PWA reopens
+ * where you left it (fleet nav contract). */
+export const TAB_KEY = 'llmhub.tab';
 
 export const STATUS_POLL_MS = 4000;
 export const COUNTERS_POLL_MS = 4000;
@@ -56,16 +59,8 @@ export const state = {
 // ES modules are deferred; document.getElementById is safe at top level.
 export const els = {
   app: document.querySelector('main.app'),
-  tabHub: document.getElementById('tabHub'),
-  tabModels: document.getElementById('tabModels'),
-  tabPlayground: document.getElementById('tabPlayground'),
-  tabTelemetry: document.getElementById('tabTelemetry'),
-  tabCodeUsage: document.getElementById('tabCodeUsage'),
-  paneHub: document.getElementById('paneHub'),
-  paneModels: document.getElementById('paneModels'),
-  panePlayground: document.getElementById('panePlayground'),
-  paneTelemetry: document.getElementById('paneTelemetry'),
-  paneCodeUsage: document.getElementById('paneCodeUsage'),
+  // Tab buttons + panes are owned by the vendored nav (_vendored/nav) —
+  // it discovers them from the markup; no element handles needed here.
 
   // Telemetry tab — health strip + leaderboard + live trace feed (issue #4)
   telHealth: document.getElementById('telHealth'),
