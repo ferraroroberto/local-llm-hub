@@ -200,7 +200,9 @@ h2 { display: flex; align-items: center; gap: 8px; }
   /* Centered phone-first measure — the spec's 772px desktop cap. */
   max-width: 772px;
   margin: 0 auto;
-  padding: env(safe-area-inset-top, 0) var(--gap) calc(env(safe-area-inset-bottom, 0) + var(--space-lg));
+  /* Bottom padding equals the side gutter, so the build footer sits as
+   * close to the bottom edge as the cards do to the sides (#217). */
+  padding: env(safe-area-inset-top, 0) var(--gap) calc(env(safe-area-inset-bottom, 0) + var(--gap));
   display: flex;
   flex-direction: column;
   gap: var(--gap);
@@ -234,8 +236,11 @@ h2 { display: flex; align-items: center; gap: 8px; }
   margin-bottom: 10px;
 }
 /* One card-title scale app-wide (#215): --font-body, matching the vendored
- * disclosure's .collapse-title and home-automation's card-identity scale. */
+ * disclosure's .collapse-title and home-automation's card-identity scale.
+ * The leading glyph is pinned to icons.size.title (18px) so plain card
+ * headers match the disclosure summaries' icon size too (#217). */
 .card-header h2 { margin: 0; font-size: var(--font-body); font-weight: 600; }
+.card-header h2 .icon { width: var(--icon-title); height: var(--icon-title); }
 .card-header-actions {
   display: flex;
   align-items: center;
@@ -866,7 +871,9 @@ h2 { display: flex; align-items: center; gap: 8px; }
  * Build-identity line only (which build the PWA is running) — home-automation's
  * .page-foot: one centered muted caption, no links, no separator (#215). */
 .page-foot {
-  margin: var(--space-md) var(--space-xs);
+  /* No bottom margin — .app's bottom padding (one --gap) is the whole gap
+   * below the build line (#217). */
+  margin: var(--space-xs) var(--space-xs) 0;
   text-align: center;
 }
 .page-foot p { margin: 2px 0; }
