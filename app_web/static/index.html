@@ -6,7 +6,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="LLM Hub">
-  <meta name="theme-color" content="#0a0a0a">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
   <link rel="manifest" href="/admin/static/manifest.webmanifest">
   <link rel="icon" href="/admin/static/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="/admin/static/icon-180.png">
@@ -14,6 +15,13 @@
   <link rel="stylesheet" href="/admin/static/telemetry.css">
   <link rel="stylesheet" href="/admin/static/code_usage.css">
   <title>🌐 Local LLM Hub</title>
+  <script>
+    (function(){
+      var t = localStorage.getItem('llmhub.theme');
+      var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    })();
+  </script>
 </head>
 <body>
   <main class="app density-compact">
@@ -38,6 +46,7 @@
             </span>
           </div>
           <div class="card-header-actions">
+            <button id="themeToggleBtn" type="button" class="icon-header-btn" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
             <button id="hubRestartBtn" type="button" class="icon-header-btn" aria-label="Restart hub" title="Restart hub"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg></button>
           </div>
         </div>

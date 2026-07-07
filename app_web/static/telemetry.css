@@ -27,15 +27,15 @@ ul.tel-traces > li > .req-status  { grid-area: status; }
 ul.tel-traces > li > .tel-trace-meta {
   grid-area: meta;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--font-caption);
   margin-top: 2px;
 }
 ul.tel-traces > li > .tel-trace-meta code {
   color: var(--fg);
-  background: var(--bg-elev-2);
+  background: var(--card-off);
   padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 11px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-caption);
 }
 ul.tel-traces > li > .tel-trace-actions {
   grid-area: actions;
@@ -47,19 +47,19 @@ ul.tel-traces > li > .tel-trace-actions {
 ul.tel-traces > li > .tel-trace-actions .ghost-btn {
   min-height: 28px;
   padding: 4px 10px;
-  font-size: 12px;
+  font-size: var(--font-caption);
 }
 ul.tel-traces > li > .tel-trace-err {
   grid-area: err;
   color: var(--danger);
-  font-size: 11px;
+  font-size: var(--font-caption);
   margin-top: 4px;
 }
 
 /* Click-to-expand affordance */
 ul.tel-traces > li.clickable { cursor: pointer; }
-ul.tel-traces > li.clickable:hover { background: var(--bg-elev-2); }
-ul.tel-traces > li.expanded { background: var(--bg-elev-2); }
+ul.tel-traces > li.clickable:hover { background: var(--card-off); }
+ul.tel-traces > li.expanded { background: var(--card-off); }
 ul.tel-traces > li .tel-expand-hint { color: var(--accent); }
 
 /* Inline detail panel (row expand) */
@@ -69,7 +69,7 @@ ul.tel-traces > li > .tel-trace-detail {
   padding: 10px 12px;
   background: var(--code-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -78,14 +78,14 @@ ul.tel-traces > li > .tel-trace-detail .tel-detail-row {
   display: flex;
   gap: 8px;
   align-items: baseline;
-  font-size: 11px;
+  font-size: var(--font-caption);
 }
 ul.tel-traces > li > .tel-trace-detail .tel-detail-row code {
   color: var(--fg);
-  background: var(--bg-elev-2);
+  background: var(--card-off);
   padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 11px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-caption);
 }
 ul.tel-traces > li > .tel-trace-detail .tel-detail-section {
   display: flex;
@@ -93,16 +93,16 @@ ul.tel-traces > li > .tel-trace-detail .tel-detail-section {
   gap: 4px;
 }
 ul.tel-traces > li > .tel-trace-detail .tel-detail-pre {
-  background: var(--bg);
+  background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 6px 8px;
   margin: 0;
-  font-size: 11px;
+  font-size: var(--font-caption);
   line-height: 1.45;
   max-height: 220px;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  color: #cdd6e4;
+  color: var(--fg);
 }

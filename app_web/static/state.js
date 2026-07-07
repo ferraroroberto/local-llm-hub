@@ -10,6 +10,9 @@
 
 export const TOKEN_KEY = 'llmhub.token';
 export const DENSITY_KEY = 'llmhub.hub.density';
+/* Theme override — same key the pre-paint boot script in index.html reads;
+ * absent = follow the OS prefers-color-scheme. */
+export const THEME_KEY = 'llmhub.theme';
 
 export const STATUS_POLL_MS = 4000;
 export const COUNTERS_POLL_MS = 4000;
@@ -82,6 +85,7 @@ export const els = {
   // (replaces the old always-on status strip).
   hubLiveStatus: document.getElementById('hubLiveStatus'),
   hubLiveStatusText: document.getElementById('hubLiveStatusText'),
+  themeToggleBtn: document.getElementById('themeToggleBtn'),
   hubRestartBtn: document.getElementById('hubRestartBtn'),
   hubPid: document.getElementById('hubPid'),
   hubUptime: document.getElementById('hubUptime'),
