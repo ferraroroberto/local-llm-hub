@@ -166,7 +166,13 @@ html, body {
 
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
-code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+/* One app font everywhere (#215): monospace only where console output
+ * genuinely lives — <pre> panes (log tail, model reply, trace bodies) and the
+ * Recent-sessions id/token line (code_usage.css). Inline <code> chips render
+ * in the app font. */
+pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+code { font-family: inherit; }   /* beat the UA's default monospace */
+pre code { font-family: inherit; } /* …but code inside a pre stays mono */
 .muted { color: var(--muted); }
 .small { font-size: var(--font-caption); }
 
@@ -187,9 +193,8 @@ code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospac
 }
 /* Section headings carry a leading Lucide glyph inline with the title text. */
 h2 { display: flex; align-items: center; gap: 8px; }
-/* Other inline icon+label contexts: service rows and footer links. */
-.services-label { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
-.footer-row a { display: inline-flex; align-items: center; gap: 6px; }
+/* Other inline icon+label contexts: service rows. */
+.services-label { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; font-size: var(--font-label); }
 
 .app {
   /* Centered phone-first measure — the spec's 772px desktop cap. */
@@ -228,7 +233,9 @@ h2 { display: flex; align-items: center; gap: 8px; }
   gap: 10px;
   margin-bottom: 10px;
 }
-.card-header h2 { margin: 0; font-size: var(--font-label); font-weight: 600; }
+/* One card-title scale app-wide (#215): --font-body, matching the vendored
+ * disclosure's .collapse-title and home-automation's card-identity scale. */
+.card-header h2 { margin: 0; font-size: var(--font-body); font-weight: 600; }
 .card-header-actions {
   display: flex;
   align-items: center;
@@ -296,11 +303,11 @@ h2 { display: flex; align-items: center; gap: 8px; }
   font-size: var(--font-caption);
   margin-bottom: 4px;
 }
-.hub-meta-row > span { display: inline-flex; gap: 6px; align-items: baseline; }
+.hub-meta-row > span { display: inline-flex; gap: 6px; align-items: baseline; min-width: 0; }
 .hub-meta-row > span > span:first-child { color: var(--muted); }
-.hub-meta-row code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
+/* Long single-token values (the OTel endpoint URL) wrap instead of
+ * overflowing the card edge. */
+.hub-meta-row code { word-break: break-all; }
 
 /* ---------- buttons ---------- */
 /* Primary per-card action. Full width, button-primary height (48 px). */
@@ -346,16 +353,22 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .ghost-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
 .ghost-btn.danger { color: var(--danger); border-color: var(--danger-border); }
 .ghost-btn.danger:hover { background: var(--danger-soft); }
-/* Accent-filled variant — same size as .ghost-btn but the primary action.
- * Used for Playground Send so it sits beside Clear at equal height. */
+/* Accent-tint variant — same size as .ghost-btn but the primary action
+ * (Playground Send / Generate / Speak / Download). Transparent accent tint,
+ * never a solid fill — home-automation's .range-tab.active recipe (#215). */
 .ghost-btn.primary {
-  background: var(--accent);
-  color: var(--accent-fg);
-  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-border-strong);
   font-weight: 600;
 }
-.ghost-btn.primary:hover { color: var(--accent-fg); filter: brightness(1.05); }
-.ghost-btn.primary:active { filter: brightness(0.92); }
+.ghost-btn.primary:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.ghost-btn.primary:active {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
 
 /* Row-level icon button (Models tab). Lives inside .row-actions. */
 .icon-btn {
@@ -375,34 +388,39 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .icon-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
 .icon-btn.danger:active { color: var(--danger); background: var(--danger-strong); }
 
-/* ---------- segmented control (Hub density toggle, Playground max tokens) ---------- */
+/* ---------- segmented control (Code vendor/period, Playground max tokens) ----------
+ * Home-automation's ghost .range-tabs pattern (#215): transparent container,
+ * each option a card-off pill, the active one a subtle accent tint — never a
+ * solid fill. The ::before extends the tap target to >=44px vertically. */
 .segmented {
   display: inline-flex;
-  background: var(--input-bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 3px;
-  gap: 2px;
+  gap: 5px;
 }
 .segmented.stretch { display: flex; width: 100%; }
 .segmented button {
+  position: relative;
   flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: transparent;
-  border: 0;
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
+  height: var(--control-h);
+  background: var(--card-off);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0 10px;
   font: inherit;
   font-size: var(--font-label);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--muted);
   cursor: pointer;
-  min-height: 32px;
 }
-.segmented button.active { background: var(--card); color: var(--accent); }
+.segmented button::before { content: ""; position: absolute; inset: -4px 0; }
+.segmented button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-border-strong);
+}
 
 /* ---------- key/value grid ---------- */
 .kv-grid {
@@ -415,7 +433,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .kv-grid > div > a,
 .kv-grid > div > code,
 .kv-grid > div > span:last-child {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: var(--font-caption);
 }
 .kv-grid.usage > div > span:last-child {
@@ -428,7 +445,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .card-list.dense > li {
   padding: 6px 0;
   border-bottom: 1px solid var(--line-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: var(--font-caption);
   display: grid;
   grid-template-columns: 60px 1fr auto auto;
@@ -455,6 +471,17 @@ h2 { display: flex; align-items: center; gap: 8px; }
 }
 .counters th:first-child, .counters td:first-child { text-align: left; }
 .counters thead th { color: var(--muted); font-weight: 500; font-size: var(--font-caption); }
+/* Long first-column names (model ids, project paths) ellipsise instead of
+ * forcing a horizontal scroll on phone; full name via the title tooltip.
+ * .counters td is nowrap, so the ellipsis needs an explicit max-width cap. */
+.counters td.td-trunc {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 480px) {
+  .counters td.td-trunc { max-width: 42vw; }
+}
 
 /* ---------- log panes ---------- */
 .logpane {
@@ -471,8 +498,12 @@ h2 { display: flex; align-items: center; gap: 8px; }
   word-break: break-word;
   color: var(--ink);
 }
+/* Row above a logpane holding its Pause/Resume control (inside a disclosure
+ * body — a button can't live in the <summary> without toggling it). */
+.logpane-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 
-/* ---------- sparklines ---------- */
+/* ---------- sparklines (RAM / VRAM / GPU) ----------
+ * Energy-tab chart look (#215): a 2px line over a translucent accent area. */
 .sparklines {
   display: flex; gap: var(--gap); flex-wrap: wrap; margin-top: 10px;
 }
@@ -490,19 +521,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   font-size: var(--font-caption);
   color: var(--muted);
 }
-.sparkline svg { display: block; width: 100%; height: 28px; }
-
-/* ---------- Hub: compact mode (collapses 4 cards into a single tabbed pane) ---------- */
-/* Compact-pane sub-tabs reuse the .segmented look at a smaller scale. */
-.compact-card .segmented { width: 100%; margin-bottom: 10px; }
-.compact-section { display: none; }
-.compact-section.active { display: block; }
-/* Density toggle — Compact hides the expanded duplicates; Expanded hides
- * the compact card. The render functions write to both DOM trees so the
- * toggle is purely a CSS flip. */
-.app.density-compact  .hub-expanded-only { display: none !important; }
-.app.density-expanded #hubCompactCard    { display: none !important; }
-/* The density-mode card itself is always visible. */
+.sparkline svg { display: block; width: 100%; height: 64px; margin-top: 4px; }
 
 /* ---------- Models tab: .app-item rows (canonical pattern) ---------- */
 .models-list {
@@ -691,7 +710,20 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .opt-stack > textarea {
   resize: vertical;
   min-height: 80px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+/* File pickers (#215): the native input is hidden; a ghost "Choose file"
+ * button + the selected filename to its right stand in — no bordered box. */
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.file-row .ghost-btn { flex-shrink: 0; }
+.file-row .file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* Label + vendored switch on one row (the switch itself is _vendored/switch). */
 .opt-switch-row {
@@ -786,8 +818,10 @@ h2 { display: flex; align-items: center; gap: 8px; }
 }
 .services-row {
   display: grid;
-  grid-template-columns: minmax(110px, auto) auto 1fr;
-  align-items: baseline;
+  /* 4th column: the compact Wake/Sync action sits inline at the row's end,
+   * on the same line as the "out of sync" detail (#215). */
+  grid-template-columns: minmax(110px, auto) auto 1fr auto;
+  align-items: center;
   gap: 4px 12px;
   font-size: var(--font-caption);
   padding: 4px 0;
@@ -797,6 +831,12 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .services-detail {
   word-break: break-word;
   min-width: 0;
+}
+/* Row-level service action (Wake / Sync) — compact, never a big block. */
+.services-row .ghost-btn {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: var(--font-caption);
 }
 
 /* ---------- install panel rows ---------- */
@@ -822,26 +862,14 @@ h2 { display: flex; align-items: center; gap: 8px; }
  * The canonical zero-items block is the vendored component
  * (_vendored/empty-state) — no app-side .empty style anymore. */
 
-/* ---------- footer ---------- */
-.footer {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 14px 4px 0;
-  color: var(--muted);
-  font-size: var(--font-caption);
-  border-top: 1px solid var(--line);
-  margin-top: 8px;
+/* ---------- footer ----------
+ * Build-identity line only (which build the PWA is running) — home-automation's
+ * .page-foot: one centered muted caption, no links, no separator (#215). */
+.page-foot {
+  margin: var(--space-md) var(--space-xs);
+  text-align: center;
 }
-.footer-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 14px;
-}
-.footer-build {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
+.page-foot p { margin: 2px 0; }
 
 /* ---------- toast ---------- */
 .toast {

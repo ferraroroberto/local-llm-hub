@@ -169,6 +169,29 @@ export function fmtClock(ts) {
   return d.toTimeString().slice(0, 8);
 }
 
+/* Compact token count — 1.2k / 3.4M (shared by the Hub counters, OTel
+ * leaderboard, and Code-usage tables; #215 dedup). */
+export function fmtTok(n) {
+  if (!n) return '—';
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
+  return String(n);
+}
+
+/* Latency in seconds — two decimals under 1s, one above ("0.35s", "12.4s"),
+ * so the p50/p95 columns stay narrow on a phone (#215). */
+export function fmtSecs(ms) {
+  const n = Number(ms) || 0;
+  return (n / 1000).toFixed(n < 995 ? 2 : 1) + 's';
+}
+
+/* One "in / out" token cell — merges the former In tok / Out tok columns. */
+export function tokPair(inTok, outTok) {
+  if (!inTok && !outTok) return '—';
+  const one = function (n) { return n ? fmtTok(n) : '0'; };
+  return one(inTok) + ' / ' + one(outTok);
+}
+
 export function fmtBytes(n) {
   if (!Number.isFinite(n)) return '—';
   if (n < 1024) return n + ' B';

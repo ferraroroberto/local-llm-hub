@@ -12,31 +12,32 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, fmtTok, tokPair } from './api.js';
 
 // ---------------------------------------------------------------------------
 // Chart constants (issue #50)
 // ---------------------------------------------------------------------------
 
 // Fixed colours for the Claude model families. Hardcoded (not from CSS vars)
-// because the Chart.js canvas cannot read CSS custom properties.
+// because the Chart.js canvas cannot read CSS custom properties. Fills are the
+// energy-tab's translucent 0.18 alpha over a solid 2px line (#215).
 const CLAUDE_COLORS = {
-  Haiku:  { bg: 'rgba(74,138,243,0.50)',  border: 'rgba(74,138,243,0.85)'  },
-  Sonnet: { bg: 'rgba(76,175,80,0.50)',   border: 'rgba(76,175,80,0.85)'   },
-  Opus:   { bg: 'rgba(240,161,0,0.50)',   border: 'rgba(240,161,0,0.85)'   },
+  Haiku:  { bg: 'rgba(74,138,243,0.18)',  border: 'rgba(74,138,243,0.85)'  },
+  Sonnet: { bg: 'rgba(76,175,80,0.18)',   border: 'rgba(76,175,80,0.85)'   },
+  Opus:   { bg: 'rgba(240,161,0,0.18)',   border: 'rgba(240,161,0,0.85)'   },
 };
 const CLAUDE_ORDER = ['Haiku', 'Sonnet', 'Opus'];
 // Extra colours assigned in first-seen order to non-Claude families (Codex
 // GPT models, etc.) so each gets its own series instead of collapsing to grey.
 const EXTRA_COLORS = [
-  { bg: 'rgba(186,104,200,0.50)', border: 'rgba(186,104,200,0.85)' }, // purple
-  { bg: 'rgba(0,188,212,0.50)',   border: 'rgba(0,188,212,0.85)'   }, // cyan
-  { bg: 'rgba(233,30,99,0.50)',   border: 'rgba(233,30,99,0.85)'   }, // pink
-  { bg: 'rgba(121,85,72,0.50)',   border: 'rgba(121,85,72,0.85)'   }, // brown
-  { bg: 'rgba(255,112,67,0.50)',  border: 'rgba(255,112,67,0.85)'  }, // deep orange
+  { bg: 'rgba(186,104,200,0.18)', border: 'rgba(186,104,200,0.85)' }, // purple
+  { bg: 'rgba(0,188,212,0.18)',   border: 'rgba(0,188,212,0.85)'   }, // cyan
+  { bg: 'rgba(233,30,99,0.18)',   border: 'rgba(233,30,99,0.85)'   }, // pink
+  { bg: 'rgba(121,85,72,0.18)',   border: 'rgba(121,85,72,0.85)'   }, // brown
+  { bg: 'rgba(255,112,67,0.18)',  border: 'rgba(255,112,67,0.85)'  }, // deep orange
 ];
 // Final fallback for an absent/unattributable model ("unknown").
-const OTHER_COLOR = { bg: 'rgba(154,154,154,0.30)', border: 'rgba(154,154,154,0.65)' };
+const OTHER_COLOR = { bg: 'rgba(154,154,154,0.14)', border: 'rgba(154,154,154,0.65)' };
 
 // Retained Chart.js instances — destroyed before each recreation to prevent leaks.
 let _chartInput  = null;
@@ -170,8 +171,7 @@ function renderVendorTable(rows) {
     return '<tr>' +
       '<td>' + esc(vendorLabel(r.vendor)) + '</td>' +
       '<td>' + fmtNum(r.requests) + '</td>' +
-      '<td>' + fmtTok(totalIn) + '</td>' +
-      '<td>' + fmtTok(r.output_tokens) + '</td>' +
+      '<td>' + tokPair(totalIn, r.output_tokens) + '</td>' +
       '<td class="muted">' + fmtTok(r.cache_read_tokens) + '</td>' +
       '<td>' + (fmtCost(cost) || '—') + '</td>' +
       '</tr>';
@@ -196,10 +196,9 @@ function renderModelTable(rows) {
   tbody.innerHTML = rows.map(function (r) {
     const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
     return '<tr>' +
-      '<td>' + esc(r.model) + '</td>' +
+      '<td class="td-trunc" title="' + esc(r.model) + '">' + esc(r.model) + '</td>' +
       '<td>' + fmtNum(r.requests) + '</td>' +
-      '<td>' + fmtTok(totalIn) + '</td>' +
-      '<td>' + fmtTok(r.output_tokens) + '</td>' +
+      '<td>' + tokPair(totalIn, r.output_tokens) + '</td>' +
       '<td class="muted">' + fmtTok(r.cache_read_tokens) + '</td>' +
       '</tr>';
   }).join('');
@@ -218,10 +217,9 @@ function renderProjectTable(rows) {
     const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
     const name = r.project || r.project_key;
     return '<tr>' +
-      '<td class="cld-trunc" title="' + esc(name) + '">' + esc(name) + '</td>' +
+      '<td class="td-trunc" title="' + esc(name) + '">' + esc(name) + '</td>' +
       '<td>' + fmtNum(r.requests) + '</td>' +
-      '<td>' + fmtTok(totalIn) + '</td>' +
-      '<td>' + fmtTok(r.output_tokens) + '</td>' +
+      '<td>' + tokPair(totalIn, r.output_tokens) + '</td>' +
       '</tr>';
   }).join('');
 }
@@ -374,8 +372,8 @@ function _makeChart(canvas, existing, labels, ts, families, field, isTok) {
       fill: true,
       backgroundColor: fam.bg,
       borderColor: fam.border,
-      borderWidth: 1,
-      tension: 0.2,
+      borderWidth: 2,
+      tension: 0.3,
       pointRadius: ts.length > 10 ? 0 : 3,
       pointHoverRadius: 4,
     });
@@ -409,7 +407,7 @@ function _chartOptions(isTok) {
     scales: {
       x: {
         stacked: true,
-        grid: { color: gridColor },
+        grid: { display: false },
         ticks: { color: tickColor, font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
       },
       y: {
@@ -426,7 +424,7 @@ function _chartOptions(isTok) {
     plugins: {
       legend: {
         position: 'bottom',
-        labels: { color: fgColor, boxWidth: 12, padding: 12, font: { size: 11 } },
+        labels: { color: fgColor, boxWidth: 12, padding: 12, font: { size: 11 }, usePointStyle: true },
       },
       tooltip: {
         callbacks: isTok ? {
@@ -448,7 +446,6 @@ export function restyleCodeUsageCharts() {
   var fgColor   = _cssVar('--ink');
   [_chartInput, _chartOutput, _chartReqs, _chartCache].forEach(function (chart) {
     if (!chart) return;
-    chart.options.scales.x.grid.color = gridColor;
     chart.options.scales.x.ticks.color = tickColor;
     chart.options.scales.y.grid.color = gridColor;
     chart.options.scales.y.ticks.color = tickColor;
@@ -474,12 +471,7 @@ function fmtNum(n) {
   return Number(n).toLocaleString();
 }
 
-function fmtTok(n) {
-  if (!n) return '—';
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
-  return String(n);
-}
+/* fmtTok lives in api.js (shared with the Hub/OTel tables, #215). */
 
 function fmtCost(n) {
   // Equivalent metered-API dollar cost (issue #52). Empty when zero/absent.

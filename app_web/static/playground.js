@@ -61,10 +61,24 @@ export async function fetchTtsModels() {
   } catch (_) { /* ignore */ }
 }
 
+/* Hidden-input file picker (#215): a ghost "Choose file" button proxies the
+ * native input; the selected filename shows in the label to its right. */
+function wireFilePicker(input, btn, nameEl) {
+  if (!input || !btn) return;
+  btn.addEventListener('click', function () { input.click(); });
+  input.addEventListener('change', function () {
+    if (!nameEl) return;
+    const f = input.files && input.files[0];
+    nameEl.textContent = f ? f.name : 'No file selected';
+  });
+}
+
 export function wirePlayground() {
   if (els.playgroundSendBtn) {
     els.playgroundSendBtn.addEventListener('click', sendPrompt);
   }
+  wireFilePicker(els.playgroundAttachment, els.playgroundAttachmentBtn, els.playgroundAttachmentName);
+  wireFilePicker(els.imageAttachment, els.imageAttachmentBtn, els.imageAttachmentName);
   wireTts();
   wireImage();
   if (els.playgroundClearBtn) {
