@@ -62,7 +62,7 @@
       <section class="card">
         <div class="card-header">
           <div class="hub-title-block">
-            <h2>Hub</h2>
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>Hub</h2>
             <span id="hubLiveStatus" class="hub-live-status" aria-live="polite">
               <span class="dot"></span>
               <span id="hubLiveStatusText">checking…</span>
@@ -84,7 +84,7 @@
       <section class="card" id="servicesCard">
         <div class="card-header">
           <div class="hub-title-block">
-            <h2>Services</h2>
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-layers"></use></svg>Services</h2>
             <span id="servicesOverall" class="hub-live-status" aria-live="polite">
               <span class="dot"></span>
               <span id="servicesOverallText">checking…</span>
@@ -221,8 +221,17 @@
     </section>
 
     <section id="panePlayground" class="pane" hidden role="tabpanel">
-      <section class="card">
-        <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>Playground</h2></div>
+      <!-- The three testers are vendored disclosure cards, folded by default,
+           so one opens at a time by choice (#217). -->
+      <details class="card card--collapsible">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>
+            <h3 class="collapse-title">Playground</h3>
+          </span>
+          <span class="collapse-chevron" aria-hidden="true">›</span>
+        </summary>
+        <div class="collapse-body">
 
         <div class="opt-stack">
           <label for="playgroundModel">Model</label>
@@ -275,10 +284,18 @@
         <pre id="playgroundReply" class="logpane" aria-label="Model reply"></pre>
         <h3 class="opt-group-title">Usage</h3>
         <div id="playgroundUsage" class="kv-grid usage"></div>
-      </section>
+        </div>
+      </details>
 
-      <section class="card" id="imageCard">
-        <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>Image generation</h2></div>
+      <details class="card card--collapsible" id="imageCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>
+            <h3 class="collapse-title">Image generation</h3>
+          </span>
+          <span class="collapse-chevron" aria-hidden="true">›</span>
+        </summary>
+        <div class="collapse-body">
 
         <div class="opt-stack">
           <label for="imageModel">Model</label>
@@ -310,10 +327,18 @@
         <div class="playground-send-row" id="imageDownloadRow" hidden style="margin-top: 10px;">
           <a id="imageDownload" class="ghost-btn primary" download="generated.png" role="button"><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Download</a>
         </div>
-      </section>
+        </div>
+      </details>
 
-      <section class="card" id="ttsCard">
-        <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Text-to-speech</h2></div>
+      <details class="card card--collapsible" id="ttsCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>
+            <h3 class="collapse-title">Text-to-speech</h3>
+          </span>
+          <span class="collapse-chevron" aria-hidden="true">›</span>
+        </summary>
+        <div class="collapse-body">
 
         <div class="opt-stack">
           <label for="ttsModel">Voice model</label>
@@ -370,7 +395,8 @@
 
         <audio id="ttsAudio" controls style="width: 100%; margin-top: 10px;" hidden></audio>
         <div id="ttsCompareResults" class="tts-compare-list" aria-label="TTS comparison results"></div>
-      </section>
+        </div>
+      </details>
     </section>
 
     <section id="paneTelemetry" class="pane" hidden role="tabpanel">
@@ -378,7 +404,7 @@
       <section class="card">
         <div class="card-header">
           <div class="hub-title-block">
-            <h2>Telemetry</h2>
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg>Telemetry</h2>
             <span id="telHealth" class="hub-live-status" aria-live="polite">
               <span class="dot"></span>
               <span id="telHealthText">checking…</span>
@@ -433,7 +459,7 @@
       <section class="card">
         <div class="card-header">
           <div class="hub-title-block">
-            <h2>Coding agent usage</h2>
+            <h2><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Coding agent usage</h2>
             <span id="cldFreshness" class="muted small"></span>
           </div>
         </div>

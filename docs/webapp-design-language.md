@@ -34,7 +34,8 @@ the spec's and change with it).
 
 **One card-title scale:** every card header h2 renders at `--font-body`
 (`.card-header h2`), matching the vendored disclosure's `.collapse-title` —
-no per-card title sizes (#215).
+no per-card title sizes (#215). Every card title carries a leading Lucide
+glyph at `--icon-title` (18px), same as the disclosure summaries (#217).
 
 **One app font:** monospace only where console output genuinely lives —
 `<pre>` panes (log tail, model reply, trace bodies) and the Recent-sessions
@@ -71,7 +72,7 @@ html, body {
 
 ## Vendored components
 
-Beyond `icons/` and `nav/`, the hub adopts the fleet's vendored components (byte-for-byte from `project-scaffolding`, per-app variation is markup + tokens only): **card** (the base `.card` contract — the hub's own `.card-header`/`.card-actions` patterns layer on top), **disclosure** (`.card--collapsible`, used by the Health & install card), **switch** (the one boolean control — the Playground Stream toggle; green on-track), and **empty-state** (every zero-items list renders the icon + reason block, never a bare dash). `escapeHtml`/`fmtClock` live once in `api.js` (sibling dedup).
+Beyond `icons/` and `nav/`, the hub adopts the fleet's vendored components (byte-for-byte from `project-scaffolding`, per-app variation is markup + tokens only): **card** (the base `.card` contract — the hub's own `.card-header`/`.card-actions` patterns layer on top), **disclosure** (`.card--collapsible` — Health & install, the four Hub diagnostic cards, and the three Playground testers, all folded by default), **switch** (the one boolean control — the Playground Stream toggle; green on-track), and **empty-state** (every zero-items list renders the icon + reason block, never a bare dash). `escapeHtml`/`fmtClock` live once in `api.js` (sibling dedup).
 
 ## Navigation
 
