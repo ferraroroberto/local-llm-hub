@@ -80,11 +80,15 @@ Primary nav is the **vendored fleet component** at `app_web/static/_vendored/nav
 
 ## Buttons
 
-Three primitives, no modifier matrix:
-
-- **`.launch-btn`** — primary per-card action, `min-height: 48 px`
-  (the spec's `button-primary` height), full-width, accent background.
-  Use for: Restart hub, Fix all, Sign in.
+- **`.button-primary launch-btn`** — the vendored fleet primary tier
+  (`app_web/static/_vendored/button/`, byte-for-byte from
+  `project-scaffolding`; never edited per-app) supplies the solid accent
+  fill, border, radius, weight, `48 px` min-height, and the shared
+  `:disabled` recipe. `.launch-btn` is the local layout helper (full-width
+  flex, icon+label gap, padding, font-size) — the photo-ocr
+  `class="button-primary extract-btn"` pattern. Exactly one per view: the
+  Services card, the Health & install disclosure, and the login overlay
+  each hold their own. Use for: Launch Docker + Langfuse, Fix all, Sign in.
 - **`.ghost-btn`** — secondary text-style button, `min-height: 36 px`,
   border + transparent background. Use for: Re-check, Clear, Pause
   log, Choose file, the individual install-row fixers.
