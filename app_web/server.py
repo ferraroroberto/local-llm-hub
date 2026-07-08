@@ -74,7 +74,12 @@ class _VersionedStatic(StaticFiles):
                 body = path.read_text(encoding="utf-8")
             except OSError:
                 return super().file_response(full_path, stat_result, scope, status_code)
-            rewritten = rewrite_js_imports(body, self._asset_hashes)
+            try:
+                rel_parent = path.resolve().relative_to(STATIC_DIR.resolve()).parent
+            except ValueError:
+                rel_parent = Path(".")
+            from_dir = "" if rel_parent == Path(".") else rel_parent.as_posix()
+            rewritten = rewrite_js_imports(body, self._asset_hashes, from_dir)
             media_type, _ = mimetypes.guess_type(str(path))
             return Response(
                 content=rewritten,
