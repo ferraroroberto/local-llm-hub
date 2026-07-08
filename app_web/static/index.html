@@ -442,6 +442,28 @@
         <p class="muted small" style="margin: 8px 0 0;">Window resets on hub restart. Open Langfuse for long-window analytics.</p>
       </section>
 
+      <!-- Claude Code (host CLI) per-model usage incl. sub-agents — via OTel (issue #68) -->
+      <section class="card">
+        <div class="card-header">
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Claude Code (host CLI)</h2>
+          <span id="telCcSummary" class="muted small">—</span>
+        </div>
+        <div id="telCcPeriodSeg" class="segmented stretch" role="tablist" aria-label="Usage period" style="margin-bottom: 12px;">
+          <button type="button" data-period="today" class="active">Day</button>
+          <button type="button" data-period="week">Week</button>
+          <button type="button" data-period="month">Month</button>
+          <button type="button" data-period="all">All</button>
+        </div>
+        <div class="counters-wrap">
+          <table id="telCcTable" class="counters">
+            <thead><tr><th>Model</th><th>Source</th><th>In</th><th>Out</th><th>Cache rd</th><th>Cache cr</th><th>≈ $</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="telCcEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-code"></use></svg><p class="empty-state-message">No sub-agent/Claude Code OTel usage yet — needs <code>CLAUDE_CODE_ENABLE_TELEMETRY</code> set on the host.</p></div>
+        <p class="muted small" style="margin: 8px 0 0;">Sourced from Claude Code's own OTel export (<code>POST /v1/metrics</code>) — the only channel that sees sub-agent (Task tool) usage. Persisted separately from the Code tab's JSONL totals, not summed into them, to avoid double-counting. (<a href="https://github.com/ferraroroberto/local-llm-hub/issues/68" target="_blank" rel="noopener">#68</a>)</p>
+      </section>
+
       <!-- Live trace feed -->
       <section class="card">
         <div class="card-header">
@@ -512,7 +534,7 @@
           Cache reads are served from the 5-min/1-hr prompt cache.
           <span class="cld-counter-cost" style="display:inline">≈ $</span> lines show the equivalent
           metered-API cost these tokens would have billed.</p>
-        <p class="muted small" style="margin: 4px 0 0;"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg> <strong>Sub-agent (Task tool) calls are not captured</strong> — Claude Code does not write them to the JSONL session transcripts, so figures here undercount whenever sub-agents run. The OTel tab gives accurate per-model totals. (<a href="https://github.com/ferraroroberto/local-llm-hub/issues/68" target="_blank" rel="noopener">#68</a>, <a href="https://github.com/anthropics/claude-code/issues/22625" target="_blank" rel="noopener">upstream #22625</a>)</p>
+        <p class="muted small" style="margin: 4px 0 0;"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg> <strong>Sub-agent (Task tool) calls are not captured here</strong> — Claude Code does not write them to the JSONL session transcripts, so figures here undercount whenever sub-agents run. See the <strong>OTel tab's "Claude Code (host CLI)"</strong> panel for accurate per-model totals including sub-agents. (<a href="https://github.com/ferraroroberto/local-llm-hub/issues/68" target="_blank" rel="noopener">#68</a>, <a href="https://github.com/anthropics/claude-code/issues/22625" target="_blank" rel="noopener">upstream #22625</a>)</p>
       </section>
 
       <!-- Per-vendor breakdown (issue #71) — shown only in "All" mode -->

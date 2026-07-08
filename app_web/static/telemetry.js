@@ -10,15 +10,17 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, fmtSecs, tokPair } from './api.js';
+import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, fmtSecs, fmtTok, fmtCost, tokPair } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 
 const HEALTH_POLL_MS = 8000;
 const METRICS_POLL_MS = 5000;
+const CC_POLL_MS = 10000;
 const TRACE_RING_MAX = 50;
 
 let healthPollHandle = null;
 let metricsPollHandle = null;
+let ccPollHandle = null;
 
 // --------------------------------------------------------- health
 export async function fetchTelemetryHealth() {
@@ -109,6 +111,47 @@ function renderSummary(s) {
   if (upS >= 60) uptime = Math.floor(upS / 60) + 'm ' + (upS % 60) + 's';
   if (upS >= 3600) uptime = Math.floor(upS / 3600) + 'h ' + Math.floor((upS % 3600) / 60) + 'm';
   els.telSummary.textContent = reqs + ' req · ' + errRate + '% err · since ' + uptime;
+}
+
+// --------------------------------------------------------- Claude Code (host CLI) panel — issue #68
+export async function fetchClaudeCodeUsage() {
+  try {
+    const body = await jsonApi('/admin/api/telemetry/claude-code/usage?period=' + state.telCcPeriod);
+    state.telCcSummary = body;
+    renderClaudeCodeUsage(body);
+  } catch (exc) {
+    if (String(exc.message) === 'auth required') return;
+  }
+}
+
+function renderClaudeCodeUsage(body) {
+  const tbl = els.telCcTable;
+  const empty = els.telCcEmpty;
+  if (!tbl) return;
+  const tbody = tbl.querySelector('tbody');
+  if (!tbody) return;
+  const rows = (body && body.rows) || [];
+  tbody.innerHTML = '';
+  if (empty) empty.hidden = rows.length > 0;
+  rows.forEach(function (r) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + escapeHtml(r.model) + '</td>' +
+      '<td>' + escapeHtml(r.query_source) + '</td>' +
+      '<td>' + fmtTok(r.input) + '</td>' +
+      '<td>' + fmtTok(r.output) + '</td>' +
+      '<td>' + fmtTok(r.cache_read) + '</td>' +
+      '<td>' + fmtTok(r.cache_creation) + '</td>' +
+      '<td>' + (fmtCost(r.cost_usd) || '—') + '</td>';
+    tbody.appendChild(tr);
+  });
+  if (els.telCcSummary) {
+    const totals = (body && body.totals) || {};
+    const reqTok = (totals.input || 0) + (totals.output || 0);
+    els.telCcSummary.textContent = reqTok
+      ? tokPair(totals.input, totals.output) + ' tok · ' + (fmtCost(totals.cost_usd) || '≈ $0.00')
+      : 'no data yet';
+  }
 }
 
 // --------------------------------------------------------- live trace feed
@@ -299,6 +342,19 @@ function escapeAttr(s) { return escapeHtml(s); }
 
 // --------------------------------------------------------- lifecycle
 export function wireTelemetry() {
+  if (els.telCcPeriodSeg) {
+    els.telCcPeriodSeg.addEventListener('click', function (e) {
+      const btn = e.target.closest('button[data-period]');
+      if (!btn) return;
+      const next = btn.dataset.period;
+      if (next === state.telCcPeriod) return;
+      state.telCcPeriod = next;
+      els.telCcPeriodSeg.querySelectorAll('button').forEach(function (b) {
+        b.classList.toggle('active', b === btn);
+      });
+      fetchClaudeCodeUsage().catch(function () {});
+    });
+  }
   if (!els.telTracesList) return;
   // Delegated click handler — thumbs buttons + Langfuse deep-link short
   // circuit; everything else on a row toggles the detail panel.
@@ -328,6 +384,7 @@ export function startTelemetryPolls() {
   if (healthPollHandle) return;
   fetchTelemetryHealth();
   fetchTelemetryMetrics();
+  fetchClaudeCodeUsage();
   startTelemetryStream();
   healthPollHandle = setInterval(function () {
     fetchTelemetryHealth().catch(function () {});
@@ -335,10 +392,14 @@ export function startTelemetryPolls() {
   metricsPollHandle = setInterval(function () {
     fetchTelemetryMetrics().catch(function () {});
   }, METRICS_POLL_MS);
+  ccPollHandle = setInterval(function () {
+    fetchClaudeCodeUsage().catch(function () {});
+  }, CC_POLL_MS);
 }
 
 export function stopTelemetryPolls() {
   if (healthPollHandle) { clearInterval(healthPollHandle); healthPollHandle = null; }
   if (metricsPollHandle) { clearInterval(metricsPollHandle); metricsPollHandle = null; }
+  if (ccPollHandle) { clearInterval(ccPollHandle); ccPollHandle = null; }
   stopTelemetryStream();
 }

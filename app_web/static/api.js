@@ -192,6 +192,16 @@ export function tokPair(inTok, outTok) {
   return one(inTok) + ' / ' + one(outTok);
 }
 
+/* Equivalent metered-API dollar cost — "≈ $1.23" / "≈ <$0.01" / "" when
+ * zero/absent (shared by Code-usage tables and the OTel tab's Claude Code
+ * panel, #215-style dedup). */
+export function fmtCost(n) {
+  if (!n) return '';
+  if (n < 0.01) return '≈ <$0.01';
+  if (n >= 1000) return '≈ $' + Math.round(n).toLocaleString();
+  return '≈ $' + n.toFixed(2);
+}
+
 export function fmtBytes(n) {
   if (!Number.isFinite(n)) return '—';
   if (n < 1024) return n + ' B';

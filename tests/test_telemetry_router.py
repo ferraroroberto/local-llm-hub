@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from src import claude_code_otel as cco
 from src import server as server_mod
 
 
@@ -61,6 +62,22 @@ def test_metrics_endpoint_shape():
     summary = body["summary"]
     for key in ("requests", "errors", "error_rate", "since_ts", "since_uptime_s"):
         assert key in summary
+
+
+def test_claude_code_usage_endpoint_shape(tmp_path, monkeypatch):
+    monkeypatch.setattr(cco, "_DATA_DIR", tmp_path / "telemetry")
+    monkeypatch.setattr(cco, "_DATA_FILE", tmp_path / "telemetry" / "usage.jsonl")
+    cco._reset_for_tests()
+
+    r = _client().get("/admin/api/telemetry/claude-code/usage?period=all")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["source"] == "otel"
+    assert body["period"] == "all"
+    assert body["rows"] == []
+    assert body["totals"]["input"] == 0
+
+    cco._reset_for_tests()
 
 
 def test_feedback_validates_trace_id_shape():
