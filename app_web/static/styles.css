@@ -153,6 +153,9 @@ html, body {
   line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
+  /* No pinch / double-tap zoom — fixed-scale app, paired with the
+     maximum-scale=1, user-scalable=no viewport meta. */
+  touch-action: manipulation;
   /* Kill rubber-band drag at the document edges — the vendored nav's
      recommended app-level hardening (_vendored/nav/README.md). */
   overscroll-behavior: none;
