@@ -12,6 +12,7 @@
   <link rel="icon" href="/admin/static/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="/admin/static/icon-180.png">
   <link rel="stylesheet" href="/admin/static/styles.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/button/button.css">
   <link rel="stylesheet" href="/admin/static/_vendored/card/card.css">
   <link rel="stylesheet" href="/admin/static/_vendored/disclosure/disclosure.css">
   <link rel="stylesheet" href="/admin/static/_vendored/switch/switch.css">
@@ -117,7 +118,7 @@
           </div>
         </div>
         <div class="card-actions" id="servicesActions" hidden>
-          <button id="servicesLaunchBtn" type="button" class="launch-btn"><svg class="icon" aria-hidden="true"><use href="#i-rocket"></use></svg>Launch Docker + Langfuse</button>
+          <button id="servicesLaunchBtn" type="button" class="button-primary launch-btn"><svg class="icon" aria-hidden="true"><use href="#i-rocket"></use></svg>Launch Docker + Langfuse</button>
         </div>
         <p id="servicesHint" class="muted small" style="margin: 6px 0 0;" hidden></p>
       </section>
@@ -135,7 +136,7 @@
         <div class="collapse-body">
           <div id="installRows"></div>
           <div class="card-actions">
-            <button id="installFixAllBtn" type="button" class="launch-btn"><svg class="icon" aria-hidden="true"><use href="#i-wrench"></use></svg>Fix all</button>
+            <button id="installFixAllBtn" type="button" class="button-primary launch-btn"><svg class="icon" aria-hidden="true"><use href="#i-wrench"></use></svg>Fix all</button>
             <button id="installRefreshBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>Re-check</button>
           </div>
         </div>
@@ -622,7 +623,7 @@
       <h2><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>Sign in</h2>
       <p class="muted small">This hub is locked. Enter the configured password to receive a bearer token.</p>
       <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" required>
-      <button type="submit" class="launch-btn">Sign in</button>
+      <button type="submit" class="button-primary launch-btn">Sign in</button>
       <p id="loginError" class="error" hidden></p>
     </form>
   </div>

@@ -318,27 +318,20 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .hub-meta-row code { word-break: break-all; }
 
 /* ---------- buttons ---------- */
-/* Primary per-card action. Full width, button-primary height (48 px). */
+/* Primary per-card action layout — fill, border, radius, weight, and the
+   48px min-height come from the vendored .button-primary
+   (_vendored/button/button.css); this rule only owns the icon+label flex
+   layout, full-width sizing, and the local active-press feedback. */
 .launch-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   width: 100%;
-  min-height: 48px;
   padding: 12px 18px;
-  font: inherit;
   font-size: var(--font-label);
-  font-weight: 600;
-  color: var(--accent-fg);
-  background: var(--accent);
-  border: 0;
-  border-radius: var(--radius-md);
-  cursor: pointer;
 }
 .launch-btn:active { filter: brightness(0.9); }
-.launch-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
-.launch-btn.danger { background: var(--danger); color: var(--accent-fg); }
 
 /* Secondary text-style button — Clear, Re-check, Pause, etc. */
 .ghost-btn {
