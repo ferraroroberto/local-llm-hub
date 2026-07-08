@@ -26,6 +26,9 @@ pytestmark = pytest.mark.usefixtures("admin_url")
 
 SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
 PHONE_VIEWPORT = {"width": 390, "height": 844}
+# Pane-switch DOM/CSS transition can overrun a tight budget under runner
+# contention (issue #177) — give it the same headroom as the button wait.
+PANE_TIMEOUT = 10000
 
 
 @pytest.fixture(autouse=True)
@@ -52,12 +55,12 @@ def test_code_usage_tab_loads(page, admin_url):
     # Tab button must be present and visible.
     page.wait_for_selector("#tabCodeUsage", state="visible", timeout=5000)
     page.click("#tabCodeUsage")
-    page.wait_for_selector("#paneCodeUsage", state="visible", timeout=3000)
+    page.wait_for_selector("#paneCodeUsage", state="visible", timeout=PANE_TIMEOUT)
     # Other panes must be hidden — wait for state, don't race the DOM.
-    page.wait_for_selector("#paneHub", state="hidden", timeout=3000)
-    page.wait_for_selector("#paneModels", state="hidden", timeout=3000)
-    page.wait_for_selector("#panePlayground", state="hidden", timeout=3000)
-    page.wait_for_selector("#paneTelemetry", state="hidden", timeout=3000)
+    page.wait_for_selector("#paneHub", state="hidden", timeout=PANE_TIMEOUT)
+    page.wait_for_selector("#paneModels", state="hidden", timeout=PANE_TIMEOUT)
+    page.wait_for_selector("#panePlayground", state="hidden", timeout=PANE_TIMEOUT)
+    page.wait_for_selector("#paneTelemetry", state="hidden", timeout=PANE_TIMEOUT)
     # All four counter elements must be present (content may be "—" or a value).
     assert page.locator("#cldRequests").count() == 1
     assert page.locator("#cldInputTok").count() == 1
@@ -117,7 +120,7 @@ def test_period_toggle_changes_counters(page, admin_url):
     page.set_viewport_size({"width": 800, "height": 900})
     page.goto(admin_url, wait_until="domcontentloaded")
     page.click("#tabCodeUsage")
-    page.wait_for_selector("#paneCodeUsage", state="visible", timeout=3000)
+    page.wait_for_selector("#paneCodeUsage", state="visible", timeout=PANE_TIMEOUT)
     # Give the first poll a moment to land.
     page.wait_for_timeout(2000)
     # Fire the click via JS so viewport clipping doesn't block us.
@@ -136,7 +139,7 @@ def test_vendor_toggle_changes_selector(page, admin_url):
     page.set_viewport_size({"width": 800, "height": 900})
     page.goto(admin_url, wait_until="domcontentloaded")
     page.click("#tabCodeUsage")
-    page.wait_for_selector("#paneCodeUsage", state="visible", timeout=3000)
+    page.wait_for_selector("#paneCodeUsage", state="visible", timeout=PANE_TIMEOUT)
     page.wait_for_timeout(2000)
     # Default is "all" → per-vendor card visible.
     assert page.evaluate(
@@ -159,7 +162,7 @@ def test_code_usage_tab_phone_screenshot(page, admin_url, browser_name):
     page.set_viewport_size(PHONE_VIEWPORT)
     page.goto(admin_url, wait_until="domcontentloaded")
     page.click("#tabCodeUsage")
-    page.wait_for_selector("#paneCodeUsage", state="visible", timeout=3000)
+    page.wait_for_selector("#paneCodeUsage", state="visible", timeout=PANE_TIMEOUT)
     # Wait for the first poll to complete (counters fill in).
     page.wait_for_function(
         "document.getElementById('cldRequests') && "
