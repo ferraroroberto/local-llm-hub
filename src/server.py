@@ -88,6 +88,7 @@ from .server_common import (
 )
 from .server_audio import router as _audio_router
 from .server_images import router as _images_router
+from .server_otel_receiver import router as _otel_receiver_router
 from .openai_upstream import (
     UpstreamError,
     anthropic_to_openai_messages,
@@ -1010,6 +1011,7 @@ def _flatten_openai_prompt(messages: List[Dict[str, Any]]) -> str:
 # them. See those modules for the handler bodies.
 app.include_router(_images_router)
 app.include_router(_audio_router)
+app.include_router(_otel_receiver_router)
 
 
 def main() -> None:

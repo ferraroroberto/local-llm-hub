@@ -38,6 +38,9 @@ export const state = {
   telTraces: [],
   telStreamCtl: null,
   telExpandedTraceId: '',
+  // Claude Code (host CLI) OTel-sourced usage panel (issue #68).
+  telCcSummary: null,
+  telCcPeriod: 'today',   // 'today' | 'week' | 'month' | 'all'
 
   // Code-usage tab — host Claude Code session data (issue #20).
   cldSummary: null,
@@ -68,6 +71,10 @@ export const els = {
   telTracesList: document.getElementById('telTracesList'),
   telTracesBadge: document.getElementById('telTracesBadge'),
   telTracesEmpty: document.getElementById('telTracesEmpty'),
+  telCcSummary: document.getElementById('telCcSummary'),
+  telCcPeriodSeg: document.getElementById('telCcPeriodSeg'),
+  telCcTable: document.getElementById('telCcTable'),
+  telCcEmpty: document.getElementById('telCcEmpty'),
 
   // Hub card — live status indicator lives inside the card header
   // (replaces the old always-on status strip).

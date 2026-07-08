@@ -12,7 +12,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, fmtTok, tokPair } from './api.js';
+import { jsonApi, fmtTok, fmtCost, tokPair } from './api.js';
 
 // ---------------------------------------------------------------------------
 // Chart constants (issue #50)
@@ -471,15 +471,7 @@ function fmtNum(n) {
   return Number(n).toLocaleString();
 }
 
-/* fmtTok lives in api.js (shared with the Hub/OTel tables, #215). */
-
-function fmtCost(n) {
-  // Equivalent metered-API dollar cost (issue #52). Empty when zero/absent.
-  if (!n) return '';
-  if (n < 0.01) return '≈ <$0.01';
-  if (n >= 1000) return '≈ $' + Math.round(n).toLocaleString();
-  return '≈ $' + n.toFixed(2);
-}
+/* fmtTok / fmtCost live in api.js (shared with the Hub/OTel tables, #215). */
 
 function fmtTs(iso) {
   if (!iso) return '—';

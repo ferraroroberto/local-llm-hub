@@ -226,6 +226,66 @@ The Telemetry tab's 👍 / 👎 buttons POST to
 
 Same endpoint works for clients — see the client contract doc.
 
+## Claude Code OTel metrics receiver (issue #68)
+
+Everything above is the hub acting as an OTel **exporter** (hub → Langfuse).
+This section is the opposite direction: the hub also runs a small OTLP-
+metrics **receiver** so Claude Code's own telemetry export — which is the
+only channel that sees sub-agent (Task tool) API calls, since Claude Code
+never writes those to its JSONL session transcripts (#66) — can feed the
+admin SPA's OTel tab.
+
+### Enable on the host
+
+Persistent **user-level** environment variables (`setx`, so every *new*
+shell / Claude Code session picks them up — a session already running won't
+until it's restarted):
+
+```bat
+setx CLAUDE_CODE_ENABLE_TELEMETRY 1
+setx OTEL_METRICS_EXPORTER otlp
+setx OTEL_EXPORTER_OTLP_METRICS_PROTOCOL http/protobuf
+setx OTEL_EXPORTER_OTLP_METRICS_ENDPOINT http://127.0.0.1:8000/v1/metrics
+```
+
+Deliberately scoped to the metrics signal only — not
+`OTEL_LOGS_EXPORTER`/`OTEL_TRACES_EXPORTER`, which pull in prompt/tool-
+content-adjacent event capture and need
+`CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`. These vars are independent of the
+hub's own exporter above (`src/observability.py` hardcodes its Langfuse
+endpoint from `LANGFUSE_HOST` rather than reading the standard
+`OTEL_EXPORTER_OTLP_*` vars), so there's no interaction between the two
+pipelines.
+
+### What's captured — and what isn't
+
+- `POST /v1/metrics` (`src/server_otel_receiver.py`) accepts an OTLP/HTTP
+  protobuf `ExportMetricsServiceRequest`, unauthenticated — same posture as
+  the hub's other `/v1/*` routes (personal-localhost hub; if you ever bind
+  beyond loopback, this endpoint inherits the same no-auth posture as the
+  rest of that surface).
+- Only `claude_code.token.usage` and `claude_code.cost.usage` are kept
+  (`src/claude_code_otel.py`). Both are `Sum` metrics exported with
+  **delta** temporality (verified empirically against a real Claude Code
+  export) — each received data point already is the incremental delta since
+  the last export, so ingestion just adds values directly.
+- **Data-minimization:** the raw export also carries identity attributes
+  (`user.id`, `user.email`, `user.account_uuid`, `user.account_id`,
+  `organization.id`, `session.id`, `terminal.type`). None of these are
+  stored or logged — only `model`, `query_source` (`main`/`subagent`/
+  `auxiliary`), and (for the token metric) `type` are persisted, to
+  `data/telemetry/claude_code_otel_usage.jsonl` (gitignored).
+- **Best-effort delivery.** If the hub is down/restarting when Claude Code
+  flushes its telemetry batch, that batch is lost — same as any OTLP push
+  pipeline. Claude Code doesn't retry a failed export.
+- **Per-model, not per-individual-subagent.** Which model ran is visible;
+  which *named* sub-agent it was is not — that finer attribution is tracked
+  upstream in [anthropics/claude-code#22625](https://github.com/anthropics/claude-code/issues/22625).
+- The OTel tab's "Claude Code (host CLI)" panel is intentionally **not**
+  summed into the Code tab's JSONL-sourced headline totals — the two sources
+  are labelled and shown separately to avoid double-counting main-agent
+  activity both would otherwise report.
+
 ## Architecture
 
 ```
@@ -269,6 +329,9 @@ Same endpoint works for clients — see the client contract doc.
 | `app_web/routers/telemetry.py` | Health, trace feed, metrics, feedback endpoint |
 | `app_web/static/telemetry.{js,css}` | SPA Telemetry tab |
 | `docs/clients-telemetry-contract.md` | Client-side recipe |
+| `src/server_otel_receiver.py` | `POST /v1/metrics` — Claude Code's OTLP metrics receiver (issue #68) |
+| `src/claude_code_otel.py` | Parse/persist/rollup for the Claude Code OTel receiver |
+| `data/telemetry/claude_code_otel_usage.jsonl` | Persisted usage log (gitignored) backing the OTel tab's Claude Code panel |
 
 ## Limitations / known gaps
 

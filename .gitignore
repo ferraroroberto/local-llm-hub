@@ -24,6 +24,7 @@ Thumbs.db
 # Project artefacts
 data/logs/
 data/output/
+data/telemetry/
 tmp_server.log
 *.log
 

@@ -29,6 +29,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, conint
 
+from src.claude_code_otel import get_usage_summary as _claude_code_otel_summary
 from src.hub_observability import OBS, _rec_to_dict
 from src.observability import (
     hash_prompts_enabled,
@@ -216,6 +217,23 @@ async def telemetry_metrics() -> Dict[str, Any]:
             "since_uptime_s": round(max(0.0, time.time() - started), 1),
         },
     }
+
+
+# --------------------------------------------------------- Claude Code (OTel-sourced)
+
+
+@router.get("/api/telemetry/claude-code/usage")
+async def telemetry_claude_code_usage(period: str = "today") -> Dict[str, Any]:
+    """Per-(model, query_source) rollup of Claude Code's own OTel metrics
+    export (issue #68), persisted at ``POST /v1/metrics``
+    (``src/server_otel_receiver.py`` -> ``src/claude_code_otel.py``).
+
+    Deliberately separate from the Code tab's JSONL-sourced totals — this
+    source is the only one that sees sub-agent (Task tool) usage, but it is
+    not summed into the Code tab's headline numbers to avoid double-counting
+    main-agent activity that both sources would otherwise report.
+    """
+    return _claude_code_otel_summary(period=period)
 
 
 # ---------------------------------------------------------------- trace detail (row expand)
