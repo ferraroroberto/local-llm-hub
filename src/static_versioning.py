@@ -20,6 +20,7 @@ file's per-file hash, sorted by name. Reasons:
 from __future__ import annotations
 
 import hashlib
+import posixpath
 import re
 from pathlib import Path
 from typing import Dict, Iterable, Optional
@@ -32,7 +33,9 @@ _SKIP_DIRS = ("vendor",)
 # Matches a relative ES-module import and splits it into (prefix, path,
 # basename, existing-stamp, close-quote). The path segment allows subdirs
 # (e.g. ``./_vendored/icons/``) so a vendored module nested under static/ is
-# stamped too — the hash map is basename-keyed, so the lookup is by basename.
+# stamped too — the hash map is keyed by static-dir-relative path, and the
+# ``./``/``../`` specifier is resolved against the importing file's own
+# directory before the lookup (see ``_resolve_specifier``).
 _JS_IMPORT_RE = re.compile(
     r"""(from\s*['"])(\.{1,2}/(?:[\w\-.]+/)*)([\w\-.]+\.js)(\?v=[^'"]*)?(['"])"""
 )
@@ -40,7 +43,8 @@ _JS_IMPORT_RE = re.compile(
 # The path segment allows subdirs (e.g. ``_vendored/nav/nav-tabs.css``) so a
 # vendored stylesheet linked from index.html is stamped too — any user-visible
 # asset outside the ?v= scheme rides iOS Safari's heuristic cache across
-# deploys (the app-launcher#372 lesson). The hash map is basename-keyed.
+# deploys (the app-launcher#372 lesson). The captured group is already the
+# static-dir-relative path, so it maps directly onto a ``hashes`` key.
 _INDEX_ASSET_RE = re.compile(
     r"""(href|src)=(['"])/admin/static/((?:[\w\-.]+/)*[\w\-.]+\.(?:css|js))(\?v=[^'"]*)?(['"])"""
 )
@@ -62,12 +66,20 @@ def _iter_hashable_files(static_dir: Path) -> Iterable[Path]:
 
 
 def compute_asset_hashes(static_dir: Path) -> Dict[str, str]:
-    """Return ``{filename: fleet_hash}`` for every hashable static file."""
+    """Return ``{relpath: fleet_hash}`` for every hashable static file.
+
+    Keyed by the file's static-dir-relative posix path (e.g.
+    ``_vendored/icons/icons.js``), not the bare basename — two files
+    sharing a basename in different directories (e.g. two vendored
+    components each shipping their own ``icons.js``) must get distinct
+    keys, or one silently gets the other's stamp.
+    """
     if not static_dir.exists():
         return {}
     per_file: Dict[str, str] = {}
     for path in _iter_hashable_files(static_dir):
-        per_file[path.name] = _short_hash(path.read_bytes())
+        relpath = path.relative_to(static_dir).as_posix()
+        per_file[relpath] = _short_hash(path.read_bytes())
     if not per_file:
         return {}
     fleet_input = "\n".join(
@@ -83,29 +95,56 @@ def fleet_hash_of(hashes: Dict[str, str]) -> str:
     return next(iter(hashes.values()))
 
 
-def rewrite_js_imports(body: str, hashes: Dict[str, str]) -> str:
-    """Stamp ``?v=<hash>`` onto every ``from './foo.js'`` import."""
+def _resolve_specifier(from_dir: str, spec: str) -> str:
+    """Resolve a ``./``/``../`` import specifier against ``from_dir``.
+
+    ``from_dir`` is the static-dir-relative posix directory of the file
+    doing the importing (empty string at the static root). Returns the
+    static-dir-relative posix path used as the ``hashes`` lookup key,
+    e.g. ``_resolve_specifier("_vendored/empty-state", "../icons/icons.js")
+    == "_vendored/icons/icons.js"``.
+    """
+    joined = posixpath.join(from_dir, spec) if from_dir else spec
+    return posixpath.normpath(joined)
+
+
+def rewrite_js_imports(body: str, hashes: Dict[str, str], from_dir: str = "") -> str:
+    """Stamp ``?v=<hash>`` onto every ``from './foo.js'`` import.
+
+    ``from_dir`` is the static-dir-relative posix directory of the file
+    being rewritten (empty string for a file at the static root) — needed
+    to resolve ``./``/``../`` specifiers (including into subdirectories,
+    e.g. ``./_vendored/icons/icons.js``) against ``hashes``, which is
+    keyed by static-dir-relative path, not bare basename. Imports with no
+    matching entry are left alone.
+    """
     if not hashes:
         return body
 
     def _sub(match: re.Match) -> str:
         prefix, path, filename, _existing, quote_close = match.group(1, 2, 3, 4, 5)
-        stamp = hashes.get(filename)
+        spec = f"{path}{filename}"
+        stamp = hashes.get(_resolve_specifier(from_dir, spec))
         if not stamp:
             return match.group(0)
-        return f"{prefix}{path}{filename}?v={stamp}{quote_close}"
+        return f"{prefix}{spec}?v={stamp}{quote_close}"
 
     return _JS_IMPORT_RE.sub(_sub, body)
 
 
 def rewrite_index_html(body: str, hashes: Dict[str, str]) -> str:
-    """Stamp ``?v=<hash>`` onto every ``/admin/static/<file>.(css|js)`` href/src."""
+    """Stamp ``?v=<hash>`` onto every ``/admin/static/<file>.(css|js)`` href/src.
+
+    ``filename`` may include subdirectories (e.g.
+    ``_vendored/nav/nav-tabs.css``) and maps directly onto a ``hashes``
+    key — no resolution needed, unlike a relative JS import.
+    """
     if not hashes:
         return body
 
     def _sub(match: re.Match) -> str:
         attr, quote_open, filename, _existing, quote_close = match.group(1, 2, 3, 4, 5)
-        stamp = hashes.get(filename.rsplit("/", 1)[-1])
+        stamp = hashes.get(filename)
         if not stamp:
             return match.group(0)
         return f'{attr}={quote_open}/admin/static/{filename}?v={stamp}{quote_close}'
