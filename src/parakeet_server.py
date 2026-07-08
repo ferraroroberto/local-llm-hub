@@ -35,6 +35,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from .backend_process import resolve_model_for_engine
+from .event_loop import LOOP_FACTORY
 
 log = logging.getLogger("parakeet_server")
 
@@ -165,7 +166,14 @@ def main(argv: Optional[list] = None) -> int:
         raise SystemExit(f"model {model.id!r} has no port configured")
 
     app = build_app(args.model_id)
-    uvicorn.run(app, host="0.0.0.0", port=model.port, log_level="info", access_log=False)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=model.port,
+        log_level="info",
+        access_log=False,
+        loop=LOOP_FACTORY,
+    )
     return 0
 
 
