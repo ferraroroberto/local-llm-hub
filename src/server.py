@@ -1014,7 +1014,14 @@ app.include_router(_audio_router)
 
 def main() -> None:
     import uvicorn
-    uvicorn.run("src.server:app", host=hub_bind_host(), port=hub_port(), reload=False)
+    from src.event_loop import LOOP_FACTORY
+    uvicorn.run(
+        "src.server:app",
+        host=hub_bind_host(),
+        port=hub_port(),
+        reload=False,
+        loop=LOOP_FACTORY,
+    )
 
 
 if __name__ == "__main__":

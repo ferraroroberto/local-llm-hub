@@ -46,6 +46,7 @@ import uvicorn
 from fastapi import FastAPI, Request, Response
 
 from .audio_proxy import build_whisper_upstream_request
+from .event_loop import LOOP_FACTORY
 from .backend_process import (
     VENDOR_WHISPER,
     whisper_server_binary,
@@ -371,6 +372,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         port=model.port,
         log_level="info",
         access_log=False,
+        loop=LOOP_FACTORY,
     )
     return 0
 

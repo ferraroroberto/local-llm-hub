@@ -35,6 +35,7 @@ from fastapi.responses import StreamingResponse
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
 from .backend_process import resolve_model_for_engine
+from .event_loop import LOOP_FACTORY
 from .tts_engines import SpeechRequest, TTSEngine, build_engine
 
 if TYPE_CHECKING:  # numpy is imported lazily at runtime (see encode_audio)
@@ -301,7 +302,14 @@ def main(argv: Optional[list] = None) -> int:
         raise SystemExit(f"model {model.id!r} has no port configured")
 
     app = build_app(args.model_id, args.device)
-    uvicorn.run(app, host="0.0.0.0", port=model.port, log_level="info", access_log=False)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=model.port,
+        log_level="info",
+        access_log=False,
+        loop=LOOP_FACTORY,
+    )
     return 0
 
 
