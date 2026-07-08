@@ -244,10 +244,14 @@ export async function fetchServicesStatus() {
     renderServices();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
-    // Probe error itself — render an "unreachable" state.
+    // Probe error itself — render an "unreachable" state. `probeFailed`
+    // tells renderServices() this isn't a real launchable=false verdict
+    // (we never got far enough to check the install path), so it must
+    // not show the "Docker Desktop install not found" hint — that would
+    // be a fabricated claim about install state from a fetch failure.
     state.services = { docker: { running: false, error: String(exc.message || exc) },
                        langfuse: { reachable: false, error: '' },
-                       launchable: false, platform: '' };
+                       launchable: false, platform: '', probeFailed: true };
     renderServices();
   }
 }
@@ -335,7 +339,12 @@ function renderServices() {
   const showActions = anyDown && body.launchable && !state.servicesLaunching;
   if (els.servicesActions) els.servicesActions.hidden = !(anyDown && body.launchable);
   if (els.servicesHint) {
-    if (anyDown && !body.launchable) {
+    if (body.probeFailed) {
+      // Status probe itself failed — we don't know the install state,
+      // so surface the real error instead of guessing.
+      els.servicesHint.textContent = 'Status check failed: ' + (docker.error || 'unknown error') + '.';
+      els.servicesHint.hidden = false;
+    } else if (anyDown && !body.launchable) {
       const hint = body.platform === 'darwin'
         ? 'Start Docker manually: `open -a Docker`, then `./start_langfuse.sh`.'
         : body.platform === 'linux'

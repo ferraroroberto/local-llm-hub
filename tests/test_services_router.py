@@ -72,6 +72,65 @@ def test_docker_status_missing_binary(monkeypatch):
     assert "PATH" in result["error"]
 
 
+def _run_on_selector_loop(coro):
+    """Like ``_run`` but pins the worker thread's loop to ``SelectorEventLoop``.
+
+    Regression pin for #225: the hub's uvicorn servers run under
+    ``asyncio.SelectorEventLoop`` on Windows since #223, and
+    ``SelectorEventLoop`` has no subprocess support there —
+    ``asyncio.create_subprocess_exec`` raises ``NotImplementedError``
+    under it. ``docker_status()``/``_run_langfuse_start_script()`` must
+    use a thread-executor path that doesn't depend on the loop's
+    subprocess transport, so this must pass on any platform + loop combo.
+    """
+    import threading
+
+    bucket: dict = {}
+
+    def _worker() -> None:
+        loop = (
+            asyncio.SelectorEventLoop()
+            if sys.platform == "win32"
+            else asyncio.new_event_loop()
+        )
+        try:
+            bucket["value"] = loop.run_until_complete(coro)
+        except BaseException as exc:  # noqa: BLE001 — re-raised in caller
+            bucket["error"] = exc
+        finally:
+            loop.close()
+
+    t = threading.Thread(target=_worker)
+    t.start()
+    t.join()
+    if "error" in bucket:
+        raise bucket["error"]
+    return bucket.get("value")
+
+
+def test_docker_status_does_not_raise_under_selector_event_loop():
+    """#225: docker_status() must not NotImplementedError under Selector.
+
+    Doesn't assert on Docker's actual running state (host-dependent) —
+    only that the call completes and returns the well-formed dict shape
+    instead of blowing up through the ASGI app as a 500.
+    """
+    result = _run_on_selector_loop(svc.docker_status())
+    assert isinstance(result, dict)
+    assert "running" in result
+    assert "error" in result
+
+
+def test_run_langfuse_start_script_does_not_raise_under_selector_event_loop(monkeypatch):
+    """#225: same NotImplementedError trap on the launch-endpoint path."""
+    monkeypatch.setattr(
+        svc, "langfuse_start_script", lambda: svc.PROJECT_ROOT / "does-not-exist.bat"
+    )
+    result = _run_on_selector_loop(svc._run_langfuse_start_script())
+    assert result["ok"] is False
+    assert "start script not found" in result["stderr"]
+
+
 def test_langfuse_health_unreachable_returns_clean_payload(monkeypatch):
     """When httpx can't talk to Langfuse, the helper must return a
     well-formed dict, not raise — the SPA card depends on that."""

@@ -91,6 +91,40 @@ def langfuse_start_script() -> Path:
 # ---------------------------------------------------------------- docker
 
 
+def _docker_info_sync(timeout_s: float) -> Dict[str, Any]:
+    """Blocking half of :func:`docker_status`, run off-thread.
+
+    ``asyncio.create_subprocess_exec`` has no Windows implementation
+    under ``SelectorEventLoop`` (only ``ProactorEventLoop`` supports
+    subprocess pipes there) — since #223 wired the hub's uvicorn to the
+    selector loop, spawning ``docker info`` via the async subprocess API
+    raises ``NotImplementedError`` on every call. A blocking
+    ``subprocess.run`` in a worker thread sidesteps the event loop's
+    subprocess transport entirely, so it works under either loop policy.
+    """
+    try:
+        proc = subprocess.run(
+            ["docker", "info", "--format", "{{.ServerVersion}}"],
+            capture_output=True,
+            timeout=timeout_s,
+            # CREATE_NO_WINDOW on Windows so this poll (fired every few
+            # seconds while the Hub tab is open) doesn't flash a console
+            # window — matching system_stats.gpu_stats / claude_cli.
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+    except subprocess.TimeoutExpired:
+        return {"running": False, "error": f"`docker info` timed out after {timeout_s:.1f}s"}
+    except OSError as exc:
+        return {"running": False, "error": f"{type(exc).__name__}: {exc}"}
+    if proc.returncode == 0:
+        version = (proc.stdout or b"").decode("utf-8", errors="replace").strip()
+        return {"running": True, "error": "", "server_version": version}
+    # Daemon down — keep the first line of stderr for the UI.
+    err = (proc.stderr or b"").decode("utf-8", errors="replace").strip().splitlines()
+    first = err[0] if err else f"exit {proc.returncode}"
+    return {"running": False, "error": first[:200]}
+
+
 async def docker_status(timeout_s: float = DOCKER_PROBE_TIMEOUT_S) -> Dict[str, Any]:
     """Probe the Docker engine. Returns ``{running, error}``.
 
@@ -100,33 +134,7 @@ async def docker_status(timeout_s: float = DOCKER_PROBE_TIMEOUT_S) -> Dict[str, 
     """
     if shutil.which("docker") is None:
         return {"running": False, "error": "docker CLI not on PATH"}
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "docker", "info", "--format", "{{.ServerVersion}}",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            # CREATE_NO_WINDOW on Windows so this poll (fired every few
-            # seconds while the Hub tab is open) doesn't flash a console
-            # window — matching system_stats.gpu_stats / claude_cli.
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-        )
-        try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
-        except asyncio.TimeoutError:
-            try:
-                proc.kill()
-            except ProcessLookupError:
-                pass
-            return {"running": False, "error": f"`docker info` timed out after {timeout_s:.1f}s"}
-        if proc.returncode == 0:
-            version = (stdout or b"").decode("utf-8", errors="replace").strip()
-            return {"running": True, "error": "", "server_version": version}
-        # Daemon down — keep the first line of stderr for the UI.
-        err = (stderr or b"").decode("utf-8", errors="replace").strip().splitlines()
-        first = err[0] if err else f"exit {proc.returncode}"
-        return {"running": False, "error": first[:200]}
-    except OSError as exc:
-        return {"running": False, "error": f"{type(exc).__name__}: {exc}"}
+    return await asyncio.to_thread(_docker_info_sync, timeout_s)
 
 
 # ---------------------------------------------------------------- langfuse
@@ -308,12 +316,12 @@ async def wait_for_langfuse(
     return False
 
 
-async def _run_langfuse_start_script() -> Dict[str, Any]:
-    """Run ``start_langfuse.{bat,sh}`` and capture the result.
+def _run_langfuse_start_script_sync() -> Dict[str, Any]:
+    """Blocking half of :func:`_run_langfuse_start_script`, run off-thread.
 
-    Returns ``{ok, returncode, stdout, stderr}``. The script itself is
-    idempotent (``docker compose up -d``) so calling it again on an
-    already-running stack is a fast no-op.
+    Same ``SelectorEventLoop``-has-no-Windows-subprocess-support issue as
+    :func:`_docker_info_sync` — a blocking ``subprocess.run`` in a worker
+    thread avoids the event loop's subprocess transport entirely.
     """
     script = langfuse_start_script()
     if not script.exists():
@@ -328,20 +336,16 @@ async def _run_langfuse_start_script() -> Dict[str, Any]:
     else:
         cmd = ["/bin/sh", str(script)]
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            cwd=str(PROJECT_ROOT),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = subprocess.run(
+            cmd, cwd=str(PROJECT_ROOT), capture_output=True, timeout=120.0
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120.0)
         return {
             "ok": proc.returncode == 0,
             "returncode": proc.returncode,
-            "stdout": (stdout or b"").decode("utf-8", errors="replace"),
-            "stderr": (stderr or b"").decode("utf-8", errors="replace"),
+            "stdout": (proc.stdout or b"").decode("utf-8", errors="replace"),
+            "stderr": (proc.stderr or b"").decode("utf-8", errors="replace"),
         }
-    except asyncio.TimeoutError:
+    except subprocess.TimeoutExpired:
         return {
             "ok": False,
             "returncode": -1,
@@ -355,6 +359,16 @@ async def _run_langfuse_start_script() -> Dict[str, Any]:
             "stdout": "",
             "stderr": f"{type(exc).__name__}: {exc}",
         }
+
+
+async def _run_langfuse_start_script() -> Dict[str, Any]:
+    """Run ``start_langfuse.{bat,sh}`` and capture the result.
+
+    Returns ``{ok, returncode, stdout, stderr}``. The script itself is
+    idempotent (``docker compose up -d``) so calling it again on an
+    already-running stack is a fast no-op.
+    """
+    return await asyncio.to_thread(_run_langfuse_start_script_sync)
 
 
 async def launch_stack() -> Dict[str, Any]:
