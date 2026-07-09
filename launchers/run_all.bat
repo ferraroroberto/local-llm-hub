@@ -6,7 +6,7 @@ REM  it is derived live from config/models.yaml by
 REM  `run_backend --list-launchable`, so it always reflects the
 REM  active host's `enabled:` contract (owned, enabled, non-virtual
 REM  rows only). Remote-owned and disabled models are skipped.
-REM  Close each window individually or run stop_all.bat (TODO).
+REM  Close each window individually to stop.
 REM ==========================================================
 cd /d "%~dp0.."
 

@@ -460,8 +460,6 @@ local-llm-hub/
 │   ├── openai_upstream.py    # httpx client + SSE think-strip pipeline
 │   ├── model_registry.py     # YAML loader (resolves display_name + aliases)
 │   ├── host_profile.py       # pick active host row
-│   ├── machine_specs.py      # parse config/machine_specs.yaml
-│   ├── fit_estimator.py      # HF model fit estimator
 │   ├── system_stats.py       # live RAM/GPU readings (consumed by Hub tab sparklines)
 │   ├── install.py            # first-run checks + --fix
 │   ├── run_backend.py        # hub|qwen35_4b|gemma4_26b|whisper|… dispatcher
