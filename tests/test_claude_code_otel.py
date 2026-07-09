@@ -89,10 +89,27 @@ def test_parse_export_request_extracts_token_and_cost():
     assert token_point.query_source == "auxiliary"
     assert token_point.token_type == "input"
     assert token_point.value == 525.0
+    assert token_point.project is None  # not set in this export
 
     cost_point = next(p for p in points if p.metric == "cost")
     assert cost_point.value == 0.0006
     assert cost_point.token_type is None
+
+
+def test_parse_export_request_extracts_project_when_set():
+    # OTEL_RESOURCE_ATTRIBUTES=project.name=<repo> flattens onto every data
+    # point's own attributes (verified against a real capture, issue #234).
+    raw = _build_export(
+        [
+            (
+                "claude_code.token.usage",
+                10.0,
+                {"model": "claude-sonnet-5", "query_source": "main", "type": "input", "project.name": "local-llm-hub"},
+            ),
+        ]
+    )
+    points = cco.parse_export_request(raw)
+    assert points[0].project == "local-llm-hub"
 
 
 def test_parse_export_request_ignores_unrelated_metrics():
@@ -205,6 +222,34 @@ def test_get_usage_summary_breaks_out_rows_by_day():
     assert rows[1]["date"] == "2024-01-01"
     # Totals still sum across both days.
     assert summary["totals"]["input"] == 300
+
+
+def test_get_usage_summary_groups_by_project_when_set():
+    raw = _build_export(
+        [
+            (
+                "claude_code.token.usage", 100.0,
+                {"model": "claude-sonnet-5", "query_source": "main", "type": "input", "project.name": "repo-a"},
+            ),
+            (
+                "claude_code.token.usage", 200.0,
+                {"model": "claude-sonnet-5", "query_source": "main", "type": "input", "project.name": "repo-b"},
+            ),
+            (
+                # No OTEL_RESOURCE_ATTRIBUTES set — the common case.
+                "claude_code.token.usage", 50.0,
+                {"model": "claude-sonnet-5", "query_source": "main", "type": "input"},
+            ),
+        ]
+    )
+    cco.ingest_export_request(raw)
+    summary = cco.get_usage_summary(period="all")
+    by_project = {r["project"]: r for r in summary["rows"]}
+    assert by_project["repo-a"]["input"] == 100
+    assert by_project["repo-b"]["input"] == 200
+    assert by_project[None]["input"] == 50
+    # Totals still sum across all projects, attributed or not.
+    assert summary["totals"]["input"] == 350
 
 
 def test_get_usage_summary_invalid_period_falls_back_to_all():

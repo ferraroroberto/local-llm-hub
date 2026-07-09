@@ -25,7 +25,19 @@ Design notes:
   (``user.id``, ``user.email``, ``user.account_uuid``, ``user.account_id``,
   ``organization.id``, ``session.id``, ``terminal.type``) — these are read
   off the protobuf but never stored or logged. Only ``model``,
-  ``query_source``, and (for the token metric) ``type`` are persisted.
+  ``query_source``, (for the token metric) ``type``, and (when the sending
+  session set it) ``project.name`` are persisted.
+- **Project attribution is opt-in, not automatic** (issue #234). Unlike the
+  Code tab's JSONL source — where "project" is trivially the session file's
+  own directory — Claude Code's OTel metrics carry no cwd/project attribute
+  by default. Verified empirically that setting ``OTEL_RESOURCE_ATTRIBUTES``
+  (e.g. ``project.name=<repo>``) before launching ``claude`` *does* flatten
+  onto every data point's own attributes (not just the resource level), so
+  it round-trips through this receiver correctly. But there's no automatic,
+  per-repo mechanism wired up on this host — the user deliberately chose not
+  to add one (no global shell-profile hook), so this field is only populated
+  for sessions where ``OTEL_RESOURCE_ATTRIBUTES`` was set by hand for that
+  invocation. See ``docs/telemetry-langfuse.md`` for the manual recipe.
 - **Plain JSONL, no DB** — matches the rest of this repo's usage-tracking
   (Claude Code's own session logs, ``code_usage.py``'s parser). No rotation;
   revisit only if this becomes a real problem (same posture as the JSONL
@@ -74,6 +86,7 @@ class UsagePoint:
     query_source: str
     token_type: Optional[str]  # only set when metric == "token"
     value: float
+    project: Optional[str]  # from OTEL_RESOURCE_ATTRIBUTES' project.name, if set
 
 
 def _attr_value(value: Any) -> Any:
@@ -112,6 +125,7 @@ def parse_export_request(raw: bytes) -> List[UsagePoint]:
                     token_type = None
                     if metric_kind == "token":
                         token_type = attrs.get("type")
+                    project = attrs.get("project.name")
                     points.append(
                         UsagePoint(
                             ts=ts,
@@ -120,6 +134,7 @@ def parse_export_request(raw: bytes) -> List[UsagePoint]:
                             query_source=str(attrs.get("query_source") or "unknown"),
                             token_type=str(token_type) if token_type else None,
                             value=float(value),
+                            project=str(project) if project else None,
                         )
                     )
     return points
@@ -154,6 +169,7 @@ def ingest_export_request(raw: bytes) -> int:
                             "query_source": p.query_source,
                             "token_type": p.token_type,
                             "value": p.value,
+                            "project": p.project,
                         }
                     )
                     + "\n"
@@ -204,6 +220,7 @@ def _load_points() -> List[UsagePoint]:
                             query_source=row["query_source"],
                             token_type=row.get("token_type"),
                             value=float(row["value"]),
+                            project=row.get("project"),
                         )
                     )
                 except Exception:  # noqa: BLE001
@@ -232,13 +249,16 @@ def _period_since(period: str) -> Optional[date]:
 
 
 def get_usage_summary(period: str = "today") -> Dict[str, Any]:
-    """Per-(date, model, query_source) rollup for the OTel tab's Claude Code panel.
+    """Per-(date, model, query_source, project) rollup for the OTel tab's
+    Claude Code panel.
 
     ``period`` is one of ``today | week | month | all``; unrecognised values
     fall back to ``all`` (unbounded) rather than raising. Rows are broken out
     by day (issue #233) — each ingested point already carries a timestamp, so
     this attributes cost/usage to the day it actually happened rather than
     collapsing the whole selected window into one aggregate row per model.
+    ``project`` is ``None`` (rendered "—" by the SPA) for the vast majority of
+    sessions, which never set ``OTEL_RESOURCE_ATTRIBUTES`` — see #234.
     """
     if period not in _PERIODS:
         period = "all"
@@ -248,9 +268,9 @@ def get_usage_summary(period: str = "today") -> Dict[str, Any]:
     if since is not None:
         points = [p for p in points if p.ts.date() >= since]
 
-    rows: Dict[Tuple[str, str, str], Dict[str, float]] = {}
+    rows: Dict[Tuple[str, str, str, Optional[str]], Dict[str, float]] = {}
     for p in points:
-        key = (p.ts.date().isoformat(), _model_display(p.model), p.query_source)
+        key = (p.ts.date().isoformat(), _model_display(p.model), p.query_source, p.project)
         row = rows.setdefault(
             key,
             {"input": 0.0, "output": 0.0, "cache_read": 0.0, "cache_creation": 0.0, "cost_usd": 0.0},
@@ -271,15 +291,17 @@ def get_usage_summary(period: str = "today") -> Dict[str, Any]:
             "cost_usd": round(vals["cost_usd"], 6),
         }
 
-    # Most recent day first; within a day, sorted by model then source
-    # (two-pass stable sort — first by model/source, then by date desc).
-    by_model_source = sorted(rows.items(), key=lambda kv: (kv[0][1], kv[0][2]))
+    # Most recent day first; within a day, sorted by model/source/project
+    # (two-pass stable sort — first by model/source/project, then by date desc).
+    by_model_source = sorted(rows.items(), key=lambda kv: (kv[0][1], kv[0][2], kv[0][3] or ""))
     by_date_desc = sorted(by_model_source, key=lambda kv: kv[0][0], reverse=True)
 
     out_rows = []
     totals = {"input": 0.0, "output": 0.0, "cache_read": 0.0, "cache_creation": 0.0, "cost_usd": 0.0}
-    for (day, model, source), vals in by_date_desc:
-        out_rows.append({"date": day, "model": model, "query_source": source, **_round_row(vals)})
+    for (day, model, source, project), vals in by_date_desc:
+        out_rows.append(
+            {"date": day, "model": model, "query_source": source, "project": project, **_round_row(vals)}
+        )
     for vals in rows.values():
         for k in totals:
             totals[k] += vals[k]

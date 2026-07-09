@@ -273,7 +273,8 @@ pipelines.
   (`user.id`, `user.email`, `user.account_uuid`, `user.account_id`,
   `organization.id`, `session.id`, `terminal.type`). None of these are
   stored or logged — only `model`, `query_source` (`main`/`subagent`/
-  `auxiliary`), and (for the token metric) `type` are persisted, to
+  `auxiliary`), (for the token metric) `type`, and (when set — see below)
+  `project.name` are persisted, to
   `data/telemetry/claude_code_otel_usage.jsonl` (gitignored).
 - **Best-effort delivery.** If the hub is down/restarting when Claude Code
   flushes its telemetry batch, that batch is lost — same as any OTLP push
@@ -285,6 +286,31 @@ pipelines.
   summed into the Code tab's JSONL-sourced headline totals — the two sources
   are labelled and shown separately to avoid double-counting main-agent
   activity both would otherwise report.
+- Rows are broken out **per day** as well as per model/source (#233), since
+  each ingested point carries its own timestamp.
+
+### Optional: attributing a session to a project (issue #234)
+
+Unlike the Code tab — where "project" is just the JSONL session file's own
+directory — Claude Code's OTel metrics carry no project/cwd attribute by
+default. Verified empirically that setting `OTEL_RESOURCE_ATTRIBUTES` before
+launching `claude` **does** flatten a custom attribute onto every data
+point's own attributes (not just the resource level), so it round-trips
+through this receiver correctly:
+
+```bat
+set OTEL_RESOURCE_ATTRIBUTES=project.name=my-repo-name
+claude
+```
+
+There is **deliberately no automatic per-repo wiring** for this on this
+host (e.g. no `$PROFILE` hook that derives it from the current directory) —
+that was considered and explicitly declined in favor of keeping the global
+shell profile untouched. This means `project.name` is only populated for
+sessions where it was set by hand for that invocation; the vast majority of
+sessions will show "—" in the panel's Project column. Set it per-session
+(as above) when you specifically want a block of usage attributed to a
+project.
 
 ## Architecture
 

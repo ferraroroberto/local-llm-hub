@@ -456,12 +456,12 @@
         </div>
         <div class="counters-wrap">
           <table id="telCcTable" class="counters">
-            <thead><tr><th>Date</th><th>Model</th><th>Source</th><th>In</th><th>Out</th><th>Cache rd</th><th>Cache cr</th><th>≈ $</th></tr></thead>
+            <thead><tr><th>Date</th><th>Project</th><th>Model</th><th>Source</th><th>In</th><th>Out</th><th>Cache rd</th><th>Cache cr</th><th>≈ $</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
         <div id="telCcEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-code"></use></svg><p class="empty-state-message">No sub-agent/Claude Code OTel usage yet — needs <code>CLAUDE_CODE_ENABLE_TELEMETRY</code> set on the host.</p></div>
-        <p class="muted small" style="margin: 8px 0 0;">Sourced from Claude Code's own OTel export (<code>POST /v1/metrics</code>) — the only channel that sees sub-agent (Task tool) usage. Persisted separately from the Code tab's JSONL totals, not summed into them, to avoid double-counting. (<a href="https://github.com/ferraroroberto/local-llm-hub/issues/68" target="_blank" rel="noopener">#68</a>)</p>
+        <p class="muted small" style="margin: 8px 0 0;">Sourced from Claude Code's own OTel export (<code>POST /v1/metrics</code>) — the only channel that sees sub-agent (Task tool) usage. Persisted separately from the Code tab's JSONL totals, not summed into them, to avoid double-counting. Project is "—" unless <code>OTEL_RESOURCE_ATTRIBUTES=project.name=&lt;repo&gt;</code> was set by hand for that session — there's no automatic per-repo attribution on this host. (<a href="https://github.com/ferraroroberto/local-llm-hub/issues/68" target="_blank" rel="noopener">#68</a>, <a href="https://github.com/ferraroroberto/local-llm-hub/issues/234" target="_blank" rel="noopener">#234</a>)</p>
       </section>
 
       <!-- Live trace feed -->
