@@ -224,9 +224,10 @@ async def telemetry_metrics() -> Dict[str, Any]:
 
 @router.get("/api/telemetry/claude-code/usage")
 async def telemetry_claude_code_usage(period: str = "today") -> Dict[str, Any]:
-    """Per-(model, query_source) rollup of Claude Code's own OTel metrics
-    export (issue #68), persisted at ``POST /v1/metrics``
-    (``src/server_otel_receiver.py`` -> ``src/claude_code_otel.py``).
+    """Per-(date, model, query_source) rollup of Claude Code's own OTel metrics
+    export (issue #68, day breakdown issue #233), persisted at
+    ``POST /v1/metrics`` (``src/server_otel_receiver.py`` ->
+    ``src/claude_code_otel.py``).
 
     Deliberately separate from the Code tab's JSONL-sourced totals — this
     source is the only one that sees sub-agent (Task tool) usage, but it is

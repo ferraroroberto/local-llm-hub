@@ -232,10 +232,13 @@ def _period_since(period: str) -> Optional[date]:
 
 
 def get_usage_summary(period: str = "today") -> Dict[str, Any]:
-    """Per-(model, query_source) rollup for the OTel tab's Claude Code panel.
+    """Per-(date, model, query_source) rollup for the OTel tab's Claude Code panel.
 
     ``period`` is one of ``today | week | month | all``; unrecognised values
-    fall back to ``all`` (unbounded) rather than raising.
+    fall back to ``all`` (unbounded) rather than raising. Rows are broken out
+    by day (issue #233) — each ingested point already carries a timestamp, so
+    this attributes cost/usage to the day it actually happened rather than
+    collapsing the whole selected window into one aggregate row per model.
     """
     if period not in _PERIODS:
         period = "all"
@@ -245,9 +248,9 @@ def get_usage_summary(period: str = "today") -> Dict[str, Any]:
     if since is not None:
         points = [p for p in points if p.ts.date() >= since]
 
-    rows: Dict[Tuple[str, str], Dict[str, float]] = {}
+    rows: Dict[Tuple[str, str, str], Dict[str, float]] = {}
     for p in points:
-        key = (_model_display(p.model), p.query_source)
+        key = (p.ts.date().isoformat(), _model_display(p.model), p.query_source)
         row = rows.setdefault(
             key,
             {"input": 0.0, "output": 0.0, "cache_read": 0.0, "cache_creation": 0.0, "cost_usd": 0.0},
@@ -268,10 +271,16 @@ def get_usage_summary(period: str = "today") -> Dict[str, Any]:
             "cost_usd": round(vals["cost_usd"], 6),
         }
 
+    # Most recent day first; within a day, sorted by model then source
+    # (two-pass stable sort — first by model/source, then by date desc).
+    by_model_source = sorted(rows.items(), key=lambda kv: (kv[0][1], kv[0][2]))
+    by_date_desc = sorted(by_model_source, key=lambda kv: kv[0][0], reverse=True)
+
     out_rows = []
     totals = {"input": 0.0, "output": 0.0, "cache_read": 0.0, "cache_creation": 0.0, "cost_usd": 0.0}
-    for (model, source), vals in sorted(rows.items()):
-        out_rows.append({"model": model, "query_source": source, **_round_row(vals)})
+    for (day, model, source), vals in by_date_desc:
+        out_rows.append({"date": day, "model": model, "query_source": source, **_round_row(vals)})
+    for vals in rows.values():
         for k in totals:
             totals[k] += vals[k]
 

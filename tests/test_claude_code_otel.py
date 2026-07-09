@@ -19,7 +19,9 @@ def _build_export(data_points):
     """Build a minimal ExportMetricsServiceRequest with one scope containing
     a claude_code.token.usage and/or claude_code.cost.usage Sum metric.
 
-    ``data_points`` is a list of (metric_name, value, attrs) tuples.
+    ``data_points`` is a list of (metric_name, value, attrs) tuples, or
+    (metric_name, value, attrs, time_unix_nano) to pin a specific timestamp
+    (day-grouping tests need points on distinct days).
     """
     from opentelemetry.proto.collector.metrics.v1 import metrics_service_pb2
     from opentelemetry.proto.metrics.v1 import metrics_pb2
@@ -29,8 +31,10 @@ def _build_export(data_points):
     sm = rm.scope_metrics.add()
 
     by_name = {}
-    for name, value, attrs in data_points:
-        by_name.setdefault(name, []).append((value, attrs))
+    for point in data_points:
+        name, value, attrs = point[0], point[1], point[2]
+        ts = point[3] if len(point) > 3 else 1_700_000_000_000_000_000
+        by_name.setdefault(name, []).append((value, attrs, ts))
 
     for name, points in by_name.items():
         metric = sm.metrics.add()
@@ -39,10 +43,10 @@ def _build_export(data_points):
             metrics_pb2.AGGREGATION_TEMPORALITY_DELTA
         )
         metric.sum.is_monotonic = True
-        for value, attrs in points:
+        for value, attrs, ts in points:
             dp = metric.sum.data_points.add()
             dp.as_double = value
-            dp.time_unix_nano = 1_700_000_000_000_000_000
+            dp.time_unix_nano = ts
             for k, v in attrs.items():
                 a = dp.attributes.add()
                 a.key = k
@@ -177,6 +181,30 @@ def test_get_usage_summary_empty_when_no_file():
     summary = cco.get_usage_summary(period="today")
     assert summary["rows"] == []
     assert summary["totals"]["input"] == 0
+
+
+def test_get_usage_summary_breaks_out_rows_by_day():
+    # 2024-01-01T00:00:00Z and 2024-01-02T00:00:00Z, same model+source.
+    day1_ns = 1_704_067_200_000_000_000
+    day2_ns = 1_704_153_600_000_000_000
+    raw = _build_export(
+        [
+            ("claude_code.token.usage", 100.0, {"model": "claude-sonnet-5", "query_source": "main", "type": "input"}, day1_ns),
+            ("claude_code.token.usage", 200.0, {"model": "claude-sonnet-5", "query_source": "main", "type": "input"}, day2_ns),
+        ]
+    )
+    cco.ingest_export_request(raw)
+    summary = cco.get_usage_summary(period="all")
+    rows = summary["rows"]
+    assert len(rows) == 2
+    by_date = {r["date"]: r for r in rows}
+    assert by_date["2024-01-01"]["input"] == 100
+    assert by_date["2024-01-02"]["input"] == 200
+    # Most recent day first.
+    assert rows[0]["date"] == "2024-01-02"
+    assert rows[1]["date"] == "2024-01-01"
+    # Totals still sum across both days.
+    assert summary["totals"]["input"] == 300
 
 
 def test_get_usage_summary_invalid_period_falls_back_to_all():
