@@ -227,9 +227,9 @@ async def telemetry_claude_code_usage(period: str = "today") -> Dict[str, Any]:
     """Per-(date, model, query_source, project) rollup of Claude Code's own
     OTel metrics export (issue #68, day breakdown #233, project attribution
     #234), persisted at ``POST /v1/metrics`` (``src/server_otel_receiver.py``
-    -> ``src/claude_code_otel.py``). ``project`` is ``None`` unless the
-    sending session set ``OTEL_RESOURCE_ATTRIBUTES=project.name=<repo>`` by
-    hand — there's no automatic per-repo attribution on this host.
+    -> ``src/claude_code_otel.py``). ``project`` is auto-populated for any
+    session launched via the ``claude`` shell wrapper fleet-config#310 wires
+    into ``$PROFILE`` (derived from the invoking repo); ``None`` otherwise.
 
     Deliberately separate from the Code tab's JSONL-sourced totals — this
     source is the only one that sees sub-agent (Task tool) usage, but it is
