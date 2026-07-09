@@ -85,6 +85,11 @@ models:
     backend: claude
     aliases: ["claude_opus"]
 
+  claude_fable:
+    display_name: claude-fable-5
+    backend: claude
+    aliases: ["claude_fable"]
+
   # --- Gemini subscription path (Google AI Pro via the Antigravity CLI) ---
   # Google deprecated the standalone `gemini` CLI (service ends
   # 2026-06-18); the hub now drives the Antigravity CLI (`agy`). `agy`
