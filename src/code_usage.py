@@ -49,6 +49,7 @@ _CLAUDE_PROJECTS_DIR: Path = Path.home() / ".claude" / "projects"
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
 _PRICING_PATH: Path = _PROJECT_ROOT / "config" / "claude_pricing.json"
 _PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
+    "Fable":  {"input": 10.0, "output": 50.0, "cache_write": 12.50, "cache_read": 1.00},
     "Opus":   {"input": 5.0, "output": 25.0, "cache_write": 6.25, "cache_read": 0.50},
     "Sonnet": {"input": 3.0, "output": 15.0, "cache_write": 3.75, "cache_read": 0.30},
     "Haiku":  {"input": 1.0, "output": 5.0,  "cache_write": 1.25, "cache_read": 0.10},
@@ -293,12 +294,14 @@ def _tok_k(n: int) -> float:
 def _model_display(model: str) -> str:
     """Shorten model IDs to a human-readable label.
 
-    Claude families collapse to Opus / Sonnet / Haiku.  Codex (OpenAI) ids
-    pass through with a readable label (``gpt-5.5`` → ``GPT-5.5``,
-    ``gpt-5.5-pro`` → ``GPT-5.5 Pro``) rather than being forced into a
-    Claude family.  Anything else is returned verbatim.
+    Claude families collapse to Fable / Opus / Sonnet / Haiku.  Codex
+    (OpenAI) ids pass through with a readable label (``gpt-5.5`` →
+    ``GPT-5.5``, ``gpt-5.5-pro`` → ``GPT-5.5 Pro``) rather than being
+    forced into a Claude family.  Anything else is returned verbatim.
     """
     m = model.lower()
+    if "fable" in m:
+        return "Fable"
     if "opus" in m:
         return "Opus"
     if "sonnet" in m:

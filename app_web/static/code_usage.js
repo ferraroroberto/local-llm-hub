@@ -25,8 +25,9 @@ const CLAUDE_COLORS = {
   Haiku:  { bg: 'rgba(74,138,243,0.18)',  border: 'rgba(74,138,243,0.85)'  },
   Sonnet: { bg: 'rgba(76,175,80,0.18)',   border: 'rgba(76,175,80,0.85)'   },
   Opus:   { bg: 'rgba(240,161,0,0.18)',   border: 'rgba(240,161,0,0.85)'   },
+  Fable:  { bg: 'rgba(63,81,181,0.18)',   border: 'rgba(63,81,181,0.85)'   },
 };
-const CLAUDE_ORDER = ['Haiku', 'Sonnet', 'Opus'];
+const CLAUDE_ORDER = ['Haiku', 'Sonnet', 'Opus', 'Fable'];
 // Extra colours assigned in first-seen order to non-Claude families (Codex
 // GPT models, etc.) so each gets its own series instead of collapsing to grey.
 const EXTRA_COLORS = [
@@ -483,6 +484,7 @@ function fmtTs(iso) {
 
 function modelShort(m) {
   const lm = m.toLowerCase();
+  if (lm.includes('fable')) return 'Fable';
   if (lm.includes('opus')) return 'Opus';
   if (lm.includes('sonnet')) return 'Sonnet';
   if (lm.includes('haiku')) return 'Haiku';

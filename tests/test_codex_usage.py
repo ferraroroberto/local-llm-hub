@@ -119,6 +119,24 @@ def test_codex_cost_prices_cached_subset(codex_dir):
     assert output_cost == pytest.approx(3.0)
 
 
+def test_claude_fable_cost_uses_fable_family_rates():
+    """claude-fable-5 records price at the Fable family rate, not $0 (falling
+    through _model_display unmatched would silently zero the cost)."""
+    from src.code_usage import _UsageRecord, _record_costs
+
+    # 1M input, 200k of it cache reads, 100k output. Fable: $10 / $1 / $50 per M.
+    r = _UsageRecord(
+        session_id="s", project_key="k", project_name="k", model="claude-fable-5",
+        ts=codex_usage._parse_ts("2026-07-09T20:00:00Z"),
+        input_tokens=1_000_000, output_tokens=100_000,
+        cache_creation_tokens=0, cache_read_tokens=200_000,
+    )
+    input_cost, output_cost, cache_cost = _record_costs(r)
+    assert input_cost == pytest.approx(10.0)
+    assert cache_cost == pytest.approx(0.20)
+    assert output_cost == pytest.approx(5.0)
+
+
 def test_prev_totals_zero_filled_not_none():
     """A non-'all' period returns a zero-filled prev dict (not None) when the
     preceding window had no activity, so the SPA can render a 'new' badge

@@ -161,6 +161,23 @@ def test_ingest_and_rollup_sums_delta_points_across_exports():
     assert summary["source"] == "otel"
 
 
+def test_ingest_and_rollup_groups_fable_model_as_fable_family():
+    raw = _build_export(
+        [
+            ("claude_code.token.usage", 100.0, {"model": "claude-fable-5", "query_source": "main", "type": "input"}),
+            ("claude_code.token.usage", 40.0, {"model": "claude-fable-5", "query_source": "main", "type": "output"}),
+        ]
+    )
+    assert cco.ingest_export_request(raw) == 2
+
+    summary = cco.get_usage_summary(period="all")
+    rows = {(r["model"], r["query_source"]): r for r in summary["rows"]}
+
+    fable = rows[("Fable", "main")]
+    assert fable["input"] == 100
+    assert fable["output"] == 40
+
+
 def test_persisted_log_never_contains_pii(tmp_path):
     raw = _build_export(
         [
