@@ -307,6 +307,14 @@ class WebAuthnGate:
         return token
 
     def valid_session_token(self, token: str) -> bool:
+        """Check a session token minted by a passkey assertion.
+
+        Not called anywhere yet — nothing in the request path checks a
+        session token against a passkey unlock (the SPA has no ceremony
+        caller to mint one in the first place). Kept for the frontend
+        integration tracked in
+        https://github.com/ferraroroberto/local-llm-hub/issues/247.
+        """
         if not token:
             return False
         with self._lock:
@@ -319,6 +327,11 @@ class WebAuthnGate:
             return True
 
     def revoke_session_tokens(self) -> None:
+        """Invalidate all minted session tokens.
+
+        Not called anywhere yet — see ``valid_session_token`` above;
+        tracked in https://github.com/ferraroroberto/local-llm-hub/issues/247.
+        """
         with self._lock:
             self._session_tokens.clear()
 

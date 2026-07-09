@@ -5,6 +5,15 @@ it deliberately from the tray menu is what makes adding a new device a
 conscious act. The browser ceremonies (``/begin``, ``/finish``) require
 the bearer token like every other /admin endpoint, but no additional
 gate beyond that.
+
+**Server-side only for now.** This router is live and tested, but there
+is no frontend caller yet: no enrollment UI and no ceremony call anywhere
+in ``app_web/static/``. The session token minted by ``/authenticate/finish``
+is likewise not checked by any request path yet (see
+``WebAuthnGate.valid_session_token``). Intentionally parked rather than
+built out as part of a dead-code audit pass — building the SPA piece and
+wiring the session-token gate is tracked in
+https://github.com/ferraroroberto/local-llm-hub/issues/247.
 """
 
 from __future__ import annotations
