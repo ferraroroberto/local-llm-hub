@@ -289,28 +289,36 @@ pipelines.
 - Rows are broken out **per day** as well as per model/source (#233), since
   each ingested point carries its own timestamp.
 
-### Optional: attributing a session to a project (issue #234)
+### Attributing a session to a project (issue #234, automated by fleet-config#310)
 
 Unlike the Code tab — where "project" is just the JSONL session file's own
 directory — Claude Code's OTel metrics carry no project/cwd attribute by
 default. Verified empirically that setting `OTEL_RESOURCE_ATTRIBUTES` before
 launching `claude` **does** flatten a custom attribute onto every data
 point's own attributes (not just the resource level), so it round-trips
-through this receiver correctly:
+through this receiver correctly.
+
+**This is automatic, not manual.** `fleet-config` (the repo that owns
+`~/.claude`, hooks, skills, and the global `CLAUDE.md` on this machine) wires
+a `claude` PowerShell function into `$PROFILE` that derives `project.name`
+from the current git repo and sets `OTEL_RESOURCE_ATTRIBUTES` before every
+invocation — no per-repo setup needed. See
+[`fleet-config`'s `docs/otel-project-attribution.md`](https://github.com/ferraroroberto/fleet-config/blob/main/docs/otel-project-attribution.md)
+for the actual mechanism, why it lives there rather than here (it's host/shell
+infrastructure with exactly one consumer — this repo's receiver — not a
+generic requirement), and how to verify/troubleshoot it.
+
+The hook only fires in an interactive PowerShell session where `$PROFILE`
+has loaded (a fresh shell after install). For a one-off invocation outside
+that scope — a script, a scheduled task, a shell that doesn't load the
+profile — set it by hand instead:
 
 ```bat
 set OTEL_RESOURCE_ATTRIBUTES=project.name=my-repo-name
 claude
 ```
 
-There is **deliberately no automatic per-repo wiring** for this on this
-host (e.g. no `$PROFILE` hook that derives it from the current directory) —
-that was considered and explicitly declined in favor of keeping the global
-shell profile untouched. This means `project.name` is only populated for
-sessions where it was set by hand for that invocation; the vast majority of
-sessions will show "—" in the panel's Project column. Set it per-session
-(as above) when you specifically want a block of usage attributed to a
-project.
+Sessions that hit neither path show "—" in the panel's Project column.
 
 ## Architecture
 

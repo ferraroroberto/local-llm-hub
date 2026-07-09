@@ -27,17 +27,20 @@ Design notes:
   off the protobuf but never stored or logged. Only ``model``,
   ``query_source``, (for the token metric) ``type``, and (when the sending
   session set it) ``project.name`` are persisted.
-- **Project attribution is opt-in, not automatic** (issue #234). Unlike the
-  Code tab's JSONL source — where "project" is trivially the session file's
-  own directory — Claude Code's OTel metrics carry no cwd/project attribute
-  by default. Verified empirically that setting ``OTEL_RESOURCE_ATTRIBUTES``
+- **Project attribution is automatic, via fleet-config, not this repo**
+  (issue #234, automated by ``fleet-config``#310). Unlike the Code tab's
+  JSONL source — where "project" is trivially the session file's own
+  directory — Claude Code's OTel metrics carry no cwd/project attribute by
+  default. Verified empirically that setting ``OTEL_RESOURCE_ATTRIBUTES``
   (e.g. ``project.name=<repo>``) before launching ``claude`` *does* flatten
   onto every data point's own attributes (not just the resource level), so
-  it round-trips through this receiver correctly. But there's no automatic,
-  per-repo mechanism wired up on this host — the user deliberately chose not
-  to add one (no global shell-profile hook), so this field is only populated
-  for sessions where ``OTEL_RESOURCE_ATTRIBUTES`` was set by hand for that
-  invocation. See ``docs/telemetry-langfuse.md`` for the manual recipe.
+  it round-trips through this receiver correctly. The host's ``fleet-config``
+  repo wires a ``claude`` shell-function wrapper into ``$PROFILE`` that sets
+  this automatically from the current git repo — see that repo's
+  ``docs/otel-project-attribution.md`` for the mechanism (deliberately not
+  duplicated here: this repo is just the one consumer of an attribute a
+  different repo is responsible for setting). ``docs/telemetry-langfuse.md``
+  covers the manual fallback for invocations outside an interactive shell.
 - **Plain JSONL, no DB** — matches the rest of this repo's usage-tracking
   (Claude Code's own session logs, ``code_usage.py``'s parser). No rotation;
   revisit only if this becomes a real problem (same posture as the JSONL
