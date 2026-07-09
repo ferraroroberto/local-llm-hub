@@ -136,6 +136,7 @@ function renderClaudeCodeUsage(body) {
   rows.forEach(function (r) {
     const tr = document.createElement('tr');
     tr.innerHTML =
+      '<td>' + escapeHtml(r.date || '—') + '</td>' +
       '<td>' + escapeHtml(r.model) + '</td>' +
       '<td>' + escapeHtml(r.query_source) + '</td>' +
       '<td>' + fmtTok(r.input) + '</td>' +
