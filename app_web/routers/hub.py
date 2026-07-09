@@ -35,7 +35,7 @@ from src.hub_log import HUB_LOG
 from src.hub_observability import OBS
 from src.server_process import lan_ip
 
-from ._helpers import sse_stream
+from ._helpers import maybe_json, sse_stream
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -309,7 +309,7 @@ async def install_fix(request: Request) -> Dict[str, Any]:
     """
     from src import install
 
-    body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    body = await maybe_json(request)
     fix_id = (body or {}).get("fix_id")
     if not fix_id:
         raise HTTPException(status_code=400, detail="fix_id is required")

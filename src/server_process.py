@@ -230,7 +230,9 @@ def snapshot_listening_pids() -> dict[int, list[int]]:
             result.setdefault(conn.laddr.port, set()).add(conn.pid)
         if result:
             return {p: sorted(pids) for p, pids in result.items()}
-    except (psutil.AccessDenied, RuntimeError, ImportError):  # type: ignore[name-defined]
+    except ImportError:
+        pass
+    except (psutil.AccessDenied, RuntimeError):
         pass
     except Exception:  # noqa: BLE001 — never let observability poison the hub
         pass
