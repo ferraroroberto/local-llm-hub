@@ -166,6 +166,13 @@ class HubProcess:
             p = self.proc
         if p is None or p.poll() is not None:
             self.proc = None
+            if self.is_reachable(0.3):
+                # Something is listening on the port but it isn't a subprocess
+                # we spawned (adopted external hub) — there is nothing here we
+                # can tear down. Surfacing this distinctly from "not running"
+                # lets callers (e.g. _restart_worker) avoid reporting a false
+                # "restarted" once start() re-adopts the same stale process.
+                return False, "adopted (not ours to stop)"
             return False, "not running"
         try:
             if sys.platform == "win32":
@@ -415,7 +422,17 @@ class TrayApp:
 
     def _restart_worker(self) -> None:
         self._notify("Hub", "🔄 restarting…")
-        self.hub.stop()
+        stopped, stop_msg = self.hub.stop()
+        if not stopped and stop_msg.startswith("adopted"):
+            # The tray didn't spawn this hub, so stop() had nothing to tear
+            # down — start() would just re-adopt the same stale process and
+            # report success, masking a build that never actually restarted.
+            self._notify(
+                "Hub",
+                "⚠️ hub is running outside the tray (adopted) — can't restart "
+                "it from here; use tray.bat --restart or stop it manually",
+            )
+            return
         time.sleep(0.6)
         ok, msg = self.hub.start()
         if not ok:
