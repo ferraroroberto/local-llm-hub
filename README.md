@@ -707,6 +707,35 @@ persisted to `config/webapp_config.json`. Loopback callers bypass it;
 anyone reaching the hub over the tunnel must present
 `Authorization: Bearer <token>` or `?token=…` on the URL.
 
+### Passkey (WebAuthn) gate — parked, server-side only (not planned: #247)
+
+`src/webauthn_gate.py` and `app_web/routers/webauthn.py` implement a
+tested, working passkey (WebAuthn) second factor for `/admin` —
+registration/authentication ceremonies, a device whitelist, session
+tokens — but it is **deliberately unwired**: no enrollment button or
+ceremony call anywhere in `app_web/static/`, and the session token
+`finish_authentication` mints isn't checked by any request path.
+[#247](https://github.com/ferraroroberto/local-llm-hub/issues/247)
+scoped building that frontend piece and was closed **not planned**:
+`/admin` is only ever reached over loopback or Tailscale, and both
+already bypass the bearer-token gate as fully trusted (loopback
+outright, Tailscale via `extra_allowlist`) — there's no Cloudflare
+tunnel exposure of `/admin` in practice, so a passkey second factor
+has no remaining trust boundary left to protect. The code stays in
+the tree untouched as a reference implementation in case that trust
+model changes later; it isn't a live security feature today.
+
+To poke at it directly anyway: set `webauthn_rp_id` / `webauthn_origin`
+in `config/webapp_config.json` (needs the `webauthn` package from
+`requirements.txt`; its absence just makes
+`GET /admin/api/webauthn/status` report `available: false`), then
+drive `POST /admin/api/webauthn/enroll/window` (loopback-only, opens
+a 5-minute window) followed by the `/enroll/begin` →
+`navigator.credentials.create()` → `/enroll/finish` ceremony from a
+WebAuthn-capable browser tab — there's no built-in page for this, so
+script it or drive it from devtools. Even fully enrolled, it won't
+gate anything.
+
 ### Server adoption between launchers
 
 The hub on :8000 (and each per-model port :808x) is single-owner — TCP

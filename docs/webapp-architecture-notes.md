@@ -19,7 +19,7 @@ app_web/server.py        ── sub-app, owns its own middleware + routers
   ├── middleware.py      ── BearerTokenMiddleware (sub-app, /admin only)
   ├── routers/           ── misc / version / auth / webauthn / hub /
   │                        models / playground / services /
-  │                        telemetry / code_usage / glossary
+  │                        telemetry / code_usage / glossary / hosts
   └── static/            ── HTML + ES-module JS + CSS, no build step
 ```
 

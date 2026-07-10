@@ -49,14 +49,26 @@ flowchart TB
   SRV --> OTELRECV
   IMAGESR -->|call_gemini_image| GEMINICLI
 
+  subgraph multihost["Multi-host (Mac Mini, issue #181)"]
+    REMOTEPROXY["remote_proxy.py\nresolve owning host's own base_url\nfor a model this host doesn't own"]
+    REMOTEBOOT["remote_bootstrap.py\nSSH-triggered bootstrap/sync of a\ndead peer hub (forced-command key)"]
+    PARAKEETSRV["parakeet_server.py\nOpenAI-shape ASR shim ->\nFluidAudio Parakeet CoreML worker"]
+  end
+  CHATT --> REMOTEPROXY
+  SRV --> REMOTEPROXY
+  AUDIOR --> REMOTEPROXY
+  WROUT -->|models tab proxy check| REMOTEPROXY
+  WROUT -->|hosts tab| REMOTEBOOT
+
   subgraph procmgr["Process managers"]
     SERVPROC["server_process.py\nhub's own Popen + kill-port"]
-    BACKPROC["backend_process.py\nper-model Popen: llama-server ·\nwhisper-server · tts_server shim"]
+    BACKPROC["backend_process.py\nper-model Popen: llama-server ·\nwhisper-server · tts_server shim ·\nparakeet_server"]
     WATCHDOG["_respawn_watchdog.py\ndetached: wait for parent PID to die,\nthen relaunch (stdlib-only, issue #198)"]
   end
   RUNMODEL --> BACKPROC
   TRAY -->|Models submenu| BACKPROC
   TRAY -->|Restart hub| SERVPROC
+  BACKPROC -.spawns.-> PARAKEETSRV
 
   subgraph ext["External processes / subscriptions"]
     CLAUDEBIN["claude -p CLI\n(Claude Code subscription)"]
@@ -65,6 +77,8 @@ flowchart TB
     WHISPER["whisper-server (vendor/whisper.cpp)\nturbo :8090 · medium-translate :8091\nvanilla lazy :8094"]
     TTS["tts_engines/ (piper · orpheus · kokoro · chatterbox)\nvia tts_server.py shim :8092/:8093/:8095/:8096"]
     CCHOST["Any host Claude Code CLI session\n(incl. sub-agents — CLAUDE_CODE_ENABLE_TELEMETRY)"]
+    MACMINI["Mac Mini (mac-mini-m4, 192.168.0.14)\npeer local-llm-hub install :8000\nowns qwen3.5-9b · parakeet-tdt-0.6b-v3"]
+    PARAKEETWORKER["mac/parakeet-worker/ (Swift, ANE)\nFluidAudio Parakeet TDT 0.6B v3\nvia CoreML"]
   end
   CLAUDECLI --> CLAUDEBIN
   GEMINICLI --> AGYBIN
@@ -75,6 +89,9 @@ flowchart TB
   BACKPROC -.spawns.-> WHISPER
   BACKPROC -.spawns.-> TTS
   CCHOST -->|OTLP/HTTP :8000/v1/metrics| OTELRECV
+  REMOTEPROXY -->|forwards verbatim to owning :8000| MACMINI
+  REMOTEBOOT -->|SSH forced-command bootstrap/sync| MACMINI
+  PARAKEETSRV -.spawns.-> PARAKEETWORKER
 
   subgraph admin["app_web/ — admin SPA, sub-app mounted at /admin"]
     WSRV["server.py\ncreate_app() + versioned static"]
