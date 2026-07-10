@@ -163,7 +163,7 @@ function Resolve-VersionUrls {
     # PWA's verify leg unless it overrode -VersionUrl (project-scaffolding#147).
     # Both candidates stay on 127.0.0.1 so an auth-gated endpoint takes its
     # loopback auth-bypass and the leaf-cert name-mismatch is handled below.
-    if ($VersionUrl) { return , @($VersionUrl) }
+    if ($VersionUrl) { return @($VersionUrl) }
     $ownedPorts = @(Get-OwnedPorts)
     if ($ownedPorts.Count -eq 0) {
         throw "restart verification requires -VersionUrl or at least one owned port"
