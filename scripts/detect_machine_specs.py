@@ -28,6 +28,11 @@ logger = logging.getLogger("detect_machine_specs")
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT = REPO_ROOT / "config" / "machine_specs.yaml"
 
+# Absolute path — the bare "powershell" name is unpinned to a resolvable
+# executable across machines/PATH states. See ~/.claude/CLAUDE.md,
+# "Windows PowerShell in spawned commands".
+POWERSHELL_EXE = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+
 
 def _round_gb(num_bytes: int) -> float:
     return round(num_bytes / (1024 ** 3), 2)
@@ -66,7 +71,7 @@ def detect_cpu() -> dict[str, Any]:
 def _cpu_model_windows() -> str:
     try:
         out = subprocess.run(
-            ["powershell", "-NoProfile", "-Command",
+            [POWERSHELL_EXE, "-NoProfile", "-Command",
              "(Get-CimInstance Win32_Processor | Select-Object -First 1).Name"],
             capture_output=True, text=True, timeout=15, check=True,
         )
@@ -135,7 +140,7 @@ def _gpus_via_nvidia_smi() -> list[dict[str, Any]]:
 def _gpus_via_windows_cim() -> list[dict[str, Any]]:
     try:
         out = subprocess.run(
-            ["powershell", "-NoProfile", "-Command",
+            [POWERSHELL_EXE, "-NoProfile", "-Command",
              "Get-CimInstance Win32_VideoController | "
              "Select-Object Name,AdapterRAM,DriverVersion | "
              "ConvertTo-Json -Compress"],
@@ -183,7 +188,7 @@ def detect_storage() -> list[dict[str, Any]]:
 def _storage_windows() -> list[dict[str, Any]]:
     try:
         out = subprocess.run(
-            ["powershell", "-NoProfile", "-Command",
+            [POWERSHELL_EXE, "-NoProfile", "-Command",
              "Get-CimInstance Win32_DiskDrive | "
              "Select-Object Model,Size,MediaType | "
              "ConvertTo-Json -Compress"],
