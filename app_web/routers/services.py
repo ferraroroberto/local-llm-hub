@@ -24,12 +24,10 @@ from typing import Any, Dict
 from fastapi import APIRouter
 
 from src import services as svc
-from src.host_profile import resolve as resolve_host
+from src.host_profile import MAC_MINI_HOST_ID, resolve as resolve_host
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-MAC_MINI_HOST_ID = "mac-mini-m4"
 
 
 @router.get("/api/services/status")
@@ -62,6 +60,7 @@ async def services_status() -> Dict[str, Any]:
         "docker": docker,
         "langfuse": langfuse,
         "mac_mini": mac_mini,
+        "mac_mini_host_id": MAC_MINI_HOST_ID,
         "launchable": launchable,
         "platform": sys.platform,
     }

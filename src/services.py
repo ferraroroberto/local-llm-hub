@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from src.host_profile import HostProfile, hub_port
+from src.host_profile import MAC_MINI_HOST_ID, HostProfile, hub_port
 from src.observability import langfuse_host
 
 logger = logging.getLogger(__name__)
@@ -204,7 +204,7 @@ async def remote_models(
 
 
 async def mac_mini_health(
-    host_id: str = "mac-mini-m4", timeout_s: float = REMOTE_HUB_PROBE_TIMEOUT_S
+    host_id: str = MAC_MINI_HOST_ID, timeout_s: float = REMOTE_HUB_PROBE_TIMEOUT_S
 ) -> Dict[str, Any]:
     """Probe the Mac Mini host's own hub `/health` endpoint (#179).
 

@@ -18,6 +18,7 @@ flowchart TB
 
   subgraph core["src/server.py — FastAPI hub (:8000)"]
     SRV["POST /v1/messages (Anthropic shape)\nPOST /v1/chat/completions (OpenAI shape)\nGET /v1/models · /health · /info\nGET / -> 307 /admin/"]
+    CHATT["chat_translation.py\nschemas + media extraction + prompt flatten +\nper-backend dispatch (split out of server.py, issue #245)"]
     LIFECYCLE["server_lifecycle.py\nstartup/shutdown hooks + resource sampler\n(split out of server.py, issue #198)"]
     REG["model_registry.py\nModel rows from config/models.yaml"]
     HOSTP["host_profile.py\nresolve active host"]
@@ -25,6 +26,7 @@ flowchart TB
   end
   TRAY --> SRV
   RUNHUB --> SRV
+  SRV --> CHATT
   SRV --> LIFECYCLE
   SRV --> REG
   REG --> HOSTP
@@ -36,9 +38,12 @@ flowchart TB
     AUDIOR["server_audio.py\n/v1/audio/* proxy"]
     IMAGESR["server_images.py\n/v1/images/* proxy"]
   end
-  SRV -->|backend=claude| CLAUDECLI
-  SRV -->|backend=gemini| GEMINICLI
-  SRV -->|backend=openai| OAIUP
+  CHATT -->|backend=claude| CLAUDECLI
+  CHATT -->|backend=gemini| GEMINICLI
+  CHATT -->|backend=openai| OAIUP
+  SRV -->|chat_completions direct dispatch| CLAUDECLI
+  SRV -->|chat_completions direct dispatch| GEMINICLI
+  SRV -->|chat_completions direct dispatch| OAIUP
   SRV --> AUDIOR
   SRV --> IMAGESR
   SRV --> OTELRECV

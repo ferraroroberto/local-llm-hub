@@ -19,10 +19,17 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
-SCAFFOLDING_SCRIPTS = Path(r"E:\automation\project-scaffolding\scripts")
+# Overridable so this script (and its master art) work outside this single
+# developer's machine layout — falls back to the historical absolute path
+# when the env var isn't set (issue #245).
+SCAFFOLDING_ROOT = Path(
+    os.environ.get("PROJECT_SCAFFOLDING_ROOT", r"E:\automation\project-scaffolding")
+)
+SCAFFOLDING_SCRIPTS = SCAFFOLDING_ROOT / "scripts"
 sys.path.insert(0, str(SCAFFOLDING_SCRIPTS))
 
 from brand_gen import render_set  # noqa: E402
@@ -33,7 +40,7 @@ STATIC_DIR = PROJECT_ROOT / "app_web" / "static"
 
 def main() -> None:
     render_set(
-        master=Path(r"E:\automation\project-scaffolding\brand\hub.svg"),
+        master=SCAFFOLDING_ROOT / "brand" / "hub.svg",
         out_dir=STATIC_DIR,
         tray_out_dir=None,
         stream_deck_out_dir=PROJECT_ROOT / "assets" / "stream-deck",

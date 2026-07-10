@@ -387,14 +387,19 @@ async function onServicesLaunchClick() {
   }
 }
 
-const MAC_MINI_HOST_ID = 'mac-mini-m4';
-
 async function onMacMiniAction(action, pastTense) {
   if (state.macMiniBusy) return;
   state.macMiniBusy = true;
   renderServices();
   try {
-    await postJson('/admin/api/hosts/' + MAC_MINI_HOST_ID + '/' + action, {});
+    // Sourced from the last /admin/api/services/status response, not
+    // hardcoded here — the backend's src/host_profile.py owns the id
+    // (issue #245: was duplicated as a JS literal with no shared source
+    // of truth). Only reachable once state.services.mac_mini is truthy
+    // (renderServices() keeps the wake/sync buttons hidden until then),
+    // so mac_mini_host_id is always populated by the time this fires.
+    const hostId = (state.services && state.services.mac_mini_host_id) || '';
+    await postJson('/admin/api/hosts/' + hostId + '/' + action, {});
     toast('Mac Mini ' + pastTense, 'good');
   } catch (exc) {
     toast('Mac Mini ' + action + ' failed: ' + (exc.message || exc), 'error');

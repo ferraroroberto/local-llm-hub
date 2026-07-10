@@ -451,8 +451,10 @@ local-llm-hub/
 │   └── logs/                    # per-backend stdout/stderr: backend-<id>.log (+ one .log.1 backup)
 ├── src/
 │   ├── server.py             # FastAPI hub (both shapes) + /admin sub-app mount
-│   ├── server_common.py      # shared request models, content-block helpers,
-│   │                         #   _safe_span_call() OTel helper, models.yaml cache
+│   ├── chat_translation.py   # request/response schemas, content-block extraction,
+│   │                         #   prompt flattening, per-backend dispatch (issue #245)
+│   ├── server_common.py      # model-resolution + OTel span helpers shared by
+│   │                         #   server.py / server_audio.py / server_images.py
 │   ├── server_audio.py       # /v1/audio/* proxy handlers (transcriptions, translations, speech)
 │   ├── server_images.py      # /v1/images/* handlers (generations, edits)
 │   ├── claude_cli.py         # subprocess wrapper around `claude -p`
