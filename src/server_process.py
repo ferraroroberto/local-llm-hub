@@ -318,21 +318,37 @@ def find_port_pids(port: int) -> list[int]:
         return []
 
 
-def ownership() -> str:
-    """Return ``OWNERSHIP_OURS`` / ``EXTERNAL`` / ``NONE`` for the hub port."""
-    if is_running():
+def resolve_ownership(running: bool, port: int) -> str:
+    """Shared tri-state (``OURS``/``EXTERNAL``/``NONE``) check for one port.
+
+    Factored out of :func:`ownership` so :mod:`backend_process` — which
+    tracks a *dict* of per-model states instead of one singleton — can
+    reuse the identical decision instead of reimplementing it per model
+    (issue #242).
+    """
+    if running:
         return OWNERSHIP_OURS
-    if find_port_pids(PORT):
+    if find_port_pids(port):
         return OWNERSHIP_EXTERNAL
     return OWNERSHIP_NONE
 
 
+def resolve_external_pid(running: bool, port: int) -> Optional[int]:
+    """Shared "who's holding this port" lookup — see :func:`resolve_ownership`."""
+    if running:
+        return None
+    pids = find_port_pids(port)
+    return pids[0] if pids else None
+
+
+def ownership() -> str:
+    """Return ``OWNERSHIP_OURS`` / ``EXTERNAL`` / ``NONE`` for the hub port."""
+    return resolve_ownership(is_running(), PORT)
+
+
 def external_pid() -> Optional[int]:
     """PID of the external port-holder, or ``None`` if we own it / port is free."""
-    if is_running():
-        return None
-    pids = find_port_pids(PORT)
-    return pids[0] if pids else None
+    return resolve_external_pid(is_running(), PORT)
 
 
 def force_stop_external() -> tuple[bool, str]:
