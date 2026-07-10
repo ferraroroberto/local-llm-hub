@@ -36,12 +36,11 @@ import httpx
 from .host_profile import resolve as resolve_host
 from .model_registry import Model, enabled_models, local_models, resolve as resolve_model
 from .server_process import (
-    OWNERSHIP_EXTERNAL,
     OWNERSHIP_NONE,
-    OWNERSHIP_OURS,
     WIN_NEW_GROUP,
-    find_port_pids,
     kill_pid,
+    resolve_external_pid,
+    resolve_ownership,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -550,22 +549,15 @@ def ownership(model_id: str) -> str:
     model = resolve_model_by_id(model_id)
     if model is None or model.port is None:
         return OWNERSHIP_NONE
-    if is_running(model_id):
-        return OWNERSHIP_OURS
-    if find_port_pids(model.port):
-        return OWNERSHIP_EXTERNAL
-    return OWNERSHIP_NONE
+    return resolve_ownership(is_running(model_id), model.port)
 
 
 def external_pid(model_id: str) -> Optional[int]:
     """PID holding *model_id*'s port if it isn't us, else ``None``."""
-    if is_running(model_id):
-        return None
     model = resolve_model_by_id(model_id)
     if model is None or model.port is None:
         return None
-    pids = find_port_pids(model.port)
-    return pids[0] if pids else None
+    return resolve_external_pid(is_running(model_id), model.port)
 
 
 def force_stop_external(model_id: str) -> tuple[bool, str]:
