@@ -13,6 +13,7 @@ os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
 
 from fastapi.testclient import TestClient
 
+from src import chat_translation as chat_translation_mod
 from src import server as server_mod
 
 
@@ -40,7 +41,7 @@ def test_messages_routes_openai_backend(monkeypatch):
         captured["max_tokens"] = max_tokens
         return _fake_openai_response("pong")
 
-    monkeypatch.setattr(server_mod, "call_openai_chat", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_openai_chat", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -133,7 +134,7 @@ def test_messages_routes_gemini_backend(monkeypatch):
             "usage": {"input_tokens": 0, "output_tokens": 0},
         }
 
-    monkeypatch.setattr(server_mod, "call_gemini", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_gemini", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -165,7 +166,7 @@ def test_messages_routes_gemini_alias(monkeypatch):
             "usage": {"input_tokens": 0, "output_tokens": 0},
         }
 
-    monkeypatch.setattr(server_mod, "call_gemini", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_gemini", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -192,7 +193,7 @@ def test_messages_routes_claude_alias(monkeypatch):
             "usage": {"input_tokens": 0, "output_tokens": 0},
         }
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(

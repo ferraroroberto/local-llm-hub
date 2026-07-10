@@ -33,6 +33,7 @@ flowchart LR
 
     subgraph Hub["FastAPI hub (src/)"]
         SRV["src/server.py<br/>POST /v1/messages<br/>POST /v1/chat/completions<br/>GET /v1/models /health /info<br/>GET / → 307 /admin/<br/>mounts /admin sub-app"]
+        CHATT["src/chat_translation.py<br/>schemas · media extraction ·<br/>prompt flatten · per-backend dispatch"]
         IMG["src/server_images.py<br/>POST /v1/images/generations<br/>POST /v1/images/edits"]
         REG["src/model_registry.py<br/>YAML → Model rows"]
         HP["src/host_profile.py<br/>resolve active host"]
@@ -81,9 +82,13 @@ flowchart LR
     REG -.reads.-> CFG
     HP -.reads.-> CFG
 
-    SRV -->|backend=claude| CLI_WRAP
-    SRV -->|backend=gemini| GEM_WRAP
-    SRV -->|backend=openai| OAI_UP
+    SRV --> CHATT
+    CHATT -->|backend=claude| CLI_WRAP
+    CHATT -->|backend=gemini| GEM_WRAP
+    CHATT -->|backend=openai| OAI_UP
+    SRV -.->|chat_completions direct dispatch| CLI_WRAP
+    SRV -.->|chat_completions direct dispatch| GEM_WRAP
+    SRV -.->|chat_completions direct dispatch| OAI_UP
     SRV -.->|mounts images router| IMG
     IMG -->|call_gemini_image()| GEM_WRAP
     CLI_WRAP -->|subprocess.run<br/>--output-format json| CLAUDE
@@ -145,7 +150,8 @@ flowchart TB
 
     ROOT --> SRC["src/"]
     SRC --> S1["server.py<br/>FastAPI hub + router (local backends + Claude + Gemini)"]
-    SRC --> S1b["server_common.py<br/>shared request models · content-block helpers<br/>_safe_span_call() OTel helper · models.yaml cache"]
+    SRC --> S1a["chat_translation.py<br/>request/response schemas · content-block extraction ·<br/>prompt flattening · per-backend dispatch (issue #245)"]
+    SRC --> S1b["server_common.py<br/>model-resolution + OTel span helpers<br/>shared by server.py / server_audio.py / server_images.py"]
     SRC --> S1c["server_audio.py<br/>/v1/audio/* proxy handlers<br/>(transcriptions · translations · speech)"]
     SRC --> S1d["server_images.py<br/>/v1/images/* handlers<br/>(generations · edits)"]
     SRC --> S2["claude_cli.py<br/>claude -p wrapper"]
@@ -220,17 +226,20 @@ sequenceDiagram
     participant C as Client (SDK / curl)
     participant F as FastAPI hub (src/server.py)
     participant R as model_registry.resolve
+    participant T as chat_translation._run_claude_backend
     participant W as claude_cli.call_claude
     participant K as claude -p CLI
 
     C->>F: POST /v1/messages<br/>{model:"claude-haiku-4-5", messages, ...}
     F->>R: resolve("claude-haiku-4-5")
     R-->>F: Model(backend="claude")
-    F->>F: _flatten_messages()<br/>_system_to_text()
-    F->>W: call_claude(prompt, model, system)
+    F->>T: _run_claude_backend(model, req)
+    T->>T: _flatten_messages()<br/>_system_to_text()
+    T->>W: call_claude(prompt, model, system)
     W->>K: subprocess.run<br/>claude -p --output-format json
     K-->>W: JSON envelope {result, usage, stop_reason}
-    W-->>F: dict
+    W-->>T: dict
+    T-->>F: envelope
     F->>F: _envelope_to_anthropic()
     F-->>C: 200 JSON {id, content, usage, stop_reason}
 ```
@@ -242,19 +251,22 @@ sequenceDiagram
     participant C as Client (SDK / curl)
     participant F as FastAPI hub (src/server.py)
     participant R as model_registry.resolve
+    participant T as chat_translation._run_gemini_backend
     participant G as gemini_cli.call_gemini
     participant A as agy CLI (ConPTY)
 
     C->>F: POST /v1/messages<br/>{model:"gemini_pro", messages, ...}
     F->>R: resolve("gemini_pro")
     R-->>F: Model(backend="gemini")
-    F->>F: _extract_media_blocks()<br/>_flatten_messages() · _system_to_text()
-    F->>G: call_gemini(prompt, model, system, attachments)
+    F->>T: _run_gemini_backend(model, req)
+    T->>T: _extract_media_blocks()<br/>_flatten_messages() · _system_to_text()
+    T->>G: call_gemini(prompt, model, system, attachments)
     Note over G,A: all calls serialized behind a lock
     G->>A: interactive /model switch<br/>(only when requested model differs)
     G->>A: agy -p print mode<br/>(ConPTY via pywinpty)
     A-->>G: ANSI-rendered reply<br/>(escape sequences stripped)
-    G-->>F: envelope {result, usage=0, stop_reason}
+    G-->>T: envelope {result, usage=0, stop_reason}
+    T-->>F: envelope
     F->>F: _envelope_to_anthropic()
     F-->>C: 200 JSON {id, content, usage, stop_reason}
 ```
@@ -271,18 +283,22 @@ sequenceDiagram
     participant C as Client (Anthropic SDK)
     participant F as FastAPI hub (src/server.py)
     participant R as model_registry.resolve
+    participant T as chat_translation._run_openai_backend
     participant U as openai_upstream.call_openai_chat
     participant L as llama-server :8088/:8087 (active) · :8081/:8082/:8086 (ad-hoc)
 
     C->>F: POST /v1/messages<br/>{model:"qwen3.5-4b", messages, ...}
     F->>R: resolve("qwen3.5-4b")
     R-->>F: Model(backend="openai", url="http://127.0.0.1:8088/v1")
-    F->>F: anthropic_to_openai_messages()<br/>(flatten content blocks to strings)
-    F->>U: call_openai_chat(url, model, messages, ...)
+    F->>T: _run_openai_backend(model, req)
+    T->>T: anthropic_to_openai_messages()<br/>(flatten content blocks to strings)
+    T->>U: call_openai_chat(url, model, messages, ...)
     U->>L: POST /v1/chat/completions
     L-->>U: {choices[0].message.content or reasoning_content, usage, finish_reason}
-    U-->>F: dict
-    F->>F: openai_to_anthropic_envelope()<br/>+ _envelope_to_anthropic()
+    U-->>T: dict
+    T->>T: openai_to_anthropic_envelope()
+    T-->>F: envelope {result, usage, stop_reason}
+    F->>F: _envelope_to_anthropic()
     F-->>C: 200 JSON {id, content, usage, stop_reason}
 ```
 

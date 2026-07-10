@@ -16,6 +16,7 @@ os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
 
 from fastapi.testclient import TestClient
 
+from src import chat_translation as chat_translation_mod
 from src import server as server_mod
 
 
@@ -54,7 +55,7 @@ def test_claude_path_writes_image_and_passes_to_cli(monkeypatch):
         captured["image_bytes"] = [p.read_bytes() for p in captured["images"]]
         return _stub_envelope("ok")
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
@@ -91,7 +92,7 @@ def test_claude_path_temp_dir_cleaned_up_after_call(monkeypatch):
         assert seen_path["path"].exists()
         return _stub_envelope()
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
@@ -121,7 +122,7 @@ def test_gemini_path_writes_image_and_passes_to_cli(monkeypatch):
         captured["exists"] = [p.exists() for p in captured["images"]]
         return _stub_envelope("g-described")
 
-    monkeypatch.setattr(server_mod, "call_gemini", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_gemini", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
@@ -151,7 +152,7 @@ def test_multiple_images_extracted_in_order(monkeypatch):
         captured["images"] = list(attachments or [])
         return _stub_envelope()
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
@@ -182,7 +183,7 @@ def test_url_image_falls_back_to_text_reference(monkeypatch):
         captured["images"] = attachments
         return _stub_envelope()
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
@@ -254,7 +255,7 @@ def test_no_images_skips_temp_dir(monkeypatch):
         captured["images"] = attachments
         return _stub_envelope()
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
@@ -278,7 +279,7 @@ def test_gemini_path_writes_pdf_and_passes_to_cli(monkeypatch):
         captured["bytes"] = [p.read_bytes() for p in captured["paths"]]
         return _stub_envelope("g-extracted")
 
-    monkeypatch.setattr(server_mod, "call_gemini", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_gemini", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
@@ -311,7 +312,7 @@ def test_claude_path_pdf_temp_dir_cleaned_up_after_call(monkeypatch):
         assert seen_path["path"].exists()
         return _stub_envelope()
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
@@ -339,7 +340,7 @@ def test_url_document_falls_back_to_text_reference(monkeypatch):
         captured["attachments"] = attachments
         return _stub_envelope()
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from src import chat_translation as chat_translation_mod
 from src import server as server_mod
 
 
@@ -38,7 +39,7 @@ def test_messages_single_turn(monkeypatch):
         seen["system"] = system
         return _fake_envelope("Paris")
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -70,7 +71,7 @@ def test_messages_multi_turn_flattens(monkeypatch):
         captured["prompt"] = prompt
         return _fake_envelope("ok")
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -98,7 +99,7 @@ def test_messages_cli_error_returns_502(monkeypatch):
     def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         raise ClaudeCLIError("boom")
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
