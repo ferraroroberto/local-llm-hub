@@ -86,5 +86,12 @@ set "VERSION_URL=http://127.0.0.1:8000/admin/api/version"
 set "RESTART_ARG="
 if defined WANT_RESTART set "RESTART_ARG=-Restart"
 
-%PS% -NoProfile -NonInteractive -File "%TRAY_PS%" launch -AppName "%APP_NAME%" -ScriptDir "%SCRIPT_DIR%" -VenvDir "%TRAY_VENV%" -TrayMatch "-m\s+tray" -Ports "%OWNED_PORTS%" -TrayLaunch "%TRAY_LAUNCH%" -VersionUrl "%VERSION_URL%" !RESTART_ARG!
+REM %~dp0 always ends in a trailing backslash. Passed bare as a quoted
+REM cmd-to-exe argument (`-ScriptDir "%SCRIPT_DIR%"`), that trailing `\"`
+REM is parsed as an escaped literal quote rather than a closing quote, so
+REM the argument never terminates and swallows the rest of the command
+REM line. Strip the trailing backslash before quoting to avoid it.
+set "SCRIPT_DIR_ARG=%SCRIPT_DIR:~0,-1%"
+
+%PS% -NoProfile -NonInteractive -File "%TRAY_PS%" launch -AppName "%APP_NAME%" -ScriptDir "%SCRIPT_DIR_ARG%" -VenvDir "%TRAY_VENV%" -TrayMatch "-m\s+tray" -Ports "%OWNED_PORTS%" -TrayLaunch "%TRAY_LAUNCH%" -VersionUrl "%VERSION_URL%" !RESTART_ARG!
 exit /b %ERRORLEVEL%
