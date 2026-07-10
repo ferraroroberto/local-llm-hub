@@ -68,8 +68,8 @@ model was still thinking.
 | **audio_translate** | `whisper-medium-translate` | whisper.cpp medium on CPU, eager-loaded on :8091 (~1.5 GB RAM, always ready). Turbo's distilled decoder doesn't translate, so this slot fills the gap. A lazy-load mode (proxy + idle-unload) lives in `src/whisper_translate_proxy.py` for hosts that need to reclaim RAM. |
 | **audio_speech** | `piper-tts` | Piper is the fast local default for short assistant replies. Orpheus remains available as `model="orpheus-tts"` for expressive speech, and Kokoro remains available as `model="kokoro-tts"` for voice comparison. |
 | **Cloud parity (Anthropic)** | `claude_haiku` / `claude_sonnet` / `claude_opus` / `claude_fable` | Off-device baseline via `claude -p`; same hub, just swap the alias. The aliases stay stable across version bumps — when Anthropic ships `claude-haiku-5`, only the row's `display_name` changes. Not a local role — never touched by `/swap-model`. |
-| **gemini_pro (Google)** | `gemini-3.1-pro` | Subscription cloud route via the `agy` (Antigravity) CLI. AI Pro required for 3.1 Pro (paid since 2026-03-25). 1 M-token context. Image content blocks supported. |
-| **gemini_lite (Google)** | `gemini-3.1-flash-lite` | Subscription cloud route via the `agy` (Antigravity) CLI. GA on 2026-05-07. Lowest-latency tier; quotas share with Gemini Code Assist. |
+| **gemini_pro (Google)** | `gemini_pro` | Subscription cloud route via the `agy` (Antigravity) CLI. AI Pro required for 3.1 Pro (paid since 2026-03-25). 1 M-token context. Image content blocks supported. |
+| **gemini_lite (Google)** | `gemini_flash_lite` (alias `gemini_lite`) | Subscription cloud route via the `agy` (Antigravity) CLI. GA on 2026-05-07. Lowest-latency tier; quotas share with Gemini Code Assist. |
 
 > Roles are declared in `config/models.yaml` → `roles:`. Update them
 > via `/swap-model` in Claude Code (interactive, edits the yaml +

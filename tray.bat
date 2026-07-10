@@ -32,7 +32,7 @@ REM  See project-scaffolding#29.
 REM
 REM  IMPORTANT: port :8090 (whisper-server) is mutex-SHARED with the sibling
 REM  voice-transcriber/transcribe_voice, and the llama-server model ports
-REM  (8081/8082/8086/8087) are separate native exes. None are reclaimed here.
+REM  (8081/8082/8086/8087/8088) are separate native exes. None are reclaimed here.
 REM  Only :8000, which this tray definitively owns, is reclaimed.
 REM ============================================================================
 

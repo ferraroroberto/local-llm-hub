@@ -4,7 +4,8 @@ An LLM-oriented map of `local-llm-hub`. Three views: a **component
 diagram** showing runtime data flow between clients, the hub, and the
 backends (Claude subscription via the `claude -p` CLI + Gemini
 subscription via the `agy` Antigravity CLI + local llama-server
-processes for Qwen3.5-9B, GLM-4.5-Air, Gemma 4 E4B, Gemma 4 26B-A4B +
+processes for Qwen3.5-4B (primary), Gemma 4 26B-A4B, Gemma 4 E4B
+(fallback), Qwen3.5-9B and GLM-4.5-Air (demoted, ad-hoc bring-up only) +
 whisper.cpp ASR for both transcribe (turbo, GPU) and translate
 (medium, CPU) + text-to-speech backends (Piper + Orpheus + Kokoro + Chatterbox) at
 `/v1/audio/speech`); a **module
