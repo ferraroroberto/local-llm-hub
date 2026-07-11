@@ -232,7 +232,24 @@ Single long lines, no hard wraps (rendered markdown).
    output contract.
 6. **Repoint `docs/frontier/runs/LATEST`** to contain just `<today>\n`.
 7. **Post the ledger comment** on #272 (shape above).
-8. **Commit the run** — scoped to the artifacts only:
+8. **File issues for actionable verdicts.** For each role whose verdict is
+   `upgrade`, `runtime_upgrade`, or `retire` — **not** `keep` or `watch` —
+   spawn one subagent (general-purpose, **model sonnet**) whose task is to
+   invoke the `/issue-add` skill with this payload:
+
+   > Frontier run <YYYY-MM-DD> verdict for role `<role>`: incumbent
+   > `<incumbent>`, verdict `<verdict>`, best alternative `<best
+   > alternative>`, reason: <reason>. Details in
+   > `docs/frontier/runs/<date>/report.md` §0/§7. File the issue for the
+   > work this verdict calls for.
+
+   One subagent per actionable verdict; `/issue-add`'s own duplicate check
+   (it scans open issues before creating) keeps repeat runs from re-filing
+   while the issue is still open. **Await every subagent to completion
+   within this turn** — in a headless scheduled run nothing resumes you
+   (fleet-config#314); never fire-and-forget. Include the filed (or
+   deduped) issue numbers in the step-10 summary.
+9. **Commit the run** — scoped to the artifacts only:
    ```
    git add docs/frontier/runs/
    git commit -m "docs: frontier refresh run (<YYYY-MM-DD>)"
@@ -240,9 +257,10 @@ Single long lines, no hard wraps (rendered markdown).
    If the current branch is `main` (the scheduled unattended case), also
    `git push`. On a feature branch, leave pushing to the normal
    PR/`issue-finish` flow.
-9. **Stop.** Print a one-paragraph summary of the four role verdicts and the
-   diff vs. last run. Do **not** edit `config/models.yaml`, write launchers,
-   download weights, or touch `models/`. When ready to act: `/swap-model`.
+10. **Stop.** Print a one-paragraph summary of the four role verdicts, the
+    diff vs. last run, and any issues filed in step 8. Do **not** edit
+    `config/models.yaml`, write launchers, download weights, or touch
+    `models/`. When ready to act: `/swap-model`.
 
 ## What success looks like
 
@@ -251,5 +269,8 @@ Single long lines, no hard wraps (rendered markdown).
   table + §8 progression table present with the exact columns)
 - `docs/frontier/runs/LATEST` resolves to today
 - Ledger issue #272 has this run's comment
+- Every actionable verdict (`upgrade` / `runtime_upgrade` / `retire`) has an
+  open issue — filed this run via the sonnet `/issue-add` subagents, or
+  already open from a previous run
 - Zero changes to `config/models.yaml`, `launchers/`, `models/`, `tray/`,
   `src/`, `tests/`
