@@ -75,6 +75,15 @@ export function putJson(path, payload) {
   });
 }
 
+// JSON PATCH helper.
+export function patchJson(path, payload) {
+  return jsonApi(path, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {}),
+  });
+}
+
 // --------------------------------------------------------------- SSE
 // EventSource doesn't support custom headers, so we attach the bearer
 // token via ?token=… (the BearerTokenMiddleware accepts that form).

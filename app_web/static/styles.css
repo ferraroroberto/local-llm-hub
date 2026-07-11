@@ -271,6 +271,9 @@ h2 { display: flex; align-items: center; gap: 8px; }
 }
 .icon-header-btn:hover { color: var(--ink); background: var(--card-off); }
 .icon-header-btn:active { background: var(--bg); }
+/* Toggled-on state — same accent-tint recipe as .app-item .app-icons
+ * .icon-btn.active (#266's Models "Active only" filter). */
+.icon-header-btn.active { color: var(--accent); background: var(--accent-soft); }
 
 /* Hub card header — title + inline live status (dot + word), then
  * the action buttons on the right. */
@@ -524,26 +527,44 @@ h2 { display: flex; align-items: center; gap: 8px; }
 }
 .sparkline svg { display: block; width: 100%; height: 64px; margin-top: 4px; }
 
-/* ---------- Models tab: .app-item rows (canonical pattern) ---------- */
+/* ---------- Models tab: .app-item rows (canonical pattern) ----------
+ * Flat full-bleed rows inside one wrapping `.card` (design.md `list-row`
+ * contract, #265) — never nested per-item cards. The card's own
+ * `spacing.md` padding supplies the horizontal inset; rows only need
+ * `list-row.rowPadding` (12px 0) and a top hairline on every row after
+ * the first. */
+
+/* Card-header actions cluster for a `.card--collapsible` summary (#266) —
+ * the toggle button sits before the chevron rather than its own row, so
+ * per-app markup nests both inside grid-column 2 (the vendored
+ * .collapse-chevron's own `grid-column: 2` is then a no-op, since it's no
+ * longer a direct grid child — harmless). */
+.collapse-actions {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  /* Same 14px as disclosure.summaryPadding — the gap from the card's left
+   * edge to the .collapse-main icon, mirrored here between the action
+   * button and the chevron (#266: 2px read as the icon crowding the arrow). */
+  gap: 14px;
+}
 .models-list {
   list-style: none;
   padding: 0;
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
 }
 .app-item {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  overflow: hidden;
   display: block;
+}
+.app-item + .app-item {
+  border-top: 1px solid var(--line-muted);
 }
 .app-item .app-main {
   display: flex;
   flex-direction: column;
-  padding: 12px 14px;
+  padding: 12px 0;
   gap: 4px;
   width: 100%;
 }
@@ -839,6 +860,35 @@ h2 { display: flex; align-items: center; gap: 8px; }
   padding: 4px 10px;
   font-size: var(--font-caption);
 }
+
+/* ---------- Startup card — per-item toggle rows (#265) ---------- */
+.startup-list {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+}
+.startup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+}
+.startup-row + .startup-row {
+  border-top: 1px solid var(--line-muted);
+}
+.startup-row-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--font-label);
+}
+.startup-row-label .badge { flex-shrink: 0; }
+/* Section labels reuse .opt-group-title (playground's existing group-label
+ * pattern) rather than a new one-off class. */
 
 /* ---------- install panel rows ---------- */
 .install-row {

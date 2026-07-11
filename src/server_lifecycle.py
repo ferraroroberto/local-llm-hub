@@ -87,6 +87,9 @@ async def wire_observatory_loop() -> None:
     # The hub owns configured backend autostart so every launch surface
     # (tray, run_hub.bat, python -m src.run_backend hub) behaves the same.
     loop.create_task(_autostart_configured_backends())
+    # Same idea for Docker/Langfuse/Mac-Mini-sync (issue #265) — the
+    # startup profile's non-model flags.
+    loop.create_task(_autostart_services())
 
 
 async def _autostart_configured_backends() -> None:
@@ -107,6 +110,47 @@ async def _autostart_configured_backends() -> None:
             logger.info("autostart: %s -> %s", model_id, msg)
         else:
             logger.warning("autostart: %s -> %s", model_id, msg)
+
+
+async def _autostart_services() -> None:
+    """Bring up Docker/Langfuse and sync the Mac Mini per the startup
+    profile (issue #265). Best-effort and soft-failing, same spirit as
+    ``services.launch_stack()`` itself — a slow/unreachable Docker Desktop
+    or SSH-unreachable Mac Mini must never block the hub from finishing
+    its own startup.
+    """
+    from . import services as svc
+    from .host_profile import MAC_MINI_HOST_ID, resolve as resolve_host
+    from .startup_profile import load_startup_profile
+
+    profile = load_startup_profile()
+
+    if profile.docker or profile.langfuse:
+        try:
+            result = await svc.launch_stack()
+            logger.info(
+                "autostart: services launch %s: %s",
+                "ok" if result["ok"] else "failed",
+                result["steps"],
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("autostart: services launch raised: %s", exc)
+
+    if profile.mac_mini_sync and resolve_host().id != MAC_MINI_HOST_ID:
+        try:
+            from . import remote_bootstrap
+
+            health = await svc.mac_mini_health(MAC_MINI_HOST_ID)
+            if not health["reachable"]:
+                result = await remote_bootstrap.bootstrap_host(MAC_MINI_HOST_ID)
+                logger.info("autostart: Mac Mini bootstrap -> %s", result)
+            elif health.get("git_sha_match") is False:
+                result = await remote_bootstrap.sync_host(MAC_MINI_HOST_ID)
+                logger.info("autostart: Mac Mini sync -> %s", result)
+            else:
+                logger.info("autostart: Mac Mini already reachable and in sync")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("autostart: Mac Mini sync raised: %s", exc)
 
 
 async def _resource_sampler() -> None:

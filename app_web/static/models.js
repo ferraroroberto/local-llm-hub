@@ -7,7 +7,7 @@
  * belongs in a future dedicated tab (#4: OpenTelemetry + Langfuse).
  */
 
-import { els, state } from './state.js';
+import { els, state, MODELS_ACTIVE_ONLY_KEY } from './state.js';
 import { jsonApi, postJson, toast, escapeHtml } from './api.js';
 import { mountGlossaryEditor } from './glossary.js';
 import { icon } from './_vendored/icons/icons.js';
@@ -20,11 +20,29 @@ export async function fetchModels() {
   } catch (_) { /* ignore */ }
 }
 
+// A row counts as "active" only if it's a controllable backend that's
+// currently running/adopted. Claude/Gemini are excluded outright — they're
+// subscription-backed with no on/off state, always "on", so listing them
+// here is just noise rather than a signal (#266).
+function isActive(m) {
+  return m.controllable && (m.ownership === 'ours' || m.ownership === 'external');
+}
+
 function renderModels() {
   const root = els.modelsList;
   if (!root) return;
   const models = state.models || [];
-  if (els.modelsEmpty) els.modelsEmpty.hidden = models.length > 0;
+  const visible = state.modelsActiveOnly ? models.filter(isActive) : models;
+
+  if (els.modelsEmpty) {
+    els.modelsEmpty.hidden = visible.length > 0;
+    const msg = els.modelsEmpty.querySelector('.empty-state-message');
+    if (msg) {
+      msg.innerHTML = models.length === 0
+        ? 'No models enabled for this host — check <code>config/models.yaml</code>.'
+        : 'No active models right now — turn off “Active only” to see the full list.';
+    }
+  }
 
   // Diff-update so the row identity survives the 5 s poll. Reusing the
   // existing <li> per model id avoids the DOM churn (and any focus /
@@ -37,7 +55,7 @@ function renderModels() {
   });
 
   const frag = document.createDocumentFragment();
-  models.forEach(function (m) {
+  visible.forEach(function (m) {
     const prev = existing[m.id];
     if (prev) {
       fillItem(prev, m);
@@ -220,4 +238,40 @@ function cssEscape(s) {
 
 function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-export function wireModels() { /* nothing to wire — rows re-render on fetch */ }
+// "Active only" toggle — lives in the card's own collapse-summary header
+// (#266) as an .icon-header-btn, same recipe as the Hub card's theme/restart
+// buttons, with the toggled-on state borrowed from .app-item .icon-btn.active.
+// Persisted like home-automation Plugs' show-hidden localStorage flag.
+function renderActiveToggle() {
+  const btn = els.modelsActiveToggle;
+  if (!btn) return;
+  btn.classList.toggle('active', state.modelsActiveOnly);
+  btn.setAttribute('aria-pressed', state.modelsActiveOnly ? 'true' : 'false');
+  btn.title = state.modelsActiveOnly
+    ? 'Showing active only — click to show all'
+    : 'Showing all — click to show active only';
+  btn.setAttribute('aria-label', btn.title);
+}
+
+export function wireModels() {
+  try {
+    const stored = localStorage.getItem(MODELS_ACTIVE_ONLY_KEY);
+    if (stored !== null) state.modelsActiveOnly = stored === 'true';
+  } catch (_) { /* private mode */ }
+  renderActiveToggle();
+
+  if (els.modelsActiveToggle) {
+    els.modelsActiveToggle.addEventListener('click', function (ev) {
+      // The button lives inside <summary> — without this, clicking it
+      // also fires the <details> element's native open/close toggle.
+      ev.preventDefault();
+      ev.stopPropagation();
+      state.modelsActiveOnly = !state.modelsActiveOnly;
+      try {
+        localStorage.setItem(MODELS_ACTIVE_ONLY_KEY, String(state.modelsActiveOnly));
+      } catch (_) { /* private mode */ }
+      renderActiveToggle();
+      renderModels();
+    });
+  }
+}

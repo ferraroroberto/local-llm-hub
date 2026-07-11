@@ -214,11 +214,44 @@
     </section>
 
     <section id="paneModels" class="pane" hidden role="tabpanel">
-      <p class="muted small">One row per backend enabled for this host. Local <code>llama-server</code>
-        and <code>whisper-server</code> backends can be started or stopped individually; the
-        Claude and Gemini rows are subscription-backed and don't have a managed process.</p>
-      <ul id="modelsList" class="models-list"></ul>
-      <div id="modelsEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-boxes"></use></svg><p class="empty-state-message">No models enabled for this host — check <code>config/models.yaml</code>.</p></div>
+      <!-- Vendored disclosure card (_vendored/disclosure), open by default —
+           the inventory is what you came to this tab to see (#266). -->
+      <details class="card card--collapsible" id="modelsCard" open>
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon" aria-hidden="true"><use href="#i-boxes"></use></svg>
+            <h3 class="collapse-title">Models</h3>
+          </span>
+          <span class="collapse-actions">
+            <button id="modelsActiveToggle" type="button" class="icon-header-btn active" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></button>
+            <span class="collapse-chevron" aria-hidden="true">›</span>
+          </span>
+        </summary>
+        <div class="collapse-body">
+          <p class="muted small">One row per backend enabled for this host. Local <code>llama-server</code>
+            and <code>whisper-server</code> backends can be started or stopped individually; the
+            Claude and Gemini rows are subscription-backed and don't have a managed process.</p>
+          <ul id="modelsList" class="models-list"></ul>
+          <div id="modelsEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-boxes"></use></svg><p class="empty-state-message">No models enabled for this host — check <code>config/models.yaml</code>.</p></div>
+        </div>
+      </details>
+
+      <!-- Folded by default — a one-time setup surface, not something you
+           check every visit (#266). -->
+      <details class="card card--collapsible" id="startupCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon" aria-hidden="true"><use href="#i-rocket"></use></svg>
+            <h3 class="collapse-title">Startup</h3>
+          </span>
+          <span class="collapse-chevron" aria-hidden="true">›</span>
+        </summary>
+        <div class="collapse-body">
+          <p class="muted small">What comes up automatically every time the hub launches — toggle
+            any item on or off; the setting persists to <code>config/startup_profile.json</code>.</p>
+          <ul id="startupList" class="startup-list"></ul>
+        </div>
+      </details>
     </section>
 
     <section id="panePlayground" class="pane" hidden role="tabpanel">

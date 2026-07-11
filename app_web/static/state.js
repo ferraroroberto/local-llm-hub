@@ -12,6 +12,9 @@ export const THEME_KEY = 'llmhub.theme';
 /* Active tab — persisted by the vendored nav so the installed PWA reopens
  * where you left it (fleet nav contract). */
 export const TAB_KEY = 'llmhub.tab';
+/* Models tab "Active only" filter — persisted like Plugs' show-hidden
+ * toggle in home-automation (#266). */
+export const MODELS_ACTIVE_ONLY_KEY = 'llmhub.models.activeOnly';
 
 export const STATUS_POLL_MS = 4000;
 export const COUNTERS_POLL_MS = 4000;
@@ -51,6 +54,12 @@ export const state = {
   services: null,
   servicesLaunching: false,
   macMiniBusy: false,   // wake/sync in flight (#181)
+
+  // Startup card — what autostarts with the hub (issue #265).
+  startupProfile: null,   // /admin/api/startup-profile payload
+
+  // Models tab — "Active only" filter, default on (issue #266).
+  modelsActiveOnly: true,
 };
 
 // ES modules are deferred; document.getElementById is safe at top level.
@@ -127,6 +136,10 @@ export const els = {
   // Models tab
   modelsList: document.getElementById('modelsList'),
   modelsEmpty: document.getElementById('modelsEmpty'),
+  modelsActiveToggle: document.getElementById('modelsActiveToggle'),
+
+  // Startup card (issue #265)
+  startupList: document.getElementById('startupList'),
 
   // Playground
   playgroundModel: document.getElementById('playgroundModel'),
