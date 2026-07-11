@@ -24,7 +24,6 @@ a port held by someone else.
 from __future__ import annotations
 
 import os
-import signal
 import socket
 import subprocess
 import sys
@@ -35,6 +34,7 @@ import httpx
 
 from .host_profile import resolve as resolve_host
 from .model_registry import Model, enabled_models, local_models, resolve as resolve_model
+from .process_supervisor import ProcessSupervisor, SpawnSpec
 from .server_process import (
     OWNERSHIP_NONE,
     WIN_NEW_GROUP,
@@ -388,25 +388,36 @@ def start(model_id: str) -> tuple[bool, str]:
     # class that made #104 possible). The file is also readable on disk and
     # via ``log_lines`` / the admin log endpoint. Roll first for a fresh log.
     log_file = _roll_log(model_id).open("ab")
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            cwd=str(PROJECT_ROOT),
+
+    def build_spawn_spec() -> SpawnSpec:
+        return SpawnSpec(
+            cmd=cmd,
+            cwd=PROJECT_ROOT,
             stdout=log_file,
             stderr=subprocess.STDOUT,
             env=env,
             creationflags=WIN_NEW_GROUP,
         )
-    except Exception as e:
-        return False, f"failed to launch: {e}"
-    finally:
+
+    def on_spawned(proc: subprocess.Popen) -> None:
         # The child duplicated the handle at spawn; the hub no longer needs
         # its own copy (and keeping it open would pin the file). Closing it is
         # exactly what makes the log restart-safe — only the child holds the fd.
         log_file.close()
 
-    state.proc = proc
-    return True, f"started (pid={proc.pid})"
+    try:
+        return ProcessSupervisor(
+            already_running=lambda: is_running(model_id),
+            reachable=lambda: is_reachable(model, timeout=0.4),
+            external_pid=lambda: external_pid(model_id),
+            build_spawn_spec=build_spawn_spec,
+            set_process=lambda proc: setattr(state, "proc", proc),
+            on_spawned=on_spawned,
+            adopt_message="adopted external instance",
+        ).start()
+    finally:
+        if not log_file.closed:
+            log_file.close()
 
 
 def stop(model_id: str) -> tuple[bool, str]:
@@ -424,20 +435,13 @@ def stop(model_id: str) -> tuple[bool, str]:
     if p.poll() is not None:
         state.proc = None
         return False, "not running"
-    try:
-        if sys.platform == "win32":
-            try:
-                p.send_signal(signal.CTRL_BREAK_EVENT)
-            except Exception:
-                pass
-        p.terminate()
-        try:
-            p.wait(timeout=8)
-        except subprocess.TimeoutExpired:
-            p.kill()
-            p.wait(timeout=5)
-    except Exception as e:
-        return False, f"error stopping: {e}"
+    ok, msg = ProcessSupervisor.stop_popen(
+        p,
+        terminate_timeout=8,
+        kill_timeout=5,
+    )
+    if not ok:
+        return ok, msg
     state.proc = None
     return True, "stopped"
 

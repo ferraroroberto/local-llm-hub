@@ -45,6 +45,7 @@ flowchart LR
     end
 
     subgraph Procs["Process managers"]
+        PSUP["src/process_supervisor.py<br/>shared subprocess start/stop workflow"]
         SP["src/server_process.py<br/>hub Popen + log ring<br/>+ kill-port helper"]
         LP["src/backend_process.py<br/>per-model llama-server + whisper-server<br/>Popen + log ring"]
     end
@@ -109,6 +110,8 @@ flowchart LR
     WROUT -->|models tab: start/stop/logs per model| LP
     WROUT -.->|play tab: httpx to /v1/messages| SRV
 
+    SP --> PSUP
+    LP --> PSUP
     SP -->|Popen python -m src.server| SRV
     LP -->|Popen llama-server --model ...| QWEN4B
     LP -->|Popen llama-server --model ...| GEMMA426
@@ -163,6 +166,7 @@ flowchart TB
     SRC --> S5b["remote_proxy.py<br/>owning-host base URL for non-local rows<br/>(Mac Mini multi-host proxying)"]
     SRC --> S6["install.py<br/>checks + fix dispatch"]
     SRC --> S7["run_backend.py<br/>hub|qwen|glm|qwen35_4b|gemma4*|whisper|tts dispatcher"]
+    SRC --> S8a["process_supervisor.py<br/>shared subprocess lifecycle workflow"]
     SRC --> S8["server_process.py<br/>hub Popen + kill-port"]
     SRC --> S9["backend_process.py<br/>per-model Popen (llama-server + whisper-server + tts shim)"]
     SRC --> S11["whisper_translate_proxy.py<br/>FastAPI shim for optional lazy-load mode<br/>(dormant; whisper_translate runs eager)"]

@@ -40,6 +40,8 @@ from typing import Deque, Optional
 
 import httpx
 
+from .process_supervisor import ProcessSupervisor, SpawnSpec
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Uvicorn binds on all interfaces so other machines on the LAN can reach
 # the server. Health checks + the canonical "self" URL still use loopback.
@@ -129,25 +131,14 @@ def _reader(proc: subprocess.Popen) -> None:
 
 
 def start() -> tuple[bool, str]:
-    if is_running():
-        return False, "already running"
-
-    # Adopt: someone else's hub is already answering on :8000 — don't
-    # try to spawn a duplicate (it'd fail with WinError 10048 anyway).
-    # The caller treats this as a successful no-op.
-    if is_reachable(timeout=0.4):
-        ext_pid = external_pid()
-        suffix = f" (PID {ext_pid})" if ext_pid else ""
-        return True, f"adopted external hub{suffix}"
-
-    clear_log()
-    env = os.environ.copy()
-    env["PYTHONIOENCODING"] = "utf-8"
-    env["PYTHONUTF8"] = "1"
-    try:
-        proc = subprocess.Popen(
-            [sys.executable, "-m", "src.server"],
-            cwd=str(PROJECT_ROOT),
+    def build_spawn_spec() -> SpawnSpec:
+        clear_log()
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
+        return SpawnSpec(
+            cmd=[sys.executable, "-m", "src.server"],
+            cwd=PROJECT_ROOT,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -157,14 +148,21 @@ def start() -> tuple[bool, str]:
             env=env,
             creationflags=WIN_NEW_GROUP,
         )
-    except Exception as e:
-        return False, f"failed to launch: {e}"
 
-    _STATE.proc = proc
-    t = threading.Thread(target=_reader, args=(proc,), daemon=True)
-    t.start()
-    _STATE.reader = t
-    return True, f"started (pid={proc.pid})"
+    def on_spawned(proc: subprocess.Popen) -> None:
+        t = threading.Thread(target=_reader, args=(proc,), daemon=True)
+        t.start()
+        _STATE.reader = t
+
+    return ProcessSupervisor(
+        already_running=is_running,
+        reachable=lambda: is_reachable(timeout=0.4),
+        external_pid=external_pid,
+        build_spawn_spec=build_spawn_spec,
+        set_process=lambda proc: setattr(_STATE, "proc", proc),
+        on_spawned=on_spawned,
+        adopt_message="adopted external hub",
+    ).start()
 
 
 def stop() -> tuple[bool, str]:
@@ -173,25 +171,13 @@ def stop() -> tuple[bool, str]:
         _STATE.proc = None
         return False, "not running"
 
-    try:
-        if sys.platform == "win32":
-            # Best-effort polite shutdown. Fails with WinError 6 ("handle is
-            # invalid") when the child was spawned with CREATE_NO_WINDOW
-            # (e.g. from the tray under pythonw) because there's no console
-            # to deliver the event through — that's fine, terminate() below
-            # still tears it down.
-            try:
-                p.send_signal(signal.CTRL_BREAK_EVENT)
-            except (OSError, ValueError):
-                pass
-        p.terminate()
-        try:
-            p.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            p.kill()
-            p.wait(timeout=5)
-    except Exception as e:
-        return False, f"error stopping: {e}"
+    ok, msg = ProcessSupervisor.stop_popen(
+        p,
+        terminate_timeout=5,
+        kill_timeout=5,
+    )
+    if not ok:
+        return ok, msg
 
     _STATE.proc = None
     return True, "stopped"
