@@ -65,6 +65,7 @@ _pricing_cache: Optional[Dict[str, Dict[str, float]]] = None
 # and the cached portion at "cached_input".
 _OPENAI_PRICING_PATH: Path = _PROJECT_ROOT / "config" / "openai_pricing.json"
 _OPENAI_PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
+    "GPT-5.6-SOL": {"input": 5.0,  "cached_input": 0.50, "output": 30.0},
     "GPT-5.5":     {"input": 5.0,  "cached_input": 0.50, "output": 30.0},
     "GPT-5.5 Pro": {"input": 30.0, "cached_input": 0.0,  "output": 180.0},
     "GPT-5.4":     {"input": 2.5,  "cached_input": 0.25, "output": 15.0},
