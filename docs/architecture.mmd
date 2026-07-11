@@ -19,10 +19,11 @@ flowchart TB
   subgraph core["src/server.py — FastAPI hub (:8000)"]
     SRV["POST /v1/messages (Anthropic shape)\nPOST /v1/chat/completions (OpenAI shape)\nGET /v1/models · /health · /info\nGET / -> 307 /admin/"]
     CHATT["chat_translation.py\nschemas + media extraction + prompt flatten +\nper-backend dispatch (split out of server.py, issue #245)"]
-    LIFECYCLE["server_lifecycle.py\nstartup/shutdown hooks + resource sampler\n(split out of server.py, issue #198)"]
+    LIFECYCLE["server_lifecycle.py\nstartup/shutdown hooks + resource sampler +\nstartup-profile autostart (backends/Docker/\nLangfuse/Mac-Mini-sync, issue #265)"]
     REG["model_registry.py\nModel rows from config/models.yaml"]
     HOSTP["host_profile.py\nresolve active host"]
     OTELRECV["server_otel_receiver.py\nPOST /v1/metrics (OTLP receiver, issue #68)"]
+    SVC["services.py\nDocker/Langfuse probe + launch_stack,\nMac Mini health probe (issue #27)"]
   end
   TRAY --> SRV
   RUNHUB --> SRV
@@ -30,6 +31,9 @@ flowchart TB
   SRV --> LIFECYCLE
   SRV --> REG
   REG --> HOSTP
+  LIFECYCLE --> SVC
+  LIFECYCLE --> REMOTEBOOT
+  SVC --> LANGFUSE
 
   subgraph routing["Backend wrappers"]
     CLAUDECLI["claude_cli.py\nsubprocess.run claude -p"]
@@ -98,7 +102,7 @@ flowchart TB
 
   subgraph admin["app_web/ — admin SPA, sub-app mounted at /admin"]
     WSRV["server.py\ncreate_app() + versioned static"]
-    WROUT["routers/\nhub · models · playground · services ·\ntelemetry · code_usage · glossary · hosts ·\nauth · webauthn · version · misc"]
+    WROUT["routers/\nhub · models · startup_profile · playground ·\nservices · telemetry · code_usage · glossary ·\nhosts · auth · webauthn · version · misc"]
     WSTATIC["static/\nindex.html SPA + per-tab JS/CSS"]
   end
   SRV -.mounts.-> WSRV
@@ -124,6 +128,7 @@ flowchart TB
     MODELSYAML[("config/models.yaml\nhosts + model registry")]
     WEBCFG[("config/webapp_config.json\nauth token + allowlist")]
     GLOSSARY[("config/transcription_glossary.json\nASR post-processing rules")]
+    STARTUPCFG[("config/startup_profile.json\ndocker/langfuse/mac-mini-sync/models\n(issue #265)")]
     MODELSDIR["models/ (gitignored)\nGGUF + whisper weights"]
   end
   REG -.reads.-> MODELSYAML
@@ -131,6 +136,9 @@ flowchart TB
   WSRV -.reads.-> WEBCFG
   AUDIOR -.reads.-> GLOSSARY
   BACKPROC -.reads.-> MODELSDIR
+  REG -.reads.-> STARTUPCFG
+  LIFECYCLE -.reads.-> STARTUPCFG
+  WROUT -.reads/writes.-> STARTUPCFG
 
   subgraph tests["tests/ + scripts/"]
     UNITTESTS["tests/*.py\npytest, TestClient + monkeypatched CLIs"]

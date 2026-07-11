@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
+
 import yaml
 
-from src import host_profile, model_registry
+from src import host_profile, model_registry, startup_profile
 
 
 def _write_config(tmp_path, content: dict):
@@ -68,6 +70,9 @@ def test_env_override_wins(tmp_path, monkeypatch):
 
 
 def test_autostart_model_ids_filters_to_launchable_enabled_rows(tmp_path, monkeypatch):
+    # No config/startup_profile.json for this resolved path — autostart_model_ids()
+    # falls back to the legacy config/models.yaml -> tray.autostart_models list.
+    monkeypatch.setattr(startup_profile, "DEFAULT_PROFILE_PATH", tmp_path / "startup_profile.json")
     cfg = _write_config(tmp_path, {
         "hub": {"port": 8000},
         "tray": {"autostart_models": [
@@ -91,6 +96,34 @@ def test_autostart_model_ids_filters_to_launchable_enabled_rows(tmp_path, monkey
     monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "pc")
 
     assert model_registry.autostart_model_ids() == ["qwen", "piper"]
+
+
+def test_autostart_model_ids_prefers_startup_profile_when_present(tmp_path, monkeypatch):
+    profile_path = tmp_path / "startup_profile.json"
+    profile_path.write_text(
+        json.dumps({"docker": True, "langfuse": True, "mac_mini_sync": True, "models": ["piper"]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(startup_profile, "DEFAULT_PROFILE_PATH", profile_path)
+    cfg = _write_config(tmp_path, {
+        "hub": {"port": 8000},
+        # Legacy YAML list deliberately differs from the profile above —
+        # if this id shows up in the result, the fallback branch ran
+        # instead of the startup_profile.json branch.
+        "tray": {"autostart_models": ["qwen"]},
+        "hosts": {
+            "pc": {"platform": "win32", "default": True, "enabled": ["qwen", "piper"]},
+        },
+        "models": {
+            "qwen": {"display_name": "qwen3.5-9b", "backend": "openai", "port": 8081},
+            "piper": {"display_name": "piper-tts", "backend": "tts", "port": 8096},
+        },
+    })
+    _patch_config_path(monkeypatch, cfg)
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "pc")
+
+    assert model_registry.autostart_model_ids() == ["piper"]
+
 
 def test_launchable_local_ids_excludes_remote_virtual_and_nonspawnable(tmp_path, monkeypatch):
     """The bulk launchers (run_all.*) enumerate this. It must honour every

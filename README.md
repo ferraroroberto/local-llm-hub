@@ -408,6 +408,13 @@ Mac's checkout before restarting it). An **out-of-sync** badge appears on
 the pill when the two hubs' `git_sha` (from `/admin/api/version`) differ —
 `sync` is the fix.
 
+When `mac_mini_sync` is `true` in **[config/startup_profile.json](config/startup_profile.json)**
+(the default — toggle it off from the Models tab's **Startup** card), the
+Windows hub does this automatically on its own boot instead of waiting for
+a manual click: bootstrap if the Mac Mini is unreachable, sync if it's
+reachable but its `git_sha` doesn't match (issue #265). The Mac Mini's own
+hub skips this self-probe when it resolves as the active host.
+
 The Models tab tags every remote-owned tile with a small `on <host-id>`
 badge (e.g. `qwen3.5-9b` / `parakeet-tdt-0.6b-v3` both show `on
 mac-mini-m4`) so a displayed PID is never mistaken for a local process.
@@ -441,7 +448,8 @@ local-llm-hub/
 │   ├── run_tts_chatterbox.*     # chatterbox TTS on :8092 (on demand)
 │   └── run_all.*                # start everything enabled on this host
 ├── config/
-│   ├── models.yaml           # hosts + models + roles + tray autostart
+│   ├── models.yaml           # hosts + models + roles + legacy tray autostart fallback
+│   ├── startup_profile.json  # what autostarts at hub launch: docker/langfuse/mac-mini-sync/models (#265)
 │   └── webapp_config.json    # admin auth: bearer token, optional password, webauthn rp (gitignored)
 ├── webapp/                   # runtime data dir written by the /admin webapp
 │   ├── cloudflared.sample.yml  # sample named-tunnel config (copy to cloudflared.yml)
@@ -461,6 +469,7 @@ local-llm-hub/
 │   ├── gemini_cli.py         # Antigravity CLI (`agy`) wrapper via ConPTY (Google AI Pro)
 │   ├── openai_upstream.py    # httpx client + SSE think-strip pipeline
 │   ├── model_registry.py     # YAML loader (resolves display_name + aliases)
+│   ├── startup_profile.py    # config/startup_profile.json load/save (#265)
 │   ├── host_profile.py       # pick active host row
 │   ├── system_stats.py       # live RAM/GPU readings (consumed by Hub tab sparklines)
 │   ├── install.py            # first-run checks + --fix
@@ -483,10 +492,11 @@ local-llm-hub/
 ├── app_web/                  # FastAPI sub-app at /admin (HTML/JS SPA — no bundler)
 │   ├── server.py             #   create_app() — middleware, routers, static mount
 │   ├── middleware.py         #   bearer-token gate (loopback bypasses)
-│   ├── routers/              #   misc / version / auth / webauthn / hub / models / playground /
-│   │                         #   services / telemetry / code_usage / glossary / hosts
+│   ├── routers/              #   misc / version / auth / webauthn / hub / models /
+│   │                         #   startup_profile / playground / services / telemetry /
+│   │                         #   code_usage / glossary / hosts
 │   └── static/               #   index.html + main.js + state.js + tabs.js + api.js +
-│                             #   hub.js + models.js + playground.js + styles.css +
+│                             #   hub.js + models.js + startup.js + playground.js + styles.css +
 │                             #   manifest.webmanifest + icon-*.png/favicon.ico (generated
 │                             #   by scripts/gen_icons.py, committed)
 │       └── _vendored/icons/  #   Lucide icon sprite + icons.js helper (vendored from
@@ -668,13 +678,22 @@ tray.bat
 
 Starts a resident system-tray icon (silent — no terminal window) that:
 
-- Auto-starts the hub on :8000. Hub startup then starts the models listed
-  in `config/models.yaml` under `tray.autostart_models` for every launch
-  surface (tray, `run_hub.bat`, or `python -m src.run_backend hub`). The
-  default is `[qwen35_4b, whisper, whisper_translate, piper, orpheus]` —
-  Qwen fast lane, both eager ASR slots, fast Piper speech, and expressive
-  Orpheus speech. Set it to `[]` to skip model autostart, or change the
-  list to any subset of enabled model ids.
+- Auto-starts the hub on :8000. Hub startup then brings up everything
+  configured in **[config/startup_profile.json](config/startup_profile.json)**
+  (issue #265) — the same source the admin SPA's Models tab **Startup**
+  card reads and writes — for every launch surface (tray, `run_hub.bat`, or
+  `python -m src.run_backend hub`): the local model ids listed under
+  `models` (default `[qwen35_4b, whisper, whisper_translate,
+  whisper_vanilla, piper, orpheus]` — Qwen fast lane, both eager ASR slots
+  plus the unbiased-detection whisper-vanilla escape hatch, fast Piper
+  speech, and expressive Orpheus speech), Docker + Langfuse if `docker` /
+  `langfuse` are `true` (via the same `launch_stack()` the Services card's
+  manual launch button uses), and a Mac Mini wake/sync if `mac_mini_sync`
+  is `true` (bootstrap if unreachable, sync if reachable but out of date).
+  Toggle any item off from the Startup card, or hand-edit the JSON. A fresh
+  clone without that file yet falls back to `config/models.yaml`'s legacy
+  `tray.autostart_models` list for local models only (no Docker/Langfuse/Mac
+  Mini autostart until a profile has been saved once).
 - Lets you toggle any other enabled local model on/off from the
   **🧠 Models** submenu (multiple may run concurrently).
 - Surfaces the admin webapp via **🚀 Open admin** — same `:8000/admin/`

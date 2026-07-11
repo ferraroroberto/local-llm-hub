@@ -1,0 +1,15 @@
+{
+  "docker": true,
+  "langfuse": true,
+  "mac_mini_sync": true,
+  "models": [
+    "qwen35_4b",
+    "whisper",
+    "whisper_translate",
+    "whisper_vanilla",
+    "piper",
+    "orpheus",
+    "qwen",
+    "parakeet"
+  ]
+}

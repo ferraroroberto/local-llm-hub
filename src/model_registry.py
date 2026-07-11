@@ -161,18 +161,28 @@ def launchable_local_ids(host: Optional[HostProfile] = None) -> List[str]:
 def autostart_model_ids(host: Optional[HostProfile] = None) -> List[str]:
     """Configured local backend ids to start with the hub.
 
-    The YAML list is user-editable, so filter it through the active host and
-    launchable backend rows. Virtual aliases share a real backend and never
-    own a process, so they are excluded even if listed by mistake. Rows
-    owned by a *different* host (``m.host`` set and not this one) are remote
-    — never autostarted locally, the owning host's own tray does that.
+    ``config/startup_profile.json`` (issue #265) is the source of truth —
+    the admin UI's Startup card reads/writes it. When that file doesn't
+    exist yet (e.g. a fresh clone before the UI has ever saved a profile),
+    fall back to the legacy ``config/models.yaml`` → ``tray.autostart_models``
+    list so a clean checkout still autostarts something sensible. Either way
+    the raw id list is filtered through the active host and launchable
+    backend rows: virtual aliases share a real backend and never own a
+    process, so they are excluded even if listed by mistake, and rows owned
+    by a *different* host (``m.host`` set and not this one) are remote —
+    never autostarted locally, the owning host's own tray does that.
     """
-    cfg = _load_config()
-    raw = (cfg.get("tray") or {}).get("autostart_models") or []
-    if not isinstance(raw, list):
-        return []
+    from src.startup_profile import DEFAULT_PROFILE_PATH, load_startup_profile
+
+    if DEFAULT_PROFILE_PATH.exists():
+        raw: List[str] = load_startup_profile().models
+    else:
+        cfg = _load_config()
+        legacy = (cfg.get("tray") or {}).get("autostart_models") or []
+        raw = [str(item) for item in legacy if item] if isinstance(legacy, list) else []
+
     valid = set(launchable_local_ids(host))
-    return [model_id for model_id in (str(item) for item in raw if item) if model_id in valid]
+    return [model_id for model_id in raw if model_id in valid]
 
 def resolve(name: str, host: Optional[HostProfile] = None) -> Optional[Model]:
     """Look up a model by any of its names — registry id, display_name, or alias.

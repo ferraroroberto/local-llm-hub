@@ -9,6 +9,7 @@ import { icon } from './_vendored/icons/icons.js';
 import { wireTabs, onTabChange } from './tabs.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchInstallStatus, fetchServicesStatus } from './hub.js';
 import { wireModels, fetchModels } from './models.js';
+import { wireStartupProfile, fetchStartupProfile } from './startup.js';
 import { wirePlayground, fetchPlaygroundModels, fetchTtsModels, fetchImageModels } from './playground.js';
 import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls, fetchTelemetryHealth } from './telemetry.js';
 import { wireCodeUsage, startCodeUsagePolls, stopCodeUsagePolls, restyleCodeUsageCharts } from './code_usage.js';
@@ -57,6 +58,7 @@ async function boot() {
   wireLoginForm(function () { return resumeAfterLogin(); });
   wireHub();
   wireModels();
+  wireStartupProfile();
   wirePlayground();
   wireTelemetry();
   wireCodeUsage();
@@ -88,6 +90,7 @@ async function boot() {
     fetchHubStatus(),
     fetchCounters(),
     fetchModels(),
+    fetchStartupProfile(),
     fetchInstallStatus(),
     fetchServicesStatus(),
     fetchTelemetryHealth(),
@@ -114,6 +117,7 @@ async function resumeAfterLogin() {
     fetchHubStatus(),
     fetchCounters(),
     fetchModels(),
+    fetchStartupProfile(),
     fetchInstallStatus(),
     fetchServicesStatus(),
     fetchTelemetryHealth(),
