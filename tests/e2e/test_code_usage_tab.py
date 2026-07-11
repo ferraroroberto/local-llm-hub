@@ -29,6 +29,11 @@ PHONE_VIEWPORT = {"width": 390, "height": 844}
 # Pane-switch DOM/CSS transition can overrun a tight budget under runner
 # contention (issue #177) — give it the same headroom as the button wait.
 PANE_TIMEOUT = 10000
+# The summary endpoint cold-scans every vendor's full session history on
+# first call (no mtime cache yet); on a dev machine with a large Claude/Codex
+# history this measured ~5.5s even before Copilot added a 4th vendor scan —
+# 10s cut it close under host contention (same class of flake as #177).
+API_TIMEOUT = 20.0
 
 
 @pytest.fixture(autouse=True)
@@ -73,7 +78,7 @@ def test_code_usage_api_returns_valid_json(admin_url):
     the expected keys, for every valid period value."""
     base = admin_url.rstrip("/") + "/api/code/usage/summary"
     for period in ("today", "week", "month", "all"):
-        r = httpx.get(base, params={"period": period}, timeout=10.0)
+        r = httpx.get(base, params={"period": period}, timeout=API_TIMEOUT)
         assert r.status_code == 200, f"period={period}: {r.text}"
         body = r.json()
         for key in ("period", "vendor", "totals", "daily", "by_model", "by_project", "by_vendor", "recent_sessions"):
@@ -92,21 +97,22 @@ def test_code_usage_api_returns_valid_json(admin_url):
 
 
 def test_code_usage_api_vendor_param(admin_url):
-    """The vendor query param (claude | codex | all) is accepted and echoed,
-    and by_vendor rows only ever carry the requested vendor(s) (issue #71)."""
+    """The vendor query param (claude | codex | copilot | all) is accepted and
+    echoed, and by_vendor rows only ever carry the requested vendor(s)
+    (issues #71, #231)."""
     base = admin_url.rstrip("/") + "/api/code/usage/summary"
-    for vendor in ("all", "claude", "codex"):
-        r = httpx.get(base, params={"period": "all", "vendor": vendor}, timeout=10.0)
+    for vendor in ("all", "claude", "codex", "copilot"):
+        r = httpx.get(base, params={"period": "all", "vendor": vendor}, timeout=API_TIMEOUT)
         assert r.status_code == 200, f"vendor={vendor}: {r.text}"
         body = r.json()
         assert body["vendor"] == vendor
         seen = {row["vendor"] for row in body["by_vendor"]}
         if vendor == "all":
-            assert seen <= {"claude", "codex"}
+            assert seen <= {"claude", "codex", "copilot"}
         else:
             assert seen <= {vendor}
     # Unknown vendor falls back to "all".
-    r = httpx.get(base, params={"period": "all", "vendor": "bogus"}, timeout=10.0)
+    r = httpx.get(base, params={"period": "all", "vendor": "bogus"}, timeout=API_TIMEOUT)
     assert r.status_code == 200
     assert r.json()["vendor"] == "all"
 

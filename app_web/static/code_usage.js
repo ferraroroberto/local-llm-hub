@@ -112,9 +112,74 @@ async function fetchSummary() {
     );
     state.cldSummary = body;
     render(body);
+    // Copilot billing card is a separate authoritative source (issue #231,
+    // part B) — only fetched while that vendor tab is actually selected, so
+    // the GitHub API isn't hit on every 30s poll regardless of tab.
+    if (state.cldVendor === 'copilot') {
+      fetchCopilotBilling().catch(function () {});
+    } else if (els.cldCopilotBillingCard) {
+      els.cldCopilotBillingCard.hidden = true;
+    }
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
     setFreshness('error fetching data');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Copilot official billing card (issue #231, part B)
+// ---------------------------------------------------------------------------
+
+async function fetchCopilotBilling() {
+  if (!els.cldCopilotBillingCard) return;
+  try {
+    const body = await jsonApi('/admin/api/code/copilot/billing');
+    renderCopilotBilling(body);
+  } catch (exc) {
+    if (String(exc.message) === 'auth required') return;
+    renderCopilotBilling({ available: false, reason: 'error fetching data', daily: [] });
+  }
+}
+
+function renderCopilotBilling(body) {
+  const card = els.cldCopilotBillingCard;
+  if (!card) return;
+  card.hidden = state.cldVendor !== 'copilot';
+  if (state.cldVendor !== 'copilot' || !body) return;
+
+  if (els.cldCopilotBillingAsOf) {
+    els.cldCopilotBillingAsOf.textContent = body.as_of
+      ? 'as of ' + new Date(body.as_of).toLocaleTimeString() : '';
+  }
+
+  const rows = body.daily || [];
+  const tbody = els.cldCopilotBillingTable && els.cldCopilotBillingTable.querySelector('tbody');
+
+  if (!body.available || !rows.length) {
+    if (tbody) tbody.innerHTML = '';
+    set(els.cldCopilotBillingTotal, '—');
+    if (els.cldCopilotBillingEmpty) els.cldCopilotBillingEmpty.hidden = false;
+    if (els.cldCopilotBillingEmptyMsg) {
+      els.cldCopilotBillingEmptyMsg.textContent = body.available === false
+        ? (body.reason || 'Not available.')
+        : 'No billing data for this window.';
+    }
+    return;
+  }
+  if (els.cldCopilotBillingEmpty) els.cldCopilotBillingEmpty.hidden = true;
+
+  const totalCredits = rows.reduce(function (sum, r) { return sum + (Number(r.credits) || 0); }, 0);
+  set(els.cldCopilotBillingTotal, totalCredits.toFixed(2));
+
+  if (tbody) {
+    tbody.innerHTML = rows.map(function (r) {
+      return '<tr>' +
+        '<td>' + esc(r.date) + '</td>' +
+        '<td>' + esc(r.model) + '</td>' +
+        '<td>' + (Number(r.credits) || 0).toFixed(2) + '</td>' +
+        '<td>' + (fmtCost(r.usd) || '—') + '</td>' +
+        '</tr>';
+    }).join('');
   }
 }
 
@@ -182,6 +247,7 @@ function renderVendorTable(rows) {
 function vendorLabel(v) {
   if (v === 'claude') return 'Claude';
   if (v === 'codex') return 'Codex';
+  if (v === 'copilot') return 'Copilot';
   return v || '—';
 }
 

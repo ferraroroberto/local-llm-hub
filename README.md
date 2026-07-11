@@ -1036,7 +1036,7 @@ localhost hub, but flip `OTEL_HASH_PROMPTS=true` (in `.env`) any time
 the hub binds beyond loopback. `OTEL_SDK_DISABLED=true` turns
 telemetry off entirely.
 
-## Coding agent usage (issues #20, #71)
+## Coding agent usage (issues #20, #71, #231)
 
 The **Code** tab is a passive, multi-vendor view of host-side coding-agent
 activity.  It parses each agent's local session logs server-side — zero
@@ -1048,8 +1048,31 @@ subprocesses, no wrapper around any binary, no impact on the running CLIs:
   `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` (`src/codex_usage.py`).  One
   record per `token_count` event, using the per-turn delta `last_token_usage`
   (never the cumulative `total_token_usage`, which would double-count).
+- **GitHub Copilot** (`vendor="copilot"`, `src/copilot_usage.py`) — two local
+  sources, both carrying **exact** billed AI Credits (not a rate-table
+  estimate):
+  - The **Copilot CLI**'s `~/.copilot/session-state/<uuid>/events.jsonl`,
+    written only for a *clean-shutdown* session — one record per model used
+    in that session (session-granular; the CLI doesn't expose a per-turn
+    breakdown), priced from the `session.shutdown` event's `totalNanoAiu`
+    (`credits = totalNanoAiu / 1e9`).
+  - **VS Code Copilot Chat**'s per-session
+    `%APPDATA%\Code\User\workspaceStorage\<hash>\chatSessions\<uuid>.jsonl`
+    event log (macOS: `~/Library/Application Support/Code/...`), which
+    carries an exact `copilotCredits` float per request plus the resolved
+    model — parsed via a minimal replay of the file's patch stream (not a
+    general JSON-patch engine, just the couple of fields usage needs).
+  Both sources only see sessions that reached this specific machine and
+  wrote a complete log — sessions that crashed mid-flight, or ran
+  elsewhere, are invisible to them. A separate **"Copilot credits
+  (official)" card** (only shown on the Copilot vendor tab) fills that gap
+  with the *authoritative* GitHub billing API — per-day × per-model spend,
+  no session/project attribution, requires a `GITHUB_COPILOT_BILLING_PAT`
+  fine-grained PAT (`.env`, "Plan: read-only" permission) or the card shows
+  "not configured" rather than erroring (`src/copilot_billing.py`,
+  `GET /admin/api/code/copilot/billing`).
 
-A **vendor selector** (All / Claude / Codex) sits above the period toggle.
+A **vendor selector** (All / Claude / Codex / Copilot) sits above the period toggle.
 **All** sums every vendor into the headline counters and ≈ $ costs and shows a
 **Per-vendor** breakdown table; picking a single vendor scopes the whole panel
 to it.  The requests tile also shows the grand-total ≈ $ cost.  Counters and
@@ -1068,7 +1091,10 @@ The input, output, and cache-read tiles show an **≈ $… equivalent API cost**
 per model from `config/claude_pricing.json` (Anthropic) and
 `config/openai_pricing.json` (OpenAI); refresh those files when a provider
 changes prices.  Codex usage is subscription-metered, so the ≈ $ figure is an
-*estimate* against OpenAI list prices.
+*estimate* against OpenAI list prices.  **Copilot is the one exception:** its
+cost figure is the session/VS-Code log's own exact `credits_usd`, not a
+rate-table estimate — it isn't re-priced against `claude_pricing.json` even
+when Copilot resolves to a Claude model under the hood.
 
 Two cross-vendor token semantics to keep in mind: for **Codex**, `cached_input`
 tokens are a *subset* of input (the cost path prices the non-cached remainder at
@@ -1085,9 +1111,6 @@ fixed colours, and every other model (e.g. Codex `GPT-5.5`) gets its own series
 colour; only an unattributable model id falls into a grey "Other" band.  Day →
 last 14 days; Week → last 12 weeks; Month → last 12 months; All → charts hidden.  A "Recent sessions" list shows the last 15
 sessions across every project on this host.
-
-GitHub Copilot is intentionally out of scope: it is request-quota metered and
-its local logs carry no token data, so it isn't comparable to the token columns.
 
 > **⚠️ Sub-agent (Task tool) usage is not captured by the JSONL source above.** Claude Code does not write sub-agent API calls to the JSONL session transcripts, so per-model and per-project counts here silently undercount whenever sub-agents run. The **OTel tab**'s "Claude Code (host CLI)" panel gives accurate per-model totals, including sub-agents (issue #68) — the hub runs its own OTLP-metrics receiver (`POST /v1/metrics`) that Claude Code's own telemetry export can point at; see [docs/telemetry-langfuse.md](docs/telemetry-langfuse.md#claude-code-otel-metrics-receiver-issue-68) for the host env vars. Note: this gives accurate per-model totals but not per-individual-subagent attribution; that finer breakdown is tracked upstream in [anthropics/claude-code#22625](https://github.com/anthropics/claude-code/issues/22625).
 

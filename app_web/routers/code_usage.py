@@ -23,7 +23,7 @@ router = APIRouter()
 @router.get("/usage/summary")
 async def code_usage_summary(
     period: str = Query("today", description="today | week | month | all"),
-    vendor: str = Query("all", description="claude | codex | all"),
+    vendor: str = Query("all", description="claude | codex | copilot | all"),
 ) -> dict:
     """Return totals, per-model / per-project / per-vendor breakdowns, and
     recent sessions for the requested period and vendor.  Safe to call
@@ -48,4 +48,26 @@ async def code_usage_summary(
             "by_vendor": [],
             "recent_sessions": [],
             "error": str(exc),
+        }
+
+
+@router.get("/copilot/billing")
+async def copilot_billing_summary() -> dict:
+    """Return official per-day x per-model AI Credit spend from the GitHub
+    billing API (issue #231, part B) — authoritative $ totals, no session or
+    project attribution. Degrades to ``{"available": False, "reason": ...}``
+    when no PAT is configured or the account isn't on the enhanced billing
+    platform; never errors.
+    """
+    from src import copilot_billing
+
+    try:
+        return await copilot_billing.get_daily_credits()
+    except Exception as exc:
+        logger.warning("⚠️ copilot_billing_summary error: %s", exc, exc_info=True)
+        return {
+            "available": False,
+            "reason": str(exc),
+            "daily": [],
+            "as_of": None,
         }

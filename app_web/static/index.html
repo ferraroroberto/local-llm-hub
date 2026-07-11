@@ -525,6 +525,7 @@
           <button type="button" data-vendor="all" class="active">All</button>
           <button type="button" data-vendor="claude">Claude</button>
           <button type="button" data-vendor="codex">Codex</button>
+          <button type="button" data-vendor="copilot">Copilot</button>
         </div>
 
         <!-- Period toggle -->
@@ -586,6 +587,36 @@
           </table>
         </div>
         <div id="cldVendorEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg><p class="empty-state-message">No vendor data for this period.</p></div>
+      </section>
+
+      <!-- Copilot official credits (issue #231, part B) — shown only when the
+           Copilot vendor is selected. Authoritative $ from the GitHub billing
+           API; independent of the session-shaped data above (day x model
+           granularity only, no project/session attribution). -->
+      <section class="card" id="cldCopilotBillingCard" hidden>
+        <div class="card-header">
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg>Copilot credits (official)</h2>
+          <span class="muted small" id="cldCopilotBillingAsOf"></span>
+        </div>
+        <p class="muted small" style="margin: 0 0 8px;">Authoritative spend from the GitHub billing API — independent of the session data above.</p>
+        <div class="cld-counter-grid" style="grid-template-columns: 1fr;">
+          <div class="cld-counter">
+            <div class="cld-counter-value" id="cldCopilotBillingTotal">—</div>
+            <div class="cld-counter-label">total credits (last 14 days)</div>
+          </div>
+        </div>
+        <div class="counters-wrap">
+          <table id="cldCopilotBillingTable" class="counters">
+            <thead>
+              <tr><th>Date</th><th>Model</th><th>Credits</th><th>≈ $</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="cldCopilotBillingEmpty" class="empty-state" hidden>
+          <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg>
+          <p class="empty-state-message" id="cldCopilotBillingEmptyMsg">No billing data.</p>
+        </div>
       </section>
 
       <!-- Per-model breakdown -->

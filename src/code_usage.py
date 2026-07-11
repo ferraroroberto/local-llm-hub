@@ -117,6 +117,10 @@ class _UsageRecord:
     # Codex-only: reasoning tokens, a *subset* of output_tokens (never added).
     reasoning_output_tokens: int = 0
     vendor: str = "claude"
+    # Copilot-only: exact billed USD for this record (AI Credits, not a
+    # rate-table estimate) — _record_costs() returns this directly rather
+    # than pricing tokens against a $/Mtok table (issue #231).
+    credits_usd: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -259,14 +263,15 @@ def _claude_records() -> List[_UsageRecord]:
     return records
 
 
-_VALID_VENDORS = {"claude", "codex", "all"}
+_VALID_VENDORS = {"claude", "codex", "copilot", "all"}
 
 
 def _gather_records(vendor: str = "all") -> List[_UsageRecord]:
     """Return usage records for the requested vendor(s).
 
-    ``vendor`` is one of ``claude | codex | all``.  Codex is imported lazily so
-    ``codex_usage`` can import shared helpers from this module without a cycle.
+    ``vendor`` is one of ``claude | codex | copilot | all``.  Codex/Copilot
+    are imported lazily so those modules can import shared helpers from this
+    module without a cycle.
     """
     records: List[_UsageRecord] = []
     if vendor in ("all", "claude"):
@@ -274,6 +279,9 @@ def _gather_records(vendor: str = "all") -> List[_UsageRecord]:
     if vendor in ("all", "codex"):
         from src import codex_usage
         records.extend(codex_usage.all_records())
+    if vendor in ("all", "copilot"):
+        from src import copilot_usage
+        records.extend(copilot_usage.all_records())
     return records
 
 
@@ -389,7 +397,17 @@ def _record_costs(r: "_UsageRecord") -> Tuple[float, float, float]:
     already inside ``output_tokens`` and bill at the output rate.  The >272K
     long-context surcharge (2x input / 1.5x output) is not modelled — this is an
     estimate, and per-request context size isn't tracked.
+
+    Copilot: ``credits_usd`` is the *exact* billed amount (AI Credits), not a
+    rate-table estimate — returned directly as the input-cost slot so it still
+    nets into the same three-tile total the SPA sums.  This must be checked
+    before the Claude family-substring fallback below, or a Copilot call that
+    resolved to e.g. ``claude-sonnet-4.5`` would get silently re-priced at the
+    Anthropic subscription rate instead of its own credit charge.
     """
+    if r.vendor == "copilot":
+        return r.credits_usd, 0.0, 0.0
+
     if r.vendor == "codex":
         rates = _load_openai_pricing().get(_model_display(r.model))
         if not rates:
@@ -545,7 +563,7 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
     """Return a summary dict consumed by the Cld tab.
 
     ``period`` is one of ``today | week | month | all``.
-    ``vendor`` is one of ``claude | codex | all`` (issue #71).
+    ``vendor`` is one of ``claude | codex | copilot | all`` (issues #71, #231).
 
     Keys returned:
       period     — echoed back
