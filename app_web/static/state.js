@@ -48,7 +48,7 @@ export const state = {
   // Code-usage tab — host Claude Code session data (issue #20).
   cldSummary: null,
   cldPeriod: 'today',   // 'today' | 'week' | 'month' | 'all'
-  cldVendor: 'all',     // 'all' | 'claude' | 'codex' (issue #71)
+  cldVendor: 'all',     // 'all' | 'claude' | 'codex' | 'copilot' (issues #71, #231)
 
   // Services card — Docker + Langfuse status (issue #27).
   services: null,
@@ -210,6 +210,13 @@ export const els = {
   cldVendorCard: document.getElementById('cldVendorCard'),
   cldVendorTable: document.getElementById('cldVendorTable'),
   cldVendorEmpty: document.getElementById('cldVendorEmpty'),
+  // Copilot official billing card (issue #231)
+  cldCopilotBillingCard: document.getElementById('cldCopilotBillingCard'),
+  cldCopilotBillingAsOf: document.getElementById('cldCopilotBillingAsOf'),
+  cldCopilotBillingTotal: document.getElementById('cldCopilotBillingTotal'),
+  cldCopilotBillingTable: document.getElementById('cldCopilotBillingTable'),
+  cldCopilotBillingEmpty: document.getElementById('cldCopilotBillingEmpty'),
+  cldCopilotBillingEmptyMsg: document.getElementById('cldCopilotBillingEmptyMsg'),
   // Charts (issue #50)
   cldChartsCard: document.getElementById('cldChartsCard'),
   cldChartInput: document.getElementById('cldChartInput'),

@@ -92,17 +92,18 @@ def test_code_usage_api_returns_valid_json(admin_url):
 
 
 def test_code_usage_api_vendor_param(admin_url):
-    """The vendor query param (claude | codex | all) is accepted and echoed,
-    and by_vendor rows only ever carry the requested vendor(s) (issue #71)."""
+    """The vendor query param (claude | codex | copilot | all) is accepted and
+    echoed, and by_vendor rows only ever carry the requested vendor(s)
+    (issues #71, #231)."""
     base = admin_url.rstrip("/") + "/api/code/usage/summary"
-    for vendor in ("all", "claude", "codex"):
+    for vendor in ("all", "claude", "codex", "copilot"):
         r = httpx.get(base, params={"period": "all", "vendor": vendor}, timeout=10.0)
         assert r.status_code == 200, f"vendor={vendor}: {r.text}"
         body = r.json()
         assert body["vendor"] == vendor
         seen = {row["vendor"] for row in body["by_vendor"]}
         if vendor == "all":
-            assert seen <= {"claude", "codex"}
+            assert seen <= {"claude", "codex", "copilot"}
         else:
             assert seen <= {vendor}
     # Unknown vendor falls back to "all".
