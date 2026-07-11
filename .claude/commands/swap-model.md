@@ -167,7 +167,7 @@ ex-incumbent.
 
 2. **README.md.** Update every place that named the old role-holder:
    - the "Active rotation" bullet at the top
-   - the role table under "Roles & monthly refresh"
+   - the role table under "Roles & bi-weekly refresh"
    - the ASCII architecture diagram
    - the launcher list under "Layout"
    - the install description (model file sizes / what gets downloaded)

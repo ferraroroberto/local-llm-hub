@@ -187,7 +187,7 @@ by `qwen3.5-4b` on 2026-05-10 via `/swap-model`. It is **kept in
 `enabled:`** on the reference host for ad-hoc bring-up via
 `launchers/run_gemma4_e4b.bat`, but no longer autostarted.
 
-## Roles & monthly refresh
+## Roles & bi-weekly refresh
 
 The four active local roles live in `config/models.yaml` → `roles:`:
 
@@ -199,13 +199,20 @@ The four active local roles live in `config/models.yaml` → `roles:`:
 | `audio_translate` | `whisper_translate` | ES audio → English (eager CPU sibling) |
 | `audio_speech` | `piper` | text → speech (Piper fast default; Orpheus/Kokoro/Chatterbox on demand) |
 
-Two Claude Code slash commands drive the monthly refresh, both
-human-in-the-loop, both edit files directly:
+Two Claude Code entry points drive the refresh:
 
-- **`/frontier-refresh`** — runs the research, regenerates
+- **`/frontier-refresh`** — the research skill
+  (`.claude/skills/frontier-refresh/SKILL.md`, the single owner of the
+  brief, cadence, and output contract). Regenerates
   `docs/frontier/runs/<today>/{report.md,frontier.json,frontier.html}`,
-  repoints `LATEST`. **Read-only on the registry** — produces artifacts
-  only, never rewires anything.
+  repoints `LATEST`, and posts the per-role verdict as a comment on the
+  always-open **frontier ledger issue
+  [#272](https://github.com/ferraroroberto/local-llm-hub/issues/272)** —
+  its last comment is always the current state. **Read-only on the
+  registry** — produces artifacts only, never rewires anything. Runs
+  unattended **bi-weekly** (the skill's `run-weekly.bat`, registered in
+  app-launcher's Jobs tab weekly FRI 02:30, self-skipping alternate
+  weeks) and on demand any time.
 - **`/swap-model`** — interactive role swap. Reads the latest run +
   current roles, asks one question at a time (which role, which target,
   hf_repo if not registered, download now?), shows the planned diff,
@@ -425,10 +432,13 @@ mac-mini-m4`) so a displayed PID is never mistaken for a local process.
 local-llm-hub/
 ├── .venv/                    # local virtualenv (gitignored)
 ├── .claude/
-│   └── commands/             # Claude Code slash commands (committed)
-│       ├── frontier-refresh.md   # produces a monthly research run
-│       ├── swap-model.md         # interactive role swap (yaml + launcher + download)
-│       └── system-specs.md       # collect Windows hardware specs
+│   ├── commands/             # Claude Code slash commands (committed)
+│   │   ├── swap-model.md         # interactive role swap (yaml + launcher + download)
+│   │   └── system-specs.md       # collect Windows hardware specs
+│   └── skills/
+│       └── frontier-refresh/     # bi-weekly frontier research skill
+│           ├── SKILL.md          #   brief + output contract + ledger (single owner)
+│           └── run-weekly.bat    #   headless runner (app-launcher job, self-skips alternate weeks)
 ├── requirements.txt
 ├── requirements-dev.txt      # e2e + passkey deps (Playwright, pytest-playwright, webauthn)
 ├── requirements-tts.txt      # TTS deps (chatterbox-tts, snac, kokoro-onnx, soundfile — torch); Piper is a downloaded binary
@@ -540,8 +550,7 @@ local-llm-hub/
     ├── add-tts.md                # how the TTS backend (/v1/audio/speech) slotted in
     ├── image-generation.md       # Imagen via agy → /v1/images/generations
     ├── playbook-cli-backend-migration.md  # reusable method when a vendor CLI changes
-    └── frontier/                 # monthly efficient-frontier research
-        ├── RESEARCH_PROMPT.md    #   canonical brief; read by /frontier-refresh
+    └── frontier/                 # bi-weekly efficient-frontier research (brief lives in the skill)
         └── runs/
             ├── LATEST            #   flat file containing the latest run date
             └── <YYYY-MM-DD>/     #   one dir per run

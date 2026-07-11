@@ -215,7 +215,7 @@ flowchart TB
     DOCS --> D4b["add-tts.md<br/>TTS backend (/v1/audio/speech)"]
     DOCS --> D5["glm-performance-assessment.md<br/>benchmark"]
     DOCS --> D6["whisper-turbo-vs-large-v3.md<br/>decision rationale"]
-    DOCS --> D7["frontier-workflow.md<br/>monthly refresh + swap workflow"]
+    DOCS --> D7["frontier-workflow.md<br/>bi-weekly refresh + swap workflow"]
     DOCS --> D8["gemini-agy-backend.md<br/>agy backend reference"]
     DOCS --> D9["playbook-cli-backend-migration.md<br/>playbook"]
 ```
