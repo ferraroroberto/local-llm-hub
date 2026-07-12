@@ -222,12 +222,23 @@ Single long lines, no hard wraps (rendered markdown).
 1. **Read inputs:** `docs/frontier/runs/LATEST` → previous run's `report.md`
    + `frontier.json` (diff context, §8 progression table to carry forward);
    `config/models.yaml` → `models:` and `roles:` (current incumbents);
-   `config/machine_specs.yaml` if present.
+   `config/machine_specs.yaml` if present;
+   **`docs/frontier/local-findings.md`** — locally-tested candidates whose
+   published numbers didn't hold up on this box (#277). This is the
+   deterministic run-over-run memory; ledger comments are NOT re-read, so a
+   disproof only reaches you through this file.
 2. **Pick today's date** (`YYYY-MM-DD`). If today's run dir already exists,
    overwrite it — same-day re-runs are idempotent.
 3. **Run the research** per the brief above (web search; date-stamp claims).
 4. **Compute the per-role verdicts** using the quality weights and workload
    mix; apply the honesty rules (ties, estimate flags, licenses).
+   **Local-findings override (#277):** if a role's best alternative matches
+   an *unresolved* entry in `docs/frontier/local-findings.md`, the verdict is
+   `watch` with reason `disproven locally <date> (#N)` — never `upgrade` /
+   `runtime_upgrade` — regardless of published numbers, unless that entry's
+   stated re-open trigger is demonstrably met (cite the evidence in §7/§9 if
+   you claim it is). `watch` is not actionable, so step 8 files nothing:
+   this is what stops the propose→disprove→re-propose loop.
 5. **Write the three artifacts** under `docs/frontier/runs/<today>/` per the
    output contract.
 6. **Repoint `docs/frontier/runs/LATEST`** to contain just `<today>\n`.
@@ -272,5 +283,7 @@ Single long lines, no hard wraps (rendered markdown).
 - Every actionable verdict (`upgrade` / `runtime_upgrade` / `retire`) has an
   open issue — filed this run via the sonnet `/issue-add` subagents, or
   already open from a previous run
+- No verdict contradicts an unresolved `docs/frontier/local-findings.md`
+  entry (such roles show `watch` / "disproven locally", not a re-proposal)
 - Zero changes to `config/models.yaml`, `launchers/`, `models/`, `tray/`,
   `src/`, `tests/`
