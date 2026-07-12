@@ -107,6 +107,14 @@
             </span>
             <span id="langfuseDetail" class="muted small services-detail"></span>
           </div>
+          <div class="services-row">
+            <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>AgentsView</span>
+            <span id="agentsviewStatus" class="hub-live-status">
+              <span class="dot"></span><span id="agentsviewStatusText">—</span>
+            </span>
+            <span id="agentsviewDetail" class="muted small services-detail"></span>
+            <button id="agentsviewStartBtn" type="button" class="ghost-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
+          </div>
           <div class="services-row" id="macMiniRow" hidden>
             <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-signal"></use></svg>Mac Mini</span>
             <span id="macMiniStatus" class="hub-live-status">
@@ -527,6 +535,10 @@
           <button type="button" data-vendor="codex">Codex</button>
           <button type="button" data-vendor="copilot">Copilot</button>
         </div>
+        <!-- AgentsView gap-fill vendors (issue #280): extra buttons are
+             injected above when the optional AgentsView service reports
+             agents the hub has no native parser for. -->
+        <p id="cldAgentsviewHint" class="muted small" hidden style="margin: -4px 0 8px;">AgentsView offline — extra coding agents show last-fetched data.</p>
 
         <!-- Period toggle -->
         <div id="cldPeriodSeg" class="segmented stretch" role="tablist" aria-label="Usage period" style="margin-bottom: 12px;">
@@ -568,7 +580,7 @@
           Cache reads are served from the 5-min/1-hr prompt cache.
           <span class="cld-counter-cost" style="display:inline">≈ $</span> lines show the equivalent
           metered-API cost these tokens would have billed.</p>
-        <p class="muted small" style="margin: 4px 0 0;"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg> <strong>Sub-agent (Task tool) calls are not captured here</strong> — Claude Code does not write them to the JSONL session transcripts, so figures here undercount whenever sub-agents run. See the <strong>OTel tab's "Claude Code (host CLI)"</strong> panel for accurate per-model totals including sub-agents. (<a href="https://github.com/ferraroroberto/local-llm-hub/issues/68" target="_blank" rel="noopener">#68</a>, <a href="https://github.com/anthropics/claude-code/issues/22625" target="_blank" rel="noopener">upstream #22625</a>)</p>
+        <p class="muted small" style="margin: 4px 0 0;"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg> <strong>Claude figures undercount two ways</strong> — sessions bridged through claude.ai/code don't write usage to the local transcripts at all (the <strong>OTel tab's "Claude Code (host CLI)"</strong> panel captures those when telemetry is enabled), and Claude Code prunes transcripts after ~30 days — the hub snapshots daily rollups so "All" keeps growing from 2026-07-12 forward, but earlier pruned days are gone. Sub-agent (Task tool) usage <em>is</em> counted where the newer per-session transcript folders exist. (<a href="https://github.com/ferraroroberto/local-llm-hub/issues/68" target="_blank" rel="noopener">#68</a>, <a href="https://github.com/ferraroroberto/local-llm-hub/issues/280" target="_blank" rel="noopener">#280</a>)</p>
       </section>
 
       <!-- Per-vendor breakdown (issue #71) — shown only in "All" mode -->

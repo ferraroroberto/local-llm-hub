@@ -38,7 +38,7 @@ def test_get_returns_profile_and_eligible_items(monkeypatch, tmp_path):
     assert body["profile"]["langfuse"] is False
     assert body["profile"]["models"] == ["piper"]
     service_ids = {s["id"] for s in body["services"]}
-    assert service_ids == {"docker", "langfuse", "mac_mini_sync"}
+    assert service_ids == {"docker", "langfuse", "mac_mini_sync", "agentsview"}
     assert isinstance(body["models"], list)
 
 

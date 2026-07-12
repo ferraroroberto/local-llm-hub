@@ -14,7 +14,7 @@ import logging
 
 from fastapi import APIRouter, Query
 
-from src.code_usage import _VALID_PERIODS, _VALID_VENDORS, get_summary
+from src.code_usage import _VALID_PERIODS, get_summary, is_valid_vendor
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -23,19 +23,27 @@ router = APIRouter()
 @router.get("/usage/summary")
 async def code_usage_summary(
     period: str = Query("today", description="today | week | month | all"),
-    vendor: str = Query("all", description="claude | codex | copilot | all"),
+    vendor: str = Query(
+        "all", description="claude | codex | copilot | all | <agentsview agent>"
+    ),
 ) -> dict:
     """Return totals, per-model / per-project / per-vendor breakdowns, and
     recent sessions for the requested period and vendor.  Safe to call
     frequently — the underlying parsers cache by file mtime so unchanged files
-    are not re-read.
+    are not re-read.  The ``agentsview`` block carries the optional external
+    AgentsView service's reachability + discovered gap-fill vendors (#280) —
+    the Code-tab mirror of the Telemetry tab's ``langfuse_reachable``.
     """
+    from src import agentsview_usage
+
     if period not in _VALID_PERIODS:
         period = "today"
-    if vendor not in _VALID_VENDORS:
+    if not is_valid_vendor(vendor):
         vendor = "all"
     try:
-        return get_summary(period, vendor)
+        body = get_summary(period, vendor)
+        body["agentsview"] = agentsview_usage.status()
+        return body
     except Exception as exc:
         logger.warning("⚠️ code_usage_summary error: %s", exc, exc_info=True)
         return {
@@ -47,6 +55,7 @@ async def code_usage_summary(
             "by_project": [],
             "by_vendor": [],
             "recent_sessions": [],
+            "agentsview": {"enabled": False, "reachable": False, "vendors": []},
             "error": str(exc),
         }
 

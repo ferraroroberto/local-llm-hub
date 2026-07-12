@@ -72,6 +72,19 @@ _OPENAI_PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
 }
 _openai_pricing_cache: Optional[Dict[str, Dict[str, float]]] = None
 
+# Gemini API list prices in USD per million tokens, keyed by family (what
+# _gemini_family collapses an AGY model name to).  Used to show the
+# equivalent metered-API cost of AGY/Antigravity usage (#280) — an estimate
+# against Google list prices, same idea as Codex vs OpenAI.  AGY cache reads
+# are reported separately/additively (Claude-style), priced at "cache_read".
+_GEMINI_PRICING_PATH: Path = _PROJECT_ROOT / "config" / "gemini_pricing.json"
+_GEMINI_PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
+    "pro":        {"input": 2.0,  "output": 12.0, "cache_read": 0.20},
+    "flash":      {"input": 0.30, "output": 2.50, "cache_read": 0.03},
+    "flash-lite": {"input": 0.10, "output": 0.40, "cache_read": 0.01},
+}
+_gemini_pricing_cache: Optional[Dict[str, Dict[str, float]]] = None
+
 # How many recent sessions to return in the summary.
 _MAX_RECENT_SESSIONS = 15
 
@@ -118,10 +131,14 @@ class _UsageRecord:
     # Codex-only: reasoning tokens, a *subset* of output_tokens (never added).
     reasoning_output_tokens: int = 0
     vendor: str = "claude"
-    # Copilot-only: exact billed USD for this record (AI Credits, not a
+    # Copilot: exact billed USD for this record (AI Credits, not a
     # rate-table estimate) — _record_costs() returns this directly rather
-    # than pricing tokens against a $/Mtok table (issue #231).
+    # than pricing tokens against a $/Mtok table (issue #231).  AgentsView-
+    # sourced vendors reuse this field for AgentsView's reported cost (#280).
     credits_usd: float = 0.0
+    # Aggregation weight: 1 for a real parsed call; a code_usage_history
+    # synthetic rollup row carries the N calls it summarises (#280).
+    requests: int = 1
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +273,13 @@ def _claude_records() -> List[_UsageRecord]:
         project_key = proj_dir.name
         try:
             jsonl_files = list(proj_dir.glob("*.jsonl"))
+            # Newer Claude Code also writes per-session directories holding
+            # sub-agent transcripts (projects/<proj>/<session>/subagents/
+            # agent-*.jsonl, same line format) — the Task-tool usage that
+            # the flat files never carried (#68's blind spot, now partially
+            # local). Lines carry the parent sessionId so they group with
+            # their session where present.
+            jsonl_files += list(proj_dir.glob("*/subagents/agent-*.jsonl"))
         except OSError:
             continue
         for jf in jsonl_files:
@@ -264,15 +288,31 @@ def _claude_records() -> List[_UsageRecord]:
     return records
 
 
-_VALID_VENDORS = {"claude", "codex", "copilot", "all"}
+_VALID_VENDORS = {"claude", "codex", "copilot", "all"}  # native set + "all"
+
+
+def is_valid_vendor(vendor: str) -> bool:
+    """Native vendors/"all" plus the curated AgentsView vendors (#280).
+
+    ``KNOWN_VENDORS`` (e.g. ``agy``) stay valid even while AgentsView is
+    down or absent — their history rollups remain queryable.  Snapshot-only
+    lookups, no network, so this is safe on the router's validation path.
+    """
+    if vendor in _VALID_VENDORS:
+        return True
+    from src import agentsview_usage
+    return (
+        vendor in agentsview_usage.KNOWN_VENDORS
+        or vendor in agentsview_usage.discovered_vendors()
+    )
 
 
 def _gather_records(vendor: str = "all") -> List[_UsageRecord]:
     """Return usage records for the requested vendor(s).
 
-    ``vendor`` is one of ``claude | codex | copilot | all``.  Codex/Copilot
-    are imported lazily so those modules can import shared helpers from this
-    module without a cycle.
+    ``vendor`` is ``claude | codex | copilot | all`` or an AgentsView-sourced
+    agent slug (issue #280).  Vendor modules are imported lazily so they can
+    import shared helpers from this module without a cycle.
     """
     records: List[_UsageRecord] = []
     if vendor in ("all", "claude"):
@@ -283,6 +323,14 @@ def _gather_records(vendor: str = "all") -> List[_UsageRecord]:
     if vendor in ("all", "copilot"):
         from src import copilot_usage
         records.extend(copilot_usage.all_records())
+    if vendor == "all" or vendor not in _VALID_VENDORS:
+        # AgentsView gap-fill vendors (never claude/codex/copilot — the
+        # client excludes natives at the source, so "all" can't double-count).
+        from src import agentsview_usage
+        av = agentsview_usage.all_records()
+        if vendor != "all":
+            av = [r for r in av if r.vendor == vendor]
+        records.extend(av)
     return records
 
 
@@ -382,6 +430,55 @@ def _load_openai_pricing() -> Dict[str, Dict[str, float]]:
     return pricing
 
 
+def _gemini_family(model: str) -> str:
+    """Collapse an AGY model name to a Gemini pricing family.
+
+    AgentsView surfaces both raw ids (``gemini-3.1-pro-preview``) and
+    display names (``Gemini 3.1 Pro (High)``) — family matching by
+    substring covers both.  Unknown names return "" (prices at zero, no
+    fabricated cost).
+    """
+    m = model.lower().replace(" ", "-")
+    if "gemini" not in m:
+        return ""
+    if "flash-lite" in m:
+        return "flash-lite"
+    if "flash" in m:
+        return "flash"
+    if "pro" in m:
+        return "pro"
+    return ""
+
+
+def _load_gemini_pricing() -> Dict[str, Dict[str, float]]:
+    """Return the per-family Gemini price table, loaded once and cached.
+
+    Falls back to ``_GEMINI_PRICING_FALLBACK`` when
+    ``config/gemini_pricing.json`` is missing or malformed.
+    """
+    global _gemini_pricing_cache
+    if _gemini_pricing_cache is not None:
+        return _gemini_pricing_cache
+
+    pricing: Dict[str, Dict[str, float]] = dict(_GEMINI_PRICING_FALLBACK)
+    try:
+        raw = json.loads(_GEMINI_PRICING_PATH.read_text(encoding="utf-8"))
+        families = raw.get("families") or {}
+        if isinstance(families, dict) and families:
+            pricing = {
+                fam: {k: float(v) for k, v in rates.items()}
+                for fam, rates in families.items()
+                if isinstance(rates, dict)
+            }
+    except (OSError, ValueError, TypeError) as exc:
+        _log.warning(
+            "⚠️ code_usage: using fallback Gemini pricing (%s unreadable): %s",
+            _GEMINI_PRICING_PATH, exc,
+        )
+    _gemini_pricing_cache = pricing
+    return pricing
+
+
 def _record_costs(r: "_UsageRecord") -> Tuple[float, float, float]:
     """Return ``(input_cost, output_cost, cache_read_cost)`` in USD for one record.
 
@@ -399,14 +496,34 @@ def _record_costs(r: "_UsageRecord") -> Tuple[float, float, float]:
     long-context surcharge (2x input / 1.5x output) is not modelled — this is an
     estimate, and per-request context size isn't tracked.
 
-    Copilot: ``credits_usd`` is the *exact* billed amount (AI Credits), not a
-    rate-table estimate — returned directly as the input-cost slot so it still
-    nets into the same three-tile total the SPA sums.  This must be checked
-    before the Claude family-substring fallback below, or a Copilot call that
-    resolved to e.g. ``claude-sonnet-4.5`` would get silently re-priced at the
-    Anthropic subscription rate instead of its own credit charge.
+    AGY (#280): priced per tile against Gemini API list prices
+    (``config/gemini_pricing.json``), same estimate-vs-list-prices idea as
+    Codex — AgentsView's own ``cost_usd`` is unreliable here (it can't price
+    the display-name model ids ``antigravity-cli`` sessions carry).  Cache
+    reads are reported separately/additively (Claude-style), priced at the
+    implicit-caching rate.
+
+    Copilot and any other AgentsView-sourced vendor: ``credits_usd`` carries
+    the record's own dollar figure — Copilot's *exact* billed AI Credits
+    (#231) — returned directly as the input-cost slot so it still nets into
+    the same three-tile total the SPA sums, never re-priced against a hub
+    rate table.  This must be checked before the Claude family-substring
+    fallback below, or a Copilot call that resolved to e.g.
+    ``claude-sonnet-4.5`` would get silently re-priced at the Anthropic
+    subscription rate instead of its own credit charge.
     """
-    if r.vendor == "copilot":
+    if r.vendor == "agy":
+        rates = _load_gemini_pricing().get(_gemini_family(r.model))
+        if not rates:
+            return 0.0, 0.0, 0.0
+        input_cost = r.input_tokens * rates.get("input", 0.0) / 1_000_000
+        output_cost = r.output_tokens * rates.get("output", 0.0) / 1_000_000
+        cache_read_cost = (
+            r.cache_read_tokens * rates.get("cache_read", 0.0) / 1_000_000
+        )
+        return input_cost, output_cost, cache_read_cost
+
+    if r.vendor not in ("claude", "codex"):
         return r.credits_usd, 0.0, 0.0
 
     if r.vendor == "codex":
@@ -560,11 +677,94 @@ def _period_since(period: str) -> Optional[date]:
     return None
 
 
+_OTEL_UNTRACKED_KEY = "otel-untracked"
+_OTEL_FIELD_MAP = {
+    "input": "input_tokens",
+    "output": "output_tokens",
+    "cache_read": "cache_read_tokens",
+    "cache_creation": "cache_creation_tokens",
+}
+
+
+def _otel_delta_records(records: List[_UsageRecord]) -> List[_UsageRecord]:
+    """Claude usage the transcript sources never saw (#280 follow-up).
+
+    Sessions bridged through claude.ai/code export OTel metrics (#68) but
+    write no usage records to the local JSONL transcripts, so the OTel store
+    is a superset of the transcript view whenever telemetry is enabled.  Per
+    ``(day, model family)``, any per-field OTel excess over the claude
+    records already gathered (live + history) becomes one synthetic record:
+    ``vendor="claude"``, project ``(untracked)`` (OTel carries no project or
+    session attribution), ``requests=0`` (no request count in the token
+    metrics — token/cost tiles stay accurate, the requests tile only counts
+    transcript-sourced calls).
+
+    Recomputed from ``claude_code_otel``'s own persisted store on every call
+    and **never folded into code_usage_history** — persisting a derived
+    delta alongside its inputs would double-count when the inputs shift
+    (e.g. partial pruning of a day).  Never raises.
+    """
+    try:
+        from src import claude_code_otel
+        otel_rows = claude_code_otel.get_usage_summary("all")["rows"]
+    except Exception as exc:  # noqa: BLE001 — OTel store must never break the tab
+        _log.warning("⚠️ code_usage: OTel delta unavailable: %s", exc)
+        return []
+    if not otel_rows:
+        return []
+
+    otel: Dict[Tuple[str, str], Dict[str, int]] = {}
+    for row in otel_rows:
+        key = (row["date"], _model_display(str(row.get("model") or "unknown")))
+        acc = otel.setdefault(key, {f: 0 for f in _OTEL_FIELD_MAP.values()})
+        for src_field, dst_field in _OTEL_FIELD_MAP.items():
+            acc[dst_field] += int(row.get(src_field) or 0)
+
+    covered: Dict[Tuple[str, str], Dict[str, int]] = {}
+    for r in records:
+        if r.vendor != "claude":
+            continue
+        key = (r.ts.astimezone(timezone.utc).date().isoformat(), _model_display(r.model))
+        acc = covered.setdefault(key, {f: 0 for f in _OTEL_FIELD_MAP.values()})
+        acc["input_tokens"] += r.input_tokens
+        acc["output_tokens"] += r.output_tokens
+        acc["cache_read_tokens"] += r.cache_read_tokens
+        acc["cache_creation_tokens"] += r.cache_creation_tokens
+
+    out: List[_UsageRecord] = []
+    for (day, family), sums in otel.items():
+        have = covered.get((day, family), {})
+        delta = {
+            f: max(sums[f] - have.get(f, 0), 0)
+            for f in _OTEL_FIELD_MAP.values()
+        }
+        if not any(delta.values()):
+            continue
+        d = date.fromisoformat(day)
+        out.append(
+            _UsageRecord(
+                session_id=f"otel:{day}",
+                project_key=_OTEL_UNTRACKED_KEY,
+                project_name="(untracked)",
+                model=family,
+                ts=datetime(d.year, d.month, d.day, 12, tzinfo=timezone.utc),
+                input_tokens=delta["input_tokens"],
+                output_tokens=delta["output_tokens"],
+                cache_creation_tokens=delta["cache_creation_tokens"],
+                cache_read_tokens=delta["cache_read_tokens"],
+                vendor="claude",
+                requests=0,
+            )
+        )
+    return out
+
+
 def get_summary(period: str = "today", vendor: str = "all") -> dict:
     """Return a summary dict consumed by the Cld tab.
 
     ``period`` is one of ``today | week | month | all``.
-    ``vendor`` is one of ``claude | codex | copilot | all`` (issues #71, #231).
+    ``vendor`` is ``claude | codex | copilot | all`` (issues #71, #231) or a
+    dynamically-discovered AgentsView agent slug, e.g. ``gemini`` (#280).
 
     Keys returned:
       period     — echoed back
@@ -578,10 +778,24 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
     """
     if period not in _VALID_PERIODS:
         period = "today"
-    if vendor not in _VALID_VENDORS:
+    if not is_valid_vendor(vendor):
         vendor = "all"
 
     records = _gather_records(vendor)
+    # Durable daily rollups (#280): fold what the parsers see right now into
+    # the on-disk snapshot, then extend with synthetic records for days the
+    # sources have already pruned (Claude Code deletes transcripts after
+    # ~30 days) — "All" keeps growing instead of silently equalling "Month".
+    from src import code_usage_history as _history
+    _history.update_from_records(records)
+    records = records + _history.synthetic_records(records, vendor)
+    # Claude sessions bridged through claude.ai/code write no usage to the
+    # local transcripts at all — the hub's OTel receiver (#68) is the only
+    # channel that sees them. Top the Claude picture up with per-(day, model)
+    # deltas vs everything above; recomputed each call from OTel's own
+    # durable store, deliberately NOT persisted into the history snapshot.
+    if vendor in ("all", "claude"):
+        records = records + _otel_delta_records(records)
     today = _today_utc()
     since = _period_since(period)
 
@@ -602,7 +816,7 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
         acc["cache_creation_tokens"] += r.cache_creation_tokens
         acc["cache_read_tokens"] += r.cache_read_tokens
         acc["reasoning_output_tokens"] += r.reasoning_output_tokens
-        acc["requests"] += 1
+        acc["requests"] += r.requests
 
     def in_period(r: _UsageRecord) -> bool:
         return since is None or r.ts.astimezone(timezone.utc).date() >= since

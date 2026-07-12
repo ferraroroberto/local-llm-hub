@@ -111,6 +111,18 @@ async function fetchSummary() {
       '&vendor=' + state.cldVendor
     );
     state.cldSummary = body;
+    syncAgentsviewVendors(body.agentsview);
+    // If the server coerced an unknown vendor back to "all" (e.g. the hub
+    // restarted and hasn't re-discovered an AgentsView vendor yet), resync
+    // the selector so the UI and the data agree.
+    if (body.vendor && body.vendor !== state.cldVendor) {
+      state.cldVendor = body.vendor;
+      if (els.cldVendorSeg) {
+        els.cldVendorSeg.querySelectorAll('button').forEach(function (b) {
+          b.classList.toggle('active', b.dataset.vendor === body.vendor);
+        });
+      }
+    }
     render(body);
     // Copilot billing card is a separate authoritative source (issue #231,
     // part B) — only fetched while that vendor tab is actually selected, so
@@ -248,7 +260,35 @@ function vendorLabel(v) {
   if (v === 'claude') return 'Claude';
   if (v === 'codex') return 'Codex';
   if (v === 'copilot') return 'Copilot';
-  return v || '—';
+  if (v === 'agy') return 'AGY';
+  // Any other AgentsView-sourced vendor (issue #280): auto-label from the slug.
+  return v ? v.charAt(0).toUpperCase() + v.slice(1) : '—';
+}
+
+// ---------------------------------------------------------------------------
+// AgentsView gap-fill vendors (issue #280)
+// ---------------------------------------------------------------------------
+
+/* Inject a selector button per AgentsView-discovered vendor (additive only —
+ * the server keeps vendors sticky across outages, so an active button never
+ * vanishes mid-session). Click handling is delegated on the container in
+ * wireCodeUsage(), so injected buttons need no listeners. The offline hint
+ * only shows when vendors are known AND the service is down — a machine that
+ * never ran AgentsView stays silent. */
+function syncAgentsviewVendors(av) {
+  if (!av || !els.cldVendorSeg) return;
+  (av.vendors || []).forEach(function (v) {
+    if (els.cldVendorSeg.querySelector('button[data-vendor="' + v + '"]')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.vendor = v;
+    btn.textContent = vendorLabel(v);
+    els.cldVendorSeg.appendChild(btn);
+  });
+  if (els.cldAgentsviewHint) {
+    els.cldAgentsviewHint.hidden =
+      !(av.vendors && av.vendors.length && !av.reachable);
+  }
 }
 
 function renderModelTable(rows) {

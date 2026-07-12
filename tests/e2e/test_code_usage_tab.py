@@ -108,7 +108,11 @@ def test_code_usage_api_vendor_param(admin_url):
         assert body["vendor"] == vendor
         seen = {row["vendor"] for row in body["by_vendor"]}
         if vendor == "all":
-            assert seen <= {"claude", "codex", "copilot"}
+            # agy is a first-class curated vendor (issue #280); any other
+            # AgentsView-discovered vendor is a legitimate extra when a live
+            # AgentsView is serving on this machine.
+            extra = set((body.get("agentsview") or {}).get("vendors") or [])
+            assert seen <= {"claude", "codex", "copilot", "agy"} | extra
         else:
             assert seen <= {vendor}
     # Unknown vendor falls back to "all".

@@ -48,12 +48,13 @@ export const state = {
   // Code-usage tab — host Claude Code session data (issue #20).
   cldSummary: null,
   cldPeriod: 'today',   // 'today' | 'week' | 'month' | 'all'
-  cldVendor: 'all',     // 'all' | 'claude' | 'codex' | 'copilot' (issues #71, #231)
+  cldVendor: 'all',     // 'all' | 'claude' | 'codex' | 'copilot' | <agentsview agent> (issues #71, #231, #280)
 
   // Services card — Docker + Langfuse status (issue #27).
   services: null,
   servicesLaunching: false,
   macMiniBusy: false,   // wake/sync in flight (#181)
+  agentsviewStarting: false,   // AgentsView launch in flight (#280)
 
   // Startup card — what autostarts with the hub (issue #265).
   startupProfile: null,   // /admin/api/startup-profile payload
@@ -105,6 +106,10 @@ export const els = {
   langfuseStatus: document.getElementById('langfuseStatus'),
   langfuseStatusText: document.getElementById('langfuseStatusText'),
   langfuseDetail: document.getElementById('langfuseDetail'),
+  agentsviewStatus: document.getElementById('agentsviewStatus'),
+  agentsviewStatusText: document.getElementById('agentsviewStatusText'),
+  agentsviewDetail: document.getElementById('agentsviewDetail'),
+  agentsviewStartBtn: document.getElementById('agentsviewStartBtn'),
   macMiniRow: document.getElementById('macMiniRow'),
   macMiniStatus: document.getElementById('macMiniStatus'),
   macMiniStatusText: document.getElementById('macMiniStatusText'),
@@ -189,6 +194,7 @@ export const els = {
   // Code-usage tab (issue #20)
   cldFreshness: document.getElementById('cldFreshness'),
   cldVendorSeg: document.getElementById('cldVendorSeg'),
+  cldAgentsviewHint: document.getElementById('cldAgentsviewHint'),
   cldPeriodSeg: document.getElementById('cldPeriodSeg'),
   cldRequests: document.getElementById('cldRequests'),
   cldTotalCost: document.getElementById('cldTotalCost'),

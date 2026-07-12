@@ -237,16 +237,30 @@ admin SPA's OTel tab.
 
 ### Enable on the host
 
-Persistent **user-level** environment variables (`setx`, so every *new*
-shell / Claude Code session picks them up — a session already running won't
-until it's restarted):
+Put the variables in `~/.claude/settings.json`'s `env` block — Claude Code
+applies that to **every** session it starts, regardless of how the process
+was launched:
 
-```bat
-setx CLAUDE_CODE_ENABLE_TELEMETRY 1
-setx OTEL_METRICS_EXPORTER otlp
-setx OTEL_EXPORTER_OTLP_METRICS_PROTOCOL http/protobuf
-setx OTEL_EXPORTER_OTLP_METRICS_ENDPOINT http://127.0.0.1:8000/v1/metrics
+```json
+{
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://127.0.0.1:8000/v1/metrics"
+  }
+}
 ```
+
+> **Why not `setx` user-level env vars?** That was the original #68 setup and
+> it silently stopped capturing on 2026-07-11: sessions bridged through
+> claude.ai/code (web/desktop remote-control) run under a process tree that
+> does **not** inherit the user-level `OTEL_*` vars, so telemetry no-ops for
+> exactly the sessions that also write no local JSONL usage — a double blind
+> spot. The `settings.json` `env` block closes it because Claude Code itself
+> injects those values at session start. (`setx` still works for plain
+> terminal sessions; keeping both set is harmless.) Applies to *new*
+> sessions — one already running won't pick the change up until restarted.
 
 Deliberately scoped to the metrics signal only — not
 `OTEL_LOGS_EXPORTER`/`OTEL_TRACES_EXPORTER`, which pull in prompt/tool-

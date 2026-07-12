@@ -46,7 +46,12 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.tab.active { background: var(--card-off); color: var(--accent); }
+/* Active fill is the accent-soft tint, not the inset surface: in dark mode
+   --card-off is true black, which reads as an oversized hole punched through
+   the translucent bar instead of a highlight inside it (local-llm-hub#280
+   follow-up). Documented local divergence from the verbatim vendored copy —
+   proposed upstream as project-scaffolding#159; drop this note on re-vendor. */
+.tab.active { background: var(--accent-soft); color: var(--accent); }
 .tab:active { transform: scale(0.97); }
 /* The stroke SVG icon shows everywhere — desktop segmented control and mobile
    pill alike (home-automation #77 made icon-as-SVG the fleet's direction; this
@@ -278,8 +283,10 @@
     transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
   }
   .tab.active {
-    background: var(--card-off);
-    border-color: var(--line);
+    /* accent-soft tint, not --card-off — see the divergence note on the
+       desktop rule above. */
+    background: var(--accent-soft);
+    border-color: var(--accent-border-soft);
     color: var(--accent);
     box-shadow: none;
   }

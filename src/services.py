@@ -464,3 +464,178 @@ async def launch_stack() -> Dict[str, Any]:
         "detail": "containers started and health endpoint responding",
     })
     return {"ok": True, "steps": steps}
+
+
+# ------------------------------------------------------------- agentsview
+# Optional external AgentsView server (issue #280) — feeds the Code tab's
+# AGY vendor. Same optional-service shape as Langfuse: short probe, launch
+# helper, soft-fail everywhere. Never installed into the hub's .venv — the
+# exe resolves from AGENTSVIEW_EXE, the dedicated .venv-agentsview/, or PATH.
+
+AGENTSVIEW_PROBE_TIMEOUT_S = 2.0
+# First-ever `agentsview serve` does a full index sync across every agent's
+# session dirs before it starts listening (observed ~1-2 min on this host);
+# steady-state restarts come up in seconds.
+AGENTSVIEW_READY_TIMEOUT_S = 180.0
+
+
+def agentsview_exe() -> Optional[str]:
+    """Resolve the agentsview executable, or ``None`` when not installed.
+
+    Order: ``AGENTSVIEW_EXE`` env → the repo-local dedicated venv
+    (``.venv-agentsview/``, kept separate from the hub's own ``.venv`` per
+    #280's isolation rule) → PATH (pipx install).
+    """
+    env = os.environ.get("AGENTSVIEW_EXE", "").strip()
+    if env:
+        return env if Path(env).exists() else None
+    bin_dir = "Scripts" if sys.platform == "win32" else "bin"
+    name = "agentsview.exe" if sys.platform == "win32" else "agentsview"
+    local = PROJECT_ROOT / ".venv-agentsview" / bin_dir / name
+    if local.exists():
+        return str(local)
+    return shutil.which("agentsview")
+
+
+async def agentsview_health(
+    timeout_s: float = AGENTSVIEW_PROBE_TIMEOUT_S,
+) -> Dict[str, Any]:
+    """Probe AgentsView's ``/api/ping``.
+
+    Returns ``{reachable, status_code, error, host, version, installed}``.
+    ``reachable`` requires the responder to identify as agentsview (the
+    port drifts when :8080 is busy, so a foreign squatter must read as
+    down, not up). ``installed`` reports whether the exe resolves — the
+    Hub tab uses it to word the down-state hint.
+    """
+    from src.agentsview_usage import _base_url
+
+    host = _base_url()
+    installed = agentsview_exe() is not None
+    if not host:
+        return {
+            "reachable": False,
+            "status_code": 0,
+            "error": "disabled (AGENTSVIEW_BASE_URL is empty)",
+            "host": "",
+            "version": "",
+            "installed": installed,
+        }
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s) as client:
+            r = await client.get(f"{host}/api/ping")
+        body = r.json() if r.status_code < 500 else {}
+        is_av = bool(body.get("ok")) and "agentsview" in str(body.get("service", ""))
+        return {
+            "reachable": is_av,
+            "status_code": r.status_code,
+            "error": "" if is_av else f"not agentsview (HTTP {r.status_code})",
+            "host": host,
+            "version": str(body.get("version") or ""),
+            "installed": installed,
+        }
+    except Exception as exc:  # noqa: BLE001 — network / connection / DNS
+        return {
+            "reachable": False,
+            "status_code": 0,
+            "error": f"{type(exc).__name__}: {exc}",
+            "host": host,
+            "version": "",
+            "installed": installed,
+        }
+
+
+async def wait_for_agentsview(
+    timeout_s: float = AGENTSVIEW_READY_TIMEOUT_S,
+    poll_s: float = 3.0,
+) -> bool:
+    """Poll ``/api/ping`` until AgentsView responds (initial sync can be slow)."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        info = await agentsview_health()
+        if info["reachable"]:
+            return True
+        await asyncio.sleep(poll_s)
+    return False
+
+
+def _spawn_agentsview(exe: str) -> None:
+    """Start ``agentsview serve`` detached (same idiom as Docker Desktop).
+
+    Telemetry and the update check are disabled in the child env — the hub
+    launches a quiet, loopback-only indexer.
+    """
+    creationflags = 0
+    if sys.platform == "win32":
+        DETACHED = 0x00000008
+        creationflags = (
+            DETACHED
+            | subprocess.CREATE_NEW_PROCESS_GROUP
+            | subprocess.CREATE_NO_WINDOW
+        )
+    env = dict(os.environ)
+    env.setdefault("AGENTSVIEW_TELEMETRY_ENABLED", "0")
+    env.setdefault("AGENTSVIEW_DISABLE_UPDATE_CHECK", "1")
+    subprocess.Popen(
+        [exe, "serve"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=creationflags,
+        close_fds=True,
+        env=env,
+    )
+
+
+async def launch_agentsview() -> Dict[str, Any]:
+    """Start AgentsView if it isn't already serving.
+
+    Returns the same ``{ok, steps}`` shape as :func:`launch_stack` so the
+    SPA and the startup autostart log render it identically.
+    """
+    steps: List[Dict[str, str]] = []
+    health = await agentsview_health()
+    if health["reachable"]:
+        steps.append({"name": "agentsview", "status": "skipped", "detail": "already serving"})
+        return {"ok": True, "steps": steps}
+    if not health["host"]:
+        steps.append({
+            "name": "agentsview",
+            "status": "skipped",
+            "detail": "disabled (AGENTSVIEW_BASE_URL is empty)",
+        })
+        return {"ok": True, "steps": steps}
+    exe = agentsview_exe()
+    if exe is None:
+        steps.append({
+            "name": "agentsview",
+            "status": "error",
+            "detail": (
+                "agentsview not installed — see docs/code-usage-agentsview.md "
+                "(.venv-agentsview or `pipx install agentsview`)"
+            ),
+        })
+        return {"ok": False, "steps": steps}
+    try:
+        _spawn_agentsview(exe)
+    except OSError as exc:
+        steps.append({
+            "name": "agentsview",
+            "status": "error",
+            "detail": f"spawn failed: {type(exc).__name__}: {exc}",
+        })
+        return {"ok": False, "steps": steps}
+    ready = await wait_for_agentsview()
+    if not ready:
+        steps.append({
+            "name": "agentsview",
+            "status": "error",
+            "detail": (
+                f"spawned but /api/ping unreachable after "
+                f"{AGENTSVIEW_READY_TIMEOUT_S:.0f}s — first run's initial index "
+                "sync can be slow; it may still come up"
+            ),
+        })
+        return {"ok": False, "steps": steps}
+    steps.append({"name": "agentsview", "status": "ok", "detail": f"started {exe}"})
+    return {"ok": True, "steps": steps}

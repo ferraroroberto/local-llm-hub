@@ -136,6 +136,17 @@ async def _autostart_services() -> None:
         except Exception as exc:  # noqa: BLE001
             logger.warning("autostart: services launch raised: %s", exc)
 
+    if profile.agentsview:
+        try:
+            result = await svc.launch_agentsview()
+            logger.info(
+                "autostart: agentsview launch %s: %s",
+                "ok" if result["ok"] else "failed",
+                result["steps"],
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("autostart: agentsview launch raised: %s", exc)
+
     if profile.mac_mini_sync and resolve_host().id != MAC_MINI_HOST_ID:
         try:
             from . import remote_bootstrap

@@ -1,5 +1,6 @@
 # venv
 .venv/
+.venv-agentsview/
 venv/
 env/
 
@@ -25,6 +26,7 @@ Thumbs.db
 data/logs/
 data/output/
 data/telemetry/
+data/code_usage_history.json
 tmp_server.log
 *.log
 
