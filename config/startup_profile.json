@@ -2,6 +2,7 @@
   "docker": true,
   "langfuse": true,
   "mac_mini_sync": true,
+  "agentsview": true,
   "models": [
     "qwen35_4b",
     "whisper",

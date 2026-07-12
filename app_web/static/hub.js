@@ -289,6 +289,30 @@ function renderServices() {
     els.langfuseDetail.textContent = lf.reachable ? '' : (lf.error || '');
   }
 
+  // AgentsView (#280): optional external indexer feeding the Code tab's
+  // AGY vendor. "not installed" is a warn, not a danger — the hub is fully
+  // functional without it.
+  const av = body.agentsview || {};
+  const avEnabled = !!av.host;
+  let avKind = 'danger';
+  let avLabel = 'down';
+  if (av.reachable) { avKind = 'good'; avLabel = 'up'; }
+  else if (!avEnabled) { avKind = 'warn'; avLabel = 'disabled'; }
+  else if (av.installed === false) { avKind = 'warn'; avLabel = 'not installed'; }
+  setStatusPill(els.agentsviewStatus, els.agentsviewStatusText, avKind, avLabel);
+  if (els.agentsviewDetail) {
+    els.agentsviewDetail.textContent = av.reachable
+      ? (av.version ? av.version : '')
+      : (av.installed === false ? 'see docs/code-usage-agentsview.md' : (av.error || ''));
+  }
+  if (els.agentsviewStartBtn) {
+    els.agentsviewStartBtn.hidden = !(avEnabled && !av.reachable && av.installed);
+    els.agentsviewStartBtn.disabled = state.agentsviewStarting;
+    els.agentsviewStartBtn.innerHTML = state.agentsviewStarting
+      ? 'Starting…'
+      : icon('play') + 'Start';
+  }
+
   // Mac Mini (#179): the pill itself doesn't factor into the overall
   // status/launch-button logic above — it tells the Mac's own story.
   const macMini = body.mac_mini;
@@ -332,6 +356,7 @@ function renderServices() {
   if (!docker.running && !lf.reachable) { overallKind = 'danger'; overallText = 'both down'; }
   else if (!docker.running) { overallKind = 'danger'; overallText = 'docker down'; }
   else if (!lf.reachable) { overallKind = 'warn'; overallText = 'langfuse down'; }
+  else if (avEnabled && !av.reachable) { overallKind = 'warn'; overallText = 'agentsview down'; }
   setStatusPill(els.servicesOverall, els.servicesOverallText, overallKind, overallText);
 
   // Launch button + hint visibility.
@@ -412,6 +437,26 @@ async function onMacMiniAction(action, pastTense) {
 function onMacMiniWakeClick() { return onMacMiniAction('bootstrap', 'woken up'); }
 function onMacMiniSyncClick() { return onMacMiniAction('sync', 'synced'); }
 
+async function onAgentsviewStartClick() {
+  if (state.agentsviewStarting) return;
+  state.agentsviewStarting = true;
+  renderServices();
+  try {
+    const result = await postJson('/admin/api/services/agentsview/launch', {});
+    if (result.ok) {
+      toast('AgentsView started', 'good');
+    } else {
+      const first = (result.steps || []).find(function (s) { return s.status === 'error'; });
+      toast('AgentsView start failed — ' + (first ? first.detail : 'unknown'), 'error');
+    }
+  } catch (exc) {
+    toast('AgentsView start failed: ' + (exc.message || exc), 'error');
+  } finally {
+    state.agentsviewStarting = false;
+    await fetchServicesStatus();
+  }
+}
+
 // --------------------------------------------------------- wire buttons
 export function wireHub() {
   if (els.hubRestartBtn) {
@@ -465,6 +510,9 @@ export function wireHub() {
   }
   if (els.macMiniSyncBtn) {
     els.macMiniSyncBtn.addEventListener('click', onMacMiniSyncClick);
+  }
+  if (els.agentsviewStartBtn) {
+    els.agentsviewStartBtn.addEventListener('click', onAgentsviewStartClick);
   }
 
   // Sparklines: lightweight inline-SVG renderer driven by /admin/api/hub/stats.

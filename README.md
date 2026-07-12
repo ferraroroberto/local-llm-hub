@@ -1045,7 +1045,7 @@ localhost hub, but flip `OTEL_HASH_PROMPTS=true` (in `.env`) any time
 the hub binds beyond loopback. `OTEL_SDK_DISABLED=true` turns
 telemetry off entirely.
 
-## Coding agent usage (issues #20, #71, #231)
+## Coding agent usage (issues #20, #71, #231, #280)
 
 The **Code** tab is a passive, multi-vendor view of host-side coding-agent
 activity.  It parses each agent's local session logs server-side — zero
@@ -1080,8 +1080,22 @@ subprocesses, no wrapper around any binary, no impact on the running CLIs:
   fine-grained PAT (`.env`, "Plan: read-only" permission) or the card shows
   "not configured" rather than erroring (`src/copilot_billing.py`,
   `GET /admin/api/code/copilot/billing`).
+- **AGY / Antigravity** (`vendor="agy"`, `src/agentsview_usage.py`) — sourced
+  from the optional external
+  [AgentsView](https://github.com/kenn-io/agentsview) service, which indexes
+  `agy`'s local session storage the hub declined to reverse-engineer itself
+  (#72/#279). Merges AgentsView's `gemini` (hub-routed calls) and
+  `antigravity-cli` (interactive) slugs into one AGY vendor; other agents
+  AgentsView knows about are deliberately not surfaced (curated map in
+  `agentsview_usage.py`). Polled over HTTP, never from raw files; the hub
+  runs fully without it. AgentsView appears in the Hub tab's **Services**
+  card and the Models tab's **Startup** toggles — the hub launches it at
+  startup when toggled on (exe from `.venv-agentsview/`, `AGENTSVIEW_EXE`,
+  or PATH). Setup and behaviour:
+  [docs/code-usage-agentsview.md](docs/code-usage-agentsview.md).
 
-A **vendor selector** (All / Claude / Codex / Copilot) sits above the period toggle.
+A **vendor selector** (All / Claude / Codex / Copilot / AGY) sits above the
+period toggle.
 **All** sums every vendor into the headline counters and ≈ $ costs and shows a
 **Per-vendor** breakdown table; picking a single vendor scopes the whole panel
 to it.  The requests tile also shows the grand-total ≈ $ cost.  Counters and
@@ -1100,10 +1114,12 @@ The input, output, and cache-read tiles show an **≈ $… equivalent API cost**
 per model from `config/claude_pricing.json` (Anthropic) and
 `config/openai_pricing.json` (OpenAI); refresh those files when a provider
 changes prices.  Codex usage is subscription-metered, so the ≈ $ figure is an
-*estimate* against OpenAI list prices.  **Copilot is the one exception:** its
-cost figure is the session/VS-Code log's own exact `credits_usd`, not a
-rate-table estimate — it isn't re-priced against `claude_pricing.json` even
-when Copilot resolves to a Claude model under the hood.
+*estimate* against OpenAI list prices.  **Copilot and AgentsView-sourced
+vendors are the exceptions:** Copilot's cost figure is the session/VS-Code
+log's own exact `credits_usd`, and AgentsView vendors carry the cost
+*as reported by AgentsView* (its own estimate for subscription agents) —
+neither is re-priced against the hub's rate tables, even when the underlying
+model resolves to a Claude model.
 
 Two cross-vendor token semantics to keep in mind: for **Codex**, `cached_input`
 tokens are a *subset* of input (the cost path prices the non-cached remainder at
@@ -1121,7 +1137,7 @@ colour; only an unattributable model id falls into a grey "Other" band.  Day →
 last 14 days; Week → last 12 weeks; Month → last 12 months; All → charts hidden.  A "Recent sessions" list shows the last 15
 sessions across every project on this host.
 
-> **⚠️ Sub-agent (Task tool) usage is not captured by the JSONL source above.** Claude Code does not write sub-agent API calls to the JSONL session transcripts, so per-model and per-project counts here silently undercount whenever sub-agents run. The **OTel tab**'s "Claude Code (host CLI)" panel gives accurate per-model totals, including sub-agents (issue #68) — the hub runs its own OTLP-metrics receiver (`POST /v1/metrics`) that Claude Code's own telemetry export can point at; see [docs/telemetry-langfuse.md](docs/telemetry-langfuse.md#claude-code-otel-metrics-receiver-issue-68) for the host env vars. Note: this gives accurate per-model totals but not per-individual-subagent attribution; that finer breakdown is tracked upstream in [anthropics/claude-code#22625](https://github.com/anthropics/claude-code/issues/22625).
+> **⚠️ The local JSONL source undercounts Claude two ways (verified 2026-07-12, #280).** (a) Sessions bridged through **claude.ai/code** (web/desktop remote-control) write `mode`/`permission` lines but **no assistant/usage records** to the local transcripts — their tokens are only visible via the **OTel tab**'s "Claude Code (host CLI)" panel (issue #68): the hub runs its own OTLP-metrics receiver (`POST /v1/metrics`) that Claude Code's telemetry export can point at; see [docs/telemetry-langfuse.md](docs/telemetry-langfuse.md#claude-code-otel-metrics-receiver-issue-68) for the host env vars. (b) Claude Code **prunes transcripts after ~30 days** (`cleanupPeriodDays`) — to survive that, the hub snapshots daily rollups per (date, vendor, model, project) into `data/code_usage_history.json` (`src/code_usage_history.py`: max-merge on write, per-vendor cutoff on read so no day is double-counted) and feeds them back into the "All" period after the source files are gone. History accumulates from 2026-07-12 forward; days already pruned before then are unrecoverable from disk. On the plus side, newer Claude Code also writes per-session directories with **sub-agent transcripts** (`projects/<proj>/<session>/subagents/agent-*.jsonl`), which the parser now includes — the old sub-agent blind spot is captured where those exist; finer per-subagent attribution is tracked upstream in [anthropics/claude-code#22625](https://github.com/anthropics/claude-code/issues/22625).
 
 > **Why no host OTEL → Langfuse bridge?**  Issue #20 originally shipped an
 > opt-in path to forward host Claude Code traces into the hub's Langfuse

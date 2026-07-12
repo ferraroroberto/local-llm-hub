@@ -32,6 +32,7 @@ _SERVICE_ITEMS = [
     {"id": "docker", "label": "Docker"},
     {"id": "langfuse", "label": "Langfuse"},
     {"id": "mac_mini_sync", "label": "Mac Mini sync"},
+    {"id": "agentsview", "label": "AgentsView"},
 ]
 
 _SPAWNABLE_BACKENDS = ("openai", "whisper", "tts")

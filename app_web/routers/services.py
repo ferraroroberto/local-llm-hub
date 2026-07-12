@@ -39,6 +39,7 @@ async def services_status() -> Dict[str, Any]:
     """
     docker = await svc.docker_status()
     langfuse = await svc.langfuse_health()
+    agentsview = await svc.agentsview_health()
     # Informational only (#179) — skip self-probing when this hub *is*
     # the Mac Mini; the indicator exists to tell the other host's story.
     active = resolve_host()
@@ -59,11 +60,24 @@ async def services_status() -> Dict[str, Any]:
     return {
         "docker": docker,
         "langfuse": langfuse,
+        "agentsview": agentsview,
         "mac_mini": mac_mini,
         "mac_mini_host_id": MAC_MINI_HOST_ID,
         "launchable": launchable,
         "platform": sys.platform,
     }
+
+
+@router.post("/api/services/agentsview/launch")
+async def services_agentsview_launch() -> Dict[str, Any]:
+    """Start the optional AgentsView server (issue #280). Returns a step log."""
+    logger.info("🚀 /admin/api/services/agentsview/launch")
+    result = await svc.launch_agentsview()
+    if result["ok"]:
+        logger.info("✅ agentsview launch: %s", result["steps"])
+    else:
+        logger.warning("⚠️ agentsview launch failed: %s", result["steps"])
+    return result
 
 
 @router.post("/api/services/launch")

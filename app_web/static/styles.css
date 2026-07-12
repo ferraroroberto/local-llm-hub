@@ -283,6 +283,14 @@ h2 { display: flex; align-items: center; gap: 8px; }
   gap: 10px;
   min-width: 0;
 }
+/* Services card: the header's overall pill ("all up") sits in the same
+   column as the four row pills below it — same first-column floor and
+   column gap as .services-row (#280 follow-up, user-flagged). */
+#servicesCard .hub-title-block {
+  display: grid;
+  grid-template-columns: minmax(110px, auto) auto;
+  gap: 12px;
+}
 .hub-live-status {
   display: inline-flex;
   align-items: center;
@@ -400,10 +408,15 @@ h2 { display: flex; align-items: center; gap: 8px; }
   display: inline-flex;
   gap: 5px;
 }
-.segmented.stretch { display: flex; width: 100%; }
+/* flex-wrap: a button row that outgrows the card wraps to a second line
+   instead of driving page-level horizontal overflow (issue #280: the vendor
+   selector gained a fifth button); min-width lets a button shrink below its
+   label's min-content before the row wraps. */
+.segmented.stretch { display: flex; width: 100%; flex-wrap: wrap; }
 .segmented button {
   position: relative;
   flex: 1;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
