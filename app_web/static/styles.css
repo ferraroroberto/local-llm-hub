@@ -873,6 +873,18 @@ h2 { display: flex; align-items: center; gap: 8px; }
   padding: 4px 10px;
   font-size: var(--font-caption);
 }
+/* Docker/Langfuse/AgentsView start+stop pair (#284) — same compact
+ * icon-btn sizing as .glossary-repl-row, scaled down from the Models
+ * tab's 36px touch target to fit this row's 28px ghost-btn rhythm. */
+.services-row .services-actions {
+  display: flex;
+  gap: 2px;
+}
+.services-row .services-actions .icon-btn {
+  width: 28px;
+  min-height: 28px;
+  border-radius: var(--radius-sm);
+}
 
 /* ---------- Startup card — per-item toggle rows (#265) ---------- */
 .startup-list {

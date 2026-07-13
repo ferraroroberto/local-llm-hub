@@ -27,6 +27,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import httpx
 
@@ -86,6 +87,13 @@ def langfuse_start_script() -> Path:
     if sys.platform == "win32":
         return PROJECT_ROOT / "start_langfuse.bat"
     return PROJECT_ROOT / "start_langfuse.sh"
+
+
+def langfuse_stop_script() -> Path:
+    """Return the platform-appropriate stop_langfuse script path."""
+    if sys.platform == "win32":
+        return PROJECT_ROOT / "stop_langfuse.bat"
+    return PROJECT_ROOT / "stop_langfuse.sh"
 
 
 # ---------------------------------------------------------------- docker
@@ -373,68 +381,78 @@ async def _run_langfuse_start_script() -> Dict[str, Any]:
     return await asyncio.to_thread(_run_langfuse_start_script_sync)
 
 
-async def launch_stack() -> Dict[str, Any]:
-    """End-to-end recovery: start Docker Desktop if down, then Langfuse.
+async def start_docker_desktop() -> Dict[str, Any]:
+    """Start Docker Desktop if the engine is down.
 
-    Returns ``{ok, steps: [{name, status, detail}]}`` where each step
-    is ``ok`` / ``skipped`` / ``error``. The first error short-circuits
-    the rest of the chain.
+    Returns ``{ok, steps}`` with a single ``docker_engine`` step — same
+    contract as :func:`launch_stack` / :func:`launch_agentsview` so the
+    SPA renders all three identically. Factored out of :func:`launch_stack`
+    (issue #284) so the Services card's individual Docker Start button can
+    drive just this step without also touching Langfuse.
     """
     steps: List[Dict[str, str]] = []
-
-    # ----- step 1: docker engine
     info = await docker_status()
     if info["running"]:
         steps.append({"name": "docker_engine", "status": "skipped", "detail": "engine already up"})
-    else:
-        if sys.platform != "win32":
-            steps.append({
-                "name": "docker_engine",
-                "status": "error",
-                "detail": (
-                    "auto-launch is Windows-only — start Docker manually "
-                    "(`open -a Docker` on macOS, `sudo systemctl start docker` on Linux)"
-                ),
-            })
-            return {"ok": False, "steps": steps}
-        exe = find_docker_desktop()
-        if exe is None:
-            steps.append({
-                "name": "docker_engine",
-                "status": "error",
-                "detail": (
-                    "Docker Desktop install not found in Program Files or LOCALAPPDATA — "
-                    "install it from docker.com/products/docker-desktop"
-                ),
-            })
-            return {"ok": False, "steps": steps}
-        try:
-            _spawn_docker_desktop(exe)
-        except OSError as exc:
-            steps.append({
-                "name": "docker_engine",
-                "status": "error",
-                "detail": f"spawn failed: {type(exc).__name__}: {exc}",
-            })
-            return {"ok": False, "steps": steps}
-        ready = await wait_for_docker()
-        if not ready:
-            steps.append({
-                "name": "docker_engine",
-                "status": "error",
-                "detail": (
-                    f"engine still not responsive after {DOCKER_READY_TIMEOUT_S:.0f}s — "
-                    "Docker Desktop may have shown a prompt; check the system tray"
-                ),
-            })
-            return {"ok": False, "steps": steps}
+        return {"ok": True, "steps": steps}
+    if sys.platform != "win32":
         steps.append({
             "name": "docker_engine",
-            "status": "ok",
-            "detail": f"started Docker Desktop ({exe})",
+            "status": "error",
+            "detail": (
+                "auto-launch is Windows-only — start Docker manually "
+                "(`open -a Docker` on macOS, `sudo systemctl start docker` on Linux)"
+            ),
         })
+        return {"ok": False, "steps": steps}
+    exe = find_docker_desktop()
+    if exe is None:
+        steps.append({
+            "name": "docker_engine",
+            "status": "error",
+            "detail": (
+                "Docker Desktop install not found in Program Files or LOCALAPPDATA — "
+                "install it from docker.com/products/docker-desktop"
+            ),
+        })
+        return {"ok": False, "steps": steps}
+    try:
+        _spawn_docker_desktop(exe)
+    except OSError as exc:
+        steps.append({
+            "name": "docker_engine",
+            "status": "error",
+            "detail": f"spawn failed: {type(exc).__name__}: {exc}",
+        })
+        return {"ok": False, "steps": steps}
+    ready = await wait_for_docker()
+    if not ready:
+        steps.append({
+            "name": "docker_engine",
+            "status": "error",
+            "detail": (
+                f"engine still not responsive after {DOCKER_READY_TIMEOUT_S:.0f}s — "
+                "Docker Desktop may have shown a prompt; check the system tray"
+            ),
+        })
+        return {"ok": False, "steps": steps}
+    steps.append({
+        "name": "docker_engine",
+        "status": "ok",
+        "detail": f"started Docker Desktop ({exe})",
+    })
+    return {"ok": True, "steps": steps}
 
-    # ----- step 2: langfuse stack
+
+async def start_langfuse() -> Dict[str, Any]:
+    """Start the Langfuse stack if it isn't reachable.
+
+    Returns ``{ok, steps}`` with a single ``langfuse_stack`` step. Does
+    not start Docker itself — the start script fails fast with an
+    actionable message if the engine is down. Factored out of
+    :func:`launch_stack` (issue #284); see :func:`start_docker_desktop`.
+    """
+    steps: List[Dict[str, str]] = []
     health = await langfuse_health()
     if health["reachable"]:
         steps.append({"name": "langfuse_stack", "status": "skipped", "detail": "stack already up"})
@@ -466,6 +484,130 @@ async def launch_stack() -> Dict[str, Any]:
         "detail": "containers started and health endpoint responding",
     })
     return {"ok": True, "steps": steps}
+
+
+async def launch_stack() -> Dict[str, Any]:
+    """End-to-end recovery: start Docker Desktop if down, then Langfuse.
+
+    Returns ``{ok, steps: [{name, status, detail}]}``. The first error
+    short-circuits the chain — Langfuse is never attempted if Docker
+    didn't come up.
+    """
+    docker_result = await start_docker_desktop()
+    if not docker_result["ok"]:
+        return docker_result
+    langfuse_result = await start_langfuse()
+    return {
+        "ok": langfuse_result["ok"],
+        "steps": docker_result["steps"] + langfuse_result["steps"],
+    }
+
+
+# ------------------------------------------------------------------ stop
+# Issue #284 — the Services card's Start-only buttons get Stop siblings,
+# mirroring the Models tab's per-row start/stop pattern.
+
+DOCKER_STOP_TIMEOUT_S = 60.0
+LANGFUSE_STOP_TIMEOUT_S = 60.0
+
+
+def _stop_docker_desktop_sync(timeout_s: float) -> Dict[str, Any]:
+    """Blocking half of :func:`stop_docker_desktop`, run off-thread.
+
+    Uses the official ``docker desktop stop`` CLI (bundled with recent
+    Docker Desktop releases — confirmed present via ``docker desktop
+    --help``) rather than killing the process tree, so the WSL2 VM gets
+    a clean shutdown instead of an unclean kill.
+    """
+    try:
+        proc = subprocess.run(
+            ["docker", "desktop", "stop"],
+            capture_output=True,
+            timeout=timeout_s,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "detail": f"`docker desktop stop` timed out after {timeout_s:.0f}s"}
+    except OSError as exc:
+        return {"ok": False, "detail": f"{type(exc).__name__}: {exc}"}
+    if proc.returncode == 0:
+        return {"ok": True, "detail": "Docker Desktop stopped"}
+    err = (proc.stderr or b"").decode("utf-8", errors="replace").strip().splitlines()
+    first = err[0] if err else f"exit {proc.returncode}"
+    return {"ok": False, "detail": first[:200]}
+
+
+async def stop_docker_desktop(timeout_s: float = DOCKER_STOP_TIMEOUT_S) -> Dict[str, Any]:
+    """Stop Docker Desktop via its CLI. Returns ``{ok, steps}`` (one step).
+
+    Stopping Docker also takes the Langfuse containers down with it —
+    they can't run without the engine — so the Services card will show
+    both as down on its next poll.
+    """
+    info = await docker_status()
+    if not info["running"]:
+        return {"ok": True, "steps": [{"name": "docker_engine", "status": "skipped", "detail": "already down"}]}
+    result = await asyncio.to_thread(_stop_docker_desktop_sync, timeout_s)
+    status = "ok" if result["ok"] else "error"
+    return {"ok": result["ok"], "steps": [{"name": "docker_engine", "status": status, "detail": result["detail"]}]}
+
+
+def _run_langfuse_stop_script_sync() -> Dict[str, Any]:
+    """Blocking half of :func:`stop_langfuse`, run off-thread. Sibling of
+    :func:`_run_langfuse_start_script_sync`."""
+    script = langfuse_stop_script()
+    if not script.exists():
+        return {
+            "ok": False,
+            "returncode": -1,
+            "stdout": "",
+            "stderr": f"stop script not found: {script}",
+        }
+    if sys.platform == "win32":
+        cmd = ["cmd.exe", "/c", str(script)]
+    else:
+        cmd = ["/bin/sh", str(script)]
+    try:
+        proc = subprocess.run(
+            cmd, cwd=str(PROJECT_ROOT), capture_output=True, timeout=LANGFUSE_STOP_TIMEOUT_S
+        )
+        return {
+            "ok": proc.returncode == 0,
+            "returncode": proc.returncode,
+            "stdout": (proc.stdout or b"").decode("utf-8", errors="replace"),
+            "stderr": (proc.stderr or b"").decode("utf-8", errors="replace"),
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "ok": False,
+            "returncode": -1,
+            "stdout": "",
+            "stderr": f"stop_langfuse script timed out after {LANGFUSE_STOP_TIMEOUT_S:.0f}s",
+        }
+    except OSError as exc:
+        return {
+            "ok": False,
+            "returncode": -1,
+            "stdout": "",
+            "stderr": f"{type(exc).__name__}: {exc}",
+        }
+
+
+async def stop_langfuse() -> Dict[str, Any]:
+    """Stop the Langfuse stack (``docker compose ... down``).
+
+    Returns ``{ok, steps}`` (one ``langfuse_stack`` step). Idempotent —
+    a no-op on an already-stopped stack.
+    """
+    health = await langfuse_health()
+    if not health["reachable"]:
+        return {"ok": True, "steps": [{"name": "langfuse_stack", "status": "skipped", "detail": "already down"}]}
+    result = await asyncio.to_thread(_run_langfuse_stop_script_sync)
+    if not result["ok"]:
+        err_lines = [ln for ln in (result["stderr"] or "").splitlines() if ln.strip()]
+        detail = err_lines[0][:200] if err_lines else f"exit {result['returncode']}"
+        return {"ok": False, "steps": [{"name": "langfuse_stack", "status": "error", "detail": detail}]}
+    return {"ok": True, "steps": [{"name": "langfuse_stack", "status": "ok", "detail": "containers stopped"}]}
 
 
 # ------------------------------------------------------------- agentsview
@@ -641,3 +783,36 @@ async def launch_agentsview() -> Dict[str, Any]:
         return {"ok": False, "steps": steps}
     steps.append({"name": "agentsview", "status": "ok", "detail": f"started {exe}"})
     return {"ok": True, "steps": steps}
+
+
+async def stop_agentsview() -> Dict[str, Any]:
+    """Stop AgentsView by killing whoever holds its port (issue #284).
+
+    AgentsView is spawned detached with no PID tracked by the hub — same
+    fire-and-forget shape as Docker Desktop — so the only reliable way to
+    stop it later is by the port it's listening on, reusing
+    ``server_process.find_port_pids`` / ``kill_pid``, the same port-based
+    kill idiom ``force_stop_external`` already uses for adopted models.
+    """
+    from src.agentsview_usage import _base_url
+    from src.server_process import find_port_pids, kill_pid
+
+    host = _base_url()
+    if not host:
+        return {"ok": True, "steps": [{"name": "agentsview", "status": "skipped", "detail": "disabled (AGENTSVIEW_BASE_URL is empty)"}]}
+    port = urlparse(host).port
+    if not port:
+        return {"ok": False, "steps": [{"name": "agentsview", "status": "error", "detail": f"could not parse a port from {host!r}"}]}
+
+    pids = await asyncio.to_thread(find_port_pids, port)
+    if not pids:
+        return {"ok": True, "steps": [{"name": "agentsview", "status": "skipped", "detail": "already down"}]}
+
+    failures = []
+    for pid in pids:
+        ok, msg = await asyncio.to_thread(kill_pid, pid)
+        if not ok:
+            failures.append(msg)
+    if failures:
+        return {"ok": False, "steps": [{"name": "agentsview", "status": "error", "detail": "; ".join(failures)[:200]}]}
+    return {"ok": True, "steps": [{"name": "agentsview", "status": "ok", "detail": f"stopped pid(s) {', '.join(map(str, pids))}"}]}

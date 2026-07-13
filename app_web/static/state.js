@@ -54,7 +54,9 @@ export const state = {
   services: null,
   servicesLaunching: false,
   macMiniBusy: false,   // wake/sync in flight (#181)
-  agentsviewStarting: false,   // AgentsView launch in flight (#280)
+  agentsviewBusy: false,   // AgentsView start/stop in flight (#280, #284)
+  dockerBusy: false,   // Docker Desktop start/stop in flight (#284)
+  langfuseBusy: false,   // Langfuse stack start/stop in flight (#284)
 
   // Startup card — what autostarts with the hub (issue #265).
   startupProfile: null,   // /admin/api/startup-profile payload
@@ -106,10 +108,15 @@ export const els = {
   langfuseStatus: document.getElementById('langfuseStatus'),
   langfuseStatusText: document.getElementById('langfuseStatusText'),
   langfuseDetail: document.getElementById('langfuseDetail'),
+  dockerStartBtn: document.getElementById('dockerStartBtn'),
+  dockerStopBtn: document.getElementById('dockerStopBtn'),
+  langfuseStartBtn: document.getElementById('langfuseStartBtn'),
+  langfuseStopBtn: document.getElementById('langfuseStopBtn'),
   agentsviewStatus: document.getElementById('agentsviewStatus'),
   agentsviewStatusText: document.getElementById('agentsviewStatusText'),
   agentsviewDetail: document.getElementById('agentsviewDetail'),
   agentsviewStartBtn: document.getElementById('agentsviewStartBtn'),
+  agentsviewStopBtn: document.getElementById('agentsviewStopBtn'),
   macMiniRow: document.getElementById('macMiniRow'),
   macMiniStatus: document.getElementById('macMiniStatus'),
   macMiniStatusText: document.getElementById('macMiniStatusText'),

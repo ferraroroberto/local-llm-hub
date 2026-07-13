@@ -99,6 +99,10 @@
               <span class="dot"></span><span id="dockerStatusText">—</span>
             </span>
             <span id="dockerDetail" class="muted small services-detail"></span>
+            <span class="services-actions">
+              <button id="dockerStartBtn" type="button" class="icon-btn" hidden title="Start" aria-label="Start Docker Desktop"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg></button>
+              <button id="dockerStopBtn" type="button" class="icon-btn danger" hidden title="Stop" aria-label="Stop Docker Desktop"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg></button>
+            </span>
           </div>
           <div class="services-row">
             <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Langfuse</span>
@@ -106,6 +110,10 @@
               <span class="dot"></span><span id="langfuseStatusText">—</span>
             </span>
             <span id="langfuseDetail" class="muted small services-detail"></span>
+            <span class="services-actions">
+              <button id="langfuseStartBtn" type="button" class="icon-btn" hidden title="Start" aria-label="Start Langfuse"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg></button>
+              <button id="langfuseStopBtn" type="button" class="icon-btn danger" hidden title="Stop" aria-label="Stop Langfuse"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg></button>
+            </span>
           </div>
           <div class="services-row">
             <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>AgentsView</span>
@@ -113,7 +121,10 @@
               <span class="dot"></span><span id="agentsviewStatusText">—</span>
             </span>
             <span id="agentsviewDetail" class="muted small services-detail"></span>
-            <button id="agentsviewStartBtn" type="button" class="ghost-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
+            <span class="services-actions">
+              <button id="agentsviewStartBtn" type="button" class="icon-btn" hidden title="Start" aria-label="Start AgentsView"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg></button>
+              <button id="agentsviewStopBtn" type="button" class="icon-btn danger" hidden title="Stop" aria-label="Stop AgentsView"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg></button>
+            </span>
           </div>
           <div class="services-row" id="macMiniRow" hidden>
             <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-signal"></use></svg>Mac Mini</span>

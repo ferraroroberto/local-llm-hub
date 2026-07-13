@@ -277,6 +277,17 @@ function renderServices() {
       ? (docker.server_version ? 'engine ' + docker.server_version : '')
       : (docker.error || '');
   }
+  // Start/Stop (#284) — only offered where launch_docker_desktop() actually
+  // knows how (same `launchable` gate the combined Launch button already
+  // uses: win32 + a found Docker Desktop install).
+  if (els.dockerStartBtn) {
+    els.dockerStartBtn.hidden = !(body.launchable && !docker.running);
+    els.dockerStartBtn.disabled = state.dockerBusy;
+  }
+  if (els.dockerStopBtn) {
+    els.dockerStopBtn.hidden = !(body.launchable && docker.running);
+    els.dockerStopBtn.disabled = state.dockerBusy;
+  }
 
   // Langfuse: "up" when reachable, "partial" when Docker is up but Langfuse
   // isn't (containers starting / never launched), "down" otherwise.
@@ -287,6 +298,14 @@ function renderServices() {
   setStatusPill(els.langfuseStatus, els.langfuseStatusText, lfKind, lfLabel);
   if (els.langfuseDetail) {
     els.langfuseDetail.textContent = lf.reachable ? '' : (lf.error || '');
+  }
+  if (els.langfuseStartBtn) {
+    els.langfuseStartBtn.hidden = lf.reachable;
+    els.langfuseStartBtn.disabled = state.langfuseBusy;
+  }
+  if (els.langfuseStopBtn) {
+    els.langfuseStopBtn.hidden = !lf.reachable;
+    els.langfuseStopBtn.disabled = state.langfuseBusy;
   }
 
   // AgentsView (#280): optional external indexer feeding the Code tab's
@@ -307,10 +326,11 @@ function renderServices() {
   }
   if (els.agentsviewStartBtn) {
     els.agentsviewStartBtn.hidden = !(avEnabled && !av.reachable && av.installed);
-    els.agentsviewStartBtn.disabled = state.agentsviewStarting;
-    els.agentsviewStartBtn.innerHTML = state.agentsviewStarting
-      ? 'Starting…'
-      : icon('play') + 'Start';
+    els.agentsviewStartBtn.disabled = state.agentsviewBusy;
+  }
+  if (els.agentsviewStopBtn) {
+    els.agentsviewStopBtn.hidden = !(avEnabled && av.reachable);
+    els.agentsviewStopBtn.disabled = state.agentsviewBusy;
   }
 
   // Mac Mini (#179): the pill itself doesn't factor into the overall
@@ -438,8 +458,8 @@ function onMacMiniWakeClick() { return onMacMiniAction('bootstrap', 'woken up');
 function onMacMiniSyncClick() { return onMacMiniAction('sync', 'synced'); }
 
 async function onAgentsviewStartClick() {
-  if (state.agentsviewStarting) return;
-  state.agentsviewStarting = true;
+  if (state.agentsviewBusy) return;
+  state.agentsviewBusy = true;
   renderServices();
   try {
     const result = await postJson('/admin/api/services/agentsview/launch', {});
@@ -452,10 +472,77 @@ async function onAgentsviewStartClick() {
   } catch (exc) {
     toast('AgentsView start failed: ' + (exc.message || exc), 'error');
   } finally {
-    state.agentsviewStarting = false;
+    state.agentsviewBusy = false;
     await fetchServicesStatus();
   }
 }
+
+async function onAgentsviewStopClick() {
+  if (state.agentsviewBusy) return;
+  state.agentsviewBusy = true;
+  renderServices();
+  try {
+    const result = await postJson('/admin/api/services/agentsview/stop', {});
+    if (result.ok) {
+      toast('AgentsView stopped', 'good');
+    } else {
+      const first = (result.steps || []).find(function (s) { return s.status === 'error'; });
+      toast('AgentsView stop failed — ' + (first ? first.detail : 'unknown'), 'error');
+    }
+  } catch (exc) {
+    toast('AgentsView stop failed: ' + (exc.message || exc), 'error');
+  } finally {
+    state.agentsviewBusy = false;
+    await fetchServicesStatus();
+  }
+}
+
+// Docker Desktop + Langfuse individual start/stop (#284) — same
+// {ok, steps}-driven toast shape as the AgentsView pair above, complementing
+// (not replacing) the combined "Launch Docker + Langfuse" recovery button.
+async function onDockerAction(action, busyLabel, doneLabel) {
+  if (state.dockerBusy) return;
+  state.dockerBusy = true;
+  renderServices();
+  try {
+    const result = await postJson('/admin/api/services/docker/' + action, {});
+    if (result.ok) {
+      toast('Docker ' + doneLabel, 'good');
+    } else {
+      const first = (result.steps || []).find(function (s) { return s.status === 'error'; });
+      toast('Docker ' + busyLabel + ' failed — ' + (first ? first.detail : 'unknown'), 'error');
+    }
+  } catch (exc) {
+    toast('Docker ' + busyLabel + ' failed: ' + (exc.message || exc), 'error');
+  } finally {
+    state.dockerBusy = false;
+    await fetchServicesStatus();
+  }
+}
+function onDockerStartClick() { return onDockerAction('start', 'start', 'started'); }
+function onDockerStopClick() { return onDockerAction('stop', 'stop', 'stopped'); }
+
+async function onLangfuseAction(action, busyLabel, doneLabel) {
+  if (state.langfuseBusy) return;
+  state.langfuseBusy = true;
+  renderServices();
+  try {
+    const result = await postJson('/admin/api/services/langfuse/' + action, {});
+    if (result.ok) {
+      toast('Langfuse ' + doneLabel, 'good');
+    } else {
+      const first = (result.steps || []).find(function (s) { return s.status === 'error'; });
+      toast('Langfuse ' + busyLabel + ' failed — ' + (first ? first.detail : 'unknown'), 'error');
+    }
+  } catch (exc) {
+    toast('Langfuse ' + busyLabel + ' failed: ' + (exc.message || exc), 'error');
+  } finally {
+    state.langfuseBusy = false;
+    await fetchServicesStatus();
+  }
+}
+function onLangfuseStartClick() { return onLangfuseAction('start', 'start', 'started'); }
+function onLangfuseStopClick() { return onLangfuseAction('stop', 'stop', 'stopped'); }
 
 // --------------------------------------------------------- wire buttons
 export function wireHub() {
@@ -513,6 +600,21 @@ export function wireHub() {
   }
   if (els.agentsviewStartBtn) {
     els.agentsviewStartBtn.addEventListener('click', onAgentsviewStartClick);
+  }
+  if (els.agentsviewStopBtn) {
+    els.agentsviewStopBtn.addEventListener('click', onAgentsviewStopClick);
+  }
+  if (els.dockerStartBtn) {
+    els.dockerStartBtn.addEventListener('click', onDockerStartClick);
+  }
+  if (els.dockerStopBtn) {
+    els.dockerStopBtn.addEventListener('click', onDockerStopClick);
+  }
+  if (els.langfuseStartBtn) {
+    els.langfuseStartBtn.addEventListener('click', onLangfuseStartClick);
+  }
+  if (els.langfuseStopBtn) {
+    els.langfuseStopBtn.addEventListener('click', onLangfuseStopClick);
   }
 
   // Sparklines: lightweight inline-SVG renderer driven by /admin/api/hub/stats.
