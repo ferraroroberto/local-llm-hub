@@ -267,15 +267,17 @@ async def mac_mini_health(
 def _spawn_docker_desktop(exe: Path) -> None:
     """Start Docker Desktop detached so it survives the request.
 
-    Windows: CREATE_NEW_PROCESS_GROUP + DETACHED_PROCESS keeps it alive
-    after the uvicorn worker that handled the launch request moves on.
+    Windows: CREATE_NEW_PROCESS_GROUP + CREATE_NO_WINDOW keeps it alive
+    after the uvicorn worker that handled the launch request moves on and
+    suppresses any console window. ``DETACHED_PROCESS`` is deliberately
+    omitted — it's mutually exclusive with ``CREATE_NO_WINDOW`` per the
+    Win32 CreateProcess docs, and combining them lets Windows Terminal
+    (as the default terminal host) host a console window anyway.
     """
     creationflags = 0
     if sys.platform == "win32":
-        DETACHED = 0x00000008
         creationflags = (
-            DETACHED
-            | subprocess.CREATE_NEW_PROCESS_GROUP
+            subprocess.CREATE_NEW_PROCESS_GROUP
             | subprocess.CREATE_NO_WINDOW
         )
     subprocess.Popen(
@@ -563,14 +565,14 @@ def _spawn_agentsview(exe: str) -> None:
     """Start ``agentsview serve`` detached (same idiom as Docker Desktop).
 
     Telemetry and the update check are disabled in the child env — the hub
-    launches a quiet, loopback-only indexer.
+    launches a quiet, loopback-only indexer. ``DETACHED_PROCESS`` is
+    deliberately omitted from the creation flags — see
+    ``_spawn_docker_desktop`` for why.
     """
     creationflags = 0
     if sys.platform == "win32":
-        DETACHED = 0x00000008
         creationflags = (
-            DETACHED
-            | subprocess.CREATE_NEW_PROCESS_GROUP
+            subprocess.CREATE_NEW_PROCESS_GROUP
             | subprocess.CREATE_NO_WINDOW
         )
     env = dict(os.environ)
