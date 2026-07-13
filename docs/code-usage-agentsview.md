@@ -42,8 +42,9 @@ itself.**
   update check disabled in the child env. Not installed → one soft-fail log
   line, the hub starts normally.
 - **Services card** (Hub tab) — an AgentsView row shows up / down /
-  not installed / disabled, the served version, and a **Start** button when
-  it's down but installed (`POST /admin/api/services/agentsview/launch`).
+  not installed / disabled, the served version, and Start/Stop buttons
+  (`POST /admin/api/services/agentsview/launch` and `.../stop`, issue #284)
+  — Start when it's down but installed, Stop when it's reachable.
 
 ## Configuration
 

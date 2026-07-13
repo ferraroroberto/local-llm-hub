@@ -244,3 +244,123 @@ def test_services_launch_runs_langfuse_script_when_docker_up(monkeypatch):
     steps = {s["name"]: s["status"] for s in body["steps"]}
     assert steps["docker_engine"] == "skipped"
     assert steps["langfuse_stack"] == "ok"
+
+
+# ----------------------------------------------- individual start/stop (#284)
+
+
+def test_langfuse_stop_script_path_per_platform(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert svc.langfuse_stop_script().name == "stop_langfuse.bat"
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert svc.langfuse_stop_script().name == "stop_langfuse.sh"
+
+
+def test_docker_start_endpoint_skips_when_already_up(monkeypatch):
+    async def _docker_up(*a, **kw):
+        return {"running": True, "error": "", "server_version": "test"}
+
+    monkeypatch.setattr(svc, "docker_status", _docker_up)
+    r = _client().post("/admin/api/services/docker/start")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["steps"][0] == {"name": "docker_engine", "status": "skipped", "detail": "engine already up"}
+
+
+def test_docker_stop_endpoint_skips_when_already_down(monkeypatch):
+    async def _docker_down(*a, **kw):
+        return {"running": False, "error": "down"}
+
+    monkeypatch.setattr(svc, "docker_status", _docker_down)
+    r = _client().post("/admin/api/services/docker/stop")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["steps"][0] == {"name": "docker_engine", "status": "skipped", "detail": "already down"}
+
+
+def test_docker_stop_endpoint_runs_cli_when_running(monkeypatch):
+    async def _docker_up(*a, **kw):
+        return {"running": True, "error": "", "server_version": "test"}
+
+    def _stop_ok(timeout_s):
+        return {"ok": True, "detail": "Docker Desktop stopped"}
+
+    monkeypatch.setattr(svc, "docker_status", _docker_up)
+    monkeypatch.setattr(svc, "_stop_docker_desktop_sync", _stop_ok)
+    r = _client().post("/admin/api/services/docker/stop")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["steps"][0] == {"name": "docker_engine", "status": "ok", "detail": "Docker Desktop stopped"}
+
+
+def test_langfuse_start_endpoint_skips_when_already_up(monkeypatch):
+    async def _lf_up(*a, **kw):
+        return {"reachable": True, "status_code": 200, "error": "", "host": "x"}
+
+    monkeypatch.setattr(svc, "langfuse_health", _lf_up)
+    r = _client().post("/admin/api/services/langfuse/start")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["steps"][0] == {"name": "langfuse_stack", "status": "skipped", "detail": "stack already up"}
+
+
+def test_langfuse_stop_endpoint_skips_when_already_down(monkeypatch):
+    async def _lf_down(*a, **kw):
+        return {"reachable": False, "status_code": 0, "error": "down", "host": "x"}
+
+    monkeypatch.setattr(svc, "langfuse_health", _lf_down)
+    r = _client().post("/admin/api/services/langfuse/stop")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["steps"][0] == {"name": "langfuse_stack", "status": "skipped", "detail": "already down"}
+
+
+def test_langfuse_stop_endpoint_runs_script_when_reachable(monkeypatch):
+    async def _lf_up(*a, **kw):
+        return {"reachable": True, "status_code": 200, "error": "", "host": "x"}
+
+    def _stop_script_ok():
+        return {"ok": True, "returncode": 0, "stdout": "", "stderr": ""}
+
+    monkeypatch.setattr(svc, "langfuse_health", _lf_up)
+    monkeypatch.setattr(svc, "_run_langfuse_stop_script_sync", _stop_script_ok)
+    r = _client().post("/admin/api/services/langfuse/stop")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["steps"][0] == {"name": "langfuse_stack", "status": "ok", "detail": "containers stopped"}
+
+
+def test_agentsview_stop_endpoint_skips_when_disabled(monkeypatch):
+    monkeypatch.setattr("src.agentsview_usage._base_url", lambda: "")
+    r = _client().post("/admin/api/services/agentsview/stop")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["steps"][0]["status"] == "skipped"
+
+
+def test_agentsview_stop_endpoint_skips_when_already_down(monkeypatch):
+    monkeypatch.setattr("src.agentsview_usage._base_url", lambda: "http://127.0.0.1:8080")
+    monkeypatch.setattr("src.server_process.find_port_pids", lambda port: [])
+    r = _client().post("/admin/api/services/agentsview/stop")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["steps"][0] == {"name": "agentsview", "status": "skipped", "detail": "already down"}
+
+
+def test_agentsview_stop_endpoint_kills_port_holder(monkeypatch):
+    monkeypatch.setattr("src.agentsview_usage._base_url", lambda: "http://127.0.0.1:8080")
+    monkeypatch.setattr("src.server_process.find_port_pids", lambda port: [4242])
+    monkeypatch.setattr("src.server_process.kill_pid", lambda pid: (True, f"killed pid {pid}"))
+    r = _client().post("/admin/api/services/agentsview/stop")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert "4242" in body["steps"][0]["detail"]
