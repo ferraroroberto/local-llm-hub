@@ -57,6 +57,11 @@ config/webauthn_devices.json
 # TTS voice-cloning reference clips (config/tts_voices/<voice>.wav) — local audio
 config/tts_voices/
 webapp/cloudflared.yml
+
+# Local-only transcription boost_terms overlay (issue #290) — private
+# vocabulary (e.g. a caller's proper nouns) that must never be committed.
+# Sample file is committed as config/transcription_glossary.local.sample.json.
+config/transcription_glossary.local.json
 webapp/auth.log
 webapp/last_tunnel_url.txt
 webapp/certificates/

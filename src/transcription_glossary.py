@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_GLOSSARY_PATH = PROJECT_ROOT / "config" / "transcription_glossary.json"
+DEFAULT_LOCAL_BOOST_PATH = PROJECT_ROOT / "config" / "transcription_glossary.local.json"
 
 
 class Rule(NamedTuple):
@@ -84,22 +85,45 @@ def load_rules(path: Optional[str] = None) -> Tuple[Rule, ...]:
     return tuple(_compile_rules(replacements))
 
 
-def load_boost_terms(path: Optional[str] = None) -> List[str]:
+def load_boost_terms(
+    path: Optional[str] = None, local_path: Optional[str] = None
+) -> List[str]:
     """Return the ``boost_terms`` vocabulary list (issue #91).
 
     Kept here so the dictionary has a single loader; empty list if the
     file is missing, unparseable, or has no terms.
+
+    Also merges an optional gitignored local overlay
+    (``config/transcription_glossary.local.json`` by default, issue #290) —
+    same ``{"boost_terms": [...]}`` shape, for vocabulary that must never
+    land in this public repo (e.g. a caller's private proper nouns).
+    Missing overlay file is a silent no-op. The overlay is **not** visible
+    to :func:`load_glossary`/:func:`save_glossary` (the admin editor round
+    trip), so editing the committed dictionary in-app can never leak or
+    overwrite it.
     """
     target = Path(path) if path else DEFAULT_GLOSSARY_PATH
-    if not target.exists():
-        return []
-    try:
-        data = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ could not load transcription glossary %s: %s", target, exc)
-        return []
-    terms = data.get("boost_terms", []) if isinstance(data, dict) else []
-    return [t for t in terms if isinstance(t, str) and t.strip()]
+    terms: List[str] = []
+    if target.exists():
+        try:
+            data = json.loads(target.read_text(encoding="utf-8"))
+            raw = data.get("boost_terms", []) if isinstance(data, dict) else []
+            terms.extend(t for t in raw if isinstance(t, str) and t.strip())
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("⚠️ could not load transcription glossary %s: %s", target, exc)
+
+    local_target = Path(local_path) if local_path else DEFAULT_LOCAL_BOOST_PATH
+    if local_target.exists():
+        try:
+            local_data = json.loads(local_target.read_text(encoding="utf-8"))
+            raw_local = local_data.get("boost_terms", []) if isinstance(local_data, dict) else []
+            terms.extend(t for t in raw_local if isinstance(t, str) and t.strip())
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning(
+                "⚠️ could not load local transcription glossary %s: %s", local_target, exc
+            )
+
+    return terms
 
 
 def load_glossary(path: Optional[str] = None) -> Dict[str, Any]:

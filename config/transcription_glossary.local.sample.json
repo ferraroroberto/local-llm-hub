@@ -1,0 +1,6 @@
+{
+  "boost_terms": [
+    "Replace with private proper nouns to bias whisper recognition toward",
+    "e.g. household member names for a voice-assistant caller (issue #290)"
+  ]
+}
