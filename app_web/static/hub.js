@@ -645,14 +645,17 @@ async function renderSparklines() {
   if (!container) return;
   container.innerHTML = '';
   const history = stats.history || [];
+  const g0 = stats.gpus && stats.gpus.length ? stats.gpus[0] : null;
+  // Utilization tiles on top, memory tiles on bottom (#288).
   const groups = [
     { label: 'CPU', value: stats.cpu && stats.cpu.percent, series: history.map(function (h) { return h.cpu_percent; }) },
-    { label: 'RAM', value: stats.ram && stats.ram.percent, series: history.map(function (h) { return h.ram_percent; }) },
   ];
-  if (stats.gpus && stats.gpus.length) {
-    const g0 = stats.gpus[0];
-    groups.push({ label: 'VRAM ' + shortGpu(g0.name), value: g0.vram_percent, series: history.map(function (h) { return h.gpu0_vram_percent; }) });
+  if (g0) {
     groups.push({ label: 'GPU util', value: g0.util_percent, series: history.map(function (h) { return h.gpu0_util_percent; }) });
+  }
+  groups.push({ label: 'RAM', value: stats.ram && stats.ram.percent, series: history.map(function (h) { return h.ram_percent; }) });
+  if (g0) {
+    groups.push({ label: 'VRAM ' + shortGpu(g0.name), value: g0.vram_percent, series: history.map(function (h) { return h.gpu0_vram_percent; }) });
   }
   groups.forEach(function (g) {
     container.appendChild(buildSparkline(g));
