@@ -8,6 +8,7 @@ dictionary's `boost_terms` when a whisper row opts into
 
 from __future__ import annotations
 
+import json
 import os
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
@@ -34,3 +35,22 @@ def test_explicit_prompt_is_not_overridden():
     # If a row already supplies its own --prompt, don't second-guess it.
     args = ["--carry-initial-prompt", "--prompt", "my own prompt"]
     assert _whisper_boost_args(args) == []
+
+
+def test_boost_terms_merges_local_overlay(tmp_path):
+    # issue #290: a gitignored local overlay merges in behind the committed
+    # dictionary, so private vocabulary never has to be committed.
+    committed = tmp_path / "glossary.json"
+    committed.write_text(json.dumps({"boost_terms": ["Claude Code"]}))
+    local = tmp_path / "glossary.local.json"
+    local.write_text(json.dumps({"boost_terms": ["Roberto"]}))
+
+    assert load_boost_terms(str(committed), str(local)) == ["Claude Code", "Roberto"]
+
+
+def test_boost_terms_local_overlay_missing_is_noop(tmp_path):
+    committed = tmp_path / "glossary.json"
+    committed.write_text(json.dumps({"boost_terms": ["Claude Code"]}))
+    missing_local = tmp_path / "does-not-exist.json"
+
+    assert load_boost_terms(str(committed), str(missing_local)) == ["Claude Code"]

@@ -200,3 +200,25 @@ config lives in
 [config/dictionary_miner.json](../config/dictionary_miner.json)
 (`voice_transcriber_base_url`, `default_days`, `max_tokens`, `min_count`,
 `use_llm`, `llm_model`); the baked defaults apply when it is absent.
+
+### Private vocabulary — local overlay (issue #290)
+
+`config/transcription_glossary.json` is committed and public, which is fine
+for dev/tech jargon but wrong for a caller with genuinely private vocabulary
+to bias toward — e.g. `home-automation`'s voice assistant needed whisper
+biased toward household member names (issue #444), and those can't land in a
+public repo.
+
+`load_boost_terms()` also reads an optional gitignored
+`config/transcription_glossary.local.json` (same `{"boost_terms": [...]}`
+shape; committed placeholder at
+[config/transcription_glossary.local.sample.json](../config/transcription_glossary.local.sample.json))
+and merges its terms in after the committed list. Missing file → no-op, same
+defensive pattern as the committed loader. Like the committed list, it only
+binds on the **next whisper launch** (restart the `whisper` model row after
+editing it).
+
+The overlay is deliberately invisible to the admin SPA's glossary editor
+(`load_glossary()`/`save_glossary()`, `app_web/routers/glossary.py`) — that
+editor only ever reads/writes the committed file, so opening and saving it
+in-app can never leak or silently drop the local terms.
