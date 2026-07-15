@@ -165,13 +165,14 @@ async def _autostart_services() -> None:
 
 
 async def _resource_sampler() -> None:
-    """Background task that samples RAM + GPU usage every 2 s."""
+    """Background task that samples RAM + CPU + GPU usage every 2 s."""
     from . import system_stats
     from .hub_observability import StatSample
 
     while True:
         try:
             ram = system_stats.ram_stats()
+            cpu = system_stats.cpu_stats()
             gpus = system_stats.gpu_stats()
             gpu0_vram = None
             gpu0_util = None
@@ -183,6 +184,7 @@ async def _resource_sampler() -> None:
                 StatSample(
                     ts=time.time(),
                     ram_percent=float(ram.get("percent", 0.0)),
+                    cpu_percent=float(cpu.get("percent", 0.0)),
                     gpu0_vram_percent=gpu0_vram,
                     gpu0_util_percent=gpu0_util,
                 )

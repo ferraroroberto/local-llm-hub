@@ -646,6 +646,7 @@ async function renderSparklines() {
   container.innerHTML = '';
   const history = stats.history || [];
   const groups = [
+    { label: 'CPU', value: stats.cpu && stats.cpu.percent, series: history.map(function (h) { return h.cpu_percent; }) },
     { label: 'RAM', value: stats.ram && stats.ram.percent, series: history.map(function (h) { return h.ram_percent; }) },
   ];
   if (stats.gpus && stats.gpus.length) {

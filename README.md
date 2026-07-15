@@ -481,7 +481,7 @@ local-llm-hub/
 │   ├── model_registry.py     # YAML loader (resolves display_name + aliases)
 │   ├── startup_profile.py    # config/startup_profile.json load/save (#265)
 │   ├── host_profile.py       # pick active host row
-│   ├── system_stats.py       # live RAM/GPU readings (consumed by Hub tab sparklines)
+│   ├── system_stats.py       # live RAM/CPU/GPU readings (consumed by Hub tab sparklines)
 │   ├── install.py            # first-run checks + --fix
 │   ├── run_backend.py        # hub|qwen35_4b|gemma4_26b|whisper|… dispatcher
 │   ├── server_process.py     # hub Popen + ownership / adopt-or-spawn (used by the tray)

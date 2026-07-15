@@ -6,7 +6,7 @@ Endpoints (all under /admin/api/hub):
   * POST /restart           — spawn a watchdog that respawns ``src.server``
   * GET  /log/tail          — SSE stream of root-logger lines
   * GET  /log/recent        — non-SSE seed (last N lines)
-  * GET  /stats             — 5-minute ring of RAM/GPU samples (sparklines)
+  * GET  /stats             — 5-minute ring of RAM/CPU/GPU samples (sparklines)
   * GET  /requests/stream   — SSE stream of every routed /v1/* request
   * GET  /requests/recent   — non-SSE seed (last N records)
   * GET  /errors/recent     — non-2xx ring
@@ -275,9 +275,10 @@ async def stats() -> Dict[str, Any]:
     from src import system_stats
 
     ram = system_stats.ram_stats()
+    cpu = system_stats.cpu_stats()
     gpus = await asyncio.to_thread(system_stats.gpu_stats)
     history = OBS.stats_snapshot()
-    return {"ram": ram, "gpus": gpus, "history": history}
+    return {"ram": ram, "cpu": cpu, "gpus": gpus, "history": history}
 
 
 # ----------------------------------------------------------------- install

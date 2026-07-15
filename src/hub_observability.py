@@ -66,6 +66,7 @@ class BackendCounters:
 class StatSample:
     ts: float
     ram_percent: float
+    cpu_percent: float = 0.0
     gpu0_vram_percent: Optional[float] = None
     gpu0_util_percent: Optional[float] = None
 
@@ -177,6 +178,7 @@ class Observatory:
             {
                 "ts": s.ts,
                 "ram_percent": s.ram_percent,
+                "cpu_percent": s.cpu_percent,
                 "gpu0_vram_percent": s.gpu0_vram_percent,
                 "gpu0_util_percent": s.gpu0_util_percent,
             }

@@ -31,6 +31,16 @@ def ram_stats() -> dict[str, float]:
     }
 
 
+def cpu_stats() -> dict[str, float]:
+    """Return CPU utilization as {percent}.
+
+    Non-blocking form (interval=None) is safe here since the sampler
+    already polls every 2s, giving psutil a fresh comparison baseline
+    each tick. The first sample after process start may read 0.0.
+    """
+    return {"percent": float(psutil.cpu_percent(interval=None))}
+
+
 def gpu_stats() -> list[dict[str, Optional[float]]]:
     """Return per-GPU snapshot via nvidia-smi.
 
