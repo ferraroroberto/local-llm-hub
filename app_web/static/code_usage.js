@@ -12,7 +12,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, fmtTok, fmtCost, tokPair } from './api.js';
+import { jsonApi, fmtTok, fmtCost, tokPair, escapeHtml } from './api.js';
 
 // ---------------------------------------------------------------------------
 // Chart constants (issue #50)
@@ -186,8 +186,8 @@ function renderCopilotBilling(body) {
   if (tbody) {
     tbody.innerHTML = rows.map(function (r) {
       return '<tr>' +
-        '<td>' + esc(r.date) + '</td>' +
-        '<td>' + esc(r.model) + '</td>' +
+        '<td>' + escapeHtml(r.date) + '</td>' +
+        '<td>' + escapeHtml(r.model) + '</td>' +
         '<td>' + (Number(r.credits) || 0).toFixed(2) + '</td>' +
         '<td>' + (fmtCost(r.usd) || '—') + '</td>' +
         '</tr>';
@@ -247,7 +247,7 @@ function renderVendorTable(rows) {
     const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
     const cost = (r.input_cost || 0) + (r.output_cost || 0) + (r.cache_read_cost || 0);
     return '<tr>' +
-      '<td>' + esc(vendorLabel(r.vendor)) + '</td>' +
+      '<td>' + escapeHtml(vendorLabel(r.vendor)) + '</td>' +
       '<td>' + fmtNum(r.requests) + '</td>' +
       '<td>' + tokPair(totalIn, r.output_tokens) + '</td>' +
       '<td class="muted">' + fmtTok(r.cache_read_tokens) + '</td>' +
@@ -303,7 +303,7 @@ function renderModelTable(rows) {
   tbody.innerHTML = rows.map(function (r) {
     const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
     return '<tr>' +
-      '<td class="td-trunc" title="' + esc(r.model) + '">' + esc(r.model) + '</td>' +
+      '<td class="td-trunc" title="' + escapeHtml(r.model) + '">' + escapeHtml(r.model) + '</td>' +
       '<td>' + fmtNum(r.requests) + '</td>' +
       '<td>' + tokPair(totalIn, r.output_tokens) + '</td>' +
       '<td class="muted">' + fmtTok(r.cache_read_tokens) + '</td>' +
@@ -324,7 +324,7 @@ function renderProjectTable(rows) {
     const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
     const name = r.project || r.project_key;
     return '<tr>' +
-      '<td class="td-trunc" title="' + esc(name) + '">' + esc(name) + '</td>' +
+      '<td class="td-trunc" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</td>' +
       '<td>' + fmtNum(r.requests) + '</td>' +
       '<td>' + tokPair(totalIn, r.output_tokens) + '</td>' +
       '</tr>';
@@ -348,9 +348,9 @@ function renderSessions(sessions) {
     const totalIn = (s.input_tokens || 0) + (s.cache_creation_tokens || 0);
     const firstTs = fmtTs(s.first_ts);
     const lastTs = fmtTs(s.last_ts);
-    const proj = esc(s.project || s.project_key || '');
-    const model = esc(modelShort(s.model || ''));
-    const sid = esc((s.session_id || '').slice(0, 8));
+    const proj = escapeHtml(s.project || s.project_key || '');
+    const model = escapeHtml(modelShort(s.model || ''));
+    const sid = escapeHtml((s.session_id || '').slice(0, 8));
     return '<li>' +
       '<span class="cld-sess-time">' + lastTs + '</span>' +
       '<span class="cld-sess-project">' + proj + '</span>' +
@@ -595,12 +595,4 @@ function modelShort(m) {
   if (lm.includes('sonnet')) return 'Sonnet';
   if (lm.includes('haiku')) return 'Haiku';
   return m.length > 20 ? m.slice(0, 20) + '…' : m;
-}
-
-function esc(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }

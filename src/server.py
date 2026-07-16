@@ -426,6 +426,26 @@ def _wrap_as_openai(text: str, *, model_name: str, in_toks: int, out_toks: int, 
     }
 
 
+def _build_openai_extra(model: Model, req: "ChatCompletionRequest") -> Dict[str, Any]:
+    """Build the upstream payload overlay for an OpenAI-shape backend call.
+
+    Seeds from the model's server-side ``inject_extra`` (e.g. the no-think
+    alias's ``chat_template_kwargs``), then layers caller-sent fields on top
+    so the caller always wins. Shared by the streaming and non-streaming
+    ``openai`` backend paths so both build the same overlay the same way.
+    """
+    extra: Dict[str, Any] = dict(model.inject_extra or {})
+    if req.tools is not None:
+        extra["tools"] = req.tools
+    if req.tool_choice is not None:
+        extra["tool_choice"] = req.tool_choice
+    if req.response_format is not None:
+        extra["response_format"] = req.response_format
+    if req.chat_template_kwargs is not None:
+        extra["chat_template_kwargs"] = req.chat_template_kwargs
+    return extra
+
+
 def _stream_openai_passthrough(
     model: Model,
     req: "ChatCompletionRequest",
@@ -450,18 +470,7 @@ def _stream_openai_passthrough(
     base_url = f"{remote}/v1" if remote else model.url
     if not base_url:
         raise HTTPException(status_code=500, detail="model has no url")
-    # Seed from the model's server-side inject_extra (e.g. the no-think alias's
-    # chat_template_kwargs), then layer caller-sent fields on top so the caller
-    # always wins.
-    extra: Dict[str, Any] = dict(model.inject_extra or {})
-    if req.tools is not None:
-        extra["tools"] = req.tools
-    if req.tool_choice is not None:
-        extra["tool_choice"] = req.tool_choice
-    if req.response_format is not None:
-        extra["response_format"] = req.response_format
-    if req.chat_template_kwargs is not None:
-        extra["chat_template_kwargs"] = req.chat_template_kwargs
+    extra = _build_openai_extra(model, req)
 
     if start_ns is None:
         start_ns = time.monotonic_ns()
@@ -661,16 +670,7 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
             if not base_url:
                 error_type = "config_error"
                 raise HTTPException(status_code=500, detail="model has no url")
-            # Seed from inject_extra (no-think alias), then caller fields win.
-            extra: Dict[str, Any] = dict(model.inject_extra or {})
-            if req.tools is not None:
-                extra["tools"] = req.tools
-            if req.tool_choice is not None:
-                extra["tool_choice"] = req.tool_choice
-            if req.response_format is not None:
-                extra["response_format"] = req.response_format
-            if req.chat_template_kwargs is not None:
-                extra["chat_template_kwargs"] = req.chat_template_kwargs
+            extra = _build_openai_extra(model, req)
             try:
                 raw = call_openai_chat(
                     base_url,

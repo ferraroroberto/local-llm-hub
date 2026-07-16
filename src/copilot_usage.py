@@ -52,6 +52,7 @@ from src.code_usage import (
     _FileStats,
     _UsageRecord,
     _encode_project_key,
+    _load_cached,
     _project_pretty,
 )
 
@@ -170,19 +171,7 @@ def _parse_cli_events_file(path: Path, cwd: Optional[str]) -> List[_UsageRecord]
 
 
 def _load_cli_events(path: Path, cwd: Optional[str]) -> List[_UsageRecord]:
-    try:
-        mtime = path.stat().st_mtime
-    except OSError:
-        return []
-
-    key = str(path)
-    cached = _cli_file_cache.get(key)
-    if cached is not None and cached.mtime == mtime:
-        return cached.entries
-
-    entries = _parse_cli_events_file(path, cwd)
-    _cli_file_cache[key] = _FileStats(mtime=mtime, entries=entries)
-    return entries
+    return _load_cached(path, _cli_file_cache, lambda p: _parse_cli_events_file(p, cwd))
 
 
 def _cli_records() -> List[_UsageRecord]:
@@ -351,19 +340,9 @@ def _parse_vscode_chat_file(path: Path, project_key: Optional[str]) -> List[_Usa
 
 
 def _load_vscode_chat_file(path: Path, project_key: Optional[str]) -> List[_UsageRecord]:
-    try:
-        mtime = path.stat().st_mtime
-    except OSError:
-        return []
-
-    cache_key = str(path)
-    cached = _vscode_file_cache.get(cache_key)
-    if cached is not None and cached.mtime == mtime:
-        return cached.entries
-
-    entries = _parse_vscode_chat_file(path, project_key)
-    _vscode_file_cache[cache_key] = _FileStats(mtime=mtime, entries=entries)
-    return entries
+    return _load_cached(
+        path, _vscode_file_cache, lambda p: _parse_vscode_chat_file(p, project_key)
+    )
 
 
 def _vscode_records() -> List[_UsageRecord]:

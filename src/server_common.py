@@ -10,8 +10,8 @@ modules can import them without a circular import back into ``server.py``.
 from __future__ import annotations
 
 import logging
-from contextlib import contextmanager
-from typing import Iterator
+from contextlib import contextmanager, nullcontext
+from typing import Any, Iterator
 
 from fastapi import HTTPException, Request
 
@@ -62,6 +62,27 @@ def get_tracer(name: str):
         return _trace.get_tracer(name)
     except Exception:  # noqa: BLE001
         return None
+
+
+@contextmanager
+def start_span(tracer_name: str, span_name: str) -> Iterator[Any]:
+    """Start ``span_name`` on the named tracer, or a no-op context when the
+    OTel SDK is unavailable.
+
+    Shared by ``claude_cli.py`` / ``gemini_cli.py`` (each used to carry its
+    own copy of the ``get_tracer(...)`` + ``start_as_current_span(...) if
+    tracer is not None else contextlib.nullcontext(None)`` boilerplate)
+    so a CLI wrapper that wants to time its own subprocess call just does
+    ``with start_span(...) as span:``.
+    """
+    tracer = get_tracer(tracer_name)
+    cm = (
+        tracer.start_as_current_span(span_name)
+        if tracer is not None
+        else nullcontext(None)
+    )
+    with cm as span:
+        yield span
 
 
 @contextmanager

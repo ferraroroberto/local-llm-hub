@@ -33,7 +33,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 _log = logging.getLogger(__name__)
 
@@ -54,7 +54,6 @@ _PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
     "Sonnet": {"input": 3.0, "output": 15.0, "cache_write": 3.75, "cache_read": 0.30},
     "Haiku":  {"input": 1.0, "output": 5.0,  "cache_write": 1.25, "cache_read": 0.10},
 }
-_pricing_cache: Optional[Dict[str, Dict[str, float]]] = None
 
 # OpenAI API list prices (USD per million tokens), keyed by display model id
 # (what _model_display returns for a Codex model, e.g. "GPT-5.5").  Used to
@@ -70,7 +69,6 @@ _OPENAI_PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
     "GPT-5.5 Pro": {"input": 30.0, "cached_input": 0.0,  "output": 180.0},
     "GPT-5.4":     {"input": 2.5,  "cached_input": 0.25, "output": 15.0},
 }
-_openai_pricing_cache: Optional[Dict[str, Dict[str, float]]] = None
 
 # Gemini API list prices in USD per million tokens, keyed by family (what
 # _gemini_family collapses an AGY model name to).  Used to show the
@@ -83,7 +81,10 @@ _GEMINI_PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
     "flash":      {"input": 0.30, "output": 2.50, "cache_read": 0.03},
     "flash-lite": {"input": 0.10, "output": 0.40, "cache_read": 0.01},
 }
-_gemini_pricing_cache: Optional[Dict[str, Dict[str, float]]] = None
+
+# Memoized price tables, keyed by cache slot ("claude" / "openai" / "gemini");
+# populated lazily by ``_load_priced_table``.
+_priced_table_cache: Dict[str, Dict[str, Dict[str, float]]] = {}
 
 # How many recent sessions to return in the summary.
 _MAX_RECENT_SESSIONS = 15
@@ -146,6 +147,34 @@ class _UsageRecord:
 # ---------------------------------------------------------------------------
 
 _file_cache: Dict[str, _FileStats] = {}
+
+
+def _load_cached(
+    path: Path,
+    cache: Dict[str, _FileStats],
+    parse_fn: Callable[[Path], List["_UsageRecord"]],
+) -> List["_UsageRecord"]:
+    """Return cached records for ``path``, re-parsing via ``parse_fn`` only
+    when the file's mtime has changed since the last call.
+
+    Shared by the Claude/Codex/Copilot(CLI)/Copilot(VS Code) usage parsers —
+    each used to carry its own copy of this "stat mtime -> compare to cached
+    _FileStats.mtime -> reparse if changed -> store -> return" wrapper,
+    differing only in which cache dict and parse function to use.
+    """
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return []
+
+    key = str(path)
+    cached = cache.get(key)
+    if cached is not None and cached.mtime == mtime:
+        return cached.entries
+
+    entries = parse_fn(path)
+    cache[key] = _FileStats(mtime=mtime, entries=entries)
+    return entries
 
 
 def _encode_project_key(path: str) -> str:
@@ -241,19 +270,7 @@ def _parse_jsonl_file(path: Path, project_key: str) -> List[_UsageRecord]:
 
 def _load_file(path: Path, project_key: str) -> List[_UsageRecord]:
     """Return cached records, re-parsing only when the file has changed."""
-    try:
-        mtime = path.stat().st_mtime
-    except OSError:
-        return []
-
-    key = str(path)
-    cached = _file_cache.get(key)
-    if cached is not None and cached.mtime == mtime:
-        return cached.entries
-
-    entries = _parse_jsonl_file(path, project_key)
-    _file_cache[key] = _FileStats(mtime=mtime, entries=entries)
-    return entries
+    return _load_cached(path, _file_cache, lambda p: _parse_jsonl_file(p, project_key))
 
 
 def _claude_records() -> List[_UsageRecord]:
@@ -370,64 +387,51 @@ def _model_display(model: str) -> str:
     return model
 
 
-def _load_pricing() -> Dict[str, Dict[str, float]]:
-    """Return the per-family price table, loaded once from config and cached.
+def _load_priced_table(
+    path: Path,
+    top_key: str,
+    fallback: Dict[str, Dict[str, float]],
+    cache_slot: str,
+) -> Dict[str, Dict[str, float]]:
+    """Return a per-family/per-model price table, loaded once from config and cached.
 
-    Falls back to the built-in ``_PRICING_FALLBACK`` (same current list prices)
-    when ``config/claude_pricing.json`` is missing or malformed, so the cost
-    display never hard-fails on a fresh checkout.
+    Shared loader for the Claude/OpenAI/Gemini pricing tables (each used to
+    carry its own near-identical ~35-line copy differing only in the config
+    path, the JSON top-level key, and which cache slot to memoize into).
+    Falls back to ``fallback`` when ``path`` is missing or malformed, so the
+    cost display never hard-fails on a fresh checkout.
     """
-    global _pricing_cache
-    if _pricing_cache is not None:
-        return _pricing_cache
+    cached = _priced_table_cache.get(cache_slot)
+    if cached is not None:
+        return cached
 
-    pricing: Dict[str, Dict[str, float]] = dict(_PRICING_FALLBACK)
+    pricing: Dict[str, Dict[str, float]] = dict(fallback)
     try:
-        raw = json.loads(_PRICING_PATH.read_text(encoding="utf-8"))
-        families = raw.get("families") or {}
-        if isinstance(families, dict) and families:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        table = raw.get(top_key) or {}
+        if isinstance(table, dict) and table:
             pricing = {
-                fam: {k: float(v) for k, v in rates.items()}
-                for fam, rates in families.items()
+                name: {k: float(v) for k, v in rates.items()}
+                for name, rates in table.items()
                 if isinstance(rates, dict)
             }
     except (OSError, ValueError, TypeError) as exc:
         _log.warning(
             "⚠️ code_usage: using fallback pricing (%s unreadable): %s",
-            _PRICING_PATH, exc,
+            path, exc,
         )
-    _pricing_cache = pricing
+    _priced_table_cache[cache_slot] = pricing
     return pricing
+
+
+def _load_pricing() -> Dict[str, Dict[str, float]]:
+    """Return the per-family Claude price table, loaded once from config and cached."""
+    return _load_priced_table(_PRICING_PATH, "families", _PRICING_FALLBACK, "claude")
 
 
 def _load_openai_pricing() -> Dict[str, Dict[str, float]]:
-    """Return the per-model OpenAI price table, loaded once and cached.
-
-    Falls back to the built-in ``_OPENAI_PRICING_FALLBACK`` when
-    ``config/openai_pricing.json`` is missing or malformed, so Codex cost
-    display never hard-fails on a fresh checkout.
-    """
-    global _openai_pricing_cache
-    if _openai_pricing_cache is not None:
-        return _openai_pricing_cache
-
-    pricing: Dict[str, Dict[str, float]] = dict(_OPENAI_PRICING_FALLBACK)
-    try:
-        raw = json.loads(_OPENAI_PRICING_PATH.read_text(encoding="utf-8"))
-        models = raw.get("models") or {}
-        if isinstance(models, dict) and models:
-            pricing = {
-                model: {k: float(v) for k, v in rates.items()}
-                for model, rates in models.items()
-                if isinstance(rates, dict)
-            }
-    except (OSError, ValueError, TypeError) as exc:
-        _log.warning(
-            "⚠️ code_usage: using fallback OpenAI pricing (%s unreadable): %s",
-            _OPENAI_PRICING_PATH, exc,
-        )
-    _openai_pricing_cache = pricing
-    return pricing
+    """Return the per-model OpenAI price table, loaded once and cached."""
+    return _load_priced_table(_OPENAI_PRICING_PATH, "models", _OPENAI_PRICING_FALLBACK, "openai")
 
 
 def _gemini_family(model: str) -> str:
@@ -451,32 +455,8 @@ def _gemini_family(model: str) -> str:
 
 
 def _load_gemini_pricing() -> Dict[str, Dict[str, float]]:
-    """Return the per-family Gemini price table, loaded once and cached.
-
-    Falls back to ``_GEMINI_PRICING_FALLBACK`` when
-    ``config/gemini_pricing.json`` is missing or malformed.
-    """
-    global _gemini_pricing_cache
-    if _gemini_pricing_cache is not None:
-        return _gemini_pricing_cache
-
-    pricing: Dict[str, Dict[str, float]] = dict(_GEMINI_PRICING_FALLBACK)
-    try:
-        raw = json.loads(_GEMINI_PRICING_PATH.read_text(encoding="utf-8"))
-        families = raw.get("families") or {}
-        if isinstance(families, dict) and families:
-            pricing = {
-                fam: {k: float(v) for k, v in rates.items()}
-                for fam, rates in families.items()
-                if isinstance(rates, dict)
-            }
-    except (OSError, ValueError, TypeError) as exc:
-        _log.warning(
-            "⚠️ code_usage: using fallback Gemini pricing (%s unreadable): %s",
-            _GEMINI_PRICING_PATH, exc,
-        )
-    _gemini_pricing_cache = pricing
-    return pricing
+    """Return the per-family Gemini price table, loaded once and cached."""
+    return _load_priced_table(_GEMINI_PRICING_PATH, "families", _GEMINI_PRICING_FALLBACK, "gemini")
 
 
 def _record_costs(r: "_UsageRecord") -> Tuple[float, float, float]:

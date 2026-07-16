@@ -6,7 +6,6 @@ parsed envelope. Uses the user's local Claude auth — no API key required.
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import json
 import logging
@@ -15,7 +14,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
-from .server_common import get_tracer, safe_span
+from .server_common import safe_span, start_span
 
 logger = logging.getLogger(__name__)
 
@@ -63,13 +62,7 @@ def call_claude(
         refs = "\n".join(f"- {Path(p).resolve()}" for p in attachments)
         prompt = f"Attached files:\n{refs}\n\n{prompt}"
 
-    tracer = get_tracer("local_llm_hub.claude_cli")
-    cm = (
-        tracer.start_as_current_span("claude_cli.invoke")
-        if tracer is not None
-        else contextlib.nullcontext(None)
-    )
-    with cm as span:
+    with start_span("local_llm_hub.claude_cli", "claude_cli.invoke") as span:
         if span is not None and hasattr(span, "set_attribute"):
             with safe_span("claude_cli.invoke"):
                 span.set_attribute("claude_cli.argv_hash", _argv_hash(args))
