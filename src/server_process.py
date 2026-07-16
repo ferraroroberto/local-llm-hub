@@ -27,6 +27,7 @@ Three states:
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import signal
@@ -41,6 +42,8 @@ from typing import Deque, Optional
 import httpx
 
 from .process_supervisor import ProcessSupervisor, SpawnSpec
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Uvicorn binds on all interfaces so other machines on the LAN can reach
@@ -296,10 +299,12 @@ def find_port_pids(port: int) -> list[int]:
             return sorted(pids)
         else:
             out = subprocess.run(
-                ["lsof", "-nP", "-iTCP", f"-i:{port}", "-sTCP:LISTEN", "-t"],
+                ["lsof", "-nP", "-a", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
                 capture_output=True, text=True, timeout=5,
             ).stdout
-            return sorted({int(x) for x in out.split() if x.strip().isdigit()})
+            pids = sorted({int(x) for x in out.split() if x.strip().isdigit()})
+            logger.info("ℹ️ listener lookup for TCP :%s resolved PID(s) %s", port, pids)
+            return pids
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return []
 
