@@ -34,7 +34,6 @@ unchanged from the old `gemini` CLI path.
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import re
 import shutil
@@ -45,7 +44,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from .server_common import get_tracer, safe_span
+from .server_common import safe_span, start_span
 
 logger = logging.getLogger(__name__)
 
@@ -354,13 +353,7 @@ def call_gemini(
     global _current_model
     exe = _resolve_agy()
 
-    tracer = get_tracer("local_llm_hub.gemini_cli")
-    cm = (
-        tracer.start_as_current_span("gemini_cli.invoke")
-        if tracer is not None
-        else contextlib.nullcontext(None)
-    )
-    with cm as span:
+    with start_span("local_llm_hub.gemini_cli", "gemini_cli.invoke") as span:
         if span is not None and hasattr(span, "set_attribute"):
             with safe_span("gemini_cli.invoke"):
                 if model:
@@ -451,13 +444,7 @@ def call_gemini_image(
     if timeout is None:
         timeout = 600.0 if editing else 300.0
 
-    tracer = get_tracer("local_llm_hub.gemini_cli")
-    cm = (
-        tracer.start_as_current_span("gemini_cli.image")
-        if tracer is not None
-        else contextlib.nullcontext(None)
-    )
-    with cm as span:
+    with start_span("local_llm_hub.gemini_cli", "gemini_cli.image") as span:
         if span is not None and hasattr(span, "set_attribute"):
             with safe_span("gemini_cli.image"):
                 span.set_attribute("gemini_cli.model", _IMAGE_HOST_MODEL)

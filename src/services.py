@@ -26,7 +26,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -298,18 +298,37 @@ def _spawn_docker_desktop(exe: Path) -> None:
     )
 
 
+async def _poll_until(
+    check: Callable[[], Awaitable[bool]],
+    timeout_s: float,
+    poll_s: float,
+) -> bool:
+    """Poll ``check()`` until it returns ``True`` or the budget expires.
+
+    Shared "poll until ready" loop for ``wait_for_docker`` /
+    ``wait_for_langfuse`` / ``wait_for_agentsview`` — each used to carry its
+    own near-identical copy differing only in which status coroutine to
+    await and which readiness key to check; that difference now lives in
+    the caller's closure.
+    """
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if await check():
+            return True
+        await asyncio.sleep(poll_s)
+    return False
+
+
 async def wait_for_docker(
     timeout_s: float = DOCKER_READY_TIMEOUT_S,
     poll_s: float = 2.0,
 ) -> bool:
     """Poll ``docker info`` until it succeeds or the budget expires."""
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
+    async def _check() -> bool:
         info = await docker_status(timeout_s=DOCKER_PROBE_TIMEOUT_S)
-        if info["running"]:
-            return True
-        await asyncio.sleep(poll_s)
-    return False
+        return bool(info["running"])
+
+    return await _poll_until(_check, timeout_s, poll_s)
 
 
 async def wait_for_langfuse(
@@ -317,13 +336,11 @@ async def wait_for_langfuse(
     poll_s: float = 3.0,
 ) -> bool:
     """Poll the Langfuse health endpoint until it responds < 500."""
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
+    async def _check() -> bool:
         info = await langfuse_health(timeout_s=LANGFUSE_PROBE_TIMEOUT_S)
-        if info["reachable"]:
-            return True
-        await asyncio.sleep(poll_s)
-    return False
+        return bool(info["reachable"])
+
+    return await _poll_until(_check, timeout_s, poll_s)
 
 
 def _run_langfuse_start_script_sync() -> Dict[str, Any]:
@@ -694,13 +711,11 @@ async def wait_for_agentsview(
     poll_s: float = 3.0,
 ) -> bool:
     """Poll ``/api/ping`` until AgentsView responds (initial sync can be slow)."""
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
+    async def _check() -> bool:
         info = await agentsview_health()
-        if info["reachable"]:
-            return True
-        await asyncio.sleep(poll_s)
-    return False
+        return bool(info["reachable"])
+
+    return await _poll_until(_check, timeout_s, poll_s)
 
 
 def _spawn_agentsview(exe: str) -> None:

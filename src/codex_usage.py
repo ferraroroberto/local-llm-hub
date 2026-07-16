@@ -46,6 +46,7 @@ from src.code_usage import (
     _FileStats,
     _UsageRecord,
     _encode_project_key,
+    _load_cached,
     _project_pretty,
 )
 
@@ -147,19 +148,7 @@ def _parse_rollout_file(path: Path) -> List[_UsageRecord]:
 
 def _load_file(path: Path) -> List[_UsageRecord]:
     """Return cached records, re-parsing only when the file has changed."""
-    try:
-        mtime = path.stat().st_mtime
-    except OSError:
-        return []
-
-    key = str(path)
-    cached = _file_cache.get(key)
-    if cached is not None and cached.mtime == mtime:
-        return cached.entries
-
-    entries = _parse_rollout_file(path)
-    _file_cache[key] = _FileStats(mtime=mtime, entries=entries)
-    return entries
+    return _load_cached(path, _file_cache, _parse_rollout_file)
 
 
 def all_records() -> List[_UsageRecord]:
