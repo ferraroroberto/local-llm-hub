@@ -93,6 +93,25 @@ def test_messages_multi_turn_flattens(monkeypatch):
     assert "how are you" in captured["prompt"]
 
 
+def test_messages_empty_list_returns_400(monkeypatch):
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
+        raise AssertionError("call_claude should not be reached for an empty messages list")
+
+    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
+
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/v1/messages",
+        json={
+            "model": "claude-haiku-4-5",
+            "max_tokens": 64,
+            "messages": [],
+        },
+    )
+    assert r.status_code == 400
+    assert "messages must not be empty" in r.json()["detail"]
+
+
 def test_messages_cli_error_returns_502(monkeypatch):
     from src.claude_cli import ClaudeCLIError
 

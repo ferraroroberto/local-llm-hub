@@ -25,6 +25,7 @@ their own persistent client in their own process.
 
 from __future__ import annotations
 
+import threading
 from typing import Optional
 
 import httpx
@@ -37,6 +38,12 @@ _DEFAULT_TIMEOUT = 300.0
 
 _async_client: Optional[httpx.AsyncClient] = None
 _sync_client: Optional[httpx.Client] = None
+# Guards get_sync_client()'s check-then-construct: unlike the async client
+# (never awaits between check and assignment, so race-free under asyncio),
+# this one is called from real OS threads in a threadpool, where two
+# concurrent first-callers could otherwise both construct a client and leak
+# the loser's connection pool (issue #297).
+_sync_client_lock = threading.Lock()
 
 
 def get_async_client() -> httpx.AsyncClient:
@@ -52,11 +59,16 @@ def get_async_client() -> httpx.AsyncClient:
 
 
 def get_sync_client() -> httpx.Client:
-    """Return the shared sync client (for upstream helpers run in a threadpool)."""
+    """Return the shared sync client (for upstream helpers run in a threadpool).
+
+    Lock-guarded because callers run on real OS threads, not a single event
+    loop — see ``_sync_client_lock`` above.
+    """
     global _sync_client
-    if _sync_client is None or _sync_client.is_closed:
-        _sync_client = httpx.Client(timeout=_DEFAULT_TIMEOUT, limits=_LIMITS)
-    return _sync_client
+    with _sync_client_lock:
+        if _sync_client is None or _sync_client.is_closed:
+            _sync_client = httpx.Client(timeout=_DEFAULT_TIMEOUT, limits=_LIMITS)
+        return _sync_client
 
 
 async def aclose() -> None:

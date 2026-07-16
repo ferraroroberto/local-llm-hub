@@ -24,8 +24,11 @@ import argparse
 import asyncio
 import json
 import logging
+import queue
 import subprocess
 import tempfile
+import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -43,6 +46,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 WORKER_BIN = PROJECT_ROOT / "mac" / "parakeet-worker" / ".build" / "release" / "ParakeetWorker"
 
 DEFAULT_MODEL_ID = "parakeet"
+# Mirrors whisper_translate_proxy.STARTUP_DEADLINE_S / orpheus.LLAMA_READY_DEADLINE_S
+# — this worker's sibling process-wrapper modules both bound their startup
+# wait; _start_worker previously blocked forever on a wedged CoreML load
+# (issue #297).
+STARTUP_DEADLINE_S = 60.0
 
 
 class _State:
@@ -66,13 +74,46 @@ def _start_worker() -> subprocess.Popen:
         text=True,
         bufsize=1,
     )
-    line = proc.stdout.readline()
-    while line and line.strip() != "READY":
-        line = proc.stdout.readline()
-    if not line:
-        err = proc.stderr.read()
-        proc.wait()
-        raise RuntimeError(f"ParakeetWorker failed to start: {err}")
+
+    # readline() on the worker's stdout blocks indefinitely, so it can't be
+    # polled against a deadline directly. Pump lines into a queue from a
+    # daemon thread instead, and bound the wait on *that* queue.
+    lines: "queue.Queue[str]" = queue.Queue()
+
+    def _pump() -> None:
+        while True:
+            chunk = proc.stdout.readline()
+            lines.put(chunk)
+            if not chunk:
+                return
+
+    threading.Thread(target=_pump, daemon=True).start()
+
+    deadline = time.monotonic() + STARTUP_DEADLINE_S
+    line = ""
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            proc.terminate()
+            proc.wait()
+            raise RuntimeError(
+                f"ParakeetWorker did not become ready within {STARTUP_DEADLINE_S:.0f}s"
+            )
+        try:
+            line = lines.get(timeout=remaining)
+        except queue.Empty:
+            proc.terminate()
+            proc.wait()
+            raise RuntimeError(
+                f"ParakeetWorker did not become ready within {STARTUP_DEADLINE_S:.0f}s"
+            )
+        if not line:
+            err = proc.stderr.read()
+            proc.wait()
+            raise RuntimeError(f"ParakeetWorker failed to start: {err}")
+        if line.strip() == "READY":
+            break
+
     log.info("ParakeetWorker ready (pid=%s)", proc.pid)
     return proc
 
