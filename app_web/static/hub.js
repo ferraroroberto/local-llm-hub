@@ -546,18 +546,6 @@ function onLangfuseStopClick() { return onLangfuseAction('stop', 'stop', 'stoppe
 
 // --------------------------------------------------------- wire buttons
 export function wireHub() {
-  if (els.hubRestartBtn) {
-    els.hubRestartBtn.addEventListener('click', async function () {
-      try {
-        await postJson('/admin/api/hub/restart', {});
-        toast('Restarting hub… reload in 3-5s.', 'good');
-        setTimeout(function () { window.location.reload(); }, 4500);
-      } catch (exc) {
-        toast('Restart failed: ' + (exc.message || exc), 'error');
-      }
-    });
-  }
-
   function togglePause() {
     state.logPaused = !state.logPaused;
     if (els.hubLogPauseBtn) {

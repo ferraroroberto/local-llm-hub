@@ -93,7 +93,6 @@ export const els = {
   hubLiveStatus: document.getElementById('hubLiveStatus'),
   hubLiveStatusText: document.getElementById('hubLiveStatusText'),
   themeToggleBtn: document.getElementById('themeToggleBtn'),
-  hubRestartBtn: document.getElementById('hubRestartBtn'),
   hubPid: document.getElementById('hubPid'),
   hubUptime: document.getElementById('hubUptime'),
   hubSparklines: document.getElementById('hubSparklines'),
