@@ -124,12 +124,13 @@ Lifted verbatim from app-launcher's launcher tiles:
 </li>
 ```
 
-Inline detail panes (e.g. the per-model log tail) appear as a
-**sibling `<li>` right after the row**, not as a child of the row.
-This keeps the row's `display: flex` context intact while letting
-the pane claim full container width — same trick as app-launcher's
-`.jobs-history-li` (see the comment at
-`app-launcher/app/webapp/static/styles.css:432`).
+Inline detail panes (e.g. the shared transcription-dictionary editor,
+`toggleDictionaryPanel` in `models.js`) append as a **child `<div>` of
+the row's `<li class="app-item">`**, after `.app-main`/`.row-actions`.
+Per-model log tailing (which would have used a sibling-`<li>` pane,
+app-launcher's `.jobs-history-li` trick) was tried in #10 and pulled
+back — see the header comment in `models.js` — so the child-`<div>`
+shape is the pattern actually in use today.
 
 ## Hub-specific layout
 

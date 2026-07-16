@@ -60,7 +60,7 @@ Cases where keeping the full 32-layer decoder matters:
 
 None of these describe this project. If any of them ever do, swap
 `hf_pattern` + `model_path` in
-[config/models.yaml](../../config/models.yaml) to `ggml-large-v3.bin`
+[config/models.yaml](../config/models.yaml) to `ggml-large-v3.bin`
 and re-run `python -m src.install --fix` — the registry slot, port,
 and launcher name don't change.
 
