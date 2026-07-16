@@ -257,7 +257,7 @@ Concrete guidance:
 
 ## What to do next, in order
 
-1. Edit [`config/models.yaml`](../../config/models.yaml) with the tier-1
+1. Edit [`config/models.yaml`](../config/models.yaml) with the tier-1
    flags. Restart GLM from the Models tab. Read the llama-server log
    for the new VRAM / CUDA buffer sizes and the `eval time … tokens
    per second` line after a prompt.
