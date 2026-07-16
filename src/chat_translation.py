@@ -239,6 +239,8 @@ def _openai_messages_to_anthropic(
 # ---- routing ----
 
 def _run_claude_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
+    if not req.messages:
+        raise HTTPException(status_code=400, detail="messages must not be empty")
     system = _system_to_text(req.system)
     with _extract_media_blocks(req.messages) as (msgs, attachments):
         prompt = _flatten_messages(msgs)
@@ -254,6 +256,8 @@ def _run_claude_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
 
 
 def _run_gemini_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
+    if not req.messages:
+        raise HTTPException(status_code=400, detail="messages must not be empty")
     system = _system_to_text(req.system)
     with _extract_media_blocks(req.messages) as (msgs, attachments):
         prompt = _flatten_messages(msgs)
