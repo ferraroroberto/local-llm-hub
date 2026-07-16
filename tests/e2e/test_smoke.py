@@ -77,6 +77,17 @@ def test_models_tab(page, admin_url):
     page.wait_for_selector("#paneModels", state="visible", timeout=3000)
 
 
+def test_toast_stacks_above_mobile_navigation(page, admin_url):
+    page.set_viewport_size(PHONE_VIEWPORT)
+    page.goto(admin_url, wait_until="load")
+    page.locator("#toast").evaluate(
+        "(toast) => { toast.textContent = 'Model stopped'; toast.hidden = false; }"
+    )
+
+    toast_z = int(page.locator("#toast").evaluate("e => getComputedStyle(e).zIndex"))
+    assert toast_z > 120, "toast must clear the floating nav's z-index: 120"
+
+
 def test_playground_tab(page, admin_url):
     page.goto(admin_url, wait_until="load")
     page.click("#tabPlayground")

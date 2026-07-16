@@ -963,7 +963,9 @@ h2 { display: flex; align-items: center; gap: 8px; }
   font-size: var(--font-label);
   max-width: calc(100vw - 32px);
   box-shadow: var(--shadow);
-  z-index: 50;
+  /* Clear the vendored floating mobile nav (z-index: 120) so command
+   * progress and results remain readable after the nav migration. */
+  z-index: 130;
 }
 .toast.good  { border-color: var(--on); }
 .toast.error { border-color: var(--danger); }
