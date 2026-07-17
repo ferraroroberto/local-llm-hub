@@ -13,6 +13,9 @@ from fastapi.responses import Response, StreamingResponse
 from src.host_profile import hub_port
 from src.http_client import get_async_client
 from src.model_registry import enabled_models, resolve as resolve_model
+from src.tts_engines import capabilities_for_engine
+
+from .models import list_models_for_admin
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -72,7 +75,13 @@ async def playground_image_models() -> Dict[str, Any]:
 
 @router.get("/api/playground/tts_models")
 async def playground_tts_models() -> Dict[str, Any]:
-    """List enabled TTS backends for the Playground's speech tester."""
+    """List configured TTS backends, runtime state, and UI capabilities."""
+    runtime = await list_models_for_admin()
+    reachable_by_id = {
+        row.get("id"): bool(row.get("reachable"))
+        for row in runtime.get("models", [])
+        if isinstance(row, dict)
+    }
     rows: List[Dict[str, Any]] = []
     for m in enabled_models():
         if m.backend != "tts":
@@ -83,6 +92,8 @@ async def playground_tts_models() -> Dict[str, Any]:
                 "display_name": m.display_name,
                 "engine": m.tts_engine,
                 "aliases": list(m.aliases or []),
+                "reachable": reachable_by_id.get(m.id, False),
+                "capabilities": capabilities_for_engine(m.tts_engine or ""),
             }
         )
     rows.sort(key=lambda row: 0 if "audio_speech" in row.get("aliases", []) else 1)
@@ -97,6 +108,7 @@ async def playground_speak(
     response_format: str = Form("wav"),
     exaggeration: float = Form(0.5),
     cfg_weight: float = Form(0.5),
+    speed: float = Form(1.0),
     stream: bool = Form(False),
 ) -> Response:
     """Synthesize speech through the hub's own ``/v1/audio/speech`` proxy.
@@ -122,6 +134,7 @@ async def playground_speak(
         "response_format": response_format,
         "exaggeration": exaggeration,
         "cfg_weight": cfg_weight,
+        "speed": speed,
     }
     if stream:
         payload["stream_format"] = "audio"

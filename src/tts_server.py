@@ -224,9 +224,7 @@ def build_app(model_id: str = DEFAULT_MODEL_ID, device: str = "auto") -> FastAPI
 
         speed = _float(body, "speed", 1.0)
         if abs(speed - 1.0) > 1e-3:
-            # Neither Chatterbox nor Orpheus exposes a native rate control;
-            # documented no-op (issue #98 acceptance allows this).
-            log.info("speed=%.2f requested but is a no-op for this engine", speed)
+            log.info("speed=%.2f requested; engines without rate control ignore it", speed)
 
         req = SpeechRequest(
             text=str(text),
@@ -238,6 +236,10 @@ def build_app(model_id: str = DEFAULT_MODEL_ID, device: str = "auto") -> FastAPI
         assert state.engine is not None
         engine = state.engine
         sr = state.sample_rate
+        try:
+            engine.validate_voice(req.voice)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
         fmt = str(body.get("response_format") or "wav").strip().lower()
         # OpenAI-native opt-in: stream_format="audio" returns raw chunked
         # bytes that play as they synthesize. Streaming supports wav (a

@@ -7,13 +7,16 @@ loading/ready 503 gate, and a happy-path synthesis returning audio bytes.
 
 from __future__ import annotations
 
+import json
 import time
+from types import SimpleNamespace
 
+import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from src import host_profile, model_registry, tts_server
-from src.tts_engines import SpeechRequest
+from src import host_profile, model_registry, server as server_mod, server_audio, tts_server
+from src.tts_engines import KokoroEngine, OrpheusEngine, PiperEngine, SpeechRequest
 
 
 def _config(tmp_path, monkeypatch):
@@ -49,6 +52,9 @@ class _FakeEngine:
 
     def ready(self) -> bool:
         return self._loaded
+
+    def validate_voice(self, voice: str) -> None:
+        return
 
     def synthesize(self, req: SpeechRequest):
         self.last_req = req
@@ -105,11 +111,48 @@ def test_backend_disables_tqdm_progress_bars():
     assert os.environ.get("TQDM_DISABLE") == "1"
 
 
+def test_capabilities_preserve_existing_consumer_profiles():
+    piper = PiperEngine.capabilities()
+    orpheus = OrpheusEngine.capabilities()
+    assert piper["default_voice"] == "amy"
+    assert "amy" in {voice["id"] for voice in piper["voices"]}
+    assert orpheus["default_voice"] == "tara"
+    assert "tara" in {voice["id"] for voice in orpheus["voices"]}
+
+
+def test_kokoro_capabilities_offer_spanish_female_and_male_voices():
+    capabilities = KokoroEngine.capabilities()
+    assert "es" in {language["id"] for language in capabilities["languages"]}
+    spanish = {
+        voice["id"]: voice["gender"]
+        for voice in capabilities["voices"]
+        if voice["language"] == "es"
+    }
+    assert spanish["ef_dora"] == "female"
+    assert spanish["em_alex"] == "male"
+
+
 def test_missing_input_is_400(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch, _FakeEngine()) as client:
         r = client.post("/v1/audio/speech", json={"model": "chatterbox-tts"})
         assert r.status_code == 400
         assert "input" in r.json()["detail"]
+
+
+def test_invalid_explicit_voice_is_400(tmp_path, monkeypatch):
+    class _RejectingEngine(_FakeEngine):
+        def validate_voice(self, voice: str) -> None:
+            raise ValueError(f"unsupported test voice: {voice}")
+
+    with _client(tmp_path, monkeypatch, _RejectingEngine()) as client:
+        assert _wait_ready(client)
+        r = client.post("/v1/audio/speech", json={
+            "model": "chatterbox-tts",
+            "input": "hello there",
+            "voice": "not-a-real-voice",
+        })
+        assert r.status_code == 400
+        assert r.json()["detail"] == "unsupported test voice: not-a-real-voice"
 
 
 def test_speech_happy_path_returns_audio(tmp_path, monkeypatch):
@@ -286,9 +329,81 @@ def test_kokoro_engine_voice_fallback_and_build():
     assert isinstance(eng, KokoroEngine)
     assert KokoroEngine._voice_for("") == "am_michael"
     assert KokoroEngine._voice_for("default") == "am_michael"
-    assert KokoroEngine._voice_for("tara") == "am_michael"
     assert KokoroEngine._voice_for("af_bella") == "af_bella"
+    assert KokoroEngine._voice_for("ef_dora") == "ef_dora"
+    assert KokoroEngine._voice_for("em_alex") == "em_alex"
     assert KokoroEngine._lang_for_voice("bm_george") == "en-gb"
+    assert KokoroEngine._lang_for_voice("ef_dora") == "es"
+    with pytest.raises(ValueError, match="unsupported Kokoro voice"):
+        KokoroEngine._voice_for("tara")
+
+
+def test_kokoro_spanish_synthesis_uses_exact_voice_and_language():
+    calls: list[dict] = []
+
+    class _FakeKokoro:
+        def create(self, text, **kwargs):
+            calls.append({"text": text, **kwargs})
+            return [0.0, 0.1], 24000
+
+    eng = KokoroEngine(SimpleNamespace(model_path="unused.onnx"), device="cpu")
+    eng.model = _FakeKokoro()
+    eng.synthesize(SpeechRequest(
+        text="Hola, esta es una prueba.",
+        voice="ef_dora",
+        speed=1.0,
+    ))
+
+    assert calls == [{
+        "text": "Hola, esta es una prueba.",
+        "voice": "ef_dora",
+        "speed": 1.0,
+        "lang": "es",
+    }]
+
+
+class _SpeechUpstreamResponse:
+    status_code = 200
+    content = b"RIFFspanish-audio"
+    headers = {"content-type": "audio/wav"}
+
+
+def test_hub_forwards_exact_spanish_speech_payload(monkeypatch):
+    captured: dict = {}
+
+    class _FakeClient:
+        async def post(self, url, **kwargs):
+            captured["url"] = url
+            captured.update(kwargs)
+            return _SpeechUpstreamResponse()
+
+    monkeypatch.setattr(server_audio, "get_async_client", lambda: _FakeClient())
+    payload = {
+        "model": "kokoro-tts",
+        "input": "Hola, esta es una prueba.",
+        "voice": "em_alex",
+        "response_format": "wav",
+    }
+    client = TestClient(server_mod.app)
+    response = client.post("/v1/audio/speech", json=payload)
+
+    assert response.status_code == 200
+    assert captured["url"] == "http://127.0.0.1:8095/v1/audio/speech"
+    assert json.loads(captured["content"]) == payload
+
+
+def test_hub_rejects_explicit_unknown_tts_model():
+    client = TestClient(server_mod.app)
+    response = client.post("/v1/audio/speech", json={
+        "model": "not-a-real-tts-model",
+        "input": "Hola.",
+        "voice": "ef_dora",
+    })
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "unknown or unsupported TTS model: not-a-real-tts-model"
+    )
 
 
 def test_piper_engine_voice_mapping_and_build():

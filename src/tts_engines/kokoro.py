@@ -12,9 +12,18 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Any, Dict
 
 from ..model_registry import Model
-from .common import PROJECT_ROOT, SpeechRequest, TTSEngine, _to_mono_f32
+from .common import (
+    PROJECT_ROOT,
+    SpeechRequest,
+    TTSEngine,
+    TTS_LANGUAGE_LABELS,
+    TTS_SAMPLE_TEXT,
+    _to_mono_f32,
+    voice_option,
+)
 
 log = logging.getLogger(__name__)
 
@@ -29,10 +38,46 @@ class KokoroEngine(TTSEngine):
         "am_liam", "am_michael", "am_onyx", "am_puck", "am_santa",
         "bf_alice", "bf_emma", "bf_isabella", "bf_lily",
         "bm_daniel", "bm_fable", "bm_george", "bm_lewis",
+        "ef_dora", "em_alex", "em_santa",
     ]
     # Calm male American voice; closest built-in Kokoro starting point for
     # a Jarvis-like assistant voice on this model family.
     DEFAULT_VOICE = "am_michael"
+
+    @classmethod
+    def capabilities(cls) -> Dict[str, Any]:
+        language_by_prefix = {
+            "af": "en-US", "am": "en-US", "bf": "en-GB",
+            "bm": "en-GB", "ef": "es", "em": "es",
+        }
+        gender_by_prefix = {
+            "af": "female", "am": "male", "bf": "female",
+            "bm": "male", "ef": "female", "em": "male",
+        }
+        voices = []
+        for voice in cls.AVAILABLE_VOICES:
+            prefix, name = voice.split("_", 1)
+            voices.append(voice_option(
+                voice,
+                name.replace("-", " ").title(),
+                language_by_prefix[prefix],
+                gender_by_prefix[prefix],
+            ))
+        languages = [
+            {"id": language, "label": TTS_LANGUAGE_LABELS[language]}
+            for language in ("en-US", "en-GB", "es")
+        ]
+        return {
+            "languages": languages,
+            "voices": voices,
+            "default_voice": cls.DEFAULT_VOICE,
+            "default_language": "en-US",
+            "sample_text": {
+                language: TTS_SAMPLE_TEXT[language]
+                for language in ("en-US", "en-GB", "es")
+            },
+            "controls": {"speed": True, "stream": False, "exaggeration": False, "cfg_weight": False},
+        }
 
     def __init__(self, model: Model, device: str = "auto") -> None:
         self.model_row = model
@@ -126,7 +171,9 @@ class KokoroEngine(TTSEngine):
         v = (voice or "").strip()
         if not v or v.lower() in ("default", "none"):
             return cls.DEFAULT_VOICE
-        return v if v in cls.AVAILABLE_VOICES else cls.DEFAULT_VOICE
+        if v not in cls.AVAILABLE_VOICES:
+            raise ValueError(f"unsupported Kokoro voice: {v}")
+        return v
 
     @staticmethod
     def _lang_for_voice(voice: str) -> str:
@@ -134,7 +181,12 @@ class KokoroEngine(TTSEngine):
             return "en-us"
         if voice.startswith(("bf_", "bm_")):
             return "en-gb"
+        if voice.startswith(("ef_", "em_")):
+            return "es"
         return "en-us"
+
+    def validate_voice(self, voice: str) -> None:
+        self._voice_for(voice)
 
     def synthesize(self, req: SpeechRequest):
         if self.model is None:

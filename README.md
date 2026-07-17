@@ -126,7 +126,9 @@ Local entries in active use as of the May 2026 frontier reading:
   packed voice styles in `models/kokoro/`. Start it from the Models tab or
   `launchers/run_tts_kokoro.bat`, then call the hub with `model="kokoro-tts"`.
   Default voice is `am_michael`, chosen as the closest built-in starting point
-  for a Jarvis-like assistant voice. ONNX Runtime CUDA is used when available,
+  for a Jarvis-like assistant voice. Spanish is available explicitly as
+  `ef_dora` (female) or `em_alex` (male); those profiles select Spanish
+  phonemization rather than the English default. ONNX Runtime CUDA is used when available,
   but the current Windows path measures roughly 2.2 s direct / 2.5 s through
   the hub for a short phrase, so it is kept as an option rather than the
   `audio_speech` role default until you intentionally repoint that role.
@@ -1011,6 +1013,12 @@ curl -s -X POST http://127.0.0.1:8000/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{"model":"kokoro-tts","input":"Arming the perimeter.","voice":"am_michael","response_format":"wav"}' \
   --output kokoro-reply.wav
+
+# Spanish female voice; use em_alex for the male profile
+curl -s -X POST http://127.0.0.1:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"kokoro-tts","input":"Hola, esta es una prueba de voz en español.","voice":"ef_dora","response_format":"wav"}' \
+  --output kokoro-spanish.wav
 ```
 
 ```python
@@ -1024,7 +1032,7 @@ audio.stream_to_file("reply.wav")
 `exaggeration` / `cfg_weight` are Chatterbox's emotion/"tone" dial; `voice`
 selects a Piper voice (`amy`, `ryan`, `ryan-high`, `lessac`), an Orpheus preset
 (`tara`, `leah`, …), a Kokoro voice id (`am_michael`, `af_bella`,
-`am_fenrir`, …), or a Chatterbox cloning clip at
+`am_fenrir`, `ef_dora` (Spanish female), `em_alex` (Spanish male), …), or a Chatterbox cloning clip at
 `config/tts_voices/<voice>.wav`. Piper and Kokoro honor `speed` in the
 0.5–2.0 range; Chatterbox/Orpheus accept it for API compatibility. Add
 `"stream_format":"audio"` to **stream** audio incrementally when the engine
@@ -1032,6 +1040,14 @@ supports it; otherwise the backend returns a single final chunk. The hub
 exposes every enabled TTS model on the same route, so a client switches
 engines just by changing `model`. Defaults, formats, streaming, voice
 cloning, and the Orpheus GGUF caveat are in [docs/add-tts.md](docs/add-tts.md).
+An explicit unknown model or voice returns HTTP 400; only omitted fields use
+the configured defaults.
+
+The admin Playground lists every configured voice model, marks stopped models,
+and filters language and voice choices to the selected engine. It also shows
+only controls the engine supports. The language selector is UI metadata: calls
+still use the same `model` and `voice` fields as Home Automation, App Launcher,
+and WhatsApp Radar.
 
 ## Observability (issue #4)
 

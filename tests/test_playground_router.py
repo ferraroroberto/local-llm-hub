@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from app_web.routers import playground as playground_router
 from src import server as server_mod
 
 # Tiny valid single-page PDF (no extractable text needed — we only assert
@@ -181,3 +182,59 @@ def test_playground_speak_streaming_forwards_chunks(monkeypatch):
     assert r.content == b"\x01\x00\x02\x00"
     # The hub-side streaming flag was forwarded upstream.
     assert captured["payload"]["stream_format"] == "audio"
+
+
+def test_tts_models_expose_runtime_state_and_capabilities(monkeypatch):
+    async def _runtime():
+        return {"models": [
+            {"id": "piper", "reachable": True},
+            {"id": "kokoro", "reachable": False},
+        ]}
+
+    monkeypatch.setattr(playground_router, "list_models_for_admin", _runtime)
+    client = TestClient(server_mod.app)
+    response = client.get("/admin/api/playground/tts_models")
+    assert response.status_code == 200, response.text
+    by_id = {row["id"]: row for row in response.json()["models"]}
+    assert by_id["piper"]["reachable"] is True
+    assert by_id["kokoro"]["reachable"] is False
+    assert by_id["piper"]["capabilities"]["default_voice"] == "amy"
+    assert by_id["kokoro"]["capabilities"]["default_voice"] == "am_michael"
+    spanish = [
+        voice["id"]
+        for voice in by_id["kokoro"]["capabilities"]["voices"]
+        if voice["language"] == "es"
+    ]
+    assert spanish == ["ef_dora", "em_alex", "em_santa"]
+
+
+def test_playground_speak_forwards_speed(monkeypatch):
+    captured: dict = {}
+
+    class _Response:
+        is_success = True
+        status_code = 200
+        content = b"RIFFaudio"
+        text = ""
+        headers = {"content-type": "audio/wav"}
+
+    class _Client:
+        async def post(self, url, json=None, **kwargs):
+            captured["payload"] = json
+            return _Response()
+
+    monkeypatch.setattr(playground_router, "get_async_client", lambda: _Client())
+    client = TestClient(server_mod.app)
+    response = client.post(
+        "/admin/api/playground/speak",
+        data={
+            "model": "piper",
+            "input": "Compatibility check",
+            "voice": "amy",
+            "speed": "1.25",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert captured["payload"]["model"] == "piper-tts"
+    assert captured["payload"]["voice"] == "amy"
+    assert captured["payload"]["speed"] == 1.25

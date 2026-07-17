@@ -11,10 +11,39 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 VOICES_DIR = PROJECT_ROOT / "config" / "tts_voices"
+
+TTS_LANGUAGE_LABELS = {
+    "en-US": "English (US)",
+    "en-GB": "English (UK)",
+    "es": "Spanish",
+}
+
+TTS_SAMPLE_TEXT = {
+    "en-US": "Hello! This is a sample of the selected voice.",
+    "en-GB": "Hello! This is a sample of the selected voice.",
+    "es": "Hola. Esta es una muestra de la voz seleccionada.",
+}
+
+
+def voice_option(
+    voice_id: str,
+    label: str,
+    language: str,
+    gender: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build one JSON-safe voice capability row for the Playground."""
+    option: Dict[str, Any] = {
+        "id": voice_id,
+        "label": label,
+        "language": language,
+    }
+    if gender:
+        option["gender"] = gender
+    return option
 
 
 def resolve_device(arg: Optional[str]) -> str:
@@ -120,6 +149,9 @@ class TTSEngine:
 
     def ready(self) -> bool:  # pragma: no cover - overridden
         return False
+
+    def validate_voice(self, voice: str) -> None:
+        """Raise ``ValueError`` when an explicit voice is unsupported."""
 
     def synthesize(self, req: SpeechRequest):  # pragma: no cover - overridden
         raise NotImplementedError

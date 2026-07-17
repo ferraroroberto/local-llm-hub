@@ -19,12 +19,21 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Iterable, Iterator, List, Optional
+from typing import Any, Dict, Iterable, Iterator, List, Optional
 
 import httpx
 
 from ..model_registry import Model
-from .common import PROJECT_ROOT, SpeechRequest, TTSEngine, _wrap_on_words, resolve_device
+from .common import (
+    PROJECT_ROOT,
+    SpeechRequest,
+    TTSEngine,
+    TTS_LANGUAGE_LABELS,
+    TTS_SAMPLE_TEXT,
+    _wrap_on_words,
+    resolve_device,
+    voice_option,
+)
 from .process import _assign_to_job, _win_kill_on_close_job
 
 log = logging.getLogger(__name__)
@@ -58,6 +67,21 @@ class OrpheusEngine(TTSEngine):
 
     AVAILABLE_VOICES = ["tara", "leah", "jess", "leo", "dan", "mia", "zac", "zoe"]
     DEFAULT_VOICE = "tara"
+
+    @classmethod
+    def capabilities(cls) -> Dict[str, Any]:
+        female = {"tara", "leah", "jess", "mia", "zoe"}
+        return {
+            "languages": [{"id": "en-US", "label": TTS_LANGUAGE_LABELS["en-US"]}],
+            "voices": [
+                voice_option(voice, voice.title(), "en-US", "female" if voice in female else "male")
+                for voice in cls.AVAILABLE_VOICES
+            ],
+            "default_voice": cls.DEFAULT_VOICE,
+            "default_language": "en-US",
+            "sample_text": {"en-US": TTS_SAMPLE_TEXT["en-US"]},
+            "controls": {"speed": False, "stream": True, "exaggeration": False, "cfg_weight": False},
+        }
     LLAMA_READY_DEADLINE_S = 180.0  # 3B cold-load on first start
 
     def __init__(self, model: Model, device: str = "auto") -> None:
@@ -202,8 +226,20 @@ class OrpheusEngine(TTSEngine):
 
     # ---- synthesis ----
 
+    @classmethod
+    def _voice_for(cls, voice: str) -> str:
+        requested = (voice or "").strip()
+        if not requested or requested.lower() in ("default", "none"):
+            return cls.DEFAULT_VOICE
+        if requested not in cls.AVAILABLE_VOICES:
+            raise ValueError(f"unsupported Orpheus voice: {requested}")
+        return requested
+
+    def validate_voice(self, voice: str) -> None:
+        self._voice_for(voice)
+
     def _prompt_for(self, req: SpeechRequest, text: Optional[str] = None) -> str:
-        voice = req.voice if req.voice in self.AVAILABLE_VOICES else self.DEFAULT_VOICE
+        voice = self._voice_for(req.voice)
         body = req.text if text is None else text
         # Orpheus-FastAPI prompt convention for the llama.cpp route: the
         # end marker is the model's <|eot_id|> special token (not <|eot|>).
