@@ -23,6 +23,9 @@ backends are "drop a binary on a port". The good local TTS engines don't:
   tokens. Its reference runtime is vLLM, which has **no usable Windows
   build** — so we run its **GGUF on the already-vendored `llama-server`**
   (loopback) and decode the audio tokens with the **SNAC** codec in-process.
+- **Kokoro-82M** (on demand) is the small ONNX path and the multilingual
+  option. Its pinned voice pack includes `ef_dora` (Spanish female) and
+  `em_alex` (Spanish male), both synthesized with the `es` language code.
 
 So instead of a binary we run a thin in-repo FastAPI shim
 [src/tts_server.py](../src/tts_server.py) launched as
@@ -122,7 +125,8 @@ installed only on TTS-enabled hosts:
 
 …or let the installer do it (it also downloads Piper's binary/voices and
 Kokoro's ONNX assets, then pre-warms the weights so the first request isn't a
-cold download):
+cold download). The Kokoro warm-up exercises `am_michael`, `ef_dora`, and
+`em_alex`, so a clean install verifies both Spanish profiles before use:
 
 ```bat
 .venv\Scripts\python -m src.install --fix      :: runs scripts/install_tts.py
@@ -169,6 +173,18 @@ curl -s -X POST http://127.0.0.1:8000/v1/audio/speech \
   --output reply.wav
 ```
 
+Spanish uses the explicit Kokoro model and voice profile; it never routes
+through the English `audio_speech` default:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"kokoro-tts","input":"Hola, esta es una prueba de voz en español.","voice":"ef_dora","response_format":"wav"}' \
+  --output spanish-female.wav
+
+# Male profile: same payload with "voice":"em_alex"
+```
+
 ```python
 from openai import OpenAI
 client = OpenAI(api_key="local-dummy", base_url="http://127.0.0.1:8000/v1")
@@ -191,9 +207,12 @@ Chatterbox's `exaggeration` + `cfg_weight`. Defaults / notes:
   Chatterbox, any other name maps to a reference clip
   `config/tts_voices/<voice>.wav` (gitignored) → zero-shot cloning. For
   Orpheus, `voice` selects a preset (`tara`, `leah`, `jess`, `leo`, `dan`,
-  `mia`, `zac`, `zoe`); unknown → `tara`. For Kokoro, `voice` selects a
+  `mia`, `zac`, `zoe`). For Kokoro, `voice` selects a
   Kokoro voice id (`am_michael`, `af_bella`, `am_fenrir`, `bm_george`, …);
-  unknown/default → `am_michael`.
+  Spanish uses `ef_dora` (female) or `em_alex` (male), which select `lang=es`.
+  `default`/empty still uses the engine default; an explicit unknown model or
+  voice returns HTTP 400 instead of silently substituting an English model or
+  voice.
 - **`exaggeration` / `cfg_weight`** — Chatterbox's tone dial. Ignored by
   Orpheus (which expresses emotion through inline text instead).
 - **`speed`** — Piper and Kokoro honor `0.5`–`2.0`; Chatterbox/Orpheus accept
@@ -294,10 +313,14 @@ route, addressed by `model`:
   Models tab or `launchers/run_tts_chatterbox.bat`).
 - `model="kokoro-tts"` → Kokoro on :8095 (start it first from the Models tab
   or `launchers/run_tts_kokoro.bat`). Default voice is `am_michael`.
+  Spanish profiles are `ef_dora` (female) and `em_alex` (male).
 
-Picking a model / voice from a UI belongs to the **client** (app-launcher
-#190), not the hub — the hub just routes by name. A client that wants to
-A/B them simply changes the `model` string.
+The admin Playground discovers this same registry metadata and exposes only
+valid model → language → voice combinations. Stopped models remain visible but
+disabled, and controls appear only for engines that honor them: speed for
+Piper/Kokoro, streaming for Orpheus, and tone controls for Chatterbox. Language
+is a Playground filter; the submitted OpenAI-compatible payload remains
+`model` + `voice`, so existing clients do not need a new field.
 
 ## VRAM note
 

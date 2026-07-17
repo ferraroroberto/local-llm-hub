@@ -596,6 +596,7 @@ models:
   # alias because the current Windows ONNX path is not the fast option. The
   # installer downloads the kokoro-onnx release
   # assets into models/kokoro/: an int8 ONNX model plus voices-v1.0.bin.
+  # Stable Spanish profiles in that pack: ef_dora (female), em_alex (male).
   kokoro:
     display_name: kokoro-tts
     backend: tts

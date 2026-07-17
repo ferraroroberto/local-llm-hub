@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import sys
+from types import SimpleNamespace
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
 
@@ -104,3 +106,38 @@ def test_run_all_checks_always_refreshes_the_cache_for_later_use_cache_calls(mon
     assert calls["n"] == 1
     install_mod.run_all_checks(use_cache=True)
     assert calls["n"] == 1  # served from the cache the plain call just warmed
+
+
+def test_kokoro_installer_warms_spanish_voice_assets(tmp_path, monkeypatch):
+    from scripts import install_tts
+
+    model_path = tmp_path / "models" / "kokoro" / "kokoro-v1.0.int8.onnx"
+    model_path.parent.mkdir(parents=True)
+    model_path.write_bytes(b"onnx")
+    (model_path.parent / "voices-v1.0.bin").write_bytes(b"voices")
+    calls: list[dict] = []
+
+    class _FakeKokoro:
+        def __init__(self, model, voices):
+            assert model == str(model_path)
+            assert voices == str(model_path.parent / "voices-v1.0.bin")
+
+        def create(self, text, **kwargs):
+            calls.append({"text": text, **kwargs})
+            return [0.0], 24000
+
+    monkeypatch.setattr(install_tts, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(install_tts, "enabled_models", lambda: [SimpleNamespace(
+        backend="tts",
+        tts_engine="kokoro",
+        model_path="models/kokoro/kokoro-v1.0.int8.onnx",
+    )])
+    monkeypatch.setitem(sys.modules, "kokoro_onnx", SimpleNamespace(Kokoro=_FakeKokoro))
+
+    install_tts._warm_kokoro()
+
+    assert [(call["voice"], call["lang"]) for call in calls] == [
+        ("am_michael", "en-us"),
+        ("ef_dora", "es"),
+        ("em_alex", "es"),
+    ]

@@ -395,6 +395,7 @@
         <div class="opt-stack">
           <label for="ttsModel">Voice model</label>
           <select id="ttsModel" aria-label="TTS model"></select>
+          <p id="ttsAvailability" class="muted small" role="status" aria-live="polite"></p>
         </div>
 
         <div class="opt-stack">
@@ -403,11 +404,16 @@
         </div>
 
         <div class="opt-stack">
-          <label for="ttsVoice">Voice <span class="muted small">(Piper ryan/ryan-high/lessac, Orpheus tara, Kokoro am_michael, or Chatterbox clip)</span></label>
-          <input id="ttsVoice" type="text" placeholder="default" aria-label="Voice">
+          <label for="ttsLanguage">Language</label>
+          <select id="ttsLanguage" aria-label="Language"></select>
         </div>
 
         <div class="opt-stack">
+          <label for="ttsVoice">Voice</label>
+          <select id="ttsVoice" aria-label="Voice"></select>
+        </div>
+
+        <div class="opt-stack" id="ttsStreamGroup">
           <div class="opt-switch-row">
             <span>Stream <span class="muted small">(play as it synthesizes when supported; off = buffered clip with a player)</span></span>
             <button type="button" id="ttsStream" class="toggle on" role="switch" aria-checked="true" aria-label="Stream audio"><span class="knob"></span><span class="toggle-label">ON</span></button>
@@ -428,12 +434,17 @@
             </select>
           </div>
 
-          <div class="opt-stack">
+          <div class="opt-stack" id="ttsSpeedGroup" hidden>
+            <label for="ttsSpeed">Speed · <span id="ttsSpeedVal">1.0</span>×</label>
+            <input id="ttsSpeed" type="range" min="0.5" max="2" step="0.05" value="1" aria-label="Speed">
+          </div>
+
+          <div class="opt-stack" id="ttsExaggerationGroup" hidden>
             <label for="ttsExaggeration">Exaggeration <span class="muted small">(Chatterbox tone dial)</span> · <span id="ttsExaggerationVal">0.5</span></label>
             <input id="ttsExaggeration" type="range" min="0" max="1" step="0.05" value="0.5" aria-label="Exaggeration">
           </div>
 
-          <div class="opt-stack">
+          <div class="opt-stack" id="ttsCfgWeightGroup" hidden>
             <label for="ttsCfgWeight">CFG weight <span class="muted small">(pacing)</span> · <span id="ttsCfgWeightVal">0.5</span></label>
             <input id="ttsCfgWeight" type="range" min="0" max="1" step="0.05" value="0.5" aria-label="CFG weight">
           </div>
@@ -441,12 +452,10 @@
 
         <div class="playground-send-row">
           <button id="ttsSpeakBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Speak</button>
-          <button id="ttsCompareBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Compare</button>
         </div>
         <p id="ttsLatency" class="muted small" style="margin: 8px 0 0;"></p>
 
         <audio id="ttsAudio" controls style="width: 100%; margin-top: 10px;" hidden></audio>
-        <div id="ttsCompareResults" class="tts-compare-list" aria-label="TTS comparison results"></div>
         </div>
       </details>
     </section>

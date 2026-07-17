@@ -7,6 +7,7 @@ import { api, jsonApi, toast } from './api.js';
 import { setSwitch } from './_vendored/switch/switch.js';
 
 let ttsModels = [];
+let lastTtsSample = '';
 
 export async function fetchPlaygroundModels() {
   try {
@@ -42,23 +43,33 @@ export async function fetchImageModels() {
 }
 
 export async function fetchTtsModels() {
+  if (els.ttsCard) els.ttsCard.dataset.state = 'loading';
   try {
     const body = await jsonApi('/admin/api/playground/tts_models');
     const models = body.models || [];
     ttsModels = models;
     if (!els.ttsModel) return;
     els.ttsModel.innerHTML = '';
-    // No TTS backend enabled on this host → hide the whole card.
+    // No TTS backend configured on this host → hide the whole card.
     if (els.ttsCard) els.ttsCard.hidden = models.length === 0;
     models.forEach(function (m) {
       const opt = document.createElement('option');
       opt.value = m.id;
-      opt.textContent = m.display_name + (m.engine ? ' (' + m.engine + ')' : '');
+      opt.textContent = m.display_name + (m.engine ? ' (' + m.engine + ')' : '') +
+        (m.reachable ? '' : ' — stopped');
       opt.dataset.engine = m.engine || '';
+      opt.disabled = !m.reachable;
       els.ttsModel.appendChild(opt);
     });
-    _syncStreamCheckbox();
-  } catch (_) { /* ignore */ }
+    const firstReachable = models.find(function (m) { return m.reachable; });
+    if (firstReachable) els.ttsModel.value = firstReachable.id;
+    els.ttsModel.disabled = !firstReachable;
+    if (els.ttsCard) els.ttsCard.dataset.state = models.length ? 'ready' : 'empty';
+    _syncTtsCapabilities(true);
+  } catch (_) {
+    if (els.ttsCard) els.ttsCard.dataset.state = 'error';
+    if (els.ttsAvailability) els.ttsAvailability.textContent = 'Voice model status could not be loaded.';
+  }
 }
 
 /* Hidden-input file picker (#215): a ghost "Choose file" button proxies the
@@ -121,21 +132,95 @@ function _streamOn() {
   return !!(els.ttsStream && els.ttsStream.getAttribute('aria-checked') === 'true');
 }
 
-// Disable the Stream switch (and flip it off) when the selected TTS engine
-// does not support true streaming.  Only Orpheus has an incremental decoder;
-// Chatterbox synthesises the whole clip first and then yields it as one chunk,
-// which causes the Web Audio scheduler to cut audio short (#109).
-function _syncStreamCheckbox() {
-  if (!els.ttsModel || !els.ttsStream) return;
-  const sel = els.ttsModel.options[els.ttsModel.selectedIndex];
-  const engine = sel ? (sel.dataset.engine || '') : '';
-  const orpheus = engine === 'orpheus';
-  els.ttsStream.disabled = !orpheus;
-  if (!orpheus) setSwitch(els.ttsStream, false);
+function _selectedTtsModel() {
+  if (!els.ttsModel) return null;
+  return ttsModels.find(function (model) { return model.id === els.ttsModel.value; }) || null;
+}
+
+function _setTtsSample(capabilities, language) {
+  if (!els.ttsInput) return;
+  const sample = (capabilities.sample_text || {})[language] || '';
+  const current = els.ttsInput.value || '';
+  if (!current.trim() || current === lastTtsSample) {
+    els.ttsInput.value = sample;
+    lastTtsSample = sample;
+  }
+}
+
+function _populateTtsVoices(capabilities, preferredVoice) {
+  if (!els.ttsVoice || !els.ttsLanguage) return;
+  const language = els.ttsLanguage.value;
+  const voices = (capabilities.voices || []).filter(function (voice) {
+    return voice.language === language;
+  });
+  els.ttsVoice.innerHTML = '';
+  voices.forEach(function (voice) {
+    const opt = document.createElement('option');
+    opt.value = voice.id;
+    opt.textContent = voice.label + (voice.gender ? ' · ' + voice.gender : '');
+    els.ttsVoice.appendChild(opt);
+  });
+  const wanted = voices.some(function (voice) { return voice.id === preferredVoice; })
+    ? preferredVoice
+    : voices[0] && voices[0].id;
+  if (wanted) els.ttsVoice.value = wanted;
+}
+
+function _syncTtsControls(capabilities) {
+  const controls = capabilities.controls || {};
+  if (els.ttsStreamGroup) els.ttsStreamGroup.hidden = !controls.stream;
+  if (els.ttsStream) {
+    els.ttsStream.disabled = !controls.stream;
+    if (!controls.stream) setSwitch(els.ttsStream, false);
+  }
+  if (els.ttsSpeedGroup) els.ttsSpeedGroup.hidden = !controls.speed;
+  if (els.ttsExaggerationGroup) els.ttsExaggerationGroup.hidden = !controls.exaggeration;
+  if (els.ttsCfgWeightGroup) els.ttsCfgWeightGroup.hidden = !controls.cfg_weight;
+}
+
+function _syncTtsCapabilities(modelChanged) {
+  const model = _selectedTtsModel();
+  const available = !!(model && model.reachable);
+  if (els.ttsSpeakBtn) els.ttsSpeakBtn.disabled = !available;
+  if (els.ttsAvailability) {
+    els.ttsAvailability.textContent = available
+      ? 'Ready.'
+      : (ttsModels.length ? 'All configured voice models are stopped.' : 'No voice models configured.');
+  }
+  if (!model) {
+    if (els.ttsLanguage) els.ttsLanguage.innerHTML = '';
+    if (els.ttsVoice) els.ttsVoice.innerHTML = '';
+    _syncTtsControls({});
+    return;
+  }
+
+  const capabilities = model.capabilities || {};
+  const previousLanguage = modelChanged ? '' : (els.ttsLanguage && els.ttsLanguage.value);
+  if (els.ttsLanguage) {
+    els.ttsLanguage.innerHTML = '';
+    (capabilities.languages || []).forEach(function (language) {
+      const opt = document.createElement('option');
+      opt.value = language.id;
+      opt.textContent = language.label;
+      els.ttsLanguage.appendChild(opt);
+    });
+    const languageIds = (capabilities.languages || []).map(function (language) { return language.id; });
+    els.ttsLanguage.value = languageIds.includes(previousLanguage)
+      ? previousLanguage
+      : (capabilities.default_language || languageIds[0] || '');
+  }
+  _populateTtsVoices(capabilities, modelChanged ? capabilities.default_voice : els.ttsVoice.value);
+  _syncTtsControls(capabilities);
+  _setTtsSample(capabilities, els.ttsLanguage ? els.ttsLanguage.value : '');
 }
 
 function wireTts() {
-  // Live value readouts for the two range sliders.
+  // Live value readouts for the range sliders.
+  if (els.ttsSpeed && els.ttsSpeedVal) {
+    els.ttsSpeed.addEventListener('input', function () {
+      els.ttsSpeedVal.textContent = Number(els.ttsSpeed.value).toFixed(2).replace(/0$/, '');
+    });
+  }
   if (els.ttsExaggeration && els.ttsExaggerationVal) {
     els.ttsExaggeration.addEventListener('input', function () {
       els.ttsExaggerationVal.textContent = els.ttsExaggeration.value;
@@ -147,7 +232,15 @@ function wireTts() {
     });
   }
   if (els.ttsModel) {
-    els.ttsModel.addEventListener('change', _syncStreamCheckbox);
+    els.ttsModel.addEventListener('change', function () { _syncTtsCapabilities(true); });
+  }
+  if (els.ttsLanguage) {
+    els.ttsLanguage.addEventListener('change', function () {
+      const model = _selectedTtsModel();
+      if (!model) return;
+      _populateTtsVoices(model.capabilities || {}, '');
+      _setTtsSample(model.capabilities || {}, els.ttsLanguage.value);
+    });
   }
   if (els.ttsStream) {
     els.ttsStream.addEventListener('click', function () {
@@ -158,9 +251,6 @@ function wireTts() {
   if (els.ttsSpeakBtn) {
     els.ttsSpeakBtn.addEventListener('click', speak);
   }
-  if (els.ttsCompareBtn) {
-    els.ttsCompareBtn.addEventListener('click', compareTts);
-  }
 }
 
 function ttsFormData(text, modelId, streaming) {
@@ -170,8 +260,11 @@ function ttsFormData(text, modelId, streaming) {
   fd.append('voice', (els.ttsVoice.value || '').trim());
   fd.append('response_format', streaming ? 'pcm' : (els.ttsFormat ? els.ttsFormat.value : 'wav'));
   if (streaming) fd.append('stream', 'true');
-  if (els.ttsExaggeration) fd.append('exaggeration', els.ttsExaggeration.value);
-  if (els.ttsCfgWeight) fd.append('cfg_weight', els.ttsCfgWeight.value);
+  const model = _selectedTtsModel();
+  const controls = (model && model.capabilities && model.capabilities.controls) || {};
+  if (controls.speed && els.ttsSpeed) fd.append('speed', els.ttsSpeed.value);
+  if (controls.exaggeration && els.ttsExaggeration) fd.append('exaggeration', els.ttsExaggeration.value);
+  if (controls.cfg_weight && els.ttsCfgWeight) fd.append('cfg_weight', els.ttsCfgWeight.value);
   return fd;
 }
 
@@ -228,74 +321,6 @@ async function speak() {
   } finally {
     els.ttsSpeakBtn.disabled = false;
   }
-}
-
-function clearCompareResults() {
-  if (!els.ttsCompareResults) return;
-  els.ttsCompareResults.querySelectorAll('audio').forEach(function (a) {
-    if (a.dataset.url) URL.revokeObjectURL(a.dataset.url);
-  });
-  els.ttsCompareResults.innerHTML = '';
-}
-
-async function compareTts() {
-  const text = (els.ttsInput.value || '').trim();
-  if (!text) {
-    toast('Text is empty.', 'error');
-    return;
-  }
-  const models = ttsModels.length ? ttsModels : [];
-  if (!models.length) {
-    toast('No TTS model available.', 'error');
-    return;
-  }
-  if (!els.ttsCompareResults) return;
-  clearCompareResults();
-  els.ttsCompareBtn.disabled = true;
-  if (els.ttsSpeakBtn) els.ttsSpeakBtn.disabled = true;
-  els.ttsLatency.textContent = 'comparing…';
-
-  for (const model of models) {
-    const row = document.createElement('div');
-    row.className = 'tts-compare-row';
-    const name = document.createElement('div');
-    name.className = 'tts-compare-name';
-    name.textContent = model.display_name + (model.engine ? ' (' + model.engine + ')' : '');
-    const meta = document.createElement('div');
-    meta.className = 'tts-compare-meta';
-    meta.textContent = 'running…';
-    row.appendChild(name);
-    row.appendChild(meta);
-    els.ttsCompareResults.appendChild(row);
-
-    const fd = ttsFormData(text, model.id, false);
-    const t0 = performance.now();
-    try {
-      const res = await api('/admin/api/playground/speak', { method: 'POST', body: fd });
-      if (!res.ok) {
-        let msg = 'HTTP ' + res.status;
-        try { const b = await res.json(); msg = b.detail || msg; } catch (_) { /* ignore */ }
-        meta.textContent = msg;
-        meta.classList.add('danger');
-        continue;
-      }
-      const blob = await res.blob();
-      const elapsed = performance.now() - t0;
-      meta.textContent = elapsed.toFixed(0) + ' ms · ' + Math.round(blob.size / 1024) + ' KB';
-      const audio = document.createElement('audio');
-      audio.controls = true;
-      const url = URL.createObjectURL(blob);
-      audio.dataset.url = url;
-      audio.src = url;
-      row.appendChild(audio);
-    } catch (exc) {
-      meta.textContent = String(exc.message || exc);
-      meta.classList.add('danger');
-    }
-  }
-  els.ttsLatency.textContent = 'comparison complete';
-  els.ttsCompareBtn.disabled = false;
-  if (els.ttsSpeakBtn) els.ttsSpeakBtn.disabled = false;
 }
 
 // Streaming synthesis: request headerless PCM16 with stream_format=audio and

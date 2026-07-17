@@ -101,6 +101,80 @@ def test_playground_tab(page, admin_url):
     )
 
 
+def test_playground_tts_capability_selectors(page, admin_url):
+    models = {
+        "models": [
+            {
+                "id": "piper",
+                "display_name": "piper-tts",
+                "engine": "piper",
+                "reachable": True,
+                "capabilities": {
+                    "languages": [{"id": "en-US", "label": "English (US)"}],
+                    "voices": [{"id": "amy", "label": "Amy", "language": "en-US", "gender": "female"}],
+                    "default_language": "en-US",
+                    "default_voice": "amy",
+                    "sample_text": {"en-US": "Hello sample."},
+                    "controls": {"speed": True, "stream": False, "exaggeration": False, "cfg_weight": False},
+                },
+            },
+            {
+                "id": "kokoro",
+                "display_name": "kokoro-tts",
+                "engine": "kokoro",
+                "reachable": True,
+                "capabilities": {
+                    "languages": [
+                        {"id": "en-US", "label": "English (US)"},
+                        {"id": "es", "label": "Spanish"},
+                    ],
+                    "voices": [
+                        {"id": "am_michael", "label": "Michael", "language": "en-US", "gender": "male"},
+                        {"id": "ef_dora", "label": "Dora", "language": "es", "gender": "female"},
+                        {"id": "em_alex", "label": "Alex", "language": "es", "gender": "male"},
+                    ],
+                    "default_language": "en-US",
+                    "default_voice": "am_michael",
+                    "sample_text": {"en-US": "Hello sample.", "es": "Hola de muestra."},
+                    "controls": {"speed": True, "stream": False, "exaggeration": False, "cfg_weight": False},
+                },
+            },
+            {
+                "id": "orpheus",
+                "display_name": "orpheus-tts",
+                "engine": "orpheus",
+                "reachable": False,
+                "capabilities": {},
+            },
+        ]
+    }
+    page.route(
+        "**/admin/api/playground/tts_models",
+        lambda route: route.fulfill(status=200, content_type="application/json", json=models),
+    )
+    page.goto(admin_url, wait_until="load")
+    page.click("#tabPlayground")
+    page.locator("#ttsCard").evaluate("element => { element.open = true; }")
+    page.locator("#ttsMore").evaluate("element => { element.open = true; }")
+    page.wait_for_function("document.getElementById('ttsModel').options.length === 3")
+
+    assert page.locator("#ttsVoice").input_value() == "amy"
+    assert page.locator("#ttsSpeedGroup").is_visible()
+    assert page.locator("#ttsStreamGroup").is_hidden()
+    assert page.locator("#ttsExaggerationGroup").is_hidden()
+    assert page.locator("#ttsCfgWeightGroup").is_hidden()
+    assert page.locator("#ttsFormat").is_visible()
+    assert "stopped" in page.locator("#ttsModel option[value='orpheus']").text_content()
+    assert page.locator("#ttsModel option[value='orpheus']").is_disabled()
+    assert page.locator("#ttsCompareBtn").count() == 0
+
+    page.locator("#ttsInput").fill("Keep my edited text.")
+    page.locator("#ttsModel").select_option("kokoro")
+    page.locator("#ttsLanguage").select_option("es")
+    assert page.locator("#ttsInput").input_value() == "Keep my edited text."
+    assert page.locator("#ttsVoice option").all_text_contents() == ["Dora · female", "Alex · male"]
+
+
 def test_static_assets_versioned(admin_url: str):
     """The index.html that comes off the wire stamps ``?v=<hash>`` onto
     every /admin/static/<file>.(css|js) URL."""

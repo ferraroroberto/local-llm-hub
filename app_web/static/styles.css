@@ -799,37 +799,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
   margin-top: 10px;
 }
 .playground-send-row > button { flex: 1; min-width: 0; }
-.tts-compare-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-}
-.tts-compare-row {
-  display: grid;
-  grid-template-columns: minmax(120px, 1fr) auto;
-  gap: 8px 12px;
-  align-items: center;
-  padding: 8px 0;
-  border-top: 1px solid var(--line-muted);
-}
-.tts-compare-row audio {
-  grid-column: 1 / -1;
-  width: 100%;
-}
-.tts-compare-name {
-  min-width: 0;
-  font-size: var(--font-label);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-.tts-compare-meta {
-  color: var(--muted);
-  font-size: var(--font-caption);
-  white-space: nowrap;
-}
-.tts-compare-meta.danger { color: var(--danger); }
-
 /* ---------- badges ---------- */
 .badge {
   background: var(--card-off);

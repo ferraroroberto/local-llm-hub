@@ -331,7 +331,9 @@ def _tts_model_for_request(model_name: str) -> Optional[Model]:
 
     Resolve an explicit ``model`` through the registry first — the only path
     that can return a *remote* (``host:`` set) model, e.g. ``model=mac_say``.
-    Otherwise fall back to the ``audio_speech`` role (Piper), then the first
+    An unresolvable explicit model returns ``None`` rather than silently
+    selecting an English backend. Only an omitted model falls back to the
+    ``audio_speech`` role (Piper), then the first
     enabled *local* TTS backend — the default role never silently proxies to
     a remote host. Returns ``None`` if no TTS backend is enabled on this host.
     """
@@ -341,6 +343,7 @@ def _tts_model_for_request(model_name: str) -> Optional[Model]:
         m = _resolve_model(model_name)
         if m and m.backend == "tts" and m.port:
             return m
+        return None
 
     tts = [m for m in local_models() if m.backend == "tts" and m.port]
     if not tts:
@@ -378,6 +381,11 @@ async def audio_speech(request: Request) -> Response:
 
     target = _tts_model_for_request(model_name)
     if target is None:
+        if model_name:
+            raise HTTPException(
+                status_code=400,
+                detail=f"unknown or unsupported TTS model: {model_name}",
+            )
         raise HTTPException(status_code=503, detail="no TTS backend enabled on this host")
     port = target.port
     remote = remote_base_url(target)

@@ -34,6 +34,8 @@ imports cleanly under pytest/CI where they are absent. Install them with
 
 from __future__ import annotations
 
+from typing import Any, Dict
+
 from ..model_registry import Model
 from .chatterbox import ChatterboxEngine
 from .common import PROJECT_ROOT, SpeechRequest, TTSEngine, VOICES_DIR, resolve_device, resolve_voice_clip
@@ -55,11 +57,25 @@ __all__ = [
     "OrpheusEngine",
     "PiperEngine",
     "build_engine",
+    "capabilities_for_engine",
     "resolve_device",
     "resolve_voice_clip",
     "PROJECT_ROOT",
     "VOICES_DIR",
 ]
+
+
+def capabilities_for_engine(engine: str) -> Dict[str, Any]:
+    """Return the static UI/API capability contract for one TTS engine."""
+    engine_class = {
+        "chatterbox": ChatterboxEngine,
+        "kokoro": KokoroEngine,
+        "orpheus": OrpheusEngine,
+        "piper": PiperEngine,
+    }.get((engine or "").strip().lower())
+    if engine_class is None:
+        raise ValueError(f"unknown TTS engine: {engine!r}")
+    return engine_class.capabilities()
 
 
 def build_engine(model: Model, device: str = "auto") -> TTSEngine:

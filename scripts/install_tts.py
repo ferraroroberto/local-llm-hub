@@ -57,6 +57,7 @@ _KOKORO_ASSETS = {
         "model-files-v1.0/voices-v1.0.bin"
     ),
 }
+_KOKORO_SPANISH_VOICES = ("ef_dora", "em_alex")
 _PIPER_RELEASE_URL = os.environ.get(
     "HUB_TTS_PIPER_URL",
     "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip",
@@ -299,10 +300,13 @@ def _warm_kokoro() -> None:
         if not model_path.exists() or not voices_path.exists():
             log.warning("Kokoro warm-up skipped: missing %s or %s", model_path, voices_path)
             return
-        log.info("warming Kokoro ONNX with am_michael …")
+        log.info("warming Kokoro ONNX with English and Spanish voices …")
         model = Kokoro(str(model_path), str(voices_path))
         model.create("Arming the perimeter.", voice="am_michael", speed=1.0, lang="en-us")
-        log.info("  Kokoro ready")
+        spanish_text = "Hola, esta es una prueba de voz en español."
+        for voice in _KOKORO_SPANISH_VOICES:
+            model.create(spanish_text, voice=voice, speed=1.0, lang="es")
+        log.info("  Kokoro ready (Spanish: %s)", ", ".join(_KOKORO_SPANISH_VOICES))
     except Exception as exc:  # noqa: BLE001
         log.warning("Kokoro warm-up skipped: %s", exc)
 

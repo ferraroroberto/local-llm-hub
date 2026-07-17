@@ -18,10 +18,10 @@ import tempfile
 import threading
 import wave
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..model_registry import Model
-from .common import PROJECT_ROOT, SpeechRequest, TTSEngine
+from .common import PROJECT_ROOT, SpeechRequest, TTSEngine, TTS_LANGUAGE_LABELS, TTS_SAMPLE_TEXT, voice_option
 from .process import _assign_to_job, _no_window_flags, _win_kill_on_close_job
 
 log = logging.getLogger(__name__)
@@ -133,6 +133,22 @@ class PiperEngine(TTSEngine):
     """
 
     DEFAULT_VOICE = "amy"
+
+    @classmethod
+    def capabilities(cls) -> Dict[str, Any]:
+        return {
+            "languages": [{"id": "en-US", "label": TTS_LANGUAGE_LABELS["en-US"]}],
+            "voices": [
+                voice_option("amy", "Amy", "en-US", "female"),
+                voice_option("ryan", "Ryan", "en-US", "male"),
+                voice_option("ryan-high", "Ryan (high quality)", "en-US", "male"),
+                voice_option("lessac", "Lessac", "en-US", "female"),
+            ],
+            "default_voice": cls.DEFAULT_VOICE,
+            "default_language": "en-US",
+            "sample_text": {"en-US": TTS_SAMPLE_TEXT["en-US"]},
+            "controls": {"speed": True, "stream": False, "exaggeration": False, "cfg_weight": False},
+        }
     VOICE_FILES = {
         "default": "en_US-amy-medium.onnx",
         "amy": "en_US-amy-medium.onnx",
@@ -217,6 +233,9 @@ class PiperEngine(TTSEngine):
     def ready(self) -> bool:
         return self.default_model is not None
 
+    def validate_voice(self, voice: str) -> None:
+        self._model_for_voice(voice)
+
     def _model_for_voice(self, voice: str) -> Path:
         assert self.default_model is not None
         raw = (voice or "").strip()
@@ -234,8 +253,7 @@ class PiperEngine(TTSEngine):
         candidate = self.default_model.parent / f"{raw}.onnx"
         if candidate.exists():
             return candidate
-        log.info("unknown Piper voice %r; using %s", raw, self.default_model.name)
-        return self.default_model
+        raise ValueError(f"unsupported Piper voice: {raw}")
 
     def _resident_cmd(self, model_path: Path, config_path: Path, length_scale: float) -> List[str]:
         assert self._out_dir is not None
