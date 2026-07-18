@@ -339,6 +339,9 @@ def test_kokoro_engine_voice_fallback_and_build():
 
 
 def test_kokoro_spanish_synthesis_uses_exact_voice_and_language():
+    # synthesize() reaches tts_engines/common.py's lazy numpy import; skip in CI
+    # (numpy lives in requirements-tts.txt, not installed there) like siblings.
+    pytest.importorskip("numpy")
     calls: list[dict] = []
 
     class _FakeKokoro:
