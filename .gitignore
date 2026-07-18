@@ -44,6 +44,11 @@ docker/langfuse/.env
 # Host-specific machine specs (real values; example file is committed)
 config/machine_specs.yaml
 
+# Runtime-mutated startup profile (issue #304) — the admin UI's Startup card
+# rewrites this on every autostart toggle, so it must not be tracked.
+# config/startup_profile.example.json is the committed template + fresh-clone default.
+config/startup_profile.json
+
 # Claude Code local settings
 .claude/settings.local.json
 

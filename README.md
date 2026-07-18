@@ -417,7 +417,9 @@ Mac's checkout before restarting it). An **out-of-sync** badge appears on
 the pill when the two hubs' `git_sha` (from `/admin/api/version`) differ —
 `sync` is the fix.
 
-When `mac_mini_sync` is `true` in **[config/startup_profile.json](config/startup_profile.json)**
+When `mac_mini_sync` is `true` in **`config/startup_profile.json`** (see the
+committed **[template](config/startup_profile.example.json)** — the live file
+is gitignored, issue #304)
 (the default — toggle it off from the Models tab's **Startup** card), the
 Windows hub does this automatically on its own boot instead of waiting for
 a manual click: bootstrap if the Mac Mini is unreachable, sync if it's
@@ -460,9 +462,10 @@ local-llm-hub/
 │   ├── run_tts_chatterbox.*     # chatterbox TTS on :8092 (on demand)
 │   └── run_all.*                # start everything enabled on this host
 ├── config/
-│   ├── models.yaml           # hosts + models + roles + legacy tray autostart fallback
-│   ├── startup_profile.json  # what autostarts at hub launch: docker/langfuse/mac-mini-sync/models (#265)
-│   └── webapp_config.json    # admin auth: bearer token, optional password, webauthn rp (gitignored)
+│   ├── models.yaml                   # hosts + models + roles + legacy tray autostart fallback
+│   ├── startup_profile.example.json  # template + fresh-clone default for what autostarts (#265)
+│   ├── startup_profile.json          # live autostart profile, rewritten by the admin UI (gitignored, #304)
+│   └── webapp_config.json            # admin auth: bearer token, optional password, webauthn rp (gitignored)
 ├── webapp/                   # runtime data dir written by the /admin webapp
 │   ├── cloudflared.sample.yml  # sample named-tunnel config (copy to cloudflared.yml)
 │   ├── cloudflared.yml         # your own tunnel config — gitignored
@@ -690,7 +693,8 @@ tray.bat
 Starts a resident system-tray icon (silent — no terminal window) that:
 
 - Auto-starts the hub on :8000. Hub startup then brings up everything
-  configured in **[config/startup_profile.json](config/startup_profile.json)**
+  configured in **`config/startup_profile.json`** (gitignored live file; see
+  the committed **[template](config/startup_profile.example.json)**, issue #304)
   (issue #265) — the same source the admin SPA's Models tab **Startup**
   card reads and writes — for every launch surface (tray, `run_hub.bat`, or
   `python -m src.run_backend hub`): the local model ids listed under
