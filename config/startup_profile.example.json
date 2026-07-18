@@ -10,7 +10,6 @@
     "whisper_vanilla",
     "piper",
     "orpheus",
-    "qwen",
-    "parakeet"
+    "kokoro"
   ]
 }

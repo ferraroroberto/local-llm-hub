@@ -19,8 +19,36 @@ from src import startup_profile as sp  # noqa: E402
 
 
 def test_missing_file_returns_defaults(tmp_path, monkeypatch):
+    # Both the live file and the example template absent → pure defaults.
     monkeypatch.setattr(sp, "DEFAULT_PROFILE_PATH", tmp_path / "does-not-exist.json")
+    monkeypatch.setattr(sp, "EXAMPLE_PROFILE_PATH", tmp_path / "no-example.json")
     profile = sp.load_startup_profile()
+    assert profile == sp.StartupProfile()
+
+
+def test_falls_back_to_example_when_live_file_absent(tmp_path, monkeypatch):
+    """Fresh clone (no live file) reads the committed example template (#304)."""
+    example = tmp_path / "startup_profile.example.json"
+    example.write_text(json.dumps({
+        "docker": False,
+        "mac_mini_sync": False,
+        "models": ["orpheus"],
+    }), encoding="utf-8")
+    monkeypatch.setattr(sp, "DEFAULT_PROFILE_PATH", tmp_path / "startup_profile.json")
+    monkeypatch.setattr(sp, "EXAMPLE_PROFILE_PATH", example)
+
+    profile = sp.load_startup_profile()
+    assert profile.docker is False
+    assert profile.mac_mini_sync is False
+    assert profile.models == ["orpheus"]
+
+
+def test_explicit_path_ignores_example_fallback(tmp_path, monkeypatch):
+    """An explicit (test) path is honoured verbatim — never the example."""
+    example = tmp_path / "startup_profile.example.json"
+    example.write_text(json.dumps({"models": ["orpheus"]}), encoding="utf-8")
+    monkeypatch.setattr(sp, "EXAMPLE_PROFILE_PATH", example)
+    profile = sp.load_startup_profile(str(tmp_path / "missing.json"))
     assert profile == sp.StartupProfile()
 
 
@@ -83,6 +111,8 @@ def test_normalize_filters_unknown_model_ids(monkeypatch):
 def test_save_writes_atomically_and_busts_cache(tmp_path, monkeypatch):
     target = tmp_path / "startup_profile.json"
     monkeypatch.setattr(sp, "DEFAULT_PROFILE_PATH", target)
+    # No example template either, so the prime below is the true default.
+    monkeypatch.setattr(sp, "EXAMPLE_PROFILE_PATH", tmp_path / "startup_profile.example.json")
     monkeypatch.setattr("src.model_registry.launchable_local_ids", lambda host=None: ["piper"])
 
     # Prime the cache with the (missing-file) default.

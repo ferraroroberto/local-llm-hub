@@ -162,8 +162,10 @@ def autostart_model_ids(host: Optional[HostProfile] = None) -> List[str]:
     """Configured local backend ids to start with the hub.
 
     ``config/startup_profile.json`` (issue #265) is the source of truth —
-    the admin UI's Startup card reads/writes it. When that file doesn't
-    exist yet (e.g. a fresh clone before the UI has ever saved a profile),
+    the admin UI's Startup card reads/writes it. The live file is gitignored
+    (issue #304); ``load_startup_profile`` falls back to the committed
+    ``startup_profile.example.json`` template, so the profile still drives a
+    fresh clone. Only when *neither* the live file nor the example exists do we
     fall back to the legacy ``config/models.yaml`` → ``tray.autostart_models``
     list so a clean checkout still autostarts something sensible. Either way
     the raw id list is filtered through the active host and launchable
@@ -172,9 +174,13 @@ def autostart_model_ids(host: Optional[HostProfile] = None) -> List[str]:
     by a *different* host (``m.host`` set and not this one) are remote —
     never autostarted locally, the owning host's own tray does that.
     """
-    from src.startup_profile import DEFAULT_PROFILE_PATH, load_startup_profile
+    from src.startup_profile import (
+        DEFAULT_PROFILE_PATH,
+        EXAMPLE_PROFILE_PATH,
+        load_startup_profile,
+    )
 
-    if DEFAULT_PROFILE_PATH.exists():
+    if DEFAULT_PROFILE_PATH.exists() or EXAMPLE_PROFILE_PATH.exists():
         raw: List[str] = load_startup_profile().models
     else:
         cfg = _load_config()

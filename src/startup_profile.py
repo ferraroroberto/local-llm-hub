@@ -13,10 +13,16 @@ boot (tray, ``run_hub.bat``, or ``python -m src.run_backend hub``):
     fallback by ``model_registry.autostart_model_ids()`` when this file is
     missing, e.g. on a fresh clone before the admin UI has saved a profile).
 
-Committed (unlike ``config/webapp_config.json``, which is machine-local
-auth) since this is ordinary, inspectable project config — same shelf as
-``config/transcription_glossary.json``, whose load/save shape this mirrors
-(atomic write, cache clear on save, tolerant load that never raises).
+The live ``config/startup_profile.json`` is **gitignored** (issue #304): the
+admin UI's Startup card rewrites it on every autostart toggle, so tracking it
+would dirty the tree on every flip. The committed
+``config/startup_profile.example.json`` is the template and the fresh-clone
+default — ``load_startup_profile`` falls back to it when the live file is
+absent, so the example is the single source of default truth rather than
+decorative. Same shape as ``config/machine_specs.yaml`` (real gitignored,
+example committed); load/save mechanics still mirror
+``config/transcription_glossary.json`` (atomic write, cache clear on save,
+tolerant load that never raises).
 """
 
 from __future__ import annotations
@@ -32,6 +38,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PROFILE_PATH = PROJECT_ROOT / "config" / "startup_profile.json"
+# Committed template + fresh-clone default (issue #304). Read only when the
+# gitignored live profile above is absent — never written to.
+EXAMPLE_PROFILE_PATH = PROJECT_ROOT / "config" / "startup_profile.example.json"
 
 
 @dataclass(frozen=True)
@@ -62,6 +71,12 @@ def load_startup_profile(path: Optional[str] = None) -> StartupProfile:
 
     A broken or absent profile must never prevent the hub from starting —
     same tolerant-load contract as ``transcription_glossary.load_rules()``.
+
+    When the live file is absent (fresh clone / first run) and no explicit
+    ``path`` was given, the committed ``EXAMPLE_PROFILE_PATH`` template is read
+    instead (issue #304), so the example seeds fresh-clone defaults. The cache
+    still keys on the resolved live ``target`` so ``save_startup_profile``'s
+    invalidation lands on the same slot once a real file is written.
     """
     target = Path(path) if path else DEFAULT_PROFILE_PATH
     key = str(target)
@@ -69,13 +84,19 @@ def load_startup_profile(path: Optional[str] = None) -> StartupProfile:
     if cached is not None:
         return cached
 
-    if not target.exists():
+    # Fall back to the committed template only for the default (live) path —
+    # an explicit path is honoured verbatim so tests stay hermetic.
+    source = target
+    if not target.exists() and path is None and EXAMPLE_PROFILE_PATH.exists():
+        source = EXAMPLE_PROFILE_PATH
+
+    if not source.exists():
         result = _DEFAULT
     else:
         try:
-            data = json.loads(target.read_text(encoding="utf-8"))
+            data = json.loads(source.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("⚠️ could not load startup profile %s: %s", target, exc)
+            logger.warning("⚠️ could not load startup profile %s: %s", source, exc)
             data = None
         if not isinstance(data, dict):
             result = _DEFAULT
