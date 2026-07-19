@@ -35,9 +35,9 @@
   --close-bg: var(--card-off); /* vendored modal's × close-button fill (_vendored/modal) */
   --scrim: rgba(0, 0, 0, 0.5); /* login-overlay dim — theme-invariant by design */
   /* status-alpha composites — derived, so they re-theme for free */
-  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
-  --accent-border-soft: color-mix(in srgb, var(--accent) 30%, transparent);
-  --accent-border-strong: color-mix(in srgb, var(--accent) 45%, transparent);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-border-soft: color-mix(in srgb, var(--accent) 24%, transparent);
+  --accent-border-strong: color-mix(in srgb, var(--accent) 28%, transparent);
   --danger-soft: color-mix(in srgb, var(--danger) 12%, transparent);
   --danger-strong: color-mix(in srgb, var(--danger) 18%, transparent);
   --danger-border: color-mix(in srgb, var(--danger) 45%, transparent);
@@ -258,6 +258,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 /* Header-mounted icon action. Smaller than .icon-btn so it doesn't
  * dominate the card header. */
 .icon-header-btn {
+  position: relative;
   width: 36px;
   height: 36px;
   display: inline-flex;
@@ -270,6 +271,15 @@ h2 { display: flex; align-items: center; gap: 8px; }
   font-size: 16px;
   cursor: pointer;
   border-radius: var(--radius-sm);
+}
+/* Invisible hit-area expansion — keeps the compact 36px visual while the
+ * effective pointer target reaches the 44px floor (36 + 2×4px), per
+ * design.md Touch targets. Each .icon-header-btn is solo in its card header,
+ * so the expanded rect never overlaps a neighbour. */
+.icon-header-btn::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
 }
 .icon-header-btn:hover { color: var(--ink); background: var(--card-off); }
 .icon-header-btn:active { background: var(--bg); }
@@ -666,6 +676,9 @@ h2 { display: flex; align-items: center; gap: 8px; }
   font-size: var(--font-label);
 }
 .glossary-arrow { color: var(--muted); flex-shrink: 0; }
+/* Compact inline delete action nested inside a REPL row — deliberately below
+ * the 44/52/60 rows scale, which governs list-row containers, not the icon
+ * controls sitting in them (design.md Components list-row). */
 .glossary-repl-row .icon-btn { width: 30px; min-height: 30px; flex-shrink: 0; }
 .glossary-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .glossary-chip {
