@@ -106,3 +106,33 @@ async def sync_host(host_id: str) -> Dict[str, Any]:
     """Trigger the remote host's ``sync`` action (git pull + restart), then
     poll ``/health`` for up to ~30s."""
     return await _trigger_and_poll(host_id, "sync", "🔃")
+
+
+async def _trigger_power(host_id: str, verb: str, emoji: str) -> Dict[str, Any]:
+    """Send a ``reboot``/``shutdown`` verb over the forced-command channel.
+
+    Unlike ``bootstrap``/``sync`` there is **no** ``/health`` poll — the
+    machine is going *down*, so "reachable" is the wrong success signal. The
+    remote dispatcher (``hub-remote-ctl.sh``) detaches a short-delayed
+    ``shutdown`` and returns immediately, so a clean SSH exit is the
+    confirmation that the power action was accepted; the box drops off the
+    network a couple of seconds later. Refusing the destructive action to
+    the local host is the caller's job (the router knows which host is
+    active); this layer already can't reach a host with no ``ssh_user``."""
+    logger.info("%s %s_host(%r)", emoji, verb, host_id)
+    ssh_result = await asyncio.to_thread(_run_remote_command, host_id, verb)
+    if not ssh_result["ok"]:
+        return {"ok": False, "detail": ssh_result["error"]}
+    return {"ok": True, "detail": f"{verb} scheduled on {host_id}"}
+
+
+async def reboot_host(host_id: str) -> Dict[str, Any]:
+    """Reboot a peer over the forced-command SSH channel (#309). Destructive
+    — the caller must exclude the active hub host before invoking this."""
+    return await _trigger_power(host_id, "reboot", "♻️")
+
+
+async def shutdown_host(host_id: str) -> Dict[str, Any]:
+    """Power off a peer over the forced-command SSH channel (#309).
+    Destructive — the caller must exclude the active hub host."""
+    return await _trigger_power(host_id, "shutdown", "⏻")

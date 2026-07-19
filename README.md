@@ -430,6 +430,62 @@ The Models tab tags every remote-owned tile with a small `on <host-id>`
 badge (e.g. `qwen3.5-9b` / `parakeet-tdt-0.6b-v3` both show `on
 mac-mini-m4`) so a displayed PID is never mistaken for a local process.
 
+### Machines console (#309)
+
+The **Machines** tab turns the hub into a fleet machine console — one place
+to see the health of every box and act on it. It reads the host inventory
+from `config/models.yaml` `hosts:` (now enrolling two managed-only machines
+alongside `pc-cuda` and `mac-mini-m4`: **OpenClaw**, a Linux laptop, and
+**tower**, a dormant Windows node) and renders a card per machine:
+
+Every reachable machine shows the **same** snapshot — CPU / RAM / GPU / disk
+(as uniform horizontal gauges) + uptime:
+
+- **This machine** reads it locally from `src/system_stats.py`.
+- **Peers** are probed two ways, both independent of whether the hub runs
+  there — the card answers *is the box on?*, not *is the hub up?*
+  (`src/remote_stats.py`): a **hub-independent TCP liveness probe** for
+  up/down, and the same CPU/RAM/GPU/disk/uptime snapshot collected over the
+  hub user's **own** passwordless SSH (a read-only one-liner, per-OS). A
+  dormant node (tower) is shown but not live-probed. Reboot/shutdown are the
+  only actions that use the locked-down forced-command key; all read-only
+  observability goes over general SSH + TCP.
+
+**Reboot / shutdown (destructive, peers only).** Any peer with an SSH channel
+(`address` + `ssh_user`) offers **Reboot** and **Shut down** actions; the
+active hub host is always excluded (powering it off would take the console
+down with it), and tower has no SSH so it is RDP-only. These ride the same
+`#181` forced-command key — `mac/bin/hub-remote-ctl.sh` (and its Linux
+sibling `linux/bin/hub-remote-ctl.sh` for OpenClaw) now allow `reboot` /
+`shutdown` verbs in addition to `bootstrap` / `sync`, still with **no general
+shell**. The dispatcher detaches a short-delayed `sudo shutdown` so the SSH
+command returns cleanly before the box drops off.
+
+> **Deployment note.** Reachability + stats already work over the hub user's
+> general SSH, but the destructive **reboot/shutdown** actions run through the
+> forced-command script on the *peer*, so the peer must carry the updated
+> script: redeploy `mac/bin/hub-remote-ctl.sh` to the Mac Mini (`.../sync`
+> does this), and on OpenClaw install `linux/bin/hub-remote-ctl.sh` plus a
+> `command="…hub-remote-ctl.sh"`-restricted entry for the automation key in
+> `~/.ssh/authorized_keys` (same shape as the Mac's). Until then OpenClaw
+> still shows online with live stats — only its reboot/shutdown buttons wait
+> on the deploy.
+
+**Remote Desktop.** A per-machine **Remote Desktop** action serves a
+generated `.rdp` launcher (built from the machine's configured `rdp`
+`{address, user}` target) that the viewing device downloads and opens — no
+web RDP client, no dependency on any out-of-repo launcher file.
+
+**In-browser SSH terminal.** The **Terminal** action opens an xterm SSH
+session by **reusing app-launcher's session-host** (its loopback ConPTY/WS
+engine) rather than rebuilding a PTY stack here. This needs a small
+companion change in app-launcher to register an `ssh` agent
+([app-launcher#558](https://github.com/ferraroroberto/app-launcher/issues/558));
+until that lands the terminal degrades gracefully with an actionable
+"unavailable" state. Everything on this tab rides the existing bearer-token /
+loopback-bypass middleware — no new auth scheme; the access model stays
+loopback / Tailscale only.
+
 ## Layout
 
 ```
@@ -681,8 +737,9 @@ launchers\run_glm.bat            :: llama-server for GLM on :8082
 (macOS / Linux: `./run_hub.sh`, `./launchers/run_all.sh`, etc.)
 
 Once the hub is running, open `http://127.0.0.1:8000/admin/` for the
-admin webapp — five tabs (Hub / Models / Play / OTel / Code) covering every
-operational concern. Going to `http://127.0.0.1:8000/` redirects there.
+admin webapp — six tabs (Hub / Models / Play / OTel / Code / Machines)
+covering every operational concern. Going to `http://127.0.0.1:8000/`
+redirects there.
 
 ### Tray launcher (Windows)
 

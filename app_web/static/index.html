@@ -20,6 +20,9 @@
   <link rel="stylesheet" href="/admin/static/_vendored/nav/nav-tabs.css">
   <link rel="stylesheet" href="/admin/static/telemetry.css">
   <link rel="stylesheet" href="/admin/static/code_usage.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/modal/modal.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/xterm/xterm.css">
+  <link rel="stylesheet" href="/admin/static/machines.css">
   <title>🌐 Local LLM Hub</title>
   <script>
     (function(){
@@ -53,6 +56,10 @@
     <button id="tabCodeUsage" type="button" class="tab" data-tab="code-usage" role="tab" aria-selected="false" aria-controls="paneCodeUsage" tabindex="-1">
       <svg class="icon tab-icon" aria-hidden="true"><use href="#i-code"></use></svg>
       <span class="tab-label">Code</span>
+    </button>
+    <button id="tabMachines" type="button" class="tab" data-tab="machines" role="tab" aria-selected="false" aria-controls="paneMachines" tabindex="-1">
+      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-server"></use></svg>
+      <span class="tab-label">Machines</span>
     </button>
   </nav>
 
@@ -722,6 +729,23 @@
 
     </section>
 
+    <section id="paneMachines" class="pane" hidden role="tabpanel" aria-labelledby="tabMachines">
+      <!-- Async lifecycle (design.md): loading / error empty-states, a stale
+           inline note, then one .card per machine in machinesList. Only one
+           of loading/error/the card list is visible at a time (issue #309). -->
+      <div id="machinesLoading" class="empty-state">
+        <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-server"></use></svg>
+        <p class="empty-state-message">Reading machine status…</p>
+      </div>
+      <div id="machinesError" class="empty-state" hidden>
+        <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>
+        <p class="empty-state-message" id="machinesErrorMsg">Could not read machine status.</p>
+        <button id="machinesRetryBtn" type="button" class="empty-state-action">Retry</button>
+      </div>
+      <p id="machinesStaleNote" class="muted small" role="status" aria-live="polite" hidden></p>
+      <div id="machinesList" class="machines-list"></div>
+    </section>
+
     <!-- Build identity: which build the PWA is running. Filled by main.js.
          (Frontier report stays reachable at /admin/frontier by URL.) -->
     <footer class="page-foot">
@@ -745,7 +769,44 @@
     </form>
   </div>
 
+  <!-- Machines tab (issue #309): destructive-action confirm + the SSH
+       terminal overlay. Both use the vendored editor-modal shell
+       (_vendored/modal) — a native <dialog>, so the fleet nav auto-hides
+       itself while either is open (body:has(dialog[open])). -->
+  <dialog class="detail-dialog" id="machinesConfirmDialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="machinesConfirmTitle">Confirm</h2>
+        <button type="button" class="detail-close" id="machinesConfirmCloseBtn" aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <p id="machinesConfirmBody" class="machines-confirm-body"></p>
+      <div class="detail-actions">
+        <button type="button" class="detail-save-btn danger" id="machinesConfirmBtn">Confirm</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="detail-dialog machines-terminal-dialog" id="machinesTerminalDialog">
+    <div class="detail-card machines-terminal-card">
+      <div class="detail-header">
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-terminal"></use></svg><span id="machinesTerminalTitle">Terminal</span></h2>
+        <button type="button" class="detail-close" id="machinesTerminalCloseBtn" aria-label="Close terminal">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div id="machinesTerminalUnavailable" class="empty-state" hidden>
+        <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>
+        <p class="empty-state-message" id="machinesTerminalUnavailableMsg">Terminal unavailable.</p>
+      </div>
+      <div id="machinesTerminalMount" class="machines-terminal-mount"></div>
+    </div>
+  </dialog>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="/admin/static/_vendored/xterm/xterm.js"></script>
+  <script src="/admin/static/_vendored/xterm/addon-fit.js"></script>
   <script type="module" src="/admin/static/main.js"></script>
 </body>
 </html>

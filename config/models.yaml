@@ -36,10 +36,27 @@ tray:
     - orpheus                   # expressive TTS, kept warm for quality speech
   hub_ready_timeout_s: 30
 
+# Each host row also carries optional **machine-console** metadata (issue
+# #309) surfaced by the admin SPA's Machines tab — a fleet machine console.
+# These fields never affect model routing (resolve()/enabled_models key off
+# the *active* host only); they only describe a box for the console:
+#   display_name  human label for the card
+#   role          one-line description under the name
+#   icon          Lucide glyph id (bare name; the SPA prefixes `i-`)
+#   dormant       true = a powered-down node shown but not live-probed
+#   tailscale     Tailscale magic-DNS hostname (peer reachability + RDP)
+#   rdp           {address, user} for the Remote-Desktop launch action
+# Reboot/shutdown are offered for any peer with both `address` + `ssh_user`
+# (never the active host — that's the hub, excluded as destructive); tower
+# has no SSH, so it is RDP-only. OpenClaw + tower are enrolled here as
+# managed machines even though they serve no models (empty `enabled`).
 hosts:
   pc-cuda:
     platform: win32
     default: true
+    display_name: PC-CUDA
+    role: "Windows workstation · CUDA GPU · the hub runs here"
+    icon: monitor
     # LAN address other hosts dial to reach this host's own hub (:8000) when
     # proxying to a model this host owns (`host: pc-cuda` in a models: row).
     address: 192.168.0.13
@@ -58,6 +75,9 @@ hosts:
   mac-mini-m4:
     platform: darwin
     default: true
+    display_name: Mac Mini M4
+    role: "Apple-silicon hub peer · SSH + passwordless sudo"
+    icon: server
     # LAN address the pc-cuda host dials to reach this host's own hub when
     # proxying to a model this host owns (`host: mac-mini-m4`) — e.g. qwen,
     # parakeet. Mac-native TTS (mac_say) is a follow-up, not yet enrolled.
@@ -70,6 +90,41 @@ hosts:
     # pc-cuda-owned model is listed here too so the Mac's hub can resolve
     # and proxy to it — genuinely bidirectional (#178), not Windows-only.
     enabled: [qwen, parakeet, qwen35_4b, qwen35_4b_nothink, gemma4_e4b, gemma4_26b, whisper, whisper_translate, whisper_vanilla, piper, chatterbox, orpheus, kokoro]
+
+  # --- Managed-only machines (issue #309) — Machines-tab console, no models ---
+  # These serve no models (no `enabled` list) and never run the hub; they are
+  # enrolled purely so the fleet machine console can show and act on them.
+
+  openclaw:
+    platform: linux
+    display_name: OpenClaw
+    role: "Ubuntu laptop · SSH + passwordless sudo · future inference node"
+    icon: laptop
+    # LAN address for SSH (reboot/shutdown, remote uptime) + RDP. Same
+    # ssh_user/address contract as the Mac Mini peer above; reboot/shutdown
+    # ride the forced-command channel once its key is enrolled here (#309).
+    address: 192.168.0.239
+    ssh_user: openclaw
+    # Tailscale magic-DNS name — used for reachability + RDP when off-LAN.
+    tailscale: laptop.tail1121fd.ts.net
+    rdp:
+      address: 192.168.0.239
+      user: openclaw
+
+  tower:
+    platform: win32
+    # Dormant Windows node — shown as a card but not live-probed on the LAN.
+    # No SSH (RDP/Tailscale only), so it gets no reboot/shutdown action; its
+    # only management path is the Remote-Desktop launch. Wake-on-LAN is a
+    # follow-up (out of scope per #309).
+    dormant: true
+    display_name: Tower
+    role: "Dormant Windows node · 8 GB VRAM · 32 GB RAM · RDP only"
+    icon: server
+    tailscale: tower.tail1121fd.ts.net
+    rdp:
+      address: tower.tail1121fd.ts.net
+      user: roberto.ferraro@gmail.com
 
 models:
   # --- Claude subscription path (`claude -p` CLI) ---

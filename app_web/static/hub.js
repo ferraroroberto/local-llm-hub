@@ -4,7 +4,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, fmtSecs, tokPair } from './api.js';
+import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, fmtSecs, tokPair, shortGpu } from './api.js';
 import { langfuseTraceUrl, fetchTelemetryHealth } from './telemetry.js';
 import { icon } from './_vendored/icons/icons.js';
 
@@ -679,9 +679,5 @@ function buildSparkline(g) {
   return root;
 }
 
-function shortGpu(name) {
-  if (!name) return '';
-  return name.replace('NVIDIA ', '').replace('GeForce ', '').trim();
-}
 
 /* escapeHtml / fmtClock live in api.js (sibling dedup, #211). */

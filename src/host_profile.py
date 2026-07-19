@@ -50,6 +50,25 @@ class HostProfile:
     # in .env (LOCAL_LLM_HUB_SSH_KEY), never in this committed file. Unset
     # on hosts nothing ever SSHes into. See src/remote_bootstrap.py.
     ssh_user: Optional[str] = None
+    # --- Machines-tab console metadata (#309) — never touches model routing.
+    # A human label + one-line role + Lucide glyph id for the machine card.
+    display_name: Optional[str] = None
+    role: Optional[str] = None
+    icon: Optional[str] = None
+    # A powered-down node: shown as a card but not live-probed on the LAN.
+    dormant: bool = False
+    # Tailscale magic-DNS hostname — peer reachability + off-LAN RDP target.
+    tailscale: Optional[str] = None
+    # Remote-Desktop launch target: {"address": ..., "user": ...}. Unset on
+    # hosts with no RDP path (e.g. the local host, or SSH/VNC-only peers).
+    rdp: Optional[Dict[str, str]] = None
+
+    @property
+    def can_ssh(self) -> bool:
+        """True when this host has both an address and an ssh_user — the
+        prerequisite for the SSH-driven actions (remote uptime, reboot,
+        shutdown). The active host and SSH-less peers (tower) return False."""
+        return bool(self.address and self.ssh_user)
 
 
 # Parsed-YAML cache, keyed by the resolved config path. The README's
@@ -83,6 +102,12 @@ def _row_to_profile(host_id: str, row: Dict[str, Any], *, source: str) -> HostPr
         source=source,
         address=row.get("address"),
         ssh_user=row.get("ssh_user"),
+        display_name=row.get("display_name"),
+        role=row.get("role"),
+        icon=row.get("icon"),
+        dormant=bool(row.get("dormant", False)),
+        tailscale=row.get("tailscale"),
+        rdp=row.get("rdp"),
     )
 
 
@@ -143,6 +168,20 @@ def get_host(host_id: str) -> Optional[HostProfile]:
     if row is None:
         return None
     return _row_to_profile(host_id, row, source=f"lookup {host_id!r}")
+
+
+def all_hosts() -> List[HostProfile]:
+    """Every declared host row as a profile, in config order — the machine
+    console's inventory (#309). Unlike ``resolve()`` (the active host) or
+    ``get_host()`` (one by id), this returns the whole fleet, including
+    managed-only machines that serve no models (OpenClaw, tower).
+    """
+    cfg = _load_config()
+    hosts: Dict[str, Any] = cfg.get("hosts") or {}
+    return [
+        _row_to_profile(host_id, row, source="all_hosts")
+        for host_id, row in hosts.items()
+    ]
 
 
 def hub_port() -> int:
