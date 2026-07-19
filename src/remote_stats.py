@@ -9,9 +9,10 @@ the hub runs on the peer**:
   * :func:`collect` — the *same* CPU / RAM / GPU / disk / uptime snapshot the
     local host shows, gathered over the hub user's **own** passwordless SSH
     (``ssh <user>@<addr> "<read-only one-liner>"``) — deliberately NOT the
-    locked-down forced-command key (that key only runs the reboot/shutdown
-    dispatcher). Read-only observability over general SSH; destructive power
-    actions stay on the forced-command channel.
+    forced-command key (that key only runs the bootstrap/sync dispatcher).
+    This same general-SSH channel also carries the destructive reboot/shutdown
+    power actions (``remote_bootstrap``, #311); the forced-command key is now
+    solely the hub-lifecycle (bootstrap/sync) path.
 
 Per-OS commands emit ``key value`` lines that :func:`_parse` folds into the
 same shape as ``machine_console.self_snapshot``'s stats, so a peer card and

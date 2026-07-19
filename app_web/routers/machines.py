@@ -7,7 +7,7 @@ Machines tab.
     (CPU/RAM/GPU/disk/uptime/version). Also fetched cross-host by a peer's
     aggregator, so it rides the normal bearer-token/loopback middleware.
   * ``POST /admin/api/machines/{id}/reboot`` and ``.../shutdown`` —
-    destructive power actions over the forced-command SSH channel. The
+    destructive power actions over the hub user's own general SSH (#311). The
     active hub host is refused (it is the excluded destructive case).
   * ``GET  /admin/api/machines/{id}/rdp`` — download a generated ``.rdp``
     launcher for the machine's Remote-Desktop action.

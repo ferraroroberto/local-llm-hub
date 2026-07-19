@@ -12,8 +12,8 @@ not whether the hub happens to run there:
     the hub user's own SSH (``remote_stats.collect``);
   * a **dormant** node (tower) is shown but never live-probed.
 
-Power actions (reboot/shutdown) live in ``remote_bootstrap`` on the
-locked-down forced-command channel; this module only computes *which* actions
+Power actions (reboot/shutdown) live in ``remote_bootstrap`` and run over the
+hub user's own general SSH (#311); this module only computes *which* actions
 each machine may offer. The active hub host never offers reboot/shutdown —
 the destructive action the whole design excludes.
 """

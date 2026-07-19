@@ -39,19 +39,10 @@ restart_hub() {
   exit 1
 }
 
-# Power action (reboot / shutdown) for the Machines console (#309). The
-# actual `shutdown` drops the SSH connection the instant the box goes down,
-# which would race this command's own exit and surface as a spurious ssh
-# failure to the caller. So we detach a short-delayed shutdown with `nohup`
-# (survives the closing SSH channel) and return 0 immediately — the caller
-# gets a clean exit, and ~2 s later the machine powers down/reboots. `-r`
-# reboots, `-h` halts (powers off). Requires passwordless sudo for the
-# login user (the geek-out sudoers drop-in already grants it).
-power_off() {
-  local flag="$1"   # -r (reboot) | -h (shutdown)
-  nohup sh -c "sleep 2; sudo -n /sbin/shutdown ${flag} now" >/dev/null 2>&1 &
-}
-
+# The Machines console's reboot/shutdown (#309) used to ride this key too, but
+# as of #311 those run over the hub user's own general SSH (no per-peer key or
+# forced-command deploy needed), so this dispatcher is back to the two
+# hub-lifecycle verbs — bootstrap/sync — and nothing else.
 case "${SSH_ORIGINAL_COMMAND:-}" in
   bootstrap)
     restart_hub
@@ -60,14 +51,6 @@ case "${SSH_ORIGINAL_COMMAND:-}" in
     cd "$REPO"
     git pull --ff-only
     restart_hub
-    ;;
-  reboot)
-    power_off "-r"
-    echo "hub-remote-ctl: reboot scheduled"
-    ;;
-  shutdown)
-    power_off "-h"
-    echo "hub-remote-ctl: shutdown scheduled"
     ;;
   *)
     echo "hub-remote-ctl: rejected command: ${SSH_ORIGINAL_COMMAND:-<empty>}" >&2
