@@ -54,4 +54,4 @@ The fleet's canonical **switch** (shadcn Switch shape): a compact 44×26 track +
 
 ## Don't diverge
 
-`switch.css` / `switch.js` are vendored verbatim — to change the contract, change it **here in `project-scaffolding`** and re-vendor downstream. In particular, don't re-inline the four-line render snippet per view file (the duplication this builder removes) and don't flip the on-track back to the accent — green is a recorded design decision. Streamlit POC spikes are exempt.
+`switch.css` / `switch.js` are vendored verbatim — to change the contract, change it **here in `project-scaffolding`** and re-vendor downstream. In particular, don't re-inline the four-line render snippet per view file (the duplication this builder removes) and don't flip the on-track back to the accent — green is a recorded design decision. If your own CSS declares the same selector this file touches (e.g. `.app`, `.card`), use longhand properties or a disjoint media condition — a shorthand property at equal specificity is decided by source order, and can silently override a rule you didn't intend to touch. Streamlit POC spikes are exempt.
