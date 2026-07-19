@@ -1,16 +1,29 @@
-"""SSH-triggered remote hub bootstrap/sync (#181).
+"""SSH-triggered remote hub bootstrap/sync (#181) + machine power (#309/#311).
 
-Brings a *dead* remote host's hub back up, or syncs it to the latest
-``main`` + restarts — both over the same forced-command-restricted SSH
-channel (``mac/bin/hub-remote-ctl.sh``), never a general shell. The verb
-sent over SSH (``bootstrap`` / ``sync``) becomes ``$SSH_ORIGINAL_COMMAND``
-on the remote end; the forced command there — not anything sent here —
-decides what actually runs.
+Two distinct SSH channels, deliberately kept apart:
+
+  * **bootstrap / sync** (#181) — brings a *dead* remote host's hub back up,
+    or syncs it to the latest ``main`` + restarts. These ride the
+    forced-command-restricted key (``mac/bin/hub-remote-ctl.sh``), never a
+    general shell: the verb sent over SSH (``bootstrap`` / ``sync``) becomes
+    ``$SSH_ORIGINAL_COMMAND`` on the remote end and the forced command there —
+    not anything sent here — decides what runs. Gated on
+    ``LOCAL_LLM_HUB_SSH_KEY``.
+  * **reboot / shutdown** (#309, transport decided in #311) — the Machines
+    console's destructive power actions run over the hub user's **own general
+    SSH**, the same passwordless channel ``remote_stats`` already uses for
+    read-only snapshots (``ssh <user>@<addr> "<cmd>"``, no ``-i`` key). The
+    peer's own passwordless-sudo sudoers drop-in — already required for the
+    forced-command path — is the only prerequisite, so no per-peer key or
+    forced-command script has to be deployed to a managed machine (e.g.
+    OpenClaw). This means power actions do **not** depend on
+    ``LOCAL_LLM_HUB_SSH_KEY`` being set.
 
 Symmetric by construction: which host can dial which is entirely a
-function of ``HostProfile.ssh_user``/``address`` (config) and whether
-``LOCAL_LLM_HUB_SSH_KEY`` is set in this process's ``.env`` (today, only on
-``pc-cuda``) — nothing here hardcodes which host is the caller.
+function of ``HostProfile.ssh_user``/``address`` (config) and, for
+bootstrap/sync, whether ``LOCAL_LLM_HUB_SSH_KEY`` is set in this process's
+``.env`` (today, only on ``pc-cuda``) — nothing here hardcodes which host is
+the caller.
 """
 
 from __future__ import annotations
@@ -108,31 +121,68 @@ async def sync_host(host_id: str) -> Dict[str, Any]:
     return await _trigger_and_poll(host_id, "sync", "🔃")
 
 
-async def _trigger_power(host_id: str, verb: str, emoji: str) -> Dict[str, Any]:
-    """Send a ``reboot``/``shutdown`` verb over the forced-command channel.
+def _run_power_command(host_id: str, flag: str) -> Dict[str, Any]:
+    """Run reboot/shutdown over the hub user's **own** general SSH (#311).
+
+    The same passwordless channel ``remote_stats`` uses for read-only
+    snapshots — ``ssh <user>@<addr> "<cmd>"`` with no ``-i`` forced-command
+    key — so a managed peer (e.g. OpenClaw) needs nothing deployed beyond the
+    passwordless-sudo sudoers drop-in it already carries. ``flag`` is
+    ``shutdown``'s ``-r`` (reboot) or ``-h`` (halt/power-off).
+
+    The actual ``shutdown`` drops the SSH connection the instant the box goes
+    down, which would race this command's own exit and surface as a spurious
+    ssh failure. So — exactly as the old forced-command dispatcher did — we
+    detach a short-delayed ``shutdown`` with ``nohup`` (survives the closing
+    SSH channel) and let the remote command return cleanly; the box powers
+    down/reboots ~2 s later."""
+    owner = get_host(host_id)
+    if owner is None or not owner.address or not owner.ssh_user:
+        return {"ok": False, "error": f"host {host_id!r} has no address/ssh_user configured"}
+    remote = f"nohup sh -c 'sleep 2; sudo -n /sbin/shutdown {flag} now' >/dev/null 2>&1 &"
+    cmd = [
+        "ssh",
+        "-o", "BatchMode=yes",
+        "-o", f"ConnectTimeout={_SSH_CONNECT_TIMEOUT_S}",
+        "-o", "StrictHostKeyChecking=accept-new",
+        f"{owner.ssh_user}@{owner.address}",
+        remote,
+    ]
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=_SSH_CONNECT_TIMEOUT_S + 10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    if result.returncode != 0:
+        return {"ok": False, "error": f"ssh exit {result.returncode}: {(result.stderr or '').strip()}"}
+    return {"ok": True}
+
+
+async def _trigger_power(host_id: str, flag: str, verb: str, emoji: str) -> Dict[str, Any]:
+    """Send a ``reboot``/``shutdown`` over the general-SSH power channel (#311).
 
     Unlike ``bootstrap``/``sync`` there is **no** ``/health`` poll — the
-    machine is going *down*, so "reachable" is the wrong success signal. The
-    remote dispatcher (``hub-remote-ctl.sh``) detaches a short-delayed
-    ``shutdown`` and returns immediately, so a clean SSH exit is the
-    confirmation that the power action was accepted; the box drops off the
-    network a couple of seconds later. Refusing the destructive action to
-    the local host is the caller's job (the router knows which host is
-    active); this layer already can't reach a host with no ``ssh_user``."""
+    machine is going *down*, so "reachable" is the wrong success signal. A
+    clean SSH exit (the detached power action was scheduled) is the
+    confirmation; the box drops off the network a couple of seconds later.
+    Refusing the destructive action to the local host is the caller's job (the
+    router knows which host is active); this layer already can't reach a host
+    with no ``ssh_user``."""
     logger.info("%s %s_host(%r)", emoji, verb, host_id)
-    ssh_result = await asyncio.to_thread(_run_remote_command, host_id, verb)
+    ssh_result = await asyncio.to_thread(_run_power_command, host_id, flag)
     if not ssh_result["ok"]:
         return {"ok": False, "detail": ssh_result["error"]}
     return {"ok": True, "detail": f"{verb} scheduled on {host_id}"}
 
 
 async def reboot_host(host_id: str) -> Dict[str, Any]:
-    """Reboot a peer over the forced-command SSH channel (#309). Destructive
+    """Reboot a peer over the general-SSH power channel (#309/#311). Destructive
     — the caller must exclude the active hub host before invoking this."""
-    return await _trigger_power(host_id, "reboot", "♻️")
+    return await _trigger_power(host_id, "-r", "reboot", "♻️")
 
 
 async def shutdown_host(host_id: str) -> Dict[str, Any]:
-    """Power off a peer over the forced-command SSH channel (#309).
+    """Power off a peer over the general-SSH power channel (#309/#311).
     Destructive — the caller must exclude the active hub host."""
-    return await _trigger_power(host_id, "shutdown", "⏻")
+    return await _trigger_power(host_id, "-h", "shutdown", "⏻")

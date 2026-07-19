@@ -241,6 +241,88 @@ def test_reboot_failure_bubbles_502(monkeypatch):
 # ------------------------------------------------------------- terminal status
 
 
+# ---------------------------------------------------- general-SSH power channel
+
+
+class _FakeCompleted:
+    def __init__(self, returncode=0, stderr=""):
+        self.returncode = returncode
+        self.stderr = stderr
+        self.stdout = ""
+
+
+def test_power_command_uses_general_ssh_not_forced_command_key(monkeypatch):
+    """reboot/shutdown must ride the hub user's own SSH (#311) — no ``-i``
+    forced-command key, and the real ``sudo shutdown`` verb, targeting
+    ``ssh_user@address`` of the peer."""
+    from src import remote_bootstrap
+
+    captured = {}
+
+    def _fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return _FakeCompleted(returncode=0)
+
+    monkeypatch.setattr(remote_bootstrap.subprocess, "run", _fake_run)
+    result = remote_bootstrap._run_power_command("mac-mini-m4", "-r")
+
+    assert result["ok"] is True
+    cmd = captured["cmd"]
+    assert cmd[0] == "ssh"
+    assert "-i" not in cmd  # NOT the LOCAL_LLM_HUB_SSH_KEY forced-command key
+    assert "roberto@192.168.0.14" in cmd  # peer ssh_user@address
+    remote = cmd[-1]
+    assert "sudo -n /sbin/shutdown -r now" in remote
+    assert "nohup" in remote  # detached so the SSH command returns cleanly
+
+
+def test_power_command_flags_map_reboot_and_shutdown(monkeypatch):
+    """``reboot_host`` sends ``-r``; ``shutdown_host`` sends ``-h``."""
+    from src import remote_bootstrap
+
+    seen = []
+
+    def _fake_run(cmd, **kwargs):
+        seen.append(cmd[-1])
+        return _FakeCompleted(returncode=0)
+
+    monkeypatch.setattr(remote_bootstrap.subprocess, "run", _fake_run)
+    r1 = _run(remote_bootstrap.reboot_host("openclaw"))
+    r2 = _run(remote_bootstrap.shutdown_host("openclaw"))
+
+    assert r1["ok"] and "reboot scheduled on openclaw" in r1["detail"]
+    assert r2["ok"] and "shutdown scheduled on openclaw" in r2["detail"]
+    assert "sudo -n /sbin/shutdown -r now" in seen[0]
+    assert "sudo -n /sbin/shutdown -h now" in seen[1]
+
+
+def test_power_command_guards_missing_ssh_target(monkeypatch):
+    """A host with no address/ssh_user is rejected before any ssh call — the
+    router already blocks tower, but the layer guards itself too."""
+    from src import remote_bootstrap
+
+    def _boom(cmd, **kwargs):  # pragma: no cover — must never run
+        raise AssertionError("ssh should not be invoked for an unroutable host")
+
+    monkeypatch.setattr(remote_bootstrap.subprocess, "run", _boom)
+    result = remote_bootstrap._run_power_command("tower", "-r")
+    assert result["ok"] is False
+    assert "address/ssh_user" in result["error"]
+
+
+def test_power_command_ssh_failure_surfaces_error(monkeypatch):
+    """A non-zero ssh exit is reported, not swallowed."""
+    from src import remote_bootstrap
+
+    def _fake_run(cmd, **kwargs):
+        return _FakeCompleted(returncode=255, stderr="Connection refused")
+
+    monkeypatch.setattr(remote_bootstrap.subprocess, "run", _fake_run)
+    result = remote_bootstrap._run_power_command("mac-mini-m4", "-h")
+    assert result["ok"] is False
+    assert "ssh exit 255" in result["error"] and "Connection refused" in result["error"]
+
+
 def test_terminal_status_endpoint_shape(monkeypatch):
     from src import ssh_terminal
 

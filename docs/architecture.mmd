@@ -56,7 +56,7 @@ flowchart TB
 
   subgraph multihost["Multi-host (Mac Mini, issue #181)"]
     REMOTEPROXY["remote_proxy.py\nresolve owning host's own base_url\nfor a model this host doesn't own"]
-    REMOTEBOOT["remote_bootstrap.py\nSSH forced-command verbs: bootstrap/sync\n(dead peer hub) + reboot/shutdown\n(Machines console, issue #309)"]
+    REMOTEBOOT["remote_bootstrap.py\nSSH forced-command verbs: bootstrap/sync\n(dead peer hub, #181) + general-SSH\nreboot/shutdown (Machines console, #309/#311)"]
     MACHINECON["machine_console.py\nMachines-tab console (#309): host inventory\n+ per-machine card assembly + RDP gen"]
     REMOTESTATS["remote_stats.py\nTCP liveness (is the box on?) + general-SSH\nCPU/RAM/GPU/disk/uptime snapshot (#309)"]
     SSHTERM["ssh_terminal.py\nin-browser SSH terminal (#309): drives\napp-launcher's session-host over loopback"]
@@ -75,7 +75,7 @@ flowchart TB
   REMOTESTATS -->|TCP :22 + read-only ssh| MACMINI
   REMOTESTATS -->|TCP :22 + read-only ssh| OPENCLAW
   SSHTERM -->|POST /sessions + WS| SESSIONHOST
-  REMOTEBOOT -->|reboot/shutdown| OPENCLAW
+  REMOTEBOOT -->|general-SSH reboot/shutdown| OPENCLAW
 
   subgraph procmgr["Process managers"]
     SUPERVISOR["process_supervisor.py\nshared subprocess start/stop workflow"]

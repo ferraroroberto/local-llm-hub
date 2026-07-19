@@ -447,29 +447,22 @@ Every reachable machine shows the **same** snapshot — CPU / RAM / GPU / disk
   (`src/remote_stats.py`): a **hub-independent TCP liveness probe** for
   up/down, and the same CPU/RAM/GPU/disk/uptime snapshot collected over the
   hub user's **own** passwordless SSH (a read-only one-liner, per-OS). A
-  dormant node (tower) is shown but not live-probed. Reboot/shutdown are the
-  only actions that use the locked-down forced-command key; all read-only
-  observability goes over general SSH + TCP.
+  dormant node (tower) is shown but not live-probed. All peer actions —
+  read-only observability *and* reboot/shutdown — go over that general SSH
+  (plus TCP for liveness); the forced-command key is reserved for the Mac
+  Mini's hub-lifecycle `bootstrap`/`sync` (#181).
 
 **Reboot / shutdown (destructive, peers only).** Any peer with an SSH channel
 (`address` + `ssh_user`) offers **Reboot** and **Shut down** actions; the
 active hub host is always excluded (powering it off would take the console
-down with it), and tower has no SSH so it is RDP-only. These ride the same
-`#181` forced-command key — `mac/bin/hub-remote-ctl.sh` (and its Linux
-sibling `linux/bin/hub-remote-ctl.sh` for OpenClaw) now allow `reboot` /
-`shutdown` verbs in addition to `bootstrap` / `sync`, still with **no general
-shell**. The dispatcher detaches a short-delayed `sudo shutdown` so the SSH
-command returns cleanly before the box drops off.
-
-> **Deployment note.** Reachability + stats already work over the hub user's
-> general SSH, but the destructive **reboot/shutdown** actions run through the
-> forced-command script on the *peer*, so the peer must carry the updated
-> script: redeploy `mac/bin/hub-remote-ctl.sh` to the Mac Mini (`.../sync`
-> does this), and on OpenClaw install `linux/bin/hub-remote-ctl.sh` plus a
-> `command="…hub-remote-ctl.sh"`-restricted entry for the automation key in
-> `~/.ssh/authorized_keys` (same shape as the Mac's). Until then OpenClaw
-> still shows online with live stats — only its reboot/shutdown buttons wait
-> on the deploy.
+down with it), and tower has no SSH so it is RDP-only. These run over the hub
+user's **own general SSH** (issue #311) — the same passwordless channel the
+stats snapshot uses — as `ssh <user>@<host> "sudo -n /sbin/shutdown -r|-h
+now"`, detached with `nohup` so the SSH command returns cleanly before the box
+drops off. The only prerequisite is the peer's passwordless-sudo sudoers
+drop-in (already in place on the Mac Mini and OpenClaw); **nothing has to be
+deployed to a managed machine** — no per-peer key, no forced-command script.
+This is why OpenClaw's power buttons work the moment it is reachable.
 
 **Remote Desktop.** A per-machine **Remote Desktop** action serves a
 generated `.rdp` launcher (built from the machine's configured `rdp`
