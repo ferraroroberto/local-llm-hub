@@ -1,0 +1,170 @@
+/* Machines tab (issue #309) — a card per machine (this host + reachable
+ * peers): live status dot, stats dashboard, action rail, plus a destructive-
+ * action confirm dialog and an in-browser SSH terminal overlay.
+ *
+ * Reuses existing patterns rather than inventing new ones: .card /
+ * .card-header / .hub-title-block / .hub-live-status (hub.js), .hub-meta-row
+ * (role/uptime/Tailscale line), .ghost-btn / .ghost-btn.danger (the action
+ * rail), and the vendored .empty-state / .detail-dialog (modal) shells. The
+ * genuinely new pieces are the uniform horizontal stat gauges (CPU/RAM/GPU/
+ * disk), the card list gap, the equal 4-up/2×2 action grid, and the terminal
+ * overlay.
+ */
+
+.machines-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* Stale cards keep rendering their last-known content (design.md "stale"
+ * state) but read as slightly inert while a background refresh is failing. */
+.machine-card.is-stale { opacity: 0.72; }
+
+/* "self" status — the host you're looking at right now: an accent tint
+ * reads as "home base", distinct from the good/warn/danger status trio
+ * (.hub-live-status is the generic hub.js component; this is its one new
+ * modifier). */
+.hub-live-status.accent { color: var(--accent); }
+.hub-live-status.accent .dot { background: var(--accent); }
+
+/* Role / Tailscale-hint line under the header — same rhythm as the Hub
+ * card's PID/Uptime row (.hub-meta-row is a generic, unscoped rule). */
+.machine-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: baseline;
+  font-size: var(--font-caption);
+  margin: 0 0 8px;
+}
+
+/* Stats — a uniform column of horizontal gauges (CPU / RAM / GPU / disk),
+ * every gauge the same size, one per line so it reads identically on the
+ * phone and desktop. This host and every reachable peer render through the
+ * same block (uptime is the meta-row line above, not a gauge). */
+.machine-stats {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gauge { display: flex; flex-direction: column; gap: 4px; }
+.gauge-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--font-caption);
+}
+.gauge-label { color: var(--muted); font-weight: 600; }
+.gauge-value { color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
+.gauge-track {
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--card-off);
+  overflow: hidden;
+}
+.gauge-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+/* Resource-pressure state (design.md: status colors signal state). */
+.gauge[data-level="warn"] .gauge-fill { background: var(--attention); }
+.gauge[data-level="high"] .gauge-fill { background: var(--danger); }
+@media (prefers-reduced-motion: reduce) {
+  .gauge-fill { transition: none; }
+}
+
+/* Action rail — the same four actions on every card (Terminal · Remote ·
+ * Reboot · Shut down), equal-size cells: 4-up on desktop, 2×2 on a phone. An
+ * unsupported action is disabled (shaded), never omitted, so the grid is
+ * identical across machines. */
+.machine-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.machine-action {
+  min-width: 0;            /* equal grid cells — never grow past the track */
+  min-height: 44px;       /* hit-target floor */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.machine-action > span { overflow: hidden; text-overflow: ellipsis; }
+/* Shaded = unavailable: the one flat disabled recipe (design.md
+ * button-disabled), so a disabled danger button never reads as an active
+ * red one and all four line up as equals. */
+.machine-action:disabled {
+  background: var(--card-off);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: default;
+}
+.machine-action:disabled .icon { opacity: 0.9; }
+/* 2×2 on coarse pointers / narrow viewports. */
+@media (pointer: coarse), (max-width: 560px) {
+  .machine-actions { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ---------- confirm dialog (reboot / shutdown) ----------
+ * Built on the vendored .detail-dialog/.detail-card shell (_vendored/modal);
+ * this file only adds the body copy spacing and the danger restatement of
+ * .detail-save-btn (design.md: "a destructive action may restate the tint
+ * recipe on danger" — never a solid danger fill). */
+.machines-confirm-body {
+  margin: 4px 0 14px;
+  color: var(--ink);
+  font-size: var(--font-body);
+}
+.detail-save-btn.danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+.detail-save-btn.danger:disabled {
+  background: var(--card-off);
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+/* ---------- terminal overlay ----------
+ * Same vendored dialog shell, resized to a near-full-height surface so the
+ * xterm instance has real room; the mount fills the remaining flex space. */
+.machines-terminal-dialog {
+  width: min(920px, 96vw);
+  max-height: 92vh;
+  max-height: 92dvh;
+}
+.machines-terminal-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 60vh;
+  min-height: 60dvh;
+}
+.machines-terminal-mount {
+  flex: 1;
+  min-height: 320px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--code-bg);
+}
+/* xterm.js sizes its own canvas/DOM via the FitAddon; this just keeps the
+ * host filling the mount div. */
+.machines-terminal-mount .terminal.xterm { height: 100%; padding: 6px 8px; }
+.machines-terminal-card .empty-state { padding: var(--space-lg) var(--space-md); }
+
+@media (pointer: coarse) and (max-width: 520px) {
+  .machines-terminal-dialog {
+    width: 96vw;
+  }
+}

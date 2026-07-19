@@ -1,4 +1,4 @@
-/* Five-tab switcher: Hub | Models | Playground | Telemetry | Claude Code.
+/* Six-tab switcher: Hub | Models | Playground | Telemetry | Claude Code | Machines.
  *
  * Thin adapter over the vendored fleet nav (_vendored/nav/nav-tabs.js —
  * local-llm-hub#211). The vendored component owns tab discovery, ARIA +

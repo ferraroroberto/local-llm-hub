@@ -20,6 +20,8 @@ export const STATUS_POLL_MS = 4000;
 export const COUNTERS_POLL_MS = 4000;
 export const MODELS_POLL_MS = 5000;
 export const STATS_POLL_MS = 2000;
+/* Machines tab (issue #309) — only polled while that tab is active. */
+export const MACHINES_POLL_MS = 10000;
 
 export const state = {
   tab: 'hub',
@@ -63,6 +65,14 @@ export const state = {
 
   // Models tab — "Active only" filter, default on (issue #266).
   modelsActiveOnly: true,
+
+  // Machines tab — fleet status/actions/terminal (issue #309).
+  machinesStatus: null,     // last good /admin/api/machines/status payload
+  machinesDataState: 'loading',  // loading | ready | empty | stale | error
+  machinesLastUpdated: 0,   // Date.now() of the last good fetch
+  machinesErrorMsg: '',     // sanitized message for the error empty-state
+  machinesBusyIds: {},      // machine id -> true while a reboot/shutdown POST is in flight
+  machinesRecheckIds: {},   // machine id -> true while a fresh status re-check is pending
 };
 
 // ES modules are deferred; document.getElementById is safe at top level.
@@ -244,6 +254,25 @@ export const els = {
   cldSessionsList: document.getElementById('cldSessionsList'),
   cldSessionsBadge: document.getElementById('cldSessionsBadge'),
   cldSessionsEmpty: document.getElementById('cldSessionsEmpty'),
+
+  // Machines tab (issue #309)
+  machinesLoading: document.getElementById('machinesLoading'),
+  machinesError: document.getElementById('machinesError'),
+  machinesErrorMsg: document.getElementById('machinesErrorMsg'),
+  machinesRetryBtn: document.getElementById('machinesRetryBtn'),
+  machinesStaleNote: document.getElementById('machinesStaleNote'),
+  machinesList: document.getElementById('machinesList'),
+  machinesConfirmDialog: document.getElementById('machinesConfirmDialog'),
+  machinesConfirmTitle: document.getElementById('machinesConfirmTitle'),
+  machinesConfirmCloseBtn: document.getElementById('machinesConfirmCloseBtn'),
+  machinesConfirmBody: document.getElementById('machinesConfirmBody'),
+  machinesConfirmBtn: document.getElementById('machinesConfirmBtn'),
+  machinesTerminalDialog: document.getElementById('machinesTerminalDialog'),
+  machinesTerminalTitle: document.getElementById('machinesTerminalTitle'),
+  machinesTerminalCloseBtn: document.getElementById('machinesTerminalCloseBtn'),
+  machinesTerminalUnavailable: document.getElementById('machinesTerminalUnavailable'),
+  machinesTerminalUnavailableMsg: document.getElementById('machinesTerminalUnavailableMsg'),
+  machinesTerminalMount: document.getElementById('machinesTerminalMount'),
 
   // Misc
   toast: document.getElementById('toast'),

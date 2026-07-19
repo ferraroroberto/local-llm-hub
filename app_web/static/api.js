@@ -170,6 +170,14 @@ export function escapeHtml(s) {
   });
 }
 
+/* Trim the vendor prefix off an nvidia-smi GPU name ("NVIDIA GeForce RTX
+ * 4080" -> "RTX 4080") — shared by the Hub sparkline labels and the
+ * Machines-tab stats card (#309 sibling-dedup, same pattern as escapeHtml). */
+export function shortGpu(name) {
+  if (!name) return '';
+  return name.replace('NVIDIA ', '').replace('GeForce ', '').trim();
+}
+
 /* HH:MM:SS from a unix-seconds timestamp; '' when absent (append a
  * placeholder at the call site where one is wanted). */
 export function fmtClock(ts) {

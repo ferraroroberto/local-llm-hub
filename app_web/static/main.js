@@ -13,6 +13,7 @@ import { wireStartupProfile, fetchStartupProfile } from './startup.js';
 import { wirePlayground, fetchPlaygroundModels, fetchTtsModels, fetchImageModels } from './playground.js';
 import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls, fetchTelemetryHealth } from './telemetry.js';
 import { wireCodeUsage, startCodeUsagePolls, stopCodeUsagePolls, restyleCodeUsageCharts } from './code_usage.js';
+import { wireMachines, startMachinesPolls, stopMachinesPolls } from './machines.js';
 
 // --------------------------------------------------------------- theme toggle
 // The pre-paint boot script in index.html already stamped html[data-theme]
@@ -62,6 +63,7 @@ async function boot() {
   wirePlayground();
   wireTelemetry();
   wireCodeUsage();
+  wireMachines();
 
   // Register the tab-change hook BEFORE wiring the nav: the vendored
   // component restores the persisted tab during wireTabs() and fires
@@ -81,6 +83,11 @@ async function boot() {
       startCodeUsagePolls();
     } else {
       stopCodeUsagePolls();
+    }
+    if (tab === 'machines') {
+      startMachinesPolls();
+    } else {
+      stopMachinesPolls();
     }
   });
   wireTabs();

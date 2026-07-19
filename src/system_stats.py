@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
+import time
 from typing import Optional
 
 import psutil
@@ -39,6 +40,37 @@ def cpu_stats() -> dict[str, float]:
     each tick. The first sample after process start may read 0.0.
     """
     return {"percent": float(psutil.cpu_percent(interval=None))}
+
+
+def disk_stats() -> dict[str, float]:
+    """Return usage of the system drive as {used_gb, total_gb, percent}.
+
+    Probes the OS root (``C:\\`` on Windows, ``/`` elsewhere) — the drive
+    the hub and model weights live on, which is the one worth surfacing on
+    the machine card. Swallows errors to an empty dict so a probe failure
+    never breaks the dashboard poll (same contract as the other probes)."""
+    root = "C:\\" if sys.platform == "win32" else "/"
+    try:
+        du = psutil.disk_usage(root)
+    except OSError as exc:
+        logger.debug("disk_usage(%s) failed: %s", root, exc)
+        return {}
+    gib = 1024 ** 3
+    return {
+        "used_gb": round(du.used / gib, 2),
+        "total_gb": round(du.total / gib, 2),
+        "percent": float(du.percent),
+    }
+
+
+def uptime_seconds() -> float:
+    """Return this machine's uptime in seconds (now − boot time).
+
+    ``psutil.boot_time()`` is a wall-clock epoch, so this is the OS uptime,
+    not the hub-process uptime (the Hub tab already shows the latter from
+    the observability ring). Clamped at 0 so a clock skew never returns a
+    negative."""
+    return max(0.0, time.time() - psutil.boot_time())
 
 
 def gpu_stats() -> list[dict[str, Optional[float]]]:
