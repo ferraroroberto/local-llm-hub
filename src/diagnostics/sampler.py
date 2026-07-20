@@ -75,6 +75,21 @@ class ActiveRun:
 _active: Optional[ActiveRun] = None
 _task: Optional[asyncio.Task] = None
 _lock = asyncio.Lock()
+# Set to ask the loop to finish its current tick and exit (see stop_run).
+_stop_requested = asyncio.Event()
+# How long a graceful stop waits before falling back to cancellation.
+_STOP_GRACE_S = 30.0
+
+
+async def _sleep_or_stop(seconds: float) -> bool:
+    """Sleep, returning early (``True``) if a stop is requested meanwhile."""
+    if seconds <= 0:
+        return _stop_requested.is_set()
+    try:
+        await asyncio.wait_for(_stop_requested.wait(), timeout=seconds)
+        return True
+    except asyncio.TimeoutError:
+        return False
 
 
 def active_run() -> Optional[ActiveRun]:
@@ -207,6 +222,9 @@ async def start_run(
             run_id=run_id, started_at=time.time(), interval_s=interval,
             duration_s=duration, trigger=trigger,
         )
+        # A previous run's stop signal must never abort the new one on its
+        # first tick.
+        _stop_requested.clear()
         _task = asyncio.create_task(_run_loop(_active))
         logger.info(
             "🔬 diagnostics capture started (run=%s interval=%.0fs duration=%s trigger=%s)",
@@ -254,16 +272,36 @@ async def one_shot(*, retention_days: int = 90, trigger: str = "one-shot") -> Di
 
 
 async def stop_run() -> Dict[str, Any]:
-    """Stop the active capture, if any. Safe to call when idle."""
+    """Stop the active capture gracefully, if any. Safe to call when idle.
+
+    Signals the loop and lets it finish the tick it is in, rather than
+    cancelling it. Cancelling mid-tick was wrong in a way that only showed up
+    under load: the sampler does its work through ``asyncio.to_thread``, and
+    cancelling the *await* does not stop the worker thread — so a half-written
+    sample could still land in SQLite after the caller believed the run was
+    over, and the finalize in the loop's ``finally`` could be skipped because
+    its own awaits raise ``CancelledError`` too. A graceful stop makes both
+    the last write and the finalize deterministic.
+
+    ``cancel()`` remains only as a backstop for a loop that ignores the signal
+    (a tick wedged in a syscall), so stopping can never hang forever."""
     global _task
     run = _active
     if run is None:
         return {"stopped": False}
     task = _task
+    _stop_requested.set()
     if task is not None:
-        task.cancel()
         try:
-            await task
+            await asyncio.wait_for(asyncio.shield(task), timeout=_STOP_GRACE_S)
+        except asyncio.TimeoutError:
+            logger.warning("⚠️ diagnostics capture did not stop in %.0fs — cancelling",
+                           _STOP_GRACE_S)
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                pass
         except (asyncio.CancelledError, Exception):  # noqa: BLE001
             pass
     _task = None
@@ -271,12 +309,18 @@ async def stop_run() -> Dict[str, Any]:
 
 
 async def _run_loop(run: ActiveRun) -> None:
-    """The capture task: prime, then tick until the deadline or cancellation."""
+    """The capture task: prime, then tick until the deadline or a stop signal.
+
+    Every tick runs to completion before the loop can exit, so the store is
+    never left mid-write (see :func:`stop_run`)."""
     global _active, _task
     status = "complete"
     try:
         await asyncio.to_thread(attribution.prime_cpu_percent)
         while True:
+            if _stop_requested.is_set():
+                status = "stopped"
+                break
             tick_started = time.time()
             deadline = run.deadline
             if deadline is not None and tick_started >= deadline:
@@ -298,9 +342,13 @@ async def _run_loop(run: ActiveRun) -> None:
             if deadline is not None:
                 sleep_for = min(sleep_for, max(0.0, deadline - time.time()))
                 if time.time() + sleep_for >= deadline:
-                    await asyncio.sleep(sleep_for)
+                    await _sleep_or_stop(sleep_for)
                     break
-            await asyncio.sleep(sleep_for)
+            # Interruptible: a stop lands within the signal, not a whole
+            # interval later, without cancelling a tick that is mid-write.
+            if await _sleep_or_stop(sleep_for):
+                status = "stopped"
+                break
     except asyncio.CancelledError:
         status = "stopped"
         raise
@@ -310,16 +358,27 @@ async def _run_loop(run: ActiveRun) -> None:
     finally:
         _active = None
         _task = None
+        # Finalize synchronously on this thread rather than through
+        # asyncio.to_thread: in the cancellation backstop path every *await*
+        # here would re-raise CancelledError and silently skip the finalize,
+        # leaving the run stuck at "running" forever. These are two short
+        # SQLite writes, and the loop is already ending.
         try:
-            await asyncio.to_thread(store.finish_run, run.run_id, status=status)
-            from . import rules
-            await asyncio.to_thread(rules.evaluate_and_save, run.run_id)
+            _finalize(run.run_id, status)
         except Exception as exc:  # noqa: BLE001
             logger.warning("⚠️ diagnostics finalize failed (run=%s): %s", run.run_id, exc)
         logger.info(
             "🔬 diagnostics capture %s (run=%s, %d samples)",
             status, run.run_id, run.samples_written,
         )
+
+
+def _finalize(run_id: str, status: str) -> None:
+    """Close a run and judge it. Idempotent — ``finish_run`` is an UPDATE and
+    the verdict write is INSERT OR REPLACE, so a double call is harmless."""
+    store.finish_run(run_id, status=status)
+    from . import rules
+    rules.evaluate_and_save(run_id)
 
 
 def _cpu_count() -> int:

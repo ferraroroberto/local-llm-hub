@@ -140,6 +140,43 @@ def test_stop_when_idle_is_safe(client):
     assert client.post("/admin/api/diagnostics/stop", json={}).json()["stopped"] is False
 
 
+def test_stop_leaves_no_write_in_flight(client):
+    """Stopping must be *graceful*, not a mid-tick cancel.
+
+    The sampler does its work through ``asyncio.to_thread``, and cancelling
+    the await does not stop the worker thread — so a cancel-based stop could
+    land a sample in SQLite after the caller believed the run was over, and
+    skip the finalize because the awaits in the ``finally`` re-raise
+    ``CancelledError``. That surfaced as intermittent 'database is locked'
+    failures in unrelated tests. Once stop returns, the run must be closed and
+    its row count must be final."""
+    client.post("/admin/api/diagnostics/start", json={"duration_s": 600, "interval_s": 5})
+    run_id = client.get("/admin/api/diagnostics/status").json()["active"]["run_id"]
+    time.sleep(2.5)  # let at least one tick land
+
+    assert client.post("/admin/api/diagnostics/stop", json={}).json()["stopped"] is True
+
+    run = store.get_run(run_id)
+    assert run["status"] == "stopped", "a stopped run must not be left 'running'"
+    assert run["ended_at"] is not None
+    assert run["verdict_level"] is not None, "the finalize (verdict) was skipped"
+
+    settled = len(store.samples(run_id))
+    time.sleep(1.5)
+    assert len(store.samples(run_id)) == settled, "a write landed after stop returned"
+
+
+def test_stop_signal_does_not_abort_the_next_run(client):
+    """A stale stop signal must not kill the following capture on tick one."""
+    client.post("/admin/api/diagnostics/start", json={"duration_s": 600, "interval_s": 5})
+    client.post("/admin/api/diagnostics/stop", json={})
+
+    client.post("/admin/api/diagnostics/start", json={"duration_s": 600, "interval_s": 5})
+    status = client.get("/admin/api/diagnostics/status").json()
+    assert status["capturing"] is True, "the new run was aborted by a stale stop signal"
+    client.post("/admin/api/diagnostics/stop", json={})
+
+
 # ----------------------------------------------------------------- run reads
 
 
