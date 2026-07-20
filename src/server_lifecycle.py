@@ -64,6 +64,26 @@ async def stop_backend_children() -> None:
             logger.warning("shutdown: stop %s raised: %s", model_id, exc)
 
 
+async def stop_diagnostics_sampler() -> None:
+    """Gracefully finish any diagnostics capture on hub shutdown (#316).
+
+    The sampler is an in-process asyncio task (issue #315), so a capture cannot
+    survive a process restart regardless — draining it here finalizes the run as
+    ``stopped`` instead of leaving it to be recovered as an ``orphan`` on the
+    next boot. It also closes a test-isolation hazard: without this, a capture's
+    ``to_thread`` worker (or the scheduled-snapshot loop) can outlive the app and
+    write through the module-global ``db_path`` into the *next* test's database,
+    surfacing as an intermittent ``database is locked``. Best-effort — a shutdown
+    must never hang on it (``stop_run`` is itself bounded by a grace timeout)."""
+    try:
+        from .diagnostics import sampler
+        await sampler.stop_scheduled_snapshots()
+        if sampler.is_capturing():
+            await sampler.stop_run()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("shutdown: stopping diagnostics sampler raised: %s", exc)
+
+
 async def wire_observatory_loop() -> None:
     """Capture the running event loop so the synchronous middleware can
     fan out SSE events from non-async callers."""
@@ -233,4 +253,5 @@ def register(app) -> None:
     decorator-less registration this module needs.
     """
     app.on_event("shutdown")(stop_backend_children)
+    app.on_event("shutdown")(stop_diagnostics_sampler)
     app.on_event("startup")(wire_observatory_loop)

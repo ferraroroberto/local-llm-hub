@@ -25,7 +25,7 @@ export never drift apart.
 from __future__ import annotations
 
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from . import store
 
@@ -59,12 +59,17 @@ def _darwin() -> bool:
     return sys.platform == "darwin"
 
 
-def compute(run_id: str, *, ports_denied: bool) -> Dict[str, Any]:
+def compute(run_id: str, *, ports_denied: bool, platform: Optional[str] = None) -> Dict[str, Any]:
     """Build the coverage map for a finished run.
 
     ``ports_denied`` is the collection-time signal (the sampler saw every port
     scan raise ``AccessDenied``); everything else is derived from the stored
-    rows and the platform, so a re-computation is deterministic."""
+    rows and the platform, so a re-computation is deterministic.
+
+    ``platform`` (``windows``/``darwin``/``linux``) names the machine the run
+    came *from*; it defaults to this host and is passed explicitly only for a
+    foreign run ingested from another OS (#316), so a macOS capture is marked
+    GPU-unsupported even when it is ingested on the Windows hub."""
     read = store.proc_readability(run_id)
     total = read["total"]
 
@@ -76,7 +81,8 @@ def compute(run_id: str, *, ports_denied: bool) -> Dict[str, Any]:
     # Unified memory exposes no discrete VRAM figure, so GPU-memory pressure is
     # structurally invisible on Apple silicon — recorded as a known gap, not a
     # failure. (A positive ANE/unified-pressure signal is its own feature.)
-    if _darwin():
+    is_darwin = (platform == "darwin") if platform else _darwin()
+    if is_darwin:
         cov["gpu"] = {"status": UNSUPPORTED}
     return cov
 

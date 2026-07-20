@@ -46,7 +46,9 @@ DEFAULT_RULES_PATH = PROJECT_ROOT / "config" / "diagnostics_apps.json"
 
 UNATTRIBUTED = "unattributed"
 
-_rules_cache: Dict[str, Any] = {}
+# Cache keyed by platform token, so ingesting a foreign run (#316) can attribute
+# with the *source* machine's rule group without disturbing the live host's.
+_rules_cache: Dict[str, Dict[str, Any]] = {}
 _rules_path: Optional[Path] = None
 _platform_override: Optional[str] = None
 
@@ -80,13 +82,13 @@ def current_platform() -> str:
     return "linux"
 
 
-def _merge_for_platform(data: Dict[str, Any], key: str) -> Any:
+def _merge_for_platform(data: Dict[str, Any], key: str, platform: str) -> Any:
     """Return ``data[key]`` merged with its ``<key>_<platform>`` twin.
 
     The OS-specific entries are applied *after* the shared ones, so a platform
     may deliberately override a shared rule as well as extend it."""
     shared = data.get(key)
-    specific = data.get(f"{key}_{current_platform()}")
+    specific = data.get(f"{key}_{platform}")
     if isinstance(shared, list) or isinstance(specific, list):
         return list(shared or []) + list(specific or [])
     merged: Dict[str, Any] = {}
@@ -95,11 +97,18 @@ def _merge_for_platform(data: Dict[str, Any], key: str) -> Any:
     return merged
 
 
-def load_rules() -> Dict[str, Any]:
-    """Load + cache the attribution rules. A broken file degrades to empty
-    rules (everything unattributed) rather than breaking a capture."""
-    if _rules_cache:
-        return _rules_cache
+def load_rules(platform: Optional[str] = None) -> Dict[str, Any]:
+    """Load + cache the attribution rules for a platform. A broken file degrades
+    to empty rules (everything unattributed) rather than breaking a capture.
+
+    ``platform`` selects which ``_windows``/``_darwin``/``_linux`` rule groups
+    merge in; it defaults to this host's, and is passed explicitly only when
+    ingesting a foreign run (#316). Cached per platform so a foreign attribution
+    never evicts the live host's compiled rules."""
+    plat = platform or current_platform()
+    cached = _rules_cache.get(plat)
+    if cached is not None:
+        return cached
     target = _rules_path or DEFAULT_RULES_PATH
     data: Dict[str, Any] = {}
     if target.exists():
@@ -112,20 +121,21 @@ def load_rules() -> Dict[str, Any]:
     # Longest prefix first, so `/system/library/` is decided before `/system/`
     # and the table stays order-independent as it grows.
     path_prefixes = sorted(
-        ((_norm(k), str(v)) for k, v in _merge_for_platform(data, "path_prefixes").items()),
+        ((_norm(k), str(v)) for k, v in _merge_for_platform(data, "path_prefixes", plat).items()),
         key=lambda kv: -len(kv[0]),
     )
-    _rules_cache.update({
-        "fleet_roots": [_norm(r) for r in _merge_for_platform(data, "fleet_roots") if r],
+    built = {
+        "fleet_roots": [_norm(r) for r in _merge_for_platform(data, "fleet_roots", plat) if r],
         "binaries": {
-            str(k).lower(): str(v) for k, v in _merge_for_platform(data, "binaries").items()
+            str(k).lower(): str(v) for k, v in _merge_for_platform(data, "binaries", plat).items()
         },
         "cmdline_contains": {
-            _norm(k): str(v) for k, v in _merge_for_platform(data, "cmdline_contains").items()
+            _norm(k): str(v) for k, v in _merge_for_platform(data, "cmdline_contains", plat).items()
         },
         "path_prefixes": path_prefixes,
-    })
-    return _rules_cache
+    }
+    _rules_cache[plat] = built
+    return built
 
 
 def _norm(text: str) -> str:
@@ -143,13 +153,17 @@ def _strip_exe(name: str) -> str:
     return lowered
 
 
-def attribute(name: str, cmdline: str) -> str:
+def attribute(name: str, cmdline: str, platform: Optional[str] = None) -> str:
     """Return the ``app_id`` owning a process.
 
     Fleet-root matching runs against the whole command line, not just the
     executable, so ``pythonw.exe -m tray`` launched from a repo's ``.venv``
-    still attributes to that repo."""
-    rules = load_rules()
+    still attributes to that repo.
+
+    ``platform`` picks the OS rule group; it defaults to this host's and is
+    supplied explicitly only when re-attributing a foreign run at ingest (#316),
+    so a Linux capture is judged by the Linux rules even on the Windows hub."""
+    rules = load_rules(platform)
     hay = _norm(cmdline or name or "")
 
     for root in rules["fleet_roots"]:
