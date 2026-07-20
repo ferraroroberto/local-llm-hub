@@ -279,11 +279,17 @@ def _port_findings(ports: List[Dict[str, Any]], th: Dict[str, Any]) -> List[Dict
 
 
 def evaluate(run_id: str) -> Dict[str, Any]:
-    """Evaluate a stored run and return ``{level, findings}`` (no write)."""
+    """Evaluate a stored run and return ``{level, findings, coverage}`` (no
+    write). ``level`` is the health of what could be measured; ``coverage``
+    rides alongside it so a blind collector never silently reads as a pass."""
+    from . import coverage as cov
     th = load_thresholds()
+    run = store.get_run(run_id) or {}
+    coverage_map = run.get("coverage") or {}
     rows = store.samples(run_id)
     if not rows:
-        return {"level": "healthy", "findings": [], "sample_count": 0}
+        return {"level": "healthy", "findings": [], "sample_count": 0,
+                "coverage": coverage_map}
 
     apps = store.app_aggregates(run_id)
     procs = store.process_aggregates(run_id)
@@ -297,9 +303,27 @@ def evaluate(run_id: str) -> Dict[str, Any]:
     findings += _gpu_findings(rows, th)
     findings += _process_findings(rows, apps, procs, th)
     findings += _port_findings(ports, th)
+    findings += _coverage_findings(coverage_map, cov)
 
     findings.sort(key=lambda f: -_LEVEL_RANK.get(f["level"], 0))
-    return {"level": _worst(findings), "findings": findings, "sample_count": len(rows)}
+    return {"level": _worst(findings), "findings": findings,
+            "sample_count": len(rows), "coverage": coverage_map}
+
+
+def _coverage_findings(coverage_map: Dict[str, Any], cov) -> List[Dict[str, Any]]:
+    """A rule that depends on a blind collector reports 'not evaluated' rather
+    than passing in silence — the whole point of #322. The finding is
+    ``info``-level so it never moves the health verdict."""
+    out: List[Dict[str, Any]] = []
+    for rule, collector in cov.RULE_DEPENDS_ON.items():
+        status = cov.collector_status(coverage_map, collector)
+        if status in (cov.DENIED, cov.PARTIAL):
+            out.append(_finding(
+                f"{rule.split('.')[0]}.not_evaluated", "info",
+                f"`{rule}` not evaluated — {collector} coverage is {status}",
+                {"rule": rule, "collector": collector, "coverage": status},
+            ))
+    return out
 
 
 def evaluate_and_save(run_id: str) -> Dict[str, Any]:

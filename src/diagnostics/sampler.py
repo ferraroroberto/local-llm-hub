@@ -51,6 +51,10 @@ class ActiveRun:
     trigger: str
     samples_written: int = 0
     last_error: str = ""
+    # True once any tick's port scan succeeded (even if it found nothing). Its
+    # inverse over a run with samples means every scan was denied — recorded as
+    # coverage so a blind port table never reads as "nothing listening" (#322).
+    ports_ok_seen: bool = False
 
     @property
     def deadline(self) -> Optional[float]:
@@ -114,10 +118,13 @@ def is_capturing() -> bool:
 _CPU_WINDOW_S = 0.5
 
 
-def _collect_tick() -> tuple[store.SystemSample, list, list]:
-    """Gather one full sample. Runs in a worker thread (blocking psutil)."""
+def _collect_tick() -> tuple[store.SystemSample, list, list, bool]:
+    """Gather one full sample. Runs in a worker thread (blocking psutil).
+
+    The trailing bool is ``ports_denied`` — whether the socket scan was blocked
+    by privilege this tick, which storage cannot reconstruct after the fact."""
     processes = attribution.scan_processes()
-    ports = attribution.scan_listening_ports(processes)
+    ports, ports_denied = attribution.scan_listening_ports(processes)
 
     try:
         per_core = [float(x) for x in psutil.cpu_percent(interval=_CPU_WINDOW_S, percpu=True)]
@@ -155,7 +162,7 @@ def _collect_tick() -> tuple[store.SystemSample, list, list]:
         gpus=system_stats.gpu_stats(),
         process_count=len(processes),
     )
-    return sample, processes, ports
+    return sample, processes, ports, ports_denied
 
 
 def _io_counters(fn) -> Dict[str, Any]:
@@ -173,11 +180,11 @@ def _io_counters(fn) -> Dict[str, Any]:
         return {}
 
 
-def _write_tick(run_id: str) -> int:
-    """Collect + persist one tick. Returns the process count written."""
-    sample, processes, ports = _collect_tick()
+def _write_tick(run_id: str) -> tuple[int, bool]:
+    """Collect + persist one tick. Returns ``(process_count, ports_denied)``."""
+    sample, processes, ports, ports_denied = _collect_tick()
     store.write_sample(run_id, sample, processes, ports)
-    return len(processes)
+    return len(processes), ports_denied
 
 
 # ------------------------------------------------------------- run control
@@ -258,15 +265,14 @@ async def one_shot(*, retention_days: int = 90, trigger: str = "one-shot") -> Di
         # it over its own window.)
         await asyncio.to_thread(attribution.prime_cpu_percent)
         await asyncio.sleep(1.0)
-        await asyncio.to_thread(_write_tick, run_id)
-        await asyncio.to_thread(store.finish_run, run_id, status="complete")
+        _n, ports_denied = await asyncio.to_thread(_write_tick, run_id)
+        # Same finalize path as a timed run — coverage + verdict together.
+        await asyncio.to_thread(_finalize, run_id, "complete", ports_denied=ports_denied)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️ diagnostics one-shot failed: %s", exc)
         await asyncio.to_thread(store.finish_run, run_id, status="failed")
         raise
 
-    from . import rules
-    await asyncio.to_thread(rules.evaluate_and_save, run_id)
     logger.info("🔬 diagnostics one-shot captured (run=%s)", run_id)
     return {"run_id": run_id}
 
@@ -326,8 +332,10 @@ async def _run_loop(run: ActiveRun) -> None:
             if deadline is not None and tick_started >= deadline:
                 break
             try:
-                await asyncio.to_thread(_write_tick, run.run_id)
+                _n, ports_denied = await asyncio.to_thread(_write_tick, run.run_id)
                 run.samples_written += 1
+                if not ports_denied:
+                    run.ports_ok_seen = True
                 run.last_error = ""
             except Exception as exc:  # noqa: BLE001
                 # A failed tick is recoverable — log, remember, keep sampling.
@@ -364,7 +372,10 @@ async def _run_loop(run: ActiveRun) -> None:
         # leaving the run stuck at "running" forever. These are two short
         # SQLite writes, and the loop is already ending.
         try:
-            _finalize(run.run_id, status)
+            # A run that recorded samples but never once read the ports was
+            # blind to them throughout — the coverage signal (#322).
+            ports_denied = run.samples_written > 0 and not run.ports_ok_seen
+            _finalize(run.run_id, status, ports_denied=ports_denied)
         except Exception as exc:  # noqa: BLE001
             logger.warning("⚠️ diagnostics finalize failed (run=%s): %s", run.run_id, exc)
         logger.info(
@@ -373,10 +384,16 @@ async def _run_loop(run: ActiveRun) -> None:
         )
 
 
-def _finalize(run_id: str, status: str) -> None:
-    """Close a run and judge it. Idempotent — ``finish_run`` is an UPDATE and
-    the verdict write is INSERT OR REPLACE, so a double call is harmless."""
+def _finalize(run_id: str, status: str, *, ports_denied: bool = False) -> None:
+    """Close a run, record its coverage, then judge it. Idempotent —
+    ``finish_run`` is an UPDATE, coverage is an UPDATE, and the verdict write is
+    INSERT OR REPLACE, so a double call is harmless.
+
+    Coverage is written *before* the verdict so the rules can see which
+    collectors were blind and decline to score the ones they depend on (#322)."""
     store.finish_run(run_id, status=status)
+    from . import coverage
+    store.save_coverage(run_id, coverage.compute(run_id, ports_denied=ports_denied))
     from . import rules
     rules.evaluate_and_save(run_id)
 

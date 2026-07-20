@@ -482,8 +482,13 @@ the committed `config/diagnostics_apps.json`; a finished run gets a persisted
 `healthy`/`warning`/`critical` verdict from the tunable thresholds in
 `config/diagnostics_rules.json`; and any run can be marked a **baseline** so
 later runs report drift ("+2 resident apps, +3.1 GB idle RAM, new listener
-:8099"). Deep analysis happens outside the UI — export a run as JSON, download
-an LLM-ready markdown health report, or query the SQLite file directly.
+:8099"). Each run also records **what it could and couldn't measure** (#322):
+where the hub lacks privilege — macOS denies socket enumeration and ~40% of
+per-process memory/CPU — the report says "not collected" and the verdict reads
+`HEALTHY · ⚠ partial coverage` rather than letting an unmeasured signal pass as a
+clean bill of health. Deep analysis happens outside the UI — export a run as
+JSON, download an LLM-ready markdown health report, or query the SQLite file
+directly.
 
 **It adds no resident process**: the sampler is an asyncio task inside the
 already-running hub, so nothing exists when no capture is active. An **opt-in

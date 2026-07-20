@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "diagnostics.db"
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # Overridable for tests (same mutable-module-global pattern as
 # startup_profile.DEFAULT_PROFILE_PATH).
@@ -84,9 +84,31 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if current >= SCHEMA_VERSION:
         return
     if current < 1:
-        conn.executescript(_SCHEMA_V1)
+        conn.executescript(_SCHEMA_V1)   # CREATE TABLE IF NOT EXISTS — idempotent
+    if current < 2:
+        # Per-collector coverage: which signals could actually be read this run,
+        # so "we weren't allowed to look" stops rendering as "nothing there"
+        # (#322). Unlike v1's CREATE-IF-NOT-EXISTS, `ALTER TABLE ADD COLUMN` has
+        # no idempotent form, so two connections opening a fresh DB at once (a
+        # write racing the hub's background `_init_diagnostics`) would both pass
+        # the version gate and both ALTER — the loser raising "duplicate column".
+        # Guard on the actual column, and still swallow a lost race.
+        _add_column(conn, "runs", "coverage_json", "TEXT NOT NULL DEFAULT '{}'")
     conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     logger.info("🗃️ diagnostics schema migrated %d → %d", current, SCHEMA_VERSION)
+
+
+def _add_column(conn: sqlite3.Connection, table: str, column: str, decl: str) -> None:
+    """Idempotent, concurrency-safe ``ALTER TABLE ADD COLUMN``."""
+    have = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column in have:
+        return
+    try:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+    except sqlite3.OperationalError as exc:
+        # A concurrent migrator added it between our check and our ALTER.
+        if "duplicate column" not in str(exc).lower():
+            raise
 
 
 _SCHEMA_V1 = """
@@ -316,6 +338,38 @@ def save_verdict(run_id: str, level: str, findings: List[Dict[str, Any]]) -> Non
         )
 
 
+def save_coverage(run_id: str, coverage: Dict[str, Any]) -> None:
+    """Persist the per-collector coverage map for a run (#322)."""
+    with connect() as conn:
+        conn.execute(
+            "UPDATE runs SET coverage_json = ? WHERE run_id = ?",
+            (json.dumps(coverage or {}), run_id),
+        )
+
+
+def proc_readability(run_id: str) -> Dict[str, int]:
+    """How many of a run's distinct processes had readable memory / CPU.
+
+    Counts by DISTINCT pid, not by row: privilege is stable across a capture,
+    so a process is readable or not for the whole run, and counting rows would
+    just weight it by how many ticks it survived. ``rss_bytes``/``cpu_percent``
+    are stored NULL (never 0) when psutil is denied, which is exactly what lets
+    this distinguish 'unreadable' from a genuine zero (#322)."""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COUNT(DISTINCT pid) AS total,"
+            " COUNT(DISTINCT CASE WHEN rss_bytes IS NOT NULL THEN pid END) AS mem_ok,"
+            " COUNT(DISTINCT CASE WHEN cpu_percent IS NOT NULL THEN pid END) AS cpu_ok"
+            " FROM process_samples WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+    return {
+        "total": int(row["total"] or 0),
+        "mem_ok": int(row["mem_ok"] or 0),
+        "cpu_ok": int(row["cpu_ok"] or 0),
+    }
+
+
 def set_baseline(run_id: str) -> None:
     """Mark one run as *the* baseline for its machine (exactly one wins)."""
     with connect() as conn:
@@ -347,6 +401,11 @@ def _run_dict(row: sqlite3.Row) -> Dict[str, Any]:
             d["params"] = json.loads(d.pop("params_json") or "{}")
         except json.JSONDecodeError:
             d["params"] = {}
+    if "coverage_json" in d:
+        try:
+            d["coverage"] = json.loads(d.pop("coverage_json") or "{}")
+        except json.JSONDecodeError:
+            d["coverage"] = {}
     d["is_baseline"] = bool(d.get("is_baseline"))
     return d
 
