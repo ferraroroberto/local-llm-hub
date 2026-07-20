@@ -58,11 +58,52 @@ it, in precedence order:
    processes launch. A sibling worktree (`<repo>-wt-315`) folds into its repo.
 2. **Known binary** — `llama-server`, `dockerd`, browsers, OS services…
 3. **Cmdline substring** — a few narrow fallbacks.
-4. **`unattributed`** — everything else.
+4. **Path prefix** — the broad net, anchored at the start of the executable
+   path: an OS-owned directory (`/System/Library/`, `/usr/libexec/`,
+   `C:/Windows/`) identifies a process whose *name* means nothing on its own.
+5. **`unattributed`** — everything else.
 
 That last bucket is not a failure mode: it is **the review list of processes
 nobody has accounted for yet**, which is exactly what you want when hunting
 bloat. Teaching the sampler a new app is a data edit, never a code change.
+
+Only **OS-owned** roots are bucketed by path. `/Applications` and
+`/opt/homebrew` deliberately are **not** — user-installed software is precisely
+the bloat a capture exists to surface, so auto-filing it would hide the answer.
+
+### Per-OS rule groups
+
+Any group may carry a `_windows` / `_darwin` / `_linux` twin, merged in only on
+that platform (`binaries_darwin`, `path_prefixes_linux`, …). This is not
+cosmetic: `/usr/bin` is Apple-owned and SIP-protected on macOS but is where
+ordinary user software lives on Linux, so bucketing it as "system" is correct
+on one and actively wrong on the other. The same lever fixed a live
+mis-attribution — Elgato ships a Windows app called *Control Center*, and the
+name-only rule was claiming Apple's macOS shell component for it on every Mac
+capture.
+
+### macOS reads the executable path, not the command line
+
+Reading another user's command line on macOS needs privileges the hub does not
+have, so every `root`/`_service` daemon reports an **empty** cmdline — 310 of
+673 processes on the Mac Mini, leaving only a 16-character truncated kernel
+name (`AppleCredentialM`). The executable path uses a different kernel call
+(`proc_pidpath`) that stays readable, and resolved 308 of those 310. The scan
+therefore falls back to `exe` when `cmdline` is empty; without it the path
+rules would have nothing to match and 42% of the machine would stay
+unattributed no matter how good the rule table was.
+
+Measured effect of the per-OS tables (#320):
+
+| Machine | Before | After |
+|---|---|---|
+| `mac-mini-m4` (Darwin 25.2) | 565 / 570 groups unattributed (99%) | 3 / 664 (0.5%) |
+| `pc-cuda` (Windows 11) | 86 / 542 unattributed | 54 / 542, **0 regressions** |
+
+Windows can only improve here: path rules run last, so they convert
+`unattributed` rows and can never re-label one that already had a name. Linux
+coverage is written to the same shape but is **unverified against a live
+capture** — `openclaw` runs no hub yet (#316).
 
 Grouping is by *cmdline*, not PID — the venv `pythonw` redirector spawns a stub
 *and* a real process per launch, so a PID-keyed rollup double-counts one app.

@@ -12,12 +12,20 @@ line and deciding which *app* owns it:
      OS services… mapped by executable name.
   3. **cmdline substring** — a few narrow rules for things neither of the above
      catches.
-  4. **``unattributed``** — everything else. This bucket is not a failure mode;
+  4. **path prefix** — the broad net, matched last: an OS-owned directory
+     (``/System/Library/``, ``/usr/libexec/``, ``C:/Windows/``) tells you the
+     owner even when the executable's name means nothing on its own. This is
+     what makes macOS and Linux legible (#320); enumerating Apple's several
+     hundred daemon names by hand never would have been.
+  5. **``unattributed``** — everything else. This bucket is not a failure mode;
      it is the review list of processes nobody has accounted for yet, which is
      precisely what the user is trying to find.
 
 Rules live in ``config/diagnostics_apps.json`` so teaching the sampler a new
-app is a data edit, never a code change.
+app is a data edit, never a code change. Any rule group may additionally carry
+a ``_windows`` / ``_darwin`` / ``_linux`` suffixed twin, merged in only on that
+platform — ``/usr/bin`` is Apple-owned on macOS but ordinary user software on
+Linux, so a single cross-platform table cannot be right for both.
 """
 
 from __future__ import annotations
@@ -25,6 +33,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -39,6 +48,7 @@ UNATTRIBUTED = "unattributed"
 
 _rules_cache: Dict[str, Any] = {}
 _rules_path: Optional[Path] = None
+_platform_override: Optional[str] = None
 
 
 def set_rules_path(path: Optional[Path]) -> None:
@@ -46,6 +56,43 @@ def set_rules_path(path: Optional[Path]) -> None:
     global _rules_path
     _rules_path = Path(path) if path else None
     _rules_cache.clear()
+
+
+def set_platform(platform: Optional[str]) -> None:
+    """Force the platform used to select ``_windows``/``_darwin``/``_linux``
+    rule groups. Tests only — it is the sole way to exercise the macOS and
+    Linux tables from the Windows dev box (#320)."""
+    global _platform_override
+    _platform_override = platform
+    _rules_cache.clear()
+
+
+def current_platform() -> str:
+    """``windows`` | ``darwin`` | ``linux`` — the suffix naming the OS-specific
+    rule groups that apply here."""
+    if _platform_override:
+        return _platform_override
+    raw = sys.platform
+    if raw.startswith("win"):
+        return "windows"
+    if raw == "darwin":
+        return "darwin"
+    return "linux"
+
+
+def _merge_for_platform(data: Dict[str, Any], key: str) -> Any:
+    """Return ``data[key]`` merged with its ``<key>_<platform>`` twin.
+
+    The OS-specific entries are applied *after* the shared ones, so a platform
+    may deliberately override a shared rule as well as extend it."""
+    shared = data.get(key)
+    specific = data.get(f"{key}_{current_platform()}")
+    if isinstance(shared, list) or isinstance(specific, list):
+        return list(shared or []) + list(specific or [])
+    merged: Dict[str, Any] = {}
+    merged.update(shared or {})
+    merged.update(specific or {})
+    return merged
 
 
 def load_rules() -> Dict[str, Any]:
@@ -62,12 +109,21 @@ def load_rules() -> Dict[str, Any]:
                 data = loaded
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("⚠️ could not load %s: %s", target.name, exc)
+    # Longest prefix first, so `/system/library/` is decided before `/system/`
+    # and the table stays order-independent as it grows.
+    path_prefixes = sorted(
+        ((_norm(k), str(v)) for k, v in _merge_for_platform(data, "path_prefixes").items()),
+        key=lambda kv: -len(kv[0]),
+    )
     _rules_cache.update({
-        "fleet_roots": [_norm(r) for r in data.get("fleet_roots", []) if r],
-        "binaries": {str(k).lower(): str(v) for k, v in (data.get("binaries") or {}).items()},
-        "cmdline_contains": {
-            _norm(k): str(v) for k, v in (data.get("cmdline_contains") or {}).items()
+        "fleet_roots": [_norm(r) for r in _merge_for_platform(data, "fleet_roots") if r],
+        "binaries": {
+            str(k).lower(): str(v) for k, v in _merge_for_platform(data, "binaries").items()
         },
+        "cmdline_contains": {
+            _norm(k): str(v) for k, v in _merge_for_platform(data, "cmdline_contains").items()
+        },
+        "path_prefixes": path_prefixes,
     })
     return _rules_cache
 
@@ -115,6 +171,17 @@ def attribute(name: str, cmdline: str) -> str:
         if needle and needle in hay:
             return app_id
 
+    # Broadest net, deliberately last: an OS-owned directory identifies the
+    # owner of processes whose names are meaningless in isolation. Anchored at
+    # the start of the executable path, never a substring search — `/bin/` as a
+    # substring also matches `/opt/homebrew/bin/`, which would have swallowed
+    # user-installed software into the system bucket and hidden the bloat this
+    # capture exists to surface.
+    exe_path = hay.lstrip('"')
+    for prefix, app_id in rules["path_prefixes"]:
+        if prefix and exe_path.startswith(prefix):
+            return app_id
+
     return UNATTRIBUTED
 
 
@@ -150,10 +217,18 @@ def scan_processes() -> List[Dict[str, Any]]:
     once before its first real tick (see :func:`prime_cpu_percent`), so the
     numbers are real rather than the 0.0 a cold first call returns.
 
+    ``exe`` stands in when ``cmdline`` comes back empty. That is not a rare
+    edge: on macOS, reading another user's command line needs privileges the
+    hub does not have, so every root/``_service`` daemon reports an empty
+    cmdline — 310 of 673 processes on the Mac Mini. ``exe`` uses a different
+    kernel call (``proc_pidpath``) that stays readable, and it resolved 308 of
+    those 310. Without this the path rules would have nothing to match and 42%
+    of the machine would stay unattributed regardless of the rule table (#320).
+
     Every per-process read is individually guarded: a process that exits
     mid-iteration is normal on a busy box and must never abort a capture."""
     out: List[Dict[str, Any]] = []
-    fields = ["pid", "ppid", "name", "cmdline", "cpu_percent", "memory_info",
+    fields = ["pid", "ppid", "name", "cmdline", "exe", "cpu_percent", "memory_info",
               "num_threads", "status", "create_time"]
     for proc in psutil.process_iter(fields, ad_value=None):
         try:
@@ -161,7 +236,7 @@ def scan_processes() -> List[Dict[str, Any]]:
             name = info.get("name") or ""
             if _is_idle_placeholder(name):
                 continue
-            cmdline = _trim_cmdline(info.get("cmdline"))
+            cmdline = _trim_cmdline(info.get("cmdline")) or (info.get("exe") or "")
             mem = info.get("memory_info")
             out.append({
                 "pid": info.get("pid"),
