@@ -90,6 +90,10 @@ async def wire_observatory_loop() -> None:
     # Same idea for Docker/Langfuse/Mac-Mini-sync (issue #265) — the
     # startup profile's non-model flags.
     loop.create_task(_autostart_services())
+    # Diagnostics (issue #315): close any capture orphaned by a previous hub
+    # and arm the scheduled snapshot if it's enabled. No task is created when
+    # it's off — the feature costs nothing until asked for.
+    loop.create_task(_init_diagnostics())
 
 
 async def _autostart_configured_backends() -> None:
@@ -110,6 +114,27 @@ async def _autostart_configured_backends() -> None:
             logger.info("autostart: %s -> %s", model_id, msg)
         else:
             logger.warning("autostart: %s -> %s", model_id, msg)
+
+
+async def _init_diagnostics() -> None:
+    """Diagnostics startup housekeeping (issue #315).
+
+    The sampler lives in-process, so a run still marked ``running`` in the DB
+    belongs to a hub that died mid-capture — close it so a stale row never
+    looks like a live capture. Then arm the opt-in scheduled snapshot. Both
+    are best-effort: diagnostics must never keep the hub from starting.
+    """
+    try:
+        from .diagnostics import sampler, settings as diag_settings, store
+
+        await asyncio.to_thread(store.close_orphan_runs)
+        cfg = diag_settings.load_settings()
+        if cfg.scheduled_enabled:
+            await sampler.start_scheduled_snapshots(
+                cfg.scheduled_interval_hours, retention_days=cfg.retention_days,
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("diagnostics init failed: %s", exc)
 
 
 async def _autostart_services() -> None:

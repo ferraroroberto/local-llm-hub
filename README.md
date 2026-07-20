@@ -469,6 +469,29 @@ generated `.rdp` launcher (built from the machine's configured `rdp`
 `{address, user}` target) that the viewing device downloads and opens — no
 web RDP client, no dependency on any out-of-repo launcher file.
 
+**On-demand diagnostics (#315).** The *this machine* card carries a **🔬
+Diagnostics** row — a state chip showing the last health verdict (or live
+capture progress) that opens a drill-in dialog. From there you can take a
+**one-shot snapshot** or run a **timed capture** (15 min → 8 h, sampling every
+5–60 s) that records system CPU/RAM/swap/disk/net/GPU **plus a full per-process
+inventory and the listening-port map** into `data/diagnostics.db`.
+
+The point is interpretation, not just recording: processes are attributed to the
+app that owns them (`app-launcher: 3 procs / 800 MB`, not `python.exe ×14`) via
+the committed `config/diagnostics_apps.json`; a finished run gets a persisted
+`healthy`/`warning`/`critical` verdict from the tunable thresholds in
+`config/diagnostics_rules.json`; and any run can be marked a **baseline** so
+later runs report drift ("+2 resident apps, +3.1 GB idle RAM, new listener
+:8099"). Deep analysis happens outside the UI — export a run as JSON, download
+an LLM-ready markdown health report, or query the SQLite file directly.
+
+**It adds no resident process**: the sampler is an asyncio task inside the
+already-running hub, so nothing exists when no capture is active. An **opt-in
+daily snapshot** (default off) keeps multi-week trends alive without adding one
+either. Pure `psutil` + stdlib `sqlite3`, so the identical capture runs on the
+Mac Mini and OpenClaw. Captures are local to the machine you're on — each host's
+hub owns its own sampler. Full reference: [docs/diagnostics.md](docs/diagnostics.md).
+
 **In-browser SSH terminal.** The **Terminal** action opens an xterm SSH
 session by **reusing app-launcher's session-host** (its loopback ConPTY/WS
 engine) rather than rebuilding a PTY stack here. This needs a small
@@ -512,6 +535,9 @@ local-llm-hub/
 │   └── run_all.*                # start everything enabled on this host
 ├── config/
 │   ├── models.yaml                   # hosts + models + roles + legacy tray autostart fallback
+│   ├── diagnostics_apps.json         # process -> fleet-app attribution rules (#315, committed)
+│   ├── diagnostics_rules.json        # health-verdict thresholds (#315, committed)
+│   ├── diagnostics_settings.json     # retention + scheduled snapshot (#315, gitignored)
 │   ├── startup_profile.example.json  # template + fresh-clone default for what autostarts (#265)
 │   ├── startup_profile.json          # live autostart profile, rewritten by the admin UI (gitignored, #304)
 │   └── webapp_config.json            # admin auth: bearer token, optional password, webauthn rp (gitignored)
@@ -520,7 +546,8 @@ local-llm-hub/
 │   ├── cloudflared.yml         # your own tunnel config — gitignored
 │   └── auth.log                # /admin/api/login attempts (gitignored)
 ├── data/                     # runtime artefacts (gitignored)
-│   └── logs/                    # per-backend stdout/stderr: backend-<id>.log (+ one .log.1 backup)
+│   ├── logs/                    # per-backend stdout/stderr: backend-<id>.log (+ one .log.1 backup)
+│   └── diagnostics.db           # SQLite capture store (#315)
 ├── src/
 │   ├── server.py             # FastAPI hub (both shapes) + /admin sub-app mount
 │   ├── chat_translation.py   # request/response schemas, content-block extraction,
@@ -536,6 +563,13 @@ local-llm-hub/
 │   ├── startup_profile.py    # config/startup_profile.json load/save (#265)
 │   ├── host_profile.py       # pick active host row
 │   ├── system_stats.py       # live RAM/CPU/GPU readings (consumed by Hub tab sparklines)
+│   ├── diagnostics/          # on-demand machine diagnostics (#315) — no resident process
+│   │   ├── sampler.py            #   in-hub asyncio capture loop + opt-in scheduled snapshot
+│   │   ├── store.py              #   SQLite store (data/diagnostics.db), migrations, retention
+│   │   ├── attribution.py        #   process -> fleet-app mapping + listening-port scan
+│   │   ├── rules.py              #   health-verdict engine over stored rows
+│   │   ├── report.py             #   summary digest, baseline drift, markdown report
+│   │   └── settings.py           #   retention + scheduled-snapshot settings
 │   ├── install.py            # first-run checks + --fix
 │   ├── run_backend.py        # hub|qwen35_4b|gemma4_26b|whisper|… dispatcher
 │   ├── server_process.py     # hub Popen + ownership / adopt-or-spawn (used by the tray)
@@ -558,7 +592,7 @@ local-llm-hub/
 │   ├── middleware.py         #   bearer-token gate (loopback bypasses)
 │   ├── routers/              #   misc / version / auth / webauthn / hub / models /
 │   │                         #   startup_profile / playground / services / telemetry /
-│   │                         #   code_usage / glossary / hosts
+│   │                         #   code_usage / glossary / hosts / machines / diagnostics
 │   └── static/               #   index.html + main.js + state.js + tabs.js + api.js +
 │                             #   hub.js + models.js + startup.js + playground.js + styles.css +
 │                             #   manifest.webmanifest + icon-*.png/favicon.ico (generated
@@ -600,6 +634,7 @@ local-llm-hub/
 └── docs/
     ├── project-structure.md
     ├── model-comparison.md
+    ├── diagnostics.md            # on-demand machine diagnostics (#315)
     ├── whisper-asr.md            # whisper STT backend: glossary, boosting, tuning
     ├── add-tts.md                # how the TTS backend (/v1/audio/speech) slotted in
     ├── image-generation.md       # Imagen via agy → /v1/images/generations

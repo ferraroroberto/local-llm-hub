@@ -1,0 +1,55 @@
+{
+  "_comment": [
+    "Health thresholds for the Machines-tab diagnostics verdict (issue #315).",
+    "Tune these to your hardware — they are data, not code, so no edit here needs a",
+    "code change or a restart of anything but the hub.",
+    "A rule fires 'warning' at its warn value and 'critical' at its critical value;",
+    "the run's overall level is the worst level any rule reached."
+  ],
+  "cpu": {
+    "sustained_percent_warn": 85,
+    "sustained_percent_critical": 95,
+    "sustained_fraction_of_run": 0.5
+  },
+  "ram": {
+    "percent_warn": 85,
+    "percent_critical": 95
+  },
+  "swap": {
+    "percent_warn": 40,
+    "percent_critical": 70
+  },
+  "disk": {
+    "percent_warn": 85,
+    "percent_critical": 95
+  },
+  "gpu": {
+    "vram_percent_warn": 90,
+    "vram_percent_critical": 97
+  },
+  "processes": {
+    "total_count_warn": 700,
+    "total_count_critical": 1000,
+    "per_app_count_warn": 25,
+    "per_app_count_critical": 40,
+    "_per_app_ignore_comment": "Aggregate buckets and inherently process-per-tab engines. These are collections of helper processes, not one app misbehaving, so a raw count says nothing about health — judging them made a healthy box report critical every run. Total process count still covers them.",
+    "per_app_ignore": [
+      "unattributed",
+      "windows-services",
+      "windows-shell",
+      "macos-system",
+      "linux-system",
+      "chrome",
+      "edge",
+      "firefox",
+      "webkit",
+      "edge-webview",
+      "qtwebengine"
+    ],
+    "unattributed_rss_mb_warn": 500,
+    "zombie_count_warn": 5
+  },
+  "ports": {
+    "duplicate_listener_warn": true
+  }
+}

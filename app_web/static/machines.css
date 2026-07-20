@@ -168,3 +168,178 @@
     width: 96vw;
   }
 }
+
+/* ---------- diagnostics (issue #315) ----------
+ * The this-machine card's drill-in entry row plus the capture/runs/settings
+ * dialog. Reuses the same shells as the rest of this tab (.detail-dialog,
+ * .hub-live-status, .gauge-track, .empty-state, the vendored .toggle switch);
+ * what is new here is the entry row, the run list, and the data tables. */
+
+/* Entry row: a full-width disclosure-style row (design.md list-row rhythm),
+ * label left, state chip + chevron right. 52px = rows.md, the same closed
+ * height as a disclosure so it lines up with the rest of the card stack. */
+.diag-entry {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 12px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line-muted);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.diag-entry-main { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.diag-entry-chevron { color: var(--muted); flex-shrink: 0; }
+.diag-entry:hover { color: var(--accent); }
+.diag-entry [data-diag-chip] { margin-left: auto; }
+
+/* (The verdict chip reuses .hub-live-status good/warn/danger as-is — all
+ * three steps already exist in styles.css.) */
+
+/* Dialog: read-heavy rather than an editor, but it does NOT re-plumb the
+ * vendored shell's scrolling.
+ *
+ * modal.css makes the *dialog* the scroller (max-height + overflow:auto +
+ * overscroll-behavior) and scrolls the card inside it — an on-device-validated
+ * iOS behaviour (home-automation#214). An earlier version of this block fought
+ * that: it made the card a full-height flex column with the body as an inner
+ * scroller, so `height: 100%` resolved against an indefinite parent, the card
+ * grew to its content (4300px inside a 950px dialog) and nothing scrolled
+ * internally. Worse, it also re-declared `max-height` — and since machines.css
+ * loads after modal.css at equal specificity, that silently overrode the
+ * mobile safe-area-aware max-height in modal.css's own coarse-pointer block,
+ * which is precisely the override hazard its README calls out. On a phone the
+ * dialog rendered as a bare header strip.
+ *
+ * So: no max-height here, no inner scroller. Only the desktop width is
+ * widened, behind a **disjoint** media condition so it can never interact with
+ * modal.css's `(pointer: coarse) and (max-width: 520px)` rules. Phones keep the
+ * vendored width, anchoring, and insets verbatim. */
+@media (min-width: 560px) {
+  .machines-diag-dialog { width: min(820px, 96vw); }
+}
+.machines-diag-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);  /* tables scroll inside, page never widens */
+  gap: 18px;
+  padding-top: 4px;
+}
+
+.diag-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.diag-h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--font-label);
+  font-weight: 700;
+  color: var(--ink);
+}
+.diag-settings-block > summary { cursor: pointer; list-style: none; min-height: 44px; align-items: center; }
+.diag-settings-block > summary::-webkit-details-marker { display: none; }
+
+/* Capture controls */
+.diag-capture { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.diag-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  font-size: var(--font-label);
+  font-weight: 600;
+}
+.diag-field .select-native { min-width: 55%; }
+.diag-switch-row { align-items: flex-start; padding: 6px 0; }
+.diag-switch-row > span:first-child { font-weight: 600; }
+.diag-capture-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.diag-capture-actions button { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
+.diag-capture-line { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--font-label); }
+
+/* Run list — flat full-bleed rows on a hairline (design.md list-row), never
+ * a nested card per entry. */
+.diag-runs { display: flex; flex-direction: column; }
+.diag-run-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 4px;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.diag-run-row + .diag-run-row { border-top: 1px solid var(--line-muted); }
+.diag-run-row:hover { background: var(--card-off); }
+.diag-run-row.is-selected { background: var(--accent-soft); }
+.diag-run-main { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.diag-run-meta { font-size: var(--font-caption); }
+
+.diag-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--card-off);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.diag-badge.accent { background: var(--accent-soft); border-color: var(--accent-border-soft); color: var(--accent); }
+.diag-badge.good { color: var(--on); }
+.diag-badge.warn { color: var(--attention); }
+.diag-badge.danger { color: var(--danger); }
+
+/* Findings + drift lists */
+.diag-findings, .diag-drift { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.diag-finding, .diag-drift > li {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 0;
+  font-size: var(--font-label);
+}
+.diag-finding + .diag-finding, .diag-drift > li + li { border-top: 1px solid var(--line-muted); }
+.diag-rule { font-size: var(--font-caption); }
+.diag-drift > li { justify-content: space-between; }
+.diag-delta { font-variant-numeric: tabular-nums; font-weight: 700; }
+.diag-delta.warn { color: var(--attention); }
+.diag-delta.good { color: var(--on); }
+
+/* Tables scroll inside their own container so the dialog never scrolls
+ * sideways (design.md: wide content owns its overflow). */
+.diag-table-wrap { overflow-x: auto; }
+.diag-table { width: 100%; border-collapse: collapse; font-size: var(--font-caption); }
+.diag-table th, .diag-table td { padding: 8px 10px; text-align: left; white-space: nowrap; }
+.diag-table thead th { color: var(--muted); font-weight: 700; border-bottom: 1px solid var(--line); }
+.diag-table tbody tr + tr th, .diag-table tbody tr + tr td { border-top: 1px solid var(--line-muted); }
+.diag-table td { color: var(--ink); font-variant-numeric: tabular-nums; }
+.diag-table tbody th { font-weight: 600; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+
+.diag-run-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.diag-run-actions button { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
+
+/* Stack the label/control rows on narrow screens. Deliberately no width or
+ * max-height override here: the dialog's mobile geometry belongs to the
+ * vendored modal (see the block above). */
+@media (pointer: coarse), (max-width: 560px) {
+  .diag-field { flex-direction: column; align-items: stretch; gap: 6px; }
+  .diag-field .select-native { min-width: 0; width: 100%; }
+}
