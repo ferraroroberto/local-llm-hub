@@ -40,7 +40,7 @@ _DEFAULTS: Dict[str, Any] = {
                   "per_app_count_warn": 25, "per_app_count_critical": 40,
                   "per_app_ignore": ["unattributed", "windows-services",
                                      "windows-shell", "macos-system", "linux-system",
-                                     "chrome", "edge", "firefox", "webkit",
+                                     "shell", "chrome", "edge", "firefox", "webkit",
                                      "edge-webview", "qtwebengine"],
                   "unattributed_rss_mb_warn": 500, "zombie_count_warn": 5},
     "ports": {"duplicate_listener_warn": True},

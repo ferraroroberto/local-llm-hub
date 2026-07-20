@@ -29,6 +29,14 @@ def rules(tmp_path):
     attribution.set_rules_path(None)
 
 
+@pytest.fixture(autouse=True)
+def _reset_platform():
+    """No test may leak a platform override into the next one — the whole
+    suite would then silently assert against the wrong OS table."""
+    yield
+    attribution.set_platform(None)
+
+
 def test_windows_venv_path_attributes_to_its_repo(rules):
     cmd = r"E:\automation\app-launcher\.venv\Scripts\python.exe -m app.main"
     assert attribution.attribute("python.exe", cmd) == "app-launcher"
@@ -131,3 +139,181 @@ def test_scan_listening_ports_shape():
     for row in ports:
         assert {"port", "proto", "pid", "app_id"} <= set(row)
         assert isinstance(row["port"], int)
+
+
+# ------------------------------------------------ per-OS rules + path prefixes (#320)
+#
+# Before this, `config/diagnostics_apps.json` was tuned on the Windows box and
+# macOS captures came back 99% `unattributed` (565 of 570 groups). These tests
+# run against the *real committed config* under a forced platform, because the
+# thing that was broken was the shipped data, not the engine — a synthetic
+# fixture would have kept passing throughout the bug.
+
+
+@pytest.fixture()
+def darwin():
+    attribution.set_rules_path(None)
+    attribution.set_platform("darwin")
+
+
+@pytest.fixture()
+def linux():
+    attribution.set_rules_path(None)
+    attribution.set_platform("linux")
+
+
+@pytest.fixture()
+def windows():
+    attribution.set_rules_path(None)
+    attribution.set_platform("windows")
+
+
+def test_apple_daemons_attribute_by_path(darwin):
+    """The macOS inventory is overwhelmingly Apple daemons whose names mean
+    nothing on their own; the path is what identifies them."""
+    for cmd in (
+        "/usr/libexec/secd",
+        "/System/Library/PrivateFrameworks/CloudKitDaemon.framework/Support/cloudd",
+        "/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder",
+        "/System/Applications/Weather.app/Contents/MacOS/Weather",
+        "/System/Cryptexes/OS/usr/libexec/foo",
+        "/usr/sbin/systemstats",
+        "/Library/Apple/System/Library/CoreServices/XProtect.app/Contents/MacOS/XProtect",
+    ):
+        name = cmd.rsplit("/", 1)[-1]
+        assert attribution.attribute(name, cmd) == "macos-system", cmd
+
+
+def test_truncated_daemon_name_still_attributes_via_its_path(darwin):
+    """macOS reports a 16-char kernel name for processes whose command line the
+    hub may not read ('AppleCredentialM'). The path carries the real signal —
+    which is why the scan falls back to `exe`."""
+    exe = ("/System/Library/PrivateFrameworks/AppleNeuralEngine.framework"
+           "/XPCServices/ANECompilerService.xpc/Contents/MacOS/ANECompilerService")
+    assert attribution.attribute("ANECompilerServi", exe) == "macos-system"
+
+
+def test_macos_control_center_is_not_elgato(darwin):
+    """The live mis-attribution this issue found: Elgato ships a Windows app
+    called Control Center, so a name-only rule claimed Apple's macOS shell
+    component for it on every Mac capture."""
+    cmd = "/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter"
+    assert attribution.attribute("ControlCenter", cmd) == "macos-system"
+
+
+def test_windows_control_center_is_still_elgato(windows):
+    """...and the Windows mapping must survive the fix."""
+    assert attribution.attribute(
+        "ControlCenter.exe", r"C:\Program Files\Elgato\ControlCenter.exe") == "elgato"
+
+
+def test_user_installed_macos_software_stays_reviewable(darwin):
+    """`unattributed` is the review list — the entire point of the capture is
+    to surface user-installed bloat. Bucketing /Applications or Homebrew would
+    hide exactly the answer the user is looking for."""
+    assert attribution.attribute(
+        "SomeApp", "/Applications/SomeApp.app/Contents/MacOS/SomeApp") == "unattributed"
+    assert attribution.attribute(
+        "mystery", "/opt/homebrew/bin/mystery --serve") == "unattributed"
+
+
+def test_linux_usr_bin_is_not_bucketed_as_system(linux):
+    """The reason the rule tables are per-OS at all: /usr/bin is Apple-owned
+    and SIP-protected on macOS, but is where ordinary user software lives on
+    Linux. One shared table cannot be correct for both."""
+    assert attribution.attribute("mystery", "/usr/bin/mystery --serve") == "unattributed"
+    assert attribution.attribute("systemd-logind", "/usr/lib/systemd/systemd-logind") == "linux-system"
+
+
+def test_macos_usr_bin_is_bucketed_as_system(darwin):
+    assert attribution.attribute("mystery", "/usr/bin/mystery") == "macos-system"
+
+
+def test_the_macs_own_hub_is_attributed(darwin):
+    """mac-mini-m4 runs the hub from a Homebrew interpreter outside any fleet
+    root, so only the module rule can catch it."""
+    cmd = ("/opt/homebrew/Cellar/python@3.12/3.12.13_4/Frameworks/Python.framework"
+           "/Versions/3.12/Resources/Python.app/Contents/MacOS/Python -m src.server")
+    assert attribution.attribute("Python", cmd) == "local-llm-hub"
+
+
+def test_binaries_still_win_over_path_prefixes(darwin):
+    """Path rules are the broad net and must stay last: a Homebrew-installed
+    llama-server is llama.cpp, not a system daemon."""
+    assert attribution.attribute("llama-server", "/usr/local/bin/llama-server --port 8088") == "llama.cpp"
+
+
+def test_fleet_root_still_wins_on_every_platform(darwin):
+    cmd = "/opt/automation/photo-ocr/.venv/bin/python -m src"
+    assert attribution.attribute("python3", cmd) == "photo-ocr"
+
+
+def test_platform_groups_do_not_leak_across_platforms():
+    """A `_darwin` rule must be invisible on Windows and vice versa."""
+    attribution.set_rules_path(None)
+    attribution.set_platform("windows")
+    assert attribution.attribute("secd", "/usr/libexec/secd") != "macos-system"
+    attribution.set_platform("darwin")
+    assert attribution.attribute("secd", "/usr/libexec/secd") == "macos-system"
+
+
+def test_longest_path_prefix_wins(tmp_path):
+    """Overlapping prefixes must resolve by specificity, not file order."""
+    path = tmp_path / "apps.json"
+    path.write_text(json.dumps({
+        "path_prefixes": {"/system/": "broad", "/system/library/": "specific"},
+    }), encoding="utf-8")
+    attribution.set_rules_path(path)
+    try:
+        assert attribution.attribute("x", "/System/Library/foo") == "specific"
+        assert attribution.attribute("x", "/System/other/foo") == "broad"
+    finally:
+        attribution.set_rules_path(None)
+
+
+def test_platform_specific_group_extends_and_overrides(tmp_path):
+    path = tmp_path / "apps.json"
+    path.write_text(json.dumps({
+        "fleet_roots": ["/shared"],
+        "fleet_roots_darwin": ["/mac-only"],
+        "binaries": {"foo": "shared-foo", "bar": "bar"},
+        "binaries_darwin": {"foo": "mac-foo"},
+    }), encoding="utf-8")
+    attribution.set_rules_path(path)
+    attribution.set_platform("darwin")
+    try:
+        assert attribution.attribute("foo", "foo") == "mac-foo"      # overridden
+        assert attribution.attribute("bar", "bar") == "bar"          # untouched
+        assert attribution.attribute("p", "/mac-only/repo-x/p") == "repo-x"
+        assert attribution.attribute("p", "/shared/repo-y/p") == "repo-y"
+    finally:
+        attribution.set_rules_path(None)
+
+
+def test_scan_falls_back_to_exe_when_cmdline_is_unreadable():
+    """On macOS the hub cannot read another user's command line, so 310 of 673
+    processes report an empty cmdline. `exe` uses a different kernel call that
+    stays readable and is what makes those rows attributable at all."""
+    rows = attribution.scan_processes()
+    assert rows
+    assert all("cmdline" in r for r in rows)
+
+
+def test_path_prefix_is_anchored_not_a_substring(tmp_path):
+    """`/bin/` as a substring also matches `/opt/homebrew/bin/`. Matching
+    anywhere would quietly file user-installed software as OS-owned, which is
+    the opposite of what the bucket means."""
+    path = tmp_path / "apps.json"
+    path.write_text(json.dumps({"path_prefixes": {"/bin/": "sys"}}), encoding="utf-8")
+    attribution.set_rules_path(path)
+    try:
+        assert attribution.attribute("a", "/bin/ls") == "sys"
+        assert attribution.attribute("b", "/opt/homebrew/bin/mystery") == "unattributed"
+    finally:
+        attribution.set_rules_path(None)
+
+
+def test_quoted_windows_path_still_matches(windows):
+    """Windows command lines commonly arrive quoted; the anchor must see past it."""
+    assert attribution.attribute(
+        "svchost.exe", r'"C:\Windows\system32\svchost.exe" -k netsvcs') == "windows-services"

@@ -39,6 +39,7 @@
       "windows-shell",
       "macos-system",
       "linux-system",
+      "shell",
       "chrome",
       "edge",
       "firefox",

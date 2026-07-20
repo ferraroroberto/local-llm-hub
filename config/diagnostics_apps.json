@@ -6,14 +6,32 @@
     "Edit this file to teach the sampler a new app — it is data, not code.",
     "",
     "Matching order: fleet_roots (a venv/checkout path wins, most specific first) →",
-    "binaries (known executable names) → fallback 'unattributed', which is exactly the",
-    "review list of things nobody has accounted for yet.",
-    "All matching is case-insensitive and normalizes \\ to / before comparing."
+    "binaries (known executable names) → cmdline_contains → path_prefixes (the broad",
+    "net: an OS-owned directory identifies processes whose names mean nothing alone) →",
+    "fallback 'unattributed', which is exactly the review list of things nobody has",
+    "accounted for yet.",
+    "All matching is case-insensitive and normalizes \\ to / before comparing.",
+    "",
+    "Any group may carry a _windows / _darwin / _linux twin, merged in only on that",
+    "platform. This is not cosmetic: /usr/bin is Apple-owned and SIP-protected on",
+    "macOS but is where ordinary user software lives on Linux, so bucketing it as",
+    "'system' is right on one and actively wrong on the other (#320).",
+    "",
+    "Deliberate boundary: only OS-owned paths are bucketed. /Applications and",
+    "/opt/homebrew are NOT, because user-installed software is precisely the bloat",
+    "this capture exists to surface — auto-bucketing it would hide the answer."
   ],
   "fleet_roots": [
     "e:/automation",
     "~/automation",
     "/opt/automation"
+  ],
+  "_fleet_roots_darwin_comment": [
+    "Intentionally empty. mac-mini-m4 checks the hub out at /Users/roberto/local-llm-hub",
+    "— directly in the home dir, alongside 10 unrelated folders — so adding the home dir",
+    "as a fleet root would mint a bogus app id for every one of them to attribute a",
+    "single repo. The Mac's hub is caught by the '-m src.server' cmdline rule instead.",
+    "Revisit if the Mac ever grows a real ~/automation tree."
   ],
   "binaries": {
     "llama-server": "llama.cpp",
@@ -65,7 +83,6 @@
     "streamdeck": "stream-deck",
     "wavelink": "elgato",
     "camera hub": "elgato",
-    "controlcenter": "elgato",
     "corsair.service": "corsair",
     "corsaircpuidservice": "corsair",
     "cc_engine_x64": "corsair",
@@ -76,7 +93,6 @@
     "crashpad_handler": "crash-handlers",
     "conhost": "windows-shell",
     "cmd": "windows-shell",
-    "bash": "windows-shell",
     "dllhost": "windows-services",
     "wmiprvse": "windows-services",
     "ctfmon": "windows-shell",
@@ -84,7 +100,6 @@
     "tabtip": "windows-shell",
     "appvshnotify": "windows-services",
     "explorer": "windows-shell",
-    "dwm": "windows-shell",
     "searchhost": "windows-shell",
     "startmenuexperiencehost": "windows-shell",
     "shellexperiencehost": "windows-shell",
@@ -107,7 +122,6 @@
     "filecoauth": "onedrive",
     "filesynchelper": "onedrive",
     "onedrive": "onedrive",
-    "system": "windows-services",
     "system idle process": "windows-services",
     "msmpeng": "defender",
     "nissrv": "defender",
@@ -118,9 +132,84 @@
     "systemd": "linux-system",
     "kthreadd": "linux-system"
   },
+  "_binaries_windows_comment": [
+    "Windows-only names that collide with a real, different process on Unix.",
+    "'ControlCenter' was the live bug: Elgato's Control Center on Windows shares a",
+    "name with Apple's, so every macOS capture reported the OS shell as 'elgato'.",
+    "'bash' and 'dwm' (a Linux window manager) are the same class of collision;",
+    "'system' is a Windows concept. Merged on Windows only, so Windows is unchanged."
+  ],
+  "binaries_windows": {
+    "controlcenter": "elgato",
+    "bash": "windows-shell",
+    "dwm": "windows-shell",
+    "system": "windows-services"
+  },
+  "binaries_darwin": {
+    "sshd": "macos-system",
+    "zsh": "shell",
+    "bash": "shell",
+    "sh": "shell",
+    "login": "shell",
+    "tmux": "shell"
+  },
+  "binaries_linux": {
+    "sshd": "linux-system",
+    "dbus-daemon": "linux-system",
+    "polkitd": "linux-system",
+    "udevd": "linux-system",
+    "systemd-journald": "linux-system",
+    "systemd-logind": "linux-system",
+    "systemd-resolved": "linux-system",
+    "systemd-udevd": "linux-system",
+    "rsyslogd": "linux-system",
+    "cron": "linux-system",
+    "crond": "linux-system",
+    "zsh": "shell",
+    "bash": "shell",
+    "sh": "shell",
+    "tmux": "shell"
+  },
   "cmdline_contains": {
     "-m src.run_backend": "local-llm-hub",
+    "-m src.server": "local-llm-hub",
     "uvicorn": "local-llm-hub",
     "site-packages/langfuse": "langfuse"
+  },
+  "cmdline_contains_darwin": {
+    "/applications/tailscale.app/": "tailscale"
+  },
+  "_path_prefixes_comment": [
+    "The broad net, matched last and longest-prefix-first. On macOS this is what",
+    "does the real work: 310 of 673 processes are root/_service daemons whose",
+    "command line the hub cannot read, leaving only a 16-char truncated kernel name",
+    "('AppleCredentialM'). Their executable path IS readable, and these prefixes",
+    "turned 667 of 673 into a named bucket. Only SIP/OS-owned roots appear here."
+  ],
+  "path_prefixes_darwin": {
+    "/system/": "macos-system",
+    "/usr/libexec/": "macos-system",
+    "/usr/sbin/": "macos-system",
+    "/usr/bin/": "macos-system",
+    "/sbin/": "macos-system",
+    "/bin/": "macos-system",
+    "/library/apple/": "macos-system",
+    "/cores/": "macos-system"
+  },
+  "_path_prefixes_linux_comment": [
+    "Deliberately excludes /usr/bin and /bin: unlike macOS, that is where ordinary",
+    "user software lives on Linux, and bucketing it as 'system' would hide the very",
+    "processes a capture is meant to surface. Unverified against a live Linux",
+    "capture — openclaw runs no hub yet (see #316)."
+  ],
+  "path_prefixes_linux": {
+    "/usr/lib/systemd/": "linux-system",
+    "/lib/systemd/": "linux-system",
+    "/usr/libexec/": "linux-system",
+    "/usr/sbin/": "linux-system",
+    "/sbin/": "linux-system"
+  },
+  "path_prefixes_windows": {
+    "c:/windows/": "windows-services"
   }
 }
