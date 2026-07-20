@@ -282,24 +282,30 @@ def prime_cpu_percent() -> None:
 # ---------------------------------------------------------------- port scan
 
 
-def scan_listening_ports(processes: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+def scan_listening_ports(
+    processes: Optional[List[Dict[str, Any]]] = None,
+) -> "tuple[List[Dict[str, Any]], bool]":
     """Listening sockets joined to their owning process and app.
 
     Answers "what is this box actually exposing, and who owns each port" —
     immediately meaningful on a fleet with a documented port map (8000, 808x,
-    809x…). Needs elevated privileges on macOS to see other users' sockets;
-    an ``AccessDenied`` degrades to an empty list rather than failing the run.
-    """
+    809x…). Needs elevated privileges on macOS to see other users' sockets.
+
+    Returns ``(rows, denied)``. On ``AccessDenied`` it still degrades to an
+    empty list rather than failing the run, but reports ``denied=True`` so the
+    caller can record coverage — an empty list and a *blind* list are otherwise
+    indistinguishable once stored, and treating "couldn't look" as "nothing
+    there" is exactly the defect #322 fixes."""
     by_pid = {p.get("pid"): p for p in (processes or [])}
     out: List[Dict[str, Any]] = []
     try:
         conns = psutil.net_connections(kind="inet")
     except (psutil.AccessDenied, PermissionError) as exc:
         logger.debug("net_connections denied: %s", exc)
-        return []
+        return [], True
     except Exception as exc:  # noqa: BLE001
         logger.debug("net_connections failed: %s", exc)
-        return []
+        return [], False
 
     seen: set[tuple] = set()
     for conn in conns:
@@ -323,7 +329,7 @@ def scan_listening_ports(processes: Optional[List[Dict[str, Any]]] = None) -> Li
             "name": name,
             "app_id": owner.get("app_id") or attribute(name, ""),
         })
-    return out
+    return out, False
 
 
 def _name_for_pid(pid: Optional[int]) -> str:

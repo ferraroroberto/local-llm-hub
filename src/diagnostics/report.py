@@ -19,6 +19,14 @@ from . import store
 
 TOP_N = 12
 
+# Human labels for the coverage section's collector rows (#322).
+_COVERAGE_LABEL = {
+    "ports": "Listening ports",
+    "proc_mem": "Per-process memory",
+    "proc_cpu": "Per-process CPU",
+    "gpu": "GPU / VRAM",
+}
+
 
 def _mb(value: Optional[float]) -> float:
     return round((value or 0) / (1024 ** 2), 1)
@@ -122,6 +130,7 @@ def summary(run_id: str) -> Optional[Dict[str, Any]]:
                                  sorted(procs, key=lambda p: p.get("avg_cpu") or 0, reverse=True)[:TOP_N]],
         "process_timeline": store.process_count_timeline(run_id),
         "ports": ports,
+        "coverage": run.get("coverage") or {},
         "verdict": {"level": run.get("verdict_level"), "findings": run.get("findings") or []},
     }
 
@@ -228,10 +237,17 @@ def markdown_report(run_id: str) -> Optional[str]:
     data = summary(run_id)
     if data is None:
         return None
+    from . import coverage as cov
     run = data["run"]
     res = data["resources"]
     verdict = data["verdict"]
+    coverage_map = data.get("coverage") or {}
     d = drift(run_id)
+
+    degraded = cov.is_degraded(coverage_map)
+    verdict_line = (verdict.get("level") or "healthy").upper()
+    if degraded:
+        verdict_line += " · ⚠ partial coverage"
 
     lines: List[str] = []
     lines.append(f"# Machine diagnostics — {run.get('machine_id', 'unknown')}")
@@ -240,7 +256,7 @@ def markdown_report(run_id: str) -> Optional[str]:
     lines.append(f"- **Machine:** {run.get('hostname') or run.get('machine_id')} · {run.get('os', '')}")
     lines.append(f"- **Window:** {_ts(run.get('started_at'))} → {_ts(run.get('ended_at'))}"
                  f" · {run.get('sample_count', 0)} samples at {run.get('interval_s', 0):.0f}s")
-    lines.append(f"- **Verdict:** **{(verdict.get('level') or 'healthy').upper()}**")
+    lines.append(f"- **Verdict:** **{verdict_line}**")
     lines.append("")
 
     findings = verdict.get("findings") or []
@@ -252,6 +268,23 @@ def markdown_report(run_id: str) -> Optional[str]:
         for f in findings:
             lines.append(f"- **{f['level']}** · `{f['rule']}` — {f['summary']}")
     lines.append("")
+
+    # Coverage — what we could and couldn't measure. Rendered whenever a
+    # collector was blind, so a vanished section or a summed-over-nulls total
+    # never masquerades as a complete reading (#322).
+    if degraded:
+        lines.append("## Coverage")
+        lines.append("")
+        lines.append("Some signals could not be fully collected on this machine — the"
+                     " verdict above reflects only what was measurable.")
+        lines.append("")
+        lines.append("| Collector | Status |")
+        lines.append("| --- | --- |")
+        for name in ("ports", "proc_mem", "proc_cpu", "gpu"):
+            entry = coverage_map.get(name)
+            if entry:
+                lines.append(f"| {_COVERAGE_LABEL.get(name, name)} | {cov.describe(name, entry)} |")
+        lines.append("")
 
     lines.append("## Resource envelope")
     lines.append("")
@@ -271,6 +304,12 @@ def markdown_report(run_id: str) -> Optional[str]:
     lines.append("| --- | --- | --- | --- |")
     for app in data["apps"]:
         lines.append(f"| {app['app_id']} | {app['peak_procs']} | {app['peak_rss_mb']} | {app['avg_cpu']} |")
+    mem = coverage_map.get("proc_mem") or {}
+    if mem.get("status") == cov.PARTIAL:
+        unread = max(0, (mem.get("total") or 0) - (mem.get("readable") or 0))
+        lines.append("")
+        lines.append(f"> ⚠ RSS/CPU undercount the machine: {unread} process(es) were not"
+                     " readable (insufficient privileges) and contribute 0 to these totals.")
     lines.append("")
 
     lines.append("## Heaviest processes (by peak RSS)")
@@ -281,6 +320,7 @@ def markdown_report(run_id: str) -> Optional[str]:
         lines.append(f"| {p['app_id']} | {p['name']} | {p['pid_count']} | {p['peak_rss_mb']} | {p['avg_cpu']} |")
     lines.append("")
 
+    ports_status = cov.collector_status(coverage_map, "ports")
     if data["ports"]:
         lines.append("## Listening ports")
         lines.append("")
@@ -288,6 +328,14 @@ def markdown_report(run_id: str) -> Optional[str]:
         lines.append("| --- | --- | --- | --- |")
         for q in data["ports"]:
             lines.append(f"| {q['port']} | {q['proto']} | {q['app_id']} | {q.get('name') or '—'} |")
+        lines.append("")
+    elif ports_status == cov.DENIED:
+        # The defect that started #322: an empty section here read as "this box
+        # exposes nothing", when the truth was "we weren't allowed to look".
+        lines.append("## Listening ports")
+        lines.append("")
+        lines.append("_Not collected — the hub lacks the privilege to enumerate sockets on"
+                     " this machine. This is a coverage gap, not an empty result._")
         lines.append("")
 
     if d and d.get("baseline"):

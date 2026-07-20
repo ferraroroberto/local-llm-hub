@@ -67,7 +67,9 @@ def test_empty_run_is_healthy_not_an_error(db):
     run_id = db.create_run(machine_id="pc-test", os_name="TestOS",
                            interval_s=15.0, duration_s=60.0)
     result = rules.evaluate(run_id)
-    assert result == {"level": "healthy", "findings": [], "sample_count": 0}
+    assert result["level"] == "healthy"
+    assert result["findings"] == []
+    assert result["sample_count"] == 0
 
 
 def test_sustained_cpu_fires_but_a_single_spike_does_not(db):

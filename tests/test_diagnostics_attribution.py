@@ -134,11 +134,15 @@ def test_cmdline_is_trimmed():
 
 def test_scan_listening_ports_shape():
     """May legitimately be empty (macOS denies without privileges) — assert
-    the shape when rows exist rather than requiring any."""
-    ports = attribution.scan_listening_ports([])
+    the shape when rows exist rather than requiring any. Returns
+    ``(rows, denied)`` so a blind scan is distinguishable from an empty one."""
+    ports, denied = attribution.scan_listening_ports([])
+    assert isinstance(denied, bool)
     for row in ports:
         assert {"port", "proto", "pid", "app_id"} <= set(row)
         assert isinstance(row["port"], int)
+    if denied:
+        assert ports == []   # a denied scan yields no rows, by definition
 
 
 # ------------------------------------------------ per-OS rules + path prefixes (#320)

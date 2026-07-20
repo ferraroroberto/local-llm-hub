@@ -29,6 +29,7 @@ Reach it from the admin SPA's **Machines** tab → the *this machine* card's
 | `src/diagnostics/store.py` | SQLite schema, migrations, rollup queries, retention |
 | `src/diagnostics/attribution.py` | Process → fleet-app mapping; listening-port scan |
 | `src/diagnostics/rules.py` | Health-verdict engine |
+| `src/diagnostics/coverage.py` | Per-collector coverage — what could and couldn't be measured (#322) |
 | `src/diagnostics/report.py` | Summary digest, baseline drift, markdown report |
 | `src/diagnostics/settings.py` | Retention + scheduled-snapshot settings |
 | `app_web/routers/diagnostics.py` | The `/admin/api/diagnostics/*` API |
@@ -137,6 +138,39 @@ synthetic fixtures and can re-judge an old capture after a retune:
 `POST /admin/api/diagnostics/runs/{id}/evaluate` re-reads the config file — no
 hub restart needed.
 
+## Coverage — measured vs. unmeasured (#322)
+
+**A health tool must never let "we couldn't measure this" read as "this is
+fine."** Two collectors degrade silently where the hub lacks privilege (on
+macOS, reading other users' data): `psutil.net_connections()` returns nothing,
+and per-process `memory_info`/`cpu_percent` come back `NULL`. Left unmarked,
+each looked identical to a clean result — a macOS run reported `HEALTHY` with
+the ports section simply *gone* and ~42% of processes silently summing 0 into
+the RAM/CPU totals.
+
+**Health and coverage are orthogonal axes.** The verdict `level` stays the
+health of what *could* be measured; a per-collector coverage map rides
+alongside it. This is why a blind macOS run isn't pinned at `warning` forever
+(the cry-wolf failure #315 fought) yet still can't pass as a clean `healthy`.
+
+- **Recorded, never inferred.** Ports denial is captured at collection time
+  (`scan_listening_ports` returns `(rows, denied)`) because an empty list and a
+  blind list are identical once stored. Per-process memory/CPU coverage is
+  reconstructed at finalize by counting `NULL`s by distinct PID — a genuine
+  0-byte kernel thread is *readable*, only `NULL` means denied.
+- **`gpu: unsupported`** on Apple silicon: unified memory exposes no discrete
+  VRAM figure, so it is a known structural gap, not a collector failure.
+- **Surfaced everywhere.** The report gains a `## Coverage` section, renders
+  "Not collected — insufficient privileges" where the ports table would be, and
+  footnotes the RAM/CPU tables when processes were unreadable; the verdict line
+  reads `HEALTHY · ⚠ partial coverage`. A rule that depends on a blind collector
+  (`ports.duplicate`) emits an `info`-level `ports.not_evaluated` finding rather
+  than passing in silence.
+
+`src/diagnostics/coverage.py` is the single source of the coverage vocabulary
+(`ok` / `partial` / `denied` / `unsupported`) and of which rule depends on which
+collector, so the report, rules, and export never drift apart.
+
 ## Baselines & drift
 
 Mark a representative run as **baseline** (one per machine). Every later run
@@ -217,13 +251,17 @@ Never edit a shipped step — add the next one.
 | `ports` | Listening sockets per tick, joined to owner + `app_id` |
 | `verdicts` | The persisted health verdict per run |
 
+`runs.coverage_json` (schema v2, #322) holds the per-collector coverage map.
 IO counters are stored **raw and cumulative**; deltas are derived at read time.
 
 ## Caveats
 
 - `psutil.net_connections()` needs elevated privileges on macOS to see other
   users' sockets; without them the port scan degrades to empty rather than
-  failing the run.
+  failing the run. That degradation is now **recorded as coverage** (#322) — the
+  report says "not collected" instead of dropping the section, and the verdict
+  is qualified — so a blind scan never reads as "nothing listening". See
+  *Coverage* above.
 - `psutil` reports per-process CPU relative to **one core**. The report layer
   divides an app's summed figure by the machine's core count (stored on the run,
   so an exported DB normalizes correctly on another machine) — so the "CPU"
