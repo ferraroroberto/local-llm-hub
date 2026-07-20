@@ -26,6 +26,7 @@ import asyncio
 import logging
 import socket
 import subprocess
+import sys
 import time
 from typing import Any, Dict, Optional
 
@@ -35,8 +36,14 @@ logger = logging.getLogger(__name__)
 
 _TCP_TIMEOUT_S = 2.0
 _SSH_CONNECT_TIMEOUT_S = 6
-_CACHE_TTL_S = 20.0
+_CACHE_TTL_S = 30.0
 _LIVENESS_PORTS = (22, 3389)  # SSH, then RDP
+
+
+def _no_window_flags() -> int:
+    """CREATE_NO_WINDOW on Windows so the per-host SSH poll (run from the
+    windowless hub) doesn't flash a console — see issue #174, #317."""
+    return subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 # host_id -> (expiry_monotonic, stats_or_None)
 _cache: Dict[str, tuple[float, Optional[Dict[str, Any]]]] = {}
@@ -107,6 +114,7 @@ def _run_ssh(host: HostProfile, command: str) -> Optional[str]:
     try:
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=_SSH_CONNECT_TIMEOUT_S + 12,
+            creationflags=_no_window_flags(),
         )
     except (OSError, subprocess.SubprocessError) as exc:
         logger.debug("remote stats ssh to %s failed: %s", host.id, exc)
