@@ -35,7 +35,7 @@ from src.webapp_config import load_webapp_config
 from src.webauthn_gate import WebAuthnGate
 
 from .middleware import BearerTokenMiddleware
-from .routers import auth, code_usage, glossary, hosts, hub, machines, misc, models, playground, services, startup_profile, telemetry, version, webauthn
+from .routers import auth, code_usage, diagnostics, glossary, hosts, hub, machines, misc, models, playground, services, startup_profile, telemetry, version, webauthn
 from .routers._helpers import STATIC_DIR
 
 _log = logging.getLogger(__name__)
@@ -154,6 +154,7 @@ def create_app() -> FastAPI:
     app.include_router(services.router)
     app.include_router(hosts.router)
     app.include_router(machines.router)
+    app.include_router(diagnostics.router)
     app.include_router(telemetry.router)
     app.include_router(code_usage.router, prefix="/api/code")
 

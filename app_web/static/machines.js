@@ -11,6 +11,7 @@ import { els, state, MACHINES_POLL_MS } from './state.js';
 import { jsonApi, postJson, api, toast, escapeHtml, fmtClock, shortGpu } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { openMachinesTerminal, wireMachinesTerminal } from './machines_terminal.js';
+import { openDiagnostics, wireDiagnostics, refreshDiagnosticsChip } from './diagnostics.js';
 
 let pollHandle = null;
 
@@ -26,6 +27,9 @@ export async function fetchMachinesStatus() {
     // pending "rechecking…" mark regardless of which id it was for.
     state.machinesRecheckIds = {};
     renderMachinesList();
+    // The re-render replaced the card markup, so the diagnostics chip needs
+    // repainting from its own (cheap) read.
+    refreshDiagnosticsChip();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
     if (state.machinesStatus) {
@@ -162,6 +166,23 @@ function renderActions(m, isStale) {
   return '<div class="machine-actions">' + btns.join('') + '</div>';
 }
 
+/* Diagnostics entry row — only on the machine you are looking at, because a
+ * capture runs inside *this* hub's own process. A peer's captures are started
+ * from that peer's own /admin (its hub owns its sampler), so offering the row
+ * here would be a button that can't do what it says.
+ *
+ * Deliberately one compact row, not another gauge cluster: the card stays a
+ * glance surface and the detail lives behind the drill-in. */
+function renderDiagnosticsRow(m) {
+  if (!m.is_host) return '';
+  return '<button type="button" class="diag-entry" data-action="diagnostics">'
+    + '<span class="diag-entry-main">' + icon('stethoscope')
+    + '<span>Diagnostics</span></span>'
+    + '<span class="hub-live-status" data-diag-chip><span class="dot"></span><span>—</span></span>'
+    + icon('chevron-right', 'diag-entry-chevron')
+    + '</button>';
+}
+
 function renderMachineCard(m, isStale) {
   const st = stateMeta(m.state);
   const uptime = fmtUptimeHuman(m.uptime_seconds);
@@ -177,6 +198,7 @@ function renderMachineCard(m, isStale) {
     + (metaParts.length ? '<p class="machine-meta-row muted small">' + metaParts.join('') + '</p>' : '')
     + (m.detail ? '<p class="muted small">' + escapeHtml(m.detail) + '</p>' : '')
     + renderStatsBlock(m)
+    + renderDiagnosticsRow(m)
     + renderActions(m, isStale)
     + '</section>';
 }
@@ -308,7 +330,9 @@ function onMachinesListClick(ev) {
   if (!machine) return;
   const displayName = machine.display_name || id;
   const action = btn.dataset.action;
-  if (action === 'terminal') {
+  if (action === 'diagnostics') {
+    openDiagnostics();
+  } else if (action === 'terminal') {
     openMachinesTerminal(id, displayName);
   } else if (action === 'rdp') {
     downloadRdp(id, displayName);
@@ -326,6 +350,7 @@ export function wireMachines() {
     });
   }
   if (els.machinesList) els.machinesList.addEventListener('click', onMachinesListClick);
+  wireDiagnostics();
   if (els.machinesConfirmCloseBtn) els.machinesConfirmCloseBtn.addEventListener('click', closeConfirm);
   if (els.machinesConfirmBtn) els.machinesConfirmBtn.addEventListener('click', onConfirmClick);
   if (els.machinesConfirmDialog) {

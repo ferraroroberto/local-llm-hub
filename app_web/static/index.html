@@ -788,6 +788,21 @@
     </div>
   </dialog>
 
+  <!-- Diagnostics drill-in (issue #315): capture · runs · settings. Same
+       vendored dialog shell; read-heavy rather than an editor, so the body
+       scrolls and the footer primary is replaced by per-section actions. -->
+  <dialog class="detail-dialog machines-diag-dialog" id="diagDialog">
+    <div class="detail-card machines-diag-card">
+      <div class="detail-header">
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-stethoscope"></use></svg><span>Diagnostics</span></h2>
+        <button type="button" class="detail-close" id="diagCloseBtn" aria-label="Close diagnostics">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div id="diagBody" class="machines-diag-body"></div>
+    </div>
+  </dialog>
+
   <dialog class="detail-dialog machines-terminal-dialog" id="machinesTerminalDialog">
     <div class="detail-card machines-terminal-card">
       <div class="detail-header">

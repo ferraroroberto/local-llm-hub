@@ -27,6 +27,13 @@ data/logs/
 data/output/
 data/telemetry/
 data/code_usage_history.json
+# Diagnostics capture store (issue #315) — per-machine runtime data, plus the
+# SQLite WAL/shm sidecars. config/diagnostics_{apps,rules}.json ARE committed:
+# they are the tunable rule sets, not runtime state.
+data/diagnostics.db
+data/diagnostics.db-wal
+data/diagnostics.db-shm
+config/diagnostics_settings.json
 tmp_server.log
 *.log
 

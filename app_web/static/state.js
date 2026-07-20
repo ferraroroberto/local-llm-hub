@@ -73,6 +73,15 @@ export const state = {
   machinesErrorMsg: '',     // sanitized message for the error empty-state
   machinesBusyIds: {},      // machine id -> true while a reboot/shutdown POST is in flight
   machinesRecheckIds: {},   // machine id -> true while a fresh status re-check is pending
+
+  // Diagnostics drill-in (issue #315)
+  diagStatus: null,         // last /admin/api/diagnostics/status payload
+  diagDataState: 'loading', // loading | ready | empty | stale | error
+  diagRuns: [],             // recent capture runs (newest first)
+  diagSelectedRun: null,    // run_id whose summary is open
+  diagSummary: null,        // summary digest for the selected run
+  diagDrift: null,          // drift-vs-baseline for the selected run
+  diagSummaryState: 'ready',// lifecycle for the selected-run panel
 };
 
 // ES modules are deferred; document.getElementById is safe at top level.
@@ -273,6 +282,9 @@ export const els = {
   machinesTerminalUnavailable: document.getElementById('machinesTerminalUnavailable'),
   machinesTerminalUnavailableMsg: document.getElementById('machinesTerminalUnavailableMsg'),
   machinesTerminalMount: document.getElementById('machinesTerminalMount'),
+  diagDialog: document.getElementById('diagDialog'),
+  diagCloseBtn: document.getElementById('diagCloseBtn'),
+  diagBody: document.getElementById('diagBody'),
 
   // Misc
   toast: document.getElementById('toast'),

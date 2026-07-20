@@ -60,6 +60,7 @@ flowchart TB
     MACHINECON["machine_console.py\nMachines-tab console (#309): host inventory\n+ per-machine card assembly + RDP gen"]
     REMOTESTATS["remote_stats.py\nTCP liveness (is the box on?) + general-SSH\nCPU/RAM/GPU/disk/uptime snapshot (#309)"]
     SSHTERM["ssh_terminal.py\nin-browser SSH terminal (#309): drives\napp-launcher's session-host over loopback"]
+    DIAG["diagnostics/ (issue #315)\nsampler (in-hub asyncio task, no resident proc) ·\nattribution (process -> fleet app + ports) ·\nrules (health verdict) · report (summary/drift/md) ·\nstore (SQLite)"]
     PARAKEETSRV["parakeet_server.py\nOpenAI-shape ASR shim ->\nFluidAudio Parakeet CoreML worker"]
   end
   CHATT --> REMOTEPROXY
@@ -72,6 +73,10 @@ flowchart TB
   WROUT -->|machines: SSH terminal WS proxy| SSHTERM
   MACHINECON --> REMOTEBOOT
   MACHINECON --> REMOTESTATS
+  WROUT -->|machines: diagnostics modal| DIAG
+  LIFECYCLE -->|close orphan runs + arm scheduled snapshot| DIAG
+  DIAG -.reads.-> DIAGCFG
+  DIAG -.writes.-> DIAGDB
   REMOTESTATS -->|TCP :22 + read-only ssh| MACMINI
   REMOTESTATS -->|TCP :22 + read-only ssh| OPENCLAW
   SSHTERM -->|POST /sessions + WS| SESSIONHOST
@@ -119,7 +124,7 @@ flowchart TB
 
   subgraph admin["app_web/ — admin SPA, sub-app mounted at /admin"]
     WSRV["server.py\ncreate_app() + versioned static"]
-    WROUT["routers/\nhub · models · startup_profile · playground ·\nservices · telemetry · code_usage · glossary ·\nhosts · machines · auth · webauthn · version · misc"]
+    WROUT["routers/\nhub · models · startup_profile · playground ·\nservices · telemetry · code_usage · glossary ·\nhosts · machines · diagnostics · auth · webauthn ·\nversion · misc"]
     WSTATIC["static/\nindex.html SPA + per-tab JS/CSS"]
   end
   SRV -.mounts.-> WSRV
@@ -149,6 +154,8 @@ flowchart TB
     STARTUPCFG[("config/startup_profile.json (gitignored; .example committed)\ndocker/langfuse/mac-mini-sync/models\n(issues #265, #304)")]
     MODELSDIR["models/ (gitignored)\nGGUF + whisper weights"]
     USAGEHIST[("data/code_usage_history.json\ndaily usage rollups — outlive\ntranscript pruning (issue #280)")]
+    DIAGCFG[("config/diagnostics_apps.json + _rules.json (committed)\nprocess->app attribution + health thresholds;\nconfig/diagnostics_settings.json (gitignored)\nretention + scheduled snapshot (issue #315)")]
+    DIAGDB[("data/diagnostics.db (gitignored)\nSQLite capture store: runs · samples ·\nprocess_samples · ports · verdicts (issue #315)")]
   end
   REG -.reads.-> MODELSYAML
   HOSTP -.reads.-> MODELSYAML
