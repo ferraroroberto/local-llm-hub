@@ -31,7 +31,9 @@ Reach it from the admin SPA's **Machines** tab → the *this machine* card's
 | `src/diagnostics/rules.py` | Health-verdict engine |
 | `src/diagnostics/coverage.py` | Per-collector coverage — what could and couldn't be measured (#322) |
 | `src/diagnostics/report.py` | Summary digest, baseline drift, markdown report |
+| `src/diagnostics/ingest.py` | Ingest a portable foreign capture as an ordinary run (#316) |
 | `src/diagnostics/settings.py` | Retention + scheduled-snapshot settings |
+| `scripts/portable_capture.py` | Standalone SSH-delivered sampler for hub-less machines (#316) |
 | `app_web/routers/diagnostics.py` | The `/admin/api/diagnostics/*` API |
 | `app_web/static/diagnostics.js` | The drill-in dialog |
 
@@ -45,8 +47,58 @@ Reach it from the admin SPA's **Machines** tab → the *this machine* card's
   subtracts its own work from the sleep so the cadence stays honest on a busy
   box, and a failed tick is logged and skipped rather than ending the run.
 
+- **Remote capture (hub-less machines)** — a single-file sampler delivered over
+  SSH, whose output is ingested back here as an ordinary run. See *Remote
+  capture* below.
+
 Only one capture runs at a time — concurrent captures would double the observer
 effect and interleave in the store.
+
+## Remote capture — hub-less machines (#316)
+
+The weekly fleet checkup needs to measure **every** machine, including boxes
+that run no hub at all (`openclaw`, a dormant `tower`). Installing a resident
+service on each just to sample it once a week is exactly the bloat this feature
+exists to avoid, so instead there is a **zero-install** path:
+
+```bash
+ssh user@host "python3 - --duration-s 3600 --interval-s 15 --machine openclaw" \
+    < scripts/portable_capture.py > openclaw.json
+python -m src.diagnostics.ingest openclaw.json          # or --machine openclaw
+```
+
+The design rule that keeps this cheap: **`scripts/portable_capture.py` captures
+raw and interprets nothing.** It is stdlib + `psutil` only, imports nothing from
+`src/` (it runs where there is no checkout — a test asserts this), and emits one
+JSON document. All the interpretation — fleet attribution, coverage, the health
+verdict — runs **centrally at ingest**, so there is exactly one analysis
+implementation no matter where the samples came from.
+
+Two consequences of interpreting at ingest, both deliberate:
+
+- **Attribution honours the *source* OS.** The payload carries a `platform`
+  token, and `ingest` re-attributes every process with that platform's rule
+  group (`attribution.attribute(name, cmd, platform=…)`). So a Linux capture is
+  judged by the Linux path rules even though the hub doing the ingest is
+  Windows — `/usr/bin` is user software on Linux but Apple-owned on macOS, and
+  the same path lands in different buckets accordingly (see *Per-OS rule
+  groups*). Editing `config/diagnostics_apps.json` re-attributes every future
+  ingest with **no change on any peer**.
+- **CPU normalizes against the source cores.** `params.cpu_count` comes from the
+  payload, so per-process CPU is divided by the *peer's* core count, not the
+  ingesting hub's.
+
+The portable script reproduces the local sampler's measurement contract exactly
+— the `exe`-fallback command line (so macOS daemons still attribute), NULL (not
+0) for a denied memory/CPU read (so coverage can tell blind from empty), the
+system-CPU-over-its-own-window trap, and the `System Idle Process` exclusion. A
+malformed or truncated payload is refused **whole**, before any run row is
+written, rather than half-ingested. After ingest an `openclaw` run is
+indistinguishable to `summary`/`drift`/verdict from a locally captured one; it
+is tagged `trigger=remote` and carries `params.source_platform`.
+
+`mac-mini-m4` runs its own hub, so it uses the native API path, not this one —
+both converge on the same store.
 
 ## Attribution — why `app-launcher: 3 procs` beats `python.exe ×14`
 
@@ -224,6 +276,7 @@ The UI is a **trigger plus a digest** — deep analysis happens outside it:
 | `POST` | `/admin/api/diagnostics/start` | Begin a timed capture |
 | `POST` | `/admin/api/diagnostics/snapshot` | One-shot sample |
 | `POST` | `/admin/api/diagnostics/stop` | Stop the active capture |
+| `POST` | `/admin/api/diagnostics/ingest` | Ingest a portable foreign capture (#316) |
 | `GET` | `/admin/api/diagnostics/runs` | Past runs, newest first |
 | `GET` | `/admin/api/diagnostics/runs/{id}` | Summary digest |
 | `GET` | `/admin/api/diagnostics/runs/{id}/drift` | Delta vs the baseline |
@@ -280,6 +333,12 @@ IO counters are stored **raw and cumulative**; deltas are derived at read time.
   *in the process*, and the hub's Hub-tab sampler already calls it every 2 s —
   whichever ran last stole the other's delta, which made diagnostics report
   0.0% CPU on a genuinely busy box.
-- Captures are strictly local. Triggering a capture on a *peer* from this hub is
-  deliberately not offered: each host's hub owns its own sampler, so start one
-  from that machine's own `/admin`.
+- The hub never *pushes* a capture onto a peer that runs its own hub — each such
+  host owns its own sampler, so start one from that machine's own `/admin`. A
+  **hub-less** machine is measured the other way round: the orchestrator delivers
+  `scripts/portable_capture.py` over SSH and ingests the result here (see *Remote
+  capture*), so peers stay stateless and nothing resident is installed on them.
+- The portable path needs `psutil` present on the peer; if it is missing the
+  script exits non-zero with a clear message rather than emitting a half-capture
+  (a silently-ingested partial reading is worse than a recorded gap). The Linux
+  attribution rules stay unverified against a live box until one is captured.

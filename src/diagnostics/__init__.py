@@ -23,4 +23,4 @@ Module seams:
 
 from __future__ import annotations
 
-__all__ = ["attribution", "report", "rules", "sampler", "store"]
+__all__ = ["attribution", "coverage", "ingest", "report", "rules", "sampler", "store"]

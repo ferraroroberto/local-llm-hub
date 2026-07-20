@@ -347,3 +347,69 @@ def test_broken_settings_file_falls_back_to_defaults(tmp_path):
         assert diag_settings.load_settings().retention_days == 90
     finally:
         diag_settings.set_settings_path(None)
+
+
+def test_shutdown_drains_an_active_capture(tmp_path):
+    """A hub shutdown must gracefully stop an in-flight capture, not abandon it.
+
+    Beyond finalizing the run as `stopped` instead of orphaning it, this is what
+    stops a capture's worker thread from outliving the app and writing through
+    the module-global `db_path` into the next test's DB — the intermittent
+    `database is locked` the router suite showed before #316 added the drain."""
+    store.set_db_path(tmp_path / "diag.db")
+    diag_settings.set_settings_path(tmp_path / "s.json")
+    try:
+        with TestClient(server_mod.app) as c:
+            c.post("/admin/api/diagnostics/start", json={"duration_s": 600, "interval_s": 5})
+            assert sampler.is_capturing() is True
+        # Leaving the context ran the app's shutdown handlers.
+        assert sampler.is_capturing() is False
+    finally:
+        store.set_db_path(None)
+        diag_settings.set_settings_path(None)
+
+
+# --------------------------------------------------------- ingest endpoint (#316)
+
+
+def _remote_payload(*, platform="linux", machine="peer"):
+    """A minimal valid portable-capture document for the ingest endpoint."""
+    proc = {"pid": 1, "ppid": 1, "name": "python3",
+            "cmdline": "/opt/automation/grocery/.venv/bin/python3 -m app",
+            "cpu_percent": 5.0, "rss_bytes": 20 * 1024 ** 2, "num_threads": 2,
+            "status": "running", "create_time": 1.0}
+    sample = {"ts": 1000.0, "cpu_percent": 10.0, "per_core": [10.0], "load_avg": None,
+              "ram": {"used_gb": 4.0, "total_gb": 16.0, "percent": 30.0}, "swap": {},
+              "disk": {"percent": 20.0}, "disk_io": {}, "net_io": {}, "gpus": [],
+              "process_count": 1, "ports_denied": False, "processes": [proc], "ports": []}
+    return {"schema": "llm-hub-diagnostics-capture/1", "machine": machine,
+            "hostname": machine, "os": f"{platform}-os", "platform": platform,
+            "cpu_count": 8, "interval_s": 15.0, "started_at": 1000.0,
+            "ended_at": 1060.0, "samples": [sample]}
+
+
+def test_ingest_endpoint_creates_a_remote_run(client):
+    body = client.post("/admin/api/diagnostics/ingest", json=_remote_payload()).json()
+    assert body["ok"] is True
+    run_id = body["run_id"]
+    # It appears in the run list like any other run, tagged remote.
+    runs = client.get("/admin/api/diagnostics/runs").json()["runs"]
+    row = next(r for r in runs if r["run_id"] == run_id)
+    assert row["trigger"] == "remote"
+    # And its summary attributes centrally at ingest.
+    summary = client.get(f"/admin/api/diagnostics/runs/{run_id}").json()
+    assert "grocery" in {a["app_id"] for a in summary["apps"]}
+
+
+def test_ingest_endpoint_accepts_the_machine_override_envelope(client):
+    body = client.post("/admin/api/diagnostics/ingest", json={
+        "payload": _remote_payload(machine="hostname-only"), "machine": "openclaw",
+    }).json()
+    summary = client.get(f"/admin/api/diagnostics/runs/{body['run_id']}").json()
+    assert summary["run"]["machine_id"] == "openclaw"
+
+
+def test_ingest_endpoint_refuses_garbage_with_400(client):
+    resp = client.post("/admin/api/diagnostics/ingest",
+                       json={"schema": "nope", "platform": "linux", "samples": []})
+    assert resp.status_code == 400

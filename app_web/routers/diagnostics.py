@@ -5,6 +5,7 @@ diagnostics modal.
   * ``POST /admin/api/diagnostics/start``        — begin a timed capture
   * ``POST /admin/api/diagnostics/snapshot``     — one-shot sample
   * ``POST /admin/api/diagnostics/stop``         — stop the active capture
+  * ``POST /admin/api/diagnostics/ingest``       — ingest a portable foreign capture (#316)
   * ``GET  /admin/api/diagnostics/runs``         — past runs, newest first
   * ``GET  /admin/api/diagnostics/runs/{id}``    — the summary digest
   * ``GET  /admin/api/diagnostics/runs/{id}/drift``  — delta vs the baseline
@@ -28,7 +29,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException, Request
 from starlette.responses import PlainTextResponse
 
-from src.diagnostics import report, rules, sampler, settings as diag_settings, store
+from src.diagnostics import ingest, report, rules, sampler, settings as diag_settings, store
 
 from ._helpers import maybe_json
 
@@ -102,6 +103,28 @@ async def diagnostics_stop() -> Dict[str, Any]:
     result = await sampler.stop_run()
     logger.info("🔬 /admin/api/diagnostics/stop -> %s", result)
     return {"ok": True, **result}
+
+
+@router.post("/api/diagnostics/ingest")
+async def diagnostics_ingest(request: Request) -> Dict[str, Any]:
+    """Ingest a portable capture (``scripts/portable_capture.py`` output) from a
+    hub-less machine as an ordinary run — the native-path symmetry for the SSH
+    delivery (#316). The heavy lifting (attribution, coverage, verdict) runs in
+    ``ingest.ingest_payload``; this just carries the JSON in and the run id out."""
+    body = await maybe_json(request)
+    if isinstance(body, dict) and isinstance(body.get("payload"), dict):
+        payload, machine = body["payload"], body.get("machine")
+    else:
+        payload, machine = body, None
+    try:
+        run_id = await asyncio.to_thread(ingest.ingest_payload, payload, machine=machine)
+    except ingest.IngestError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️ diagnostics ingest failed: %s", exc)
+        raise HTTPException(status_code=500, detail="ingest failed")
+    logger.info("📥 /admin/api/diagnostics/ingest -> %s", run_id)
+    return {"ok": True, "run_id": run_id}
 
 
 @router.get("/api/diagnostics/runs")
