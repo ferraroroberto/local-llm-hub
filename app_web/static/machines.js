@@ -172,15 +172,27 @@ function renderActions(m, isStale) {
  * here would be a button that can't do what it says.
  *
  * Deliberately one compact row, not another gauge cluster: the card stays a
- * glance surface and the detail lives behind the drill-in. */
+ * glance surface and the detail lives behind the drill-in.
+ *
+ * A peer that runs its own hub (m.runs_hub) gets a plain-text footnote
+ * instead of the button, so the missing row reads as "go look over there"
+ * rather than "this machine has no diagnostics". Managed-only peers
+ * (openclaw, gaming — runs_hub false) get neither: they have no /admin to
+ * point to. */
 function renderDiagnosticsRow(m) {
-  if (!m.is_host) return '';
-  return '<button type="button" class="diag-entry" data-action="diagnostics">'
-    + '<span class="diag-entry-main">' + icon('stethoscope')
-    + '<span>Diagnostics</span></span>'
-    + '<span class="hub-live-status" data-diag-chip><span class="dot"></span><span>—</span></span>'
-    + icon('chevron-right', 'diag-entry-chevron')
-    + '</button>';
+  if (m.is_host) {
+    return '<button type="button" class="diag-entry" data-action="diagnostics">'
+      + '<span class="diag-entry-main">' + icon('stethoscope')
+      + '<span>Diagnostics</span></span>'
+      + '<span class="hub-live-status" data-diag-chip><span class="dot"></span><span>—</span></span>'
+      + icon('chevron-right', 'diag-entry-chevron')
+      + '</button>';
+  }
+  if (m.runs_hub) {
+    return '<p class="muted small diag-hint">Diagnostics run on ' + escapeHtml(m.display_name || m.id)
+      + '’s own hub — open its /admin there to view them.</p>';
+  }
+  return '';
 }
 
 function renderMachineCard(m, isStale) {

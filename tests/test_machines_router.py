@@ -107,6 +107,26 @@ def test_actions_gaming_offers_power_terminal_and_rdp():
     assert acts == {"reboot": True, "shutdown": True, "ssh_terminal": True, "rdp": True}
 
 
+# ------------------------------------------------------------ card runs_hub
+
+
+def test_card_runs_hub_true_for_model_hosts():
+    """tower and mac-mini-m4 each run their own hub (non-empty `enabled`) —
+    the Machines-tab footnote (#337) points a viewer at a peer's own /admin
+    only when this is true."""
+    for host_id in ("tower", "mac-mini-m4"):
+        card = mc._card_base(get_host(host_id), is_host=False)
+        assert card["runs_hub"] is True, host_id
+
+
+def test_card_runs_hub_false_for_managed_only_machines():
+    """openclaw and gaming are managed-only (#309) — no `enabled` models, so
+    they never run this hub and get no Diagnostics footnote either."""
+    for host_id in ("openclaw", "gaming"):
+        card = mc._card_base(get_host(host_id), is_host=False)
+        assert card["runs_hub"] is False, host_id
+
+
 # ------------------------------------------------------------------------ RDP
 
 
