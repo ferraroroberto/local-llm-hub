@@ -33,6 +33,43 @@ then the box ran only `nouveau` with no `nvidia-smi`, which is why the GPU gauge
 was absent. The STT/TTS model offload itself is still deferred (#323,
 replica-first) — the driver is prerequisite groundwork, not the migration.
 
+## Boot mode — Server (headless) default, Desktop (GUI) opt-in
+
+`openclaw` and `gaming` both dual-boot between two systemd targets — done and
+verified live via real reboots, 2026-07-21 (`life-os` `geek-out` session; the
+Mac Mini and hub box aren't in scope, this only applies to the two Linux
+boxes):
+
+- **Server (default)** — `systemctl set-default multi-user.target`. No
+  GNOME/gdm3, no GUI compositor. This is what actually boots on an
+  unattended remote reboot with no keyboard/monitor attached. Networking,
+  SSH, Tailscale, and the local-llm-hub role are unaffected — none of those
+  are gated by `graphical.target`.
+- **Desktop (opt-in)** — a custom GRUB entry (`/etc/grub.d/12_desktop_mode`,
+  "Ubuntu (Desktop mode)") reuses the same kernel/initrd (`/boot/vmlinuz`,
+  `/boot/initrd.img` — stable symlinks that survive kernel upgrades) with
+  `systemd.unit=graphical.target` appended, overriding the target for that
+  one boot only. The GRUB menu is visible for ~5s
+  (`GRUB_TIMEOUT_STYLE=menu`, `GRUB_TIMEOUT=5`) if a screen/keyboard is
+  attached; otherwise it just times out to Server.
+- **Remote switch, no physical access needed**:
+  `sudo grub-reboot "Ubuntu (Desktop mode)" && sudo reboot` boots once into
+  Desktop, then auto-reverts to Server on the next boot after.
+- Also trimmed on both: `bluetooth`, `avahi-daemon`, `ModemManager`, `cups`
+  (+ its snap variant on `openclaw`) disabled — unused by
+  SSH/Tailscale/local-llm-hub. `tlp` installed + enabled on both for
+  ongoing USB/PCIe/disk power tuning.
+- **Known limitation** — `openclaw`'s NVIDIA MX250 does not support Runtime
+  D3 (`Runtime D3 status: Not supported`, even after setting
+  `NVreg_DynamicPowerManagement=0x02`); its idle GPU draw is a hardware
+  ceiling, not fixable via driver config.
+- **`gaming`'s WiFi is intermittently flaky** — SSH/Tailscale both dropped
+  and recovered (10-20s) several times during this session's reboot
+  testing, independent of the boot-mode changes. Matches the open,
+  unresolved [#330](https://github.com/ferraroroberto/local-llm-hub/issues/330)
+  packet-loss issue — worth prioritizing now that this is a headless-only
+  box for remote access.
+
 ## Tailscale identities
 
 | Host id | Tailscale magic-DNS | Tailscale IP | Notes |

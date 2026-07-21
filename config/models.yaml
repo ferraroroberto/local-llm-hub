@@ -114,6 +114,9 @@ hosts:
     # Tailscale magic-DNS name — used for reachability + RDP when off-LAN.
     # This box is the tailnet node `asus-linux` (confirmed 2026-07-21).
     tailscale: asus-linux.tail1121fd.ts.net
+    # Server (headless, multi-user.target) is the systemd default; Desktop
+    # (graphical.target/GNOME) is a one-boot GRUB override via `grub-reboot`
+    # — done + verified 2026-07-21, see docs/machines.md.
     rdp:
       address: 192.168.0.239
       user: openclaw
@@ -127,8 +130,10 @@ hosts:
     # it gets reboot/shutdown/terminal like the other peers. Tailscale is
     # installed and live as `gaming-linux.tail1121fd.ts.net` (confirmed
     # 2026-07-21); the `tower.tail1121fd.ts.net` name belongs to the hub box
-    # (id `tower`), not this satellite. RDP targets xrdp on the LAN IP (the
-    # headless `multi-user.target` switch is still pending — see #323).
+    # (id `tower`), not this satellite. RDP targets xrdp on the LAN IP.
+    # Headless `multi-user.target` is now the systemd default (Server mode);
+    # GRUB adds a one-boot Desktop-mode override via `grub-reboot` — done +
+    # verified 2026-07-21, see docs/machines.md and #323.
     display_name: gaming
     role: "Ryzen 9 5900X · Ubuntu · 8 GB VRAM · SSH + passwordless sudo · STT/TTS offload satellite"
     icon: monitor
