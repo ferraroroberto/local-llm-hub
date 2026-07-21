@@ -46,10 +46,12 @@ tray:
 #   dormant       true = a powered-down node shown but not live-probed
 #   tailscale     Tailscale magic-DNS hostname (peer reachability + RDP)
 #   rdp           {address, user} for the Remote-Desktop launch action
+# Human-readable fleet inventory + Tailscale identities: docs/machines.md
 # Reboot/shutdown are offered for any peer with both `address` + `ssh_user`
-# (never the active host — that's the hub, excluded as destructive); tower
-# has no SSH, so it is RDP-only. OpenClaw + tower are enrolled here as
-# managed machines even though they serve no models (empty `enabled`).
+# (never the active host — that's the hub, excluded as destructive).
+# OpenClaw + gaming are enrolled here as managed machines even though they
+# serve no models yet (empty `enabled`); gaming is a live Linux satellite
+# (#323), no longer a dormant RDP-only node.
 hosts:
   pc-cuda:
     platform: win32
@@ -112,20 +114,25 @@ hosts:
       address: 192.168.0.239
       user: openclaw
 
-  tower:
-    platform: win32
-    # Dormant Windows node — shown as a card but not live-probed on the LAN.
-    # No SSH (RDP/Tailscale only), so it gets no reboot/shutdown action; its
-    # only management path is the Remote-Desktop launch. Wake-on-LAN is a
-    # follow-up (out of scope per #309).
-    dormant: true
-    display_name: Tower
-    role: "Dormant Windows node · 8 GB VRAM · 32 GB RAM · RDP only"
-    icon: server
+  gaming:
+    platform: linux
+    # Ryzen 9 5900X gaming PC, brought online as a live Linux inference
+    # satellite (#323) — reinstalled from the old dormant Windows "tower" node.
+    # It now has SSH + passwordless sudo (user `gaming`, static 192.168.0.16),
+    # so it gets reboot/shutdown/terminal like the other peers. Tailscale has
+    # NOT yet been reinstalled on the fresh Ubuntu; `tower.tail1121fd.ts.net` is
+    # the reserved magic-DNS alias kept for when it is (its Tailscale 100.x IP
+    # is unassigned until then). RDP targets xrdp on the LAN IP (the headless
+    # `multi-user.target` switch is still pending — see #323).
+    display_name: gaming
+    role: "Ryzen 9 5900X · Ubuntu · 8 GB VRAM · SSH + passwordless sudo · STT/TTS offload satellite"
+    icon: monitor
+    address: 192.168.0.16
+    ssh_user: gaming
     tailscale: tower.tail1121fd.ts.net
     rdp:
-      address: tower.tail1121fd.ts.net
-      user: roberto.ferraro@gmail.com
+      address: 192.168.0.16
+      user: gaming
 
 models:
   # --- Claude subscription path (`claude -p` CLI) ---

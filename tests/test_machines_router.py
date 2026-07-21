@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from src import machine_console as mc
 from src import server as server_mod
-from src.host_profile import all_hosts, get_host, resolve
+from src.host_profile import HostProfile, all_hosts, get_host, resolve
 
 
 def _client() -> TestClient:
@@ -51,7 +51,7 @@ def _run(coro):
 
 def test_all_hosts_enrolls_managed_machines():
     ids = {h.id for h in all_hosts()}
-    assert {"pc-cuda", "mac-mini-m4", "openclaw", "tower"} <= ids
+    assert {"pc-cuda", "mac-mini-m4", "openclaw", "gaming"} <= ids
 
 
 def test_openclaw_has_ssh_and_rdp():
@@ -63,12 +63,21 @@ def test_openclaw_has_ssh_and_rdp():
     assert h.dormant is False
 
 
-def test_tower_is_dormant_rdp_only():
-    h = get_host("tower")
+def test_gaming_is_live_ssh_host():
+    """The old dormant `tower` node is now `gaming`, a live Linux satellite
+    (#323): SSH power actions on, and the `tower` Tailscale alias kept for the
+    pending reinstall."""
+    h = get_host("gaming")
     assert h is not None
-    assert h.dormant is True
-    assert h.can_ssh is False  # no ssh_user → no power actions
-    assert h.rdp and h.rdp["address"] == "tower.tail1121fd.ts.net"
+    assert h.dormant is False
+    assert h.can_ssh is True  # address + ssh_user → power actions
+    assert h.rdp and h.rdp["address"] == "192.168.0.16"
+    assert h.tailscale == "tower.tail1121fd.ts.net"  # reserved alias kept
+
+
+def test_tower_host_id_is_gone():
+    """The rename is complete — nothing should still resolve the old id."""
+    assert get_host("tower") is None
 
 
 # ------------------------------------------------------------ actions capability
@@ -85,9 +94,9 @@ def test_actions_ssh_peer_offers_power_and_terminal():
     assert acts["reboot"] and acts["shutdown"] and acts["ssh_terminal"]
 
 
-def test_actions_tower_offers_rdp_only():
-    acts = mc._actions_for(get_host("tower"), is_host=False)
-    assert acts == {"reboot": False, "shutdown": False, "ssh_terminal": False, "rdp": True}
+def test_actions_gaming_offers_power_terminal_and_rdp():
+    acts = mc._actions_for(get_host("gaming"), is_host=False)
+    assert acts == {"reboot": True, "shutdown": True, "ssh_terminal": True, "rdp": True}
 
 
 # ------------------------------------------------------------------------ RDP
@@ -151,10 +160,12 @@ def test_remote_stats_parse_darwin_no_gpu():
 
 def test_remote_stats_reachable_false_without_address():
     from src import remote_stats
-    from src.host_profile import get_host
 
-    # tower has no LAN address → not reachable via the TCP probe.
-    assert remote_stats.reachable(get_host("tower")) is False
+    # A host with no LAN address is not reachable via the TCP probe. Every
+    # enrolled host now has an address, so this uses a synthetic address-less
+    # profile to keep the guard covered (#323).
+    addressless = HostProfile(id="nowhere", platform="linux", enabled=[])
+    assert remote_stats.reachable(addressless) is False
 
 
 # --------------------------------------------------------------------- endpoints
@@ -208,9 +219,17 @@ def test_reboot_404_unknown_machine():
     assert r.status_code == 404, r.text
 
 
-def test_shutdown_refuses_ssh_less_peer():
-    # tower has an rdp target but no ssh_user → no power channel.
-    r = _client().post("/admin/api/machines/tower/shutdown")
+def test_shutdown_refuses_ssh_less_peer(monkeypatch):
+    # A peer with an rdp target but no ssh_user has no power channel. No real
+    # host is SSH-less anymore (#323), so inject a synthetic one at the router's
+    # host lookup.
+    import app_web.routers.machines as machines_router
+
+    ghost = HostProfile(id="ghost", platform="linux", enabled=[],
+                        rdp={"address": "10.0.0.9", "user": "x"})
+    monkeypatch.setattr(machines_router, "get_host",
+                        lambda hid: ghost if hid == "ghost" else get_host(hid))
+    r = _client().post("/admin/api/machines/ghost/shutdown")
     assert r.status_code == 400, r.text
     assert "SSH" in r.json()["detail"]
 
@@ -297,15 +316,16 @@ def test_power_command_flags_map_reboot_and_shutdown(monkeypatch):
 
 
 def test_power_command_guards_missing_ssh_target(monkeypatch):
-    """A host with no address/ssh_user is rejected before any ssh call — the
-    router already blocks tower, but the layer guards itself too."""
+    """A host with no address/ssh_user (here, an unknown id) is rejected before
+    any ssh call — the router guards at the endpoint, but the layer guards
+    itself too."""
     from src import remote_bootstrap
 
     def _boom(cmd, **kwargs):  # pragma: no cover — must never run
         raise AssertionError("ssh should not be invoked for an unroutable host")
 
     monkeypatch.setattr(remote_bootstrap.subprocess, "run", _boom)
-    result = remote_bootstrap._run_power_command("tower", "-r")
+    result = remote_bootstrap._run_power_command("no-such-host", "-r")
     assert result["ok"] is False
     assert "address/ssh_user" in result["error"]
 

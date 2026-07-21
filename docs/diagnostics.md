@@ -56,8 +56,8 @@ effect and interleave in the store.
 
 ## Remote capture — hub-less machines (#316)
 
-The weekly fleet checkup needs to measure **every** machine, including boxes
-that run no hub at all (`openclaw`, a dormant `tower`). Installing a resident
+The weekly fleet checkup needs to measure **every** machine, including a box
+that runs no hub at all (`openclaw`, the Linux laptop). Installing a resident
 service on each just to sample it once a week is exactly the bloat this feature
 exists to avoid, so instead there is a **zero-install** path:
 
