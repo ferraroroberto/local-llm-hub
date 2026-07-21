@@ -56,10 +56,15 @@ _LINUX_STATS_CMD = (
     "echo \"cpu $(vmstat 1 2 | tail -1 | awk '{print 100-$15}')\"\n"
     "free -m | awk '/Mem:/{printf \"mem_total_mb %d\\nmem_used_mb %d\\n\",$2,$3}'\n"
     "df -k / | awk 'NR==2{printf \"disk_total_kb %d\\ndisk_used_kb %d\\n\",$2,$3}'\n"
-    "command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi "
+    # Guarded with `if … then … fi`, not `A && B`: a missing nvidia-smi must
+    # leave the script's exit code 0 so `_run_ssh` keeps the (valid) CPU/mem/disk
+    # output. With `&&`, an absent nvidia-smi makes the *whole* command exit
+    # non-zero and `_run_ssh` discards everything — a Linux peer with no GPU
+    # driver (e.g. a fresh Ubuntu box) then shows a wholly blank card (#329).
+    "if command -v nvidia-smi >/dev/null 2>&1; then nvidia-smi "
     "--query-gpu=name,memory.used,memory.total,utilization.gpu "
     "--format=csv,noheader,nounits | head -1 | awk -F', *' "
-    "'{printf \"gpu_name %s\\ngpu_used_mb %s\\ngpu_total_mb %s\\ngpu_util %s\\n\",$1,$2,$3,$4}'"
+    "'{printf \"gpu_name %s\\ngpu_used_mb %s\\ngpu_total_mb %s\\ngpu_util %s\\n\",$1,$2,$3,$4}'; fi"
 )
 
 _DARWIN_STATS_CMD = (
