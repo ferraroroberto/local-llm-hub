@@ -158,6 +158,25 @@ def test_remote_stats_parse_darwin_no_gpu():
     assert s["gpus"] == []  # macOS has no nvidia-smi — no GPU gauge
 
 
+def test_linux_stats_cmd_survives_missing_nvidia_smi():
+    """A Linux peer with no nvidia-smi must still yield CPU/mem/disk, not a
+    blank card (#329). ``_run_ssh`` drops all stdout when the remote command
+    exits non-zero, so the optional GPU probe must never poison the exit code.
+
+    The GPU probe must be the exit-0 ``if … then … fi`` form: with nvidia-smi
+    absent the condition is false and the ``if`` yields 0, so the earlier
+    gauges survive. The old ``command -v nvidia-smi && nvidia-smi`` chain made
+    the whole script exit non-zero and blanked the card — assert it is gone.
+    (Real end-to-end exit-0 confirmed live over SSH against the gaming box.)"""
+    from src import remote_stats
+
+    cmd = remote_stats._LINUX_STATS_CMD
+    assert "if command -v nvidia-smi >/dev/null 2>&1; then" in cmd
+    assert cmd.rstrip().endswith("fi")
+    # the old, bug-causing exit-propagating form must be gone
+    assert "nvidia-smi >/dev/null 2>&1 &&" not in cmd
+
+
 def test_remote_stats_reachable_false_without_address():
     from src import remote_stats
 
