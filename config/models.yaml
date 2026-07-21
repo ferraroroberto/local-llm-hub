@@ -119,17 +119,18 @@ hosts:
     # Ryzen 9 5900X gaming PC, brought online as a live Linux inference
     # satellite (#323) — reinstalled from the old dormant Windows "tower" node.
     # It now has SSH + passwordless sudo (user `gaming`, static 192.168.0.16),
-    # so it gets reboot/shutdown/terminal like the other peers. Tailscale has
-    # NOT yet been reinstalled on the fresh Ubuntu; `tower.tail1121fd.ts.net` is
-    # the reserved magic-DNS alias kept for when it is (its Tailscale 100.x IP
-    # is unassigned until then). RDP targets xrdp on the LAN IP (the headless
+    # so it gets reboot/shutdown/terminal like the other peers. Tailscale is
+    # installed and live as `gaming-linux.tail1121fd.ts.net` (confirmed
+    # 2026-07-21) — `tower.tail1121fd.ts.net` was assumed reserved for this
+    # box but turned out to already belong to `pc-cuda`, so it was never
+    # available. RDP targets xrdp on the LAN IP (the headless
     # `multi-user.target` switch is still pending — see #323).
     display_name: gaming
     role: "Ryzen 9 5900X · Ubuntu · 8 GB VRAM · SSH + passwordless sudo · STT/TTS offload satellite"
     icon: monitor
     address: 192.168.0.16
     ssh_user: gaming
-    tailscale: tower.tail1121fd.ts.net
+    tailscale: gaming-linux.tail1121fd.ts.net
     rdp:
       address: 192.168.0.16
       user: gaming
