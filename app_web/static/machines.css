@@ -201,6 +201,15 @@
 .diag-entry:hover { color: var(--accent); }
 .diag-entry [data-diag-chip] { margin-left: auto; }
 
+/* Footnote a peer card shows instead of the .diag-entry button — same
+ * top-border rhythm as the row it replaces, tight browser-default-free
+ * margins so it reads as one compact line, not a stray paragraph. */
+.diag-hint {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-muted);
+}
+
 /* (The verdict chip reuses .hub-live-status good/warn/danger as-is — all
  * three steps already exist in styles.css.) */
 

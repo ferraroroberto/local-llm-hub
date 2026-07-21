@@ -75,6 +75,11 @@ def _card_base(host: HostProfile, *, is_host: bool) -> Dict[str, Any]:
         "is_host": is_host,
         "dormant": host.dormant,
         "has_tailscale": bool(host.tailscale),
+        # Managed-only machines (openclaw, gaming) declare no `enabled`
+        # models and never run this hub at all (config/models.yaml's own
+        # comment) — the SPA uses this to decide whether a peer card should
+        # point the user at that machine's own /admin for Diagnostics.
+        "runs_hub": bool(host.enabled),
         "actions": _actions_for(host, is_host=is_host),
     }
 
