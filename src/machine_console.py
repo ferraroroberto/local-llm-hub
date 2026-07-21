@@ -10,7 +10,8 @@ not whether the hub happens to run there:
   * a **peer** is liveness-probed by a hub-independent TCP connect
     (``remote_stats.is_reachable``) and, when up, gives the same snapshot over
     the hub user's own SSH (``remote_stats.collect``);
-  * a **dormant** node (tower) is shown but never live-probed.
+  * a **dormant** node (a powered-down box, if any is flagged) is shown
+    but never live-probed.
 
 Power actions (reboot/shutdown) live in ``remote_bootstrap`` and run over the
 hub user's own general SSH (#311); this module only computes *which* actions
@@ -52,7 +53,7 @@ def _actions_for(host: HostProfile, *, is_host: bool) -> Dict[str, bool]:
     The active hub host offers none (reboot/shutdown are the excluded
     destructive actions; SSH/RDP to self is pointless). A peer with SSH
     (address + ssh_user) gets reboot/shutdown + an SSH terminal; RDP is
-    offered wherever an ``rdp`` target is configured (tower is RDP-only)."""
+    offered wherever an ``rdp`` target is configured."""
     if is_host:
         return {"reboot": False, "shutdown": False, "rdp": False, "ssh_terminal": False}
     return {

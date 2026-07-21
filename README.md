@@ -436,7 +436,7 @@ The **Machines** tab turns the hub into a fleet machine console — one place
 to see the health of every box and act on it. It reads the host inventory
 from `config/models.yaml` `hosts:` (now enrolling two managed-only machines
 alongside `pc-cuda` and `mac-mini-m4`: **OpenClaw**, a Linux laptop, and
-**tower**, a dormant Windows node) and renders a card per machine:
+**gaming**, a Ryzen Linux inference satellite — #323) and renders a card per machine:
 
 Every reachable machine shows the **same** snapshot — CPU / RAM / GPU / disk
 (as uniform horizontal gauges) + uptime:
@@ -446,8 +446,8 @@ Every reachable machine shows the **same** snapshot — CPU / RAM / GPU / disk
   there — the card answers *is the box on?*, not *is the hub up?*
   (`src/remote_stats.py`): a **hub-independent TCP liveness probe** for
   up/down, and the same CPU/RAM/GPU/disk/uptime snapshot collected over the
-  hub user's **own** passwordless SSH (a read-only one-liner, per-OS). A
-  dormant node (tower) is shown but not live-probed. All peer actions —
+  hub user's **own** passwordless SSH (a read-only one-liner, per-OS). A node
+  flagged `dormant` is shown but not live-probed (none at present). All peer actions —
   read-only observability *and* reboot/shutdown — go over that general SSH
   (plus TCP for liveness); the forced-command key is reserved for the Mac
   Mini's hub-lifecycle `bootstrap`/`sync` (#181).
@@ -455,7 +455,7 @@ Every reachable machine shows the **same** snapshot — CPU / RAM / GPU / disk
 **Reboot / shutdown (destructive, peers only).** Any peer with an SSH channel
 (`address` + `ssh_user`) offers **Reboot** and **Shut down** actions; the
 active hub host is always excluded (powering it off would take the console
-down with it), and tower has no SSH so it is RDP-only. These run over the hub
+down with it). These run over the hub
 user's **own general SSH** (issue #311) — the same passwordless channel the
 stats snapshot uses — as `ssh <user>@<host> "sudo -n /sbin/shutdown -r|-h
 now"`, detached with `nohup` so the SSH command returns cleanly before the box
@@ -655,6 +655,7 @@ local-llm-hub/
     ├── project-structure.md
     ├── model-comparison.md
     ├── diagnostics.md            # on-demand machine diagnostics (#315)
+    ├── machines.md               # fleet machine inventory + Tailscale identities (#309/#323)
     ├── whisper-asr.md            # whisper STT backend: glossary, boosting, tuning
     ├── add-tts.md                # how the TTS backend (/v1/audio/speech) slotted in
     ├── image-generation.md       # Imagen via agy → /v1/images/generations

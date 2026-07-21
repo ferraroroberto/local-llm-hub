@@ -67,7 +67,7 @@ class HostProfile:
     def can_ssh(self) -> bool:
         """True when this host has both an address and an ssh_user — the
         prerequisite for the SSH-driven actions (remote uptime, reboot,
-        shutdown). The active host and SSH-less peers (tower) return False."""
+        shutdown). The active host and any SSH-less peer return False."""
         return bool(self.address and self.ssh_user)
 
 
@@ -174,7 +174,7 @@ def all_hosts() -> List[HostProfile]:
     """Every declared host row as a profile, in config order — the machine
     console's inventory (#309). Unlike ``resolve()`` (the active host) or
     ``get_host()`` (one by id), this returns the whole fleet, including
-    managed-only machines that serve no models (OpenClaw, tower).
+    managed-only machines that serve no models (OpenClaw, gaming).
     """
     cfg = _load_config()
     hosts: Dict[str, Any] = cfg.get("hosts") or {}
