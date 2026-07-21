@@ -38,6 +38,7 @@ _TCP_TIMEOUT_S = 2.0
 _SSH_CONNECT_TIMEOUT_S = 6
 _CACHE_TTL_S = 30.0
 _LIVENESS_PORTS = (22, 3389)  # SSH, then RDP
+_WARMUP_RETRY_DELAY_S = 0.5   # pause before the one liveness warm-up retry (#333)
 
 
 def _no_window_flags() -> int:
@@ -87,18 +88,34 @@ def _stats_command(platform: str) -> Optional[str]:
     return None
 
 
-def reachable(host: HostProfile) -> bool:
-    """TCP-connect liveness probe — *is the machine on?* Independent of SSH
-    auth or the hub: succeeds as soon as any liveness port accepts."""
-    if not host.address:
-        return False
+def _probe_liveness_ports(address: str) -> bool:
+    """One pass over the liveness ports; True on the first that accepts."""
     for port in _LIVENESS_PORTS:
         try:
-            with socket.create_connection((host.address, port), timeout=_TCP_TIMEOUT_S):
+            with socket.create_connection((address, port), timeout=_TCP_TIMEOUT_S):
                 return True
         except OSError:
             continue
     return False
+
+
+def reachable(host: HostProfile) -> bool:
+    """TCP-connect liveness probe — *is the machine on?* Independent of SSH
+    auth or the hub: succeeds as soon as any liveness port accepts.
+
+    A peer whose NIC has idled into power-save (C-state / Wake-on-LAN sleep)
+    routinely drops the *first* SYN and answers the next — so a single warm-up
+    retry (the first attempt has already begun waking the NIC) keeps a live box
+    from flickering to "down" between polls (#333; gaming did exactly this on
+    the first probe after idle). A genuinely-off box still returns False, just
+    after two passes; probes run concurrently per host, so the extra latency
+    never blocks the rest of the fleet."""
+    if not host.address:
+        return False
+    if _probe_liveness_ports(host.address):
+        return True
+    time.sleep(_WARMUP_RETRY_DELAY_S)
+    return _probe_liveness_ports(host.address)
 
 
 async def is_reachable(host: HostProfile) -> bool:

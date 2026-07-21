@@ -65,14 +65,14 @@ def test_openclaw_has_ssh_and_rdp():
 
 def test_gaming_is_live_ssh_host():
     """The old dormant `tower` node is now `gaming`, a live Linux satellite
-    (#323): SSH power actions on, and the `tower` Tailscale alias kept for the
-    pending reinstall."""
+    (#323): SSH power actions on, and its own tailnet node name (#332 corrected
+    this from the historical `tower` alias to `gaming-linux`)."""
     h = get_host("gaming")
     assert h is not None
     assert h.dormant is False
     assert h.can_ssh is True  # address + ssh_user → power actions
     assert h.rdp and h.rdp["address"] == "192.168.0.16"
-    assert h.tailscale == "tower.tail1121fd.ts.net"  # reserved alias kept
+    assert h.tailscale == "gaming-linux.tail1121fd.ts.net"  # its own tailnet node (#332)
 
 
 def test_tower_host_id_is_gone():
@@ -185,6 +185,43 @@ def test_remote_stats_reachable_false_without_address():
     # profile to keep the guard covered (#323).
     addressless = HostProfile(id="nowhere", platform="linux", enabled=[])
     assert remote_stats.reachable(addressless) is False
+
+
+def test_reachable_warms_up_on_idle_first_syn(monkeypatch):
+    """An idled peer drops the first SYN and answers the second — the warm-up
+    retry must report it up, not down (#333). The first port scan fails, the
+    retry succeeds; sleep is stubbed so the test stays fast."""
+    from src import remote_stats
+
+    calls = {"n": 0}
+
+    def fake_scan(address):
+        calls["n"] += 1
+        return calls["n"] >= 2  # first pass fails, retry succeeds
+
+    monkeypatch.setattr(remote_stats, "_probe_liveness_ports", fake_scan)
+    monkeypatch.setattr(remote_stats.time, "sleep", lambda *_: None)
+    host = HostProfile(id="idle", platform="linux", address="10.0.0.9", enabled=[])
+    assert remote_stats.reachable(host) is True
+    assert calls["n"] == 2  # exactly one warm-up retry, no more
+
+
+def test_reachable_false_when_both_passes_fail(monkeypatch):
+    """A genuinely-off box fails both passes — still down, and the warm-up does
+    not loop forever (#333)."""
+    from src import remote_stats
+
+    calls = {"n": 0}
+
+    def always_fail(address):
+        calls["n"] += 1
+        return False
+
+    monkeypatch.setattr(remote_stats, "_probe_liveness_ports", always_fail)
+    monkeypatch.setattr(remote_stats.time, "sleep", lambda *_: None)
+    host = HostProfile(id="off", platform="linux", address="10.0.0.9", enabled=[])
+    assert remote_stats.reachable(host) is False
+    assert calls["n"] == 2  # one initial pass + one warm-up retry, then give up
 
 
 # --------------------------------------------------------------------- endpoints
