@@ -52,6 +52,17 @@ def set_db_path(path: Optional[Path]) -> None:
 # --------------------------------------------------------------- connection
 
 
+# Concurrent first-open retry (#326). Several connections opening a brand-new
+# DB at once all try to change the journal mode to WAL, which needs a brief
+# exclusive lock — and SQLite does *not* run the busy handler for a journal-mode
+# change, so the losers get "database is locked" returned immediately, not after
+# `busy_timeout`. The winner sets WAL + migrates in microseconds, so a short
+# bounded retry converges (probe: 12/20 rounds locked → 0/20). An uncontended
+# open succeeds on the first attempt and pays nothing.
+_OPEN_RETRIES = 12
+_OPEN_BACKOFF_S = 0.02
+
+
 @contextmanager
 def connect() -> Iterator[sqlite3.Connection]:
     """Yield a migrated connection, committing on clean exit.
@@ -59,19 +70,42 @@ def connect() -> Iterator[sqlite3.Connection]:
     ``check_same_thread=False`` because the sampler runs its writes through
     ``asyncio.to_thread`` — the connection never outlives the call, so no two
     threads ever hold it at once."""
-    target = db_path()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(target), timeout=30.0, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
+    conn = _open_migrated(db_path())
     try:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA foreign_keys=ON")
-        _migrate(conn)
         yield conn
         conn.commit()
     finally:
         conn.close()
+
+
+def _open_migrated(target: Path) -> sqlite3.Connection:
+    """Open a WAL-mode, migrated connection, retrying the transient "database is
+    locked" a concurrent first-open can raise on the journal-mode change or the
+    migration (#326 — SQLite skips the busy handler for a journal-mode change,
+    so ``busy_timeout`` alone does not cover it). The migration is committed in
+    its own transaction so concurrent openers see the new schema and stop
+    racing it."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    last: Optional[sqlite3.OperationalError] = None
+    for attempt in range(_OPEN_RETRIES):
+        conn = sqlite3.connect(str(target), timeout=30.0, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA busy_timeout=30000")
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA foreign_keys=ON")
+            _migrate(conn)
+            conn.commit()
+            return conn
+        except sqlite3.OperationalError as exc:
+            conn.close()
+            if "locked" not in str(exc).lower():
+                raise
+            last = exc
+            time.sleep(_OPEN_BACKOFF_S * (attempt + 1))
+    raise last if last is not None else sqlite3.OperationalError(
+        "could not open diagnostics DB after concurrent-open retries")
 
 
 def _migrate(conn: sqlite3.Connection) -> None:

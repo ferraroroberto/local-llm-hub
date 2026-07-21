@@ -66,9 +66,11 @@ def test_schema_v2_adds_coverage_column(db):
 
 
 def test_concurrent_first_open_migrates_safely(tmp_path):
-    """Two connections opening a fresh DB at once must not both run the v2
-    ``ALTER TABLE ADD COLUMN`` — the loser raised 'duplicate column' and
-    surfaced as an intermittent gate failure. Regression for that race."""
+    """Several connections opening a fresh DB at once must all succeed. This
+    guards two distinct concurrent-first-open failures that both surfaced as
+    intermittent gate flakes: the v2 ``ALTER TABLE ADD COLUMN`` racing itself
+    ('duplicate column', #322), and the journal-mode change racing itself
+    ('database is locked' — SQLite skips the busy handler for it, #326)."""
     import threading
 
     store.set_db_path(tmp_path / "race.db")
