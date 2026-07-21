@@ -1,0 +1,54 @@
+# Template — not installed as-is. This is the Linux counterpart to
+# mac/launchagent/com.ferraroroberto.local-llm-hub.plist: boot-time start +
+# keep-alive for the hub on a headless Linux satellite (gaming, later
+# openclaw), filling the process-supervision role that tray.bat plays on
+# Windows and the LaunchAgent plays on macOS (#323).
+#
+# There is no install.py --fix automation for this yet (deferred until the
+# satellite actually serves models — see #323); install it by hand:
+#
+#   1. Substitute the two placeholders with this machine's concrete values,
+#      writing the result to the system unit dir. From the repo root
+#      ($PWD/$USER expand in your shell; only the tee into /etc needs root):
+#        sed -e "s|__PROJECT_ROOT__|$PWD|g" -e "s|__USER__|$USER|g" \
+#          linux/systemd/local-llm-hub.service \
+#          | sudo tee /etc/systemd/system/local-llm-hub.service >/dev/null
+#   2. Enable + start at boot (no login required — this is why it is a
+#      system unit, not a `--user` one):
+#        sudo systemctl daemon-reload
+#        sudo systemctl enable --now local-llm-hub.service
+#   3. Verify: `systemctl status local-llm-hub` and
+#      `curl -s http://127.0.0.1:8000/health` (200 once the hub is up).
+#
+# Stop story — cleaner than the Mac's. launchd respawns a KeepAlive job
+# after *any* signal-terminated exit, so a deliberate stop there needs
+# `launchctl bootout` (see the plist header). systemd instead distinguishes
+# a commanded `systemctl stop` from a crash: `Restart=always` respawns
+# crashes but honours an explicit stop, so `sudo systemctl stop
+# local-llm-hub` keeps it down with no special dance. `systemctl restart`
+# bounces it. (Linux branches for /admin/api/hub/{stop,restart} to drive
+# these over systemctl are a deferred follow-up — see #323.)
+
+[Unit]
+Description=local-llm-hub (models hub on :8000)
+# The hub proxies to peer hosts and binds a LAN socket, so it needs the
+# network fully up, not merely configured.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__PROJECT_ROOT__
+# run_hub.sh is the single source of the launch command (it execs
+# ./.venv/bin/python -m src.run_backend hub), shared with the manual path.
+ExecStart=__PROJECT_ROOT__/run_hub.sh
+Restart=always
+RestartSec=3
+# Match the LaunchAgent's UTF-8 environment so emoji/box-drawing log output
+# doesn't trip cp-style encoders under captured stdout.
+Environment=PYTHONIOENCODING=utf-8
+Environment=PYTHONUTF8=1
+
+[Install]
+WantedBy=multi-user.target

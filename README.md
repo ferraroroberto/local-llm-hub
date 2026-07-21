@@ -430,6 +430,21 @@ The Models tab tags every remote-owned tile with a small `on <host-id>`
 badge (e.g. `qwen3.5-9b` / `parakeet-tdt-0.6b-v3` both show `on
 mac-mini-m4`) so a displayed PID is never mistaken for a local process.
 
+### Linux satellite lifecycle: systemd (#323)
+
+A headless Linux satellite (`gaming`, later `openclaw`) has no
+tray-equivalent and no LaunchAgent — a **systemd unit** fills that role,
+the counterpart to `tray.bat` on Windows and the LaunchAgent on macOS. The
+template lives at `linux/systemd/local-llm-hub.service`: it runs the
+existing `run_hub.sh` under `Restart=always` and enables at boot with no
+login required (`WantedBy=multi-user.target`). It is **not** installed
+automatically (no `install.py --fix` path yet — deferred until a satellite
+actually serves models); the file's header carries the two-placeholder
+`sed`-and-`enable` install steps. Unlike launchd's respawn-on-any-signal
+quirk, systemd honours a commanded `systemctl stop`, so the stop story is
+simpler than the Mac's `bootout` dance — no admin-endpoint plumbing is
+wired for it (a deferred follow-up on #323).
+
 ### Machines console (#309)
 
 The **Machines** tab turns the hub into a fleet machine console — one place
@@ -783,7 +798,10 @@ launchers\run_qwen.bat           :: llama-server for Qwen on :8081
 launchers\run_glm.bat            :: llama-server for GLM on :8082
 ```
 
-(macOS / Linux: `./run_hub.sh`, `./launchers/run_all.sh`, etc.)
+(macOS / Linux: `./run_hub.sh`, `./launchers/run_all.sh`, etc. For
+boot-time start + keep-alive on a headless Linux satellite, install the
+systemd unit at `linux/systemd/local-llm-hub.service` instead — see "Linux
+satellite lifecycle" above.)
 
 Once the hub is running, open `http://127.0.0.1:8000/admin/` for the
 admin webapp — six tabs (Hub / Models / Play / OTel / Code / Machines)
