@@ -20,7 +20,7 @@ import json
 import os
 from typing import Iterator, List
 
-os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
+os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 from fastapi.testclient import TestClient
 
@@ -427,7 +427,7 @@ def test_chat_completions_omits_structured_params_when_absent(monkeypatch):
 
 
 # ---- no-think virtual alias injection (issue #161) ----
-# These hit the real config/models.yaml (host pc-cuda set at module import),
+# These hit the real config/models.yaml (host tower set at module import),
 # so they also verify the qwen35_4b_nothink wiring end-to-end.
 
 def _capture_call(captured: dict):

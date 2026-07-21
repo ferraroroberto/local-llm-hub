@@ -51,7 +51,7 @@ def _run(coro):
 
 def test_all_hosts_enrolls_managed_machines():
     ids = {h.id for h in all_hosts()}
-    assert {"pc-cuda", "mac-mini-m4", "openclaw", "gaming"} <= ids
+    assert {"tower", "mac-mini-m4", "openclaw", "gaming"} <= ids
 
 
 def test_openclaw_has_ssh_and_rdp():
@@ -59,7 +59,7 @@ def test_openclaw_has_ssh_and_rdp():
     assert h is not None
     assert h.can_ssh is True  # address + ssh_user
     assert h.rdp and h.rdp["address"] == "192.168.0.239"
-    assert h.tailscale == "laptop.tail1121fd.ts.net"
+    assert h.tailscale == "asus-linux.tail1121fd.ts.net"  # tailnet node (#335)
     assert h.dormant is False
 
 
@@ -75,9 +75,17 @@ def test_gaming_is_live_ssh_host():
     assert h.tailscale == "gaming-linux.tail1121fd.ts.net"  # its own tailnet node (#332)
 
 
-def test_tower_host_id_is_gone():
-    """The rename is complete — nothing should still resolve the old id."""
-    assert get_host("tower") is None
+def test_tower_is_the_hub_box_not_the_old_satellite():
+    """The `tower` id is now the hub box (renamed from `pc-cuda`, #335), not the
+    old dormant node that became `gaming` (#323) — the id was recycled. Guard
+    that `tower` resolves to the win32 hub and the satellite is still `gaming`,
+    so the two never get conflated again."""
+    h = get_host("tower")
+    assert h is not None
+    assert h.platform == "win32"                      # the hub box, not the linux satellite
+    assert h.default is True                           # resolves as the active win32 host
+    assert h.tailscale == "tower.tail1121fd.ts.net"    # owns the tower magic-DNS + Langfuse
+    assert get_host("gaming") is not None              # the satellite kept its own id
 
 
 # ------------------------------------------------------------ actions capability
@@ -230,8 +238,8 @@ def test_reachable_false_when_both_passes_fail(monkeypatch):
 def test_machines_status_endpoint_shape(monkeypatch):
     async def _canned():
         return {
-            "active_id": "pc-cuda",
-            "machines": [{"id": "pc-cuda", "state": "self", "actions": {}}],
+            "active_id": "tower",
+            "machines": [{"id": "tower", "state": "self", "actions": {}}],
         }
 
     monkeypatch.setattr(mc, "machines_status", _canned)

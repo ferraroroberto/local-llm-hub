@@ -12,7 +12,7 @@ import base64
 import os
 from pathlib import Path
 
-os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
+os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 from fastapi.testclient import TestClient
 

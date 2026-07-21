@@ -54,7 +54,7 @@ they want; ask. Plan-mode rules apply throughout.
 Print a compact summary:
 
 ```
-Active host: pc-cuda
+Active host: tower
 Roles right now:
   agentic_light    → gemma4_e4b
   agentic_heavy    → gemma4_26b
@@ -100,7 +100,7 @@ Will edit config/models.yaml:
   ~ models.gemma4_e4b.aliases: ["agentic_light"] → []   (alias follows role)
   ~ models.qwen3_4b.aliases:  []  → ["agentic_light"]   (new role-holder)
   ~ tray.autostart_models: gemma4_e4b → qwen3_4b
-  ~ hosts.pc-cuda.enabled: + qwen3_4b
+  ~ hosts.tower.enabled: + qwen3_4b
 Will write launchers/run_qwen3_4b.bat, .sh
 Will run: python scripts/download_models.py --only qwen3_4b   (~3 GB)
 Will append to docs/frontier/runs/<latest>/report.md §10
@@ -239,10 +239,10 @@ ex-incumbent.
 
 7. **Run the unit tests** to prove nothing regressed:
    ```
-   $env:LOCAL_LLM_HUB_HOST = "pc-cuda"
+   $env:LOCAL_LLM_HUB_HOST = "tower"
    & .\.venv\Scripts\python.exe -m pytest -q
    ```
-   On POSIX, `LOCAL_LLM_HUB_HOST=pc-cuda ./.venv/bin/python -m pytest -q`.
+   On POSIX, `LOCAL_LLM_HUB_HOST=tower ./.venv/bin/python -m pytest -q`.
    If anything fails, fix it before moving on; do not declare the swap
    done with red tests.
 

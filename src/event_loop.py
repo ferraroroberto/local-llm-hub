@@ -9,7 +9,7 @@ a network hiccup) surfaces as exactly such an ``OSError`` (WinError 64,
 and the listener is gone; the process stays alive but every subsequent
 connection fails until a manual restart.
 
-This hub binds ``0.0.0.0`` (LAN-wide -- ``pc-cuda`` and a Mac Mini dial
+This hub binds ``0.0.0.0`` (LAN-wide -- ``tower`` and a Mac Mini dial
 each other's hub over the LAN) and proxies long-running audio/LLM
 streaming traffic, so the exposure here is broader than a single-host,
 phone-facing webapp: any LAN client dropping a connection mid-request can

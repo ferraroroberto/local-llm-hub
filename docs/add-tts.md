@@ -80,7 +80,7 @@ kokoro:                         # on demand — low-footprint comparison model
   args: ["--device", "auto"]
 ```
 
-All TTS rows are enabled on `pc-cuda` only; the role lives at
+All TTS rows are enabled on `tower` only; the role lives at
 `roles.audio.speech.model_id: piper`. Piper is the auto-loaded default because
 it measures sub-second for short assistant phrases. Orpheus is the expressive
 on-demand alternate, Chatterbox is kept for its tone dial / voice cloning, and
@@ -97,7 +97,7 @@ the fast option.
 
 | area | change |
 | ---- | ------ |
-| `config/models.yaml` | TTS rows (`piper`, `chatterbox`, `orpheus`, `kokoro`) on `pc-cuda`; `roles.audio.speech` points at `piper` |
+| `config/models.yaml` | TTS rows (`piper`, `chatterbox`, `orpheus`, `kokoro`) on `tower`; `roles.audio.speech` points at `piper` |
 | `src/model_registry.py` | `+tts_engine` field |
 | `src/tts_engines/` | Piper + Chatterbox + Orpheus + Kokoro engines, one module each, behind one common interface (`common.py`) |
 | `src/tts_server.py` | new — FastAPI shim (`/v1/audio/speech`, `/health`) |

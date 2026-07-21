@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import os
 
-os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
+os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 from src.whisper_translate_proxy import _default_language_from_args  # noqa: E402
 

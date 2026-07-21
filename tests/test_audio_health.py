@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import os
 
-os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
+os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 import httpx  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

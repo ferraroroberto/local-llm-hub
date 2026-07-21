@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import os
 
-os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
+os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 import pytest  # noqa: E402
 

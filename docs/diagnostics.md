@@ -151,7 +151,7 @@ Measured effect of the per-OS tables (#320):
 | Machine | Before | After |
 |---|---|---|
 | `mac-mini-m4` (Darwin 25.2) | 565 / 570 groups unattributed (99%) | 3 / 664 (0.5%) |
-| `pc-cuda` (Windows 11) | 86 / 542 unattributed | 54 / 542, **0 regressions** |
+| `tower` (Windows 11) | 86 / 542 unattributed | 54 / 542, **0 regressions** |
 
 Windows can only improve here: path rules run last, so they convert
 `unattributed` rows and can never re-label one that already had a name. Linux

@@ -191,11 +191,11 @@ def test_resolve_by_alias(tmp_path, monkeypatch):
 
 
 def test_gemma_per_host_filtering(tmp_path, monkeypatch):
-    """Both gemma4 rows must show on pc-cuda and stay hidden on mac-mini-m4."""
+    """Both gemma4 rows must show on tower and stay hidden on mac-mini-m4."""
     cfg = _write_config(tmp_path, {
         "hub": {"port": 8000},
         "hosts": {
-            "pc-cuda":     {"platform": "win32", "default": True, "enabled": ["qwen", "glm", "gemma4_e4b", "gemma4_26b"]},
+            "tower":     {"platform": "win32", "default": True, "enabled": ["qwen", "glm", "gemma4_e4b", "gemma4_26b"]},
             "mac-mini-m4": {"platform": "darwin", "enabled": ["qwen"]},
         },
         "models": {
@@ -207,7 +207,7 @@ def test_gemma_per_host_filtering(tmp_path, monkeypatch):
     })
     _patch_config_path(monkeypatch, cfg)
 
-    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "pc-cuda")
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "tower")
     names_pc = {m.display_name for m in model_registry.enabled_models()}
     assert {"qwen3.5-9b", "glm-4.5-air", "gemma4-e4b-it", "gemma4-26b-a4b-it"} <= names_pc
     assert model_registry.resolve("gemma4-e4b-it").port == 8086
@@ -222,11 +222,11 @@ def test_gemma_per_host_filtering(tmp_path, monkeypatch):
 
 
 def test_whisper_entry(tmp_path, monkeypatch):
-    """Whisper is a distinct backend; runs on 8090, surfaces on pc-cuda only."""
+    """Whisper is a distinct backend; runs on 8090, surfaces on tower only."""
     cfg = _write_config(tmp_path, {
         "hub": {"port": 8000},
         "hosts": {
-            "pc-cuda":     {"platform": "win32", "default": True, "enabled": ["qwen", "whisper"]},
+            "tower":     {"platform": "win32", "default": True, "enabled": ["qwen", "whisper"]},
             "mac-mini-m4": {"platform": "darwin", "enabled": ["qwen"]},
         },
         "models": {
@@ -245,7 +245,7 @@ def test_whisper_entry(tmp_path, monkeypatch):
     })
     _patch_config_path(monkeypatch, cfg)
 
-    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "pc-cuda")
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "tower")
     m = model_registry.resolve("whisper-large-v3-turbo")
     assert m is not None
     assert m.id == "whisper"
@@ -264,7 +264,7 @@ def test_whisper_translate_lazy_entry(tmp_path, monkeypatch):
     cfg = _write_config(tmp_path, {
         "hub": {"port": 8000},
         "hosts": {
-            "pc-cuda": {"platform": "win32", "default": True,
+            "tower": {"platform": "win32", "default": True,
                         "enabled": ["whisper", "whisper_translate"]},
         },
         "models": {
@@ -290,7 +290,7 @@ def test_whisper_translate_lazy_entry(tmp_path, monkeypatch):
         },
     })
     _patch_config_path(monkeypatch, cfg)
-    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "pc-cuda")
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "tower")
 
     # Both whisper rows surface side-by-side on the same host.
     ids = {m.id for m in model_registry.enabled_models()}
@@ -318,7 +318,7 @@ def test_tts_entry(tmp_path, monkeypatch):
     cfg = _write_config(tmp_path, {
         "hub": {"port": 8000},
         "hosts": {
-            "pc-cuda":     {"platform": "win32", "default": True,
+            "tower":     {"platform": "win32", "default": True,
                             "enabled": ["piper", "chatterbox", "orpheus", "kokoro"]},
             "mac-mini-m4": {"platform": "darwin", "default": True, "enabled": ["qwen"]},
         },
@@ -366,7 +366,7 @@ def test_tts_entry(tmp_path, monkeypatch):
         },
     })
     _patch_config_path(monkeypatch, cfg)
-    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "pc-cuda")
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "tower")
 
     ids = {m.id for m in model_registry.enabled_models()}
     assert {"piper", "chatterbox", "orpheus", "kokoro"} <= ids

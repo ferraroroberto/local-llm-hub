@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import os
 
-os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
+os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 from src.backend_process import _whisper_boost_args  # noqa: E402
 from src.transcription_glossary import load_boost_terms  # noqa: E402
