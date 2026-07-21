@@ -17,7 +17,7 @@ cross-machine SSH/access details also live in the `life-os` `geek-out`
 
 | Host id | Role | OS | LAN IP | SSH user | Hardware |
 | --- | --- | --- | --- | --- | --- |
-| `pc-cuda` | The hub runs here; Windows workstation | Windows 11 | `192.168.0.13` | — (active host, never remote-powered) | Ryzen 7 7800X3D · RTX 5060 Ti 16 GB · 128 GB RAM · hostname `tower` |
+| `tower` | The hub runs here; Windows workstation | Windows 11 | `192.168.0.13` | — (active host, never remote-powered) | Ryzen 7 7800X3D · RTX 5060 Ti 16 GB · 128 GB RAM · hostname `tower` |
 | `mac-mini-m4` | Apple-silicon hub peer (owns `qwen3.5-9b`, `parakeet`) | macOS | `192.168.0.14` | `roberto` | Apple M4 |
 | `openclaw` | Ubuntu laptop · future inference node | Ubuntu | `192.168.0.239` | `openclaw` | GeForce MX250 |
 | `gaming` | Ryzen inference satellite · STT/TTS offload (#323) | Ubuntu 24.04 (HWE, kernel 7.0) | `192.168.0.16` (static) | `gaming` | Ryzen 9 5900X · GeForce GTX 1070 8 GB (`nvidia-driver-535`, installed 2026-07-21) · 16 GB RAM (single stick) |
@@ -38,29 +38,29 @@ replica-first) — the driver is prerequisite groundwork, not the migration.
 | Host id | Tailscale magic-DNS | Tailscale IP | Notes |
 | --- | --- | --- | --- |
 | `mac-mini-m4` | *(not recorded)* | `100.82.9.41` | Confirmed 2026-07-18 |
-| `openclaw` | `laptop.tail1121fd.ts.net` | `100.102.186.128` | Confirmed 2026-07-18 |
+| `openclaw` | `asus-linux.tail1121fd.ts.net` | `100.102.186.128` | Confirmed 2026-07-21 — the tailnet node is `asus-linux` (renamed from the earlier `laptop`). |
 | `gaming` | `gaming-linux.tail1121fd.ts.net` | `100.77.216.127` | Tailscale installed; its own tailnet node (#332). Confirmed 2026-07-21. |
-| `pc-cuda` | *(to confirm)* | *(to confirm)* | — |
+| `tower` | `tower.tail1121fd.ts.net` | *(not recorded)* | The hub box; serves Langfuse at `tower.tail1121fd.ts.net:3000`. Confirmed 2026-07-21. |
 
-**Open item — the `tower.tail1121fd.ts.net` alias.** `gaming` is now its own
-tailnet node `gaming-linux.tail1121fd.ts.net` (#332), so it does **not** own the
-historical `tower.tail1121fd.ts.net` name — which is still the host in
-`docs/telemetry-langfuse.md`'s `LANGFUSE_PUBLIC_URL`
-(`tower.tail1121fd.ts.net:3000`). Which machine actually serves Langfuse under
-that name (the hub box `pc-cuda`, or somewhere else) is **not yet confirmed
-here** — resolve it and update the Langfuse docs to match, rather than guessing
-now. Kept deliberately un-asserted so this record stays trustworthy.
+**Resolved — the `tower.tail1121fd.ts.net` name and Langfuse host.** The hub box
+(fleet id `tower`, formerly `pc-cuda` — renamed in #335) owns
+`tower.tail1121fd.ts.net` and is where Langfuse runs
+(`docs/telemetry-langfuse.md`'s `LANGFUSE_PUBLIC_URL` →
+`tower.tail1121fd.ts.net:3000`). The `gaming` satellite is a separate tailnet
+node `gaming-linux.tail1121fd.ts.net` and does **not** own this name — earlier
+records that reserved `tower.tail1121fd.ts.net` for `gaming` were mistaken.
 
-**Also unverified — `openclaw` vs `asus-linux`.** As of 2026-07-21 the tailnet
-lists an `asus-linux` node at `100.102.186.128` — the same IP this doc records
-for `openclaw` (`laptop.tail1121fd.ts.net`) — plus a separate `asus-windows`
-node. Whether `openclaw` was renamed on the tailnet (and how `laptop` /
-`asus-linux` / `asus-windows` map to fleet host ids) is **not yet confirmed
-here**; left un-asserted pending a check rather than rewritten on a guess.
+**Resolved — `openclaw` is the tailnet node `asus-linux`.** The `asus-linux`
+node at `100.102.186.128` is `openclaw` (renamed from the earlier `laptop`
+magic-DNS name). The tailnet also lists a separate `asus-windows` node (offline,
+last seen 11d as of 2026-07-21); it is not mapped to any fleet host in
+`config/models.yaml`, and its identity is left unstated here rather than guessed.
 
 ## Machine specs snapshot
 
 `config/machine_specs.yaml` is a separate, **auto-generated** hardware snapshot
 of whichever box runs `scripts/detect_machine_specs.py`; it is keyed by that
-box's **hostname** (currently `tower`, the hub box `pc-cuda`), not by fleet host
-id — do not confuse its `name: tower` with the `gaming` satellite.
+box's OS **hostname**, not by fleet host id. Its `name: tower` is the snapshot of
+the hub box (whose hostname is `tower`). Note both the hub box and the `gaming`
+satellite happen to report OS hostname `tower`, so `name:` alone doesn't
+disambiguate them — the fleet host id (`tower` vs `gaming`) does.

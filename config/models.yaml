@@ -53,14 +53,17 @@ tray:
 # serve no models yet (empty `enabled`); gaming is a live Linux satellite
 # (#323), no longer a dormant RDP-only node.
 hosts:
-  pc-cuda:
+  tower:
     platform: win32
     default: true
-    display_name: PC-CUDA
+    display_name: tower
     role: "Windows workstation · CUDA GPU · the hub runs here"
     icon: monitor
+    # Tailscale magic-DNS name — this box also serves Langfuse at
+    # tower.tail1121fd.ts.net:3000 (see docs/telemetry-langfuse.md).
+    tailscale: tower.tail1121fd.ts.net
     # LAN address other hosts dial to reach this host's own hub (:8000) when
-    # proxying to a model this host owns (`host: pc-cuda` in a models: row).
+    # proxying to a model this host owns (`host: tower` in a models: row).
     address: 192.168.0.13
     # glm is kept defined below as a candidate for ad-hoc bring-up, but is
     # out of the active rotation. To bring it up: add its id back to this
@@ -68,10 +71,10 @@ hosts:
     # `launchers/run_qwen.bat`-style directly.
     #
     # `qwen` (host: mac-mini-m4) is cross-enabled here, not owned — #178
-    # lets pc-cuda *resolve* it and proxy to the Mac's own hub instead of
+    # lets tower *resolve* it and proxy to the Mac's own hub instead of
     # spawning it locally. install.py's local_models() filter (only rows
     # this host actually owns) keeps this from triggering a download/port
-    # check for a model pc-cuda will never run itself.
+    # check for a model tower will never run itself.
     enabled: [qwen35_4b, qwen35_4b_nothink, gemma4_e4b, gemma4_26b, whisper, whisper_translate, whisper_vanilla, piper, chatterbox, orpheus, kokoro, qwen, parakeet]
 
   mac-mini-m4:
@@ -80,7 +83,7 @@ hosts:
     display_name: Mac Mini M4
     role: "Apple-silicon hub peer · SSH + passwordless sudo"
     icon: server
-    # LAN address the pc-cuda host dials to reach this host's own hub when
+    # LAN address the tower host dials to reach this host's own hub when
     # proxying to a model this host owns (`host: mac-mini-m4`) — e.g. qwen,
     # parakeet. Mac-native TTS (mac_say) is a follow-up, not yet enrolled.
     address: 192.168.0.14
@@ -88,8 +91,8 @@ hosts:
     # secret, just which account the forced-command key logs in as. The
     # private key itself lives outside git (LOCAL_LLM_HUB_SSH_KEY in .env).
     ssh_user: roberto
-    # Same cross-enable pattern as pc-cuda's list above, reversed: every
-    # pc-cuda-owned model is listed here too so the Mac's hub can resolve
+    # Same cross-enable pattern as tower's list above, reversed: every
+    # tower-owned model is listed here too so the Mac's hub can resolve
     # and proxy to it — genuinely bidirectional (#178), not Windows-only.
     enabled: [qwen, parakeet, qwen35_4b, qwen35_4b_nothink, gemma4_e4b, gemma4_26b, whisper, whisper_translate, whisper_vanilla, piper, chatterbox, orpheus, kokoro]
 
@@ -109,7 +112,8 @@ hosts:
     address: 192.168.0.239
     ssh_user: openclaw
     # Tailscale magic-DNS name — used for reachability + RDP when off-LAN.
-    tailscale: laptop.tail1121fd.ts.net
+    # This box is the tailnet node `asus-linux` (confirmed 2026-07-21).
+    tailscale: asus-linux.tail1121fd.ts.net
     rdp:
       address: 192.168.0.239
       user: openclaw
@@ -117,14 +121,14 @@ hosts:
   gaming:
     platform: linux
     # Ryzen 9 5900X gaming PC, brought online as a live Linux inference
-    # satellite (#323) — reinstalled from the old dormant Windows "tower" node.
-    # It now has SSH + passwordless sudo (user `gaming`, static 192.168.0.16),
-    # so it gets reboot/shutdown/terminal like the other peers. Tailscale is
+    # satellite (#323) — reinstalled from the old dormant Windows node that
+    # used to hold the fleet `tower` id (that id is now the hub box, #335).
+    # It has SSH + passwordless sudo (user `gaming`, static 192.168.0.16), so
+    # it gets reboot/shutdown/terminal like the other peers. Tailscale is
     # installed and live as `gaming-linux.tail1121fd.ts.net` (confirmed
-    # 2026-07-21) — `tower.tail1121fd.ts.net` was assumed reserved for this
-    # box but turned out to already belong to `pc-cuda`, so it was never
-    # available. RDP targets xrdp on the LAN IP (the headless
-    # `multi-user.target` switch is still pending — see #323).
+    # 2026-07-21); the `tower.tail1121fd.ts.net` name belongs to the hub box
+    # (id `tower`), not this satellite. RDP targets xrdp on the LAN IP (the
+    # headless `multi-user.target` switch is still pending — see #323).
     display_name: gaming
     role: "Ryzen 9 5900X · Ubuntu · 8 GB VRAM · SSH + passwordless sudo · STT/TTS offload satellite"
     icon: monitor
@@ -207,7 +211,7 @@ models:
     display_name: qwen3.5-9b
     backend: openai
     engine: llama-server
-    # Owning host (#178) — cross-enabled on pc-cuda below so the Windows
+    # Owning host (#178) — cross-enabled on tower below so the Windows
     # hub can resolve `model=qwen` and proxy it here instead of spawning
     # it locally (127.0.0.1 wouldn't have a qwen process on Windows).
     host: mac-mini-m4
@@ -285,7 +289,7 @@ models:
     # to the successor's row so the contract stays stable.
     aliases: ["agentic_light"]
     backend: openai
-    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: llama-server
     port: 8088
     hf_repo: "unsloth/Qwen3.5-4B-GGUF"
@@ -337,7 +341,7 @@ models:
     # no-think fast lane address the role, not the concrete id.
     aliases: ["agentic_light_nothink"]
     backend: openai
-    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     port: 8088                       # shared with qwen35_4b (virtual alias)
     virtual: true
     inject_extra:
@@ -350,7 +354,7 @@ models:
   gemma4_e4b:
     display_name: gemma4-e4b-it
     backend: openai
-    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: llama-server
     port: 8086
     hf_repo: "unsloth/gemma-4-E4B-it-GGUF"
@@ -376,7 +380,7 @@ models:
     # this alias with the role pointer when swap-model upgrades the slot.
     aliases: ["agentic_heavy"]
     backend: openai
-    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: llama-server
     port: 8087
     hf_repo: "unsloth/gemma-4-26B-A4B-it-GGUF"
@@ -410,7 +414,7 @@ models:
   whisper:
     display_name: whisper-large-v3-turbo
     backend: whisper
-    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: whisper-server
     port: 8090
     hf_repo: "ggerganov/whisper.cpp"
@@ -476,7 +480,7 @@ models:
   whisper_translate:
     display_name: whisper-medium-translate
     backend: whisper
-    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: whisper-server
     port: 8091
     hf_repo: "ggerganov/whisper.cpp"
@@ -532,7 +536,7 @@ models:
   whisper_vanilla:
     display_name: whisper-vanilla
     backend: whisper
-    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: whisper-server-lazy
     port: 8094
     internal_port: 18094
@@ -573,7 +577,7 @@ models:
     display_name: parakeet-tdt-0.6b-v3
     backend: whisper
     engine: parakeet-server
-    host: mac-mini-m4  # owning host (#178) — cross-enabled on pc-cuda below
+    host: mac-mini-m4  # owning host (#178) — cross-enabled on tower below
     port: 8098
     aliases: ["parakeet"]
 
@@ -595,7 +599,7 @@ models:
   chatterbox:
     display_name: chatterbox-tts
     backend: tts
-    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: tts-server
     tts_engine: chatterbox
     port: 8092
@@ -616,7 +620,7 @@ models:
     # to the successor row if the speech role is ever repointed.
     aliases: ["audio_speech"]
     backend: tts
-    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: tts-server
     tts_engine: piper
     port: 8096
@@ -642,7 +646,7 @@ models:
   orpheus:
     display_name: orpheus-tts
     backend: tts
-    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: tts-server
     tts_engine: orpheus
     port: 8093
@@ -664,7 +668,7 @@ models:
   kokoro:
     display_name: kokoro-tts
     backend: tts
-    host: pc-cuda  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: tts-server
     tts_engine: kokoro
     port: 8095

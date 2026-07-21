@@ -16,7 +16,7 @@ import asyncio
 import os
 import threading
 
-os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
+os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 from app_web.routers._helpers import sse_pack, sse_stream
 from src.async_fanout import AsyncFanout

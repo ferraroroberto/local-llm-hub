@@ -19,7 +19,7 @@ tab shows the terminal as unavailable with an actionable reason. This is a
 real dependency, tracked by a linked app-launcher issue — not an assumption.
 
 Windows-only, which is fine: the session-host is ConPTY-based and the hub
-host (pc-cuda) is Windows.
+host (tower) is Windows.
 """
 
 from __future__ import annotations

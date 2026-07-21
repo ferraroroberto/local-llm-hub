@@ -23,7 +23,7 @@ def _config(tmp_path, monkeypatch):
     cfg = tmp_path / "models.yaml"
     cfg.write_text(yaml.safe_dump({
         "hub": {"port": 8000},
-        "hosts": {"pc-cuda": {"platform": "win32", "default": True, "enabled": ["chatterbox"]}},
+        "hosts": {"tower": {"platform": "win32", "default": True, "enabled": ["chatterbox"]}},
         "models": {
             "chatterbox": {
                 "display_name": "chatterbox-tts",
@@ -38,7 +38,7 @@ def _config(tmp_path, monkeypatch):
     }), encoding="utf-8")
     monkeypatch.setattr(host_profile, "CONFIG_PATH", cfg)
     monkeypatch.setattr(model_registry, "CONFIG_PATH", cfg, raising=False)
-    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "pc-cuda")
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "tower")
 
 
 class _FakeEngine:

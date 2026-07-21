@@ -6,7 +6,7 @@ import os
 import sys
 from types import SimpleNamespace
 
-os.environ.setdefault("LOCAL_LLM_HUB_HOST", "pc-cuda")
+os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 from src import install as install_mod
 

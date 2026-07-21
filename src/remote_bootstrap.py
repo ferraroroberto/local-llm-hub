@@ -22,7 +22,7 @@ Two distinct SSH channels, deliberately kept apart:
 Symmetric by construction: which host can dial which is entirely a
 function of ``HostProfile.ssh_user``/``address`` (config) and, for
 bootstrap/sync, whether ``LOCAL_LLM_HUB_SSH_KEY`` is set in this process's
-``.env`` (today, only on ``pc-cuda``) — nothing here hardcodes which host is
+``.env`` (today, only on ``tower``) — nothing here hardcodes which host is
 the caller.
 """
 

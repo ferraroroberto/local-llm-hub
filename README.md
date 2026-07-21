@@ -175,7 +175,7 @@ for the reasoning.
 
 `qwen3.5-9b` was demoted the same day, but is **active again as of the
 Mac Mini multi-host work** — it now runs on `mac-mini-m4` instead of
-`pc-cuda` and is reachable through the Windows hub's own `base_url` like
+`tower` and is reachable through the Windows hub's own `base_url` like
 any other model. See [Multi-host: the Mac Mini](#multi-host-the-mac-mini).
 
 GLM **5.2** (the newer flagship) was evaluated for the local coding lane
@@ -337,7 +337,7 @@ audio clients  ──►  tts shim       127.0.0.1:8092   (chatterbox, text→sp
 
 Demoted (defined in config/models.yaml, not in any host's enabled list):
   glm-4.5-air — bring up via launchers/run_glm.bat
-Replaced as agentic_light on 2026-05-10 (still enabled on pc-cuda for fallback):
+Replaced as agentic_light on 2026-05-10 (still enabled on tower for fallback):
   gemma4-e4b-it — bring up via launchers/run_gemma4_e4b.bat
 Mac Mini (mac-mini-m4), proxied through this hub's own base_url — see below:
   qwen3.5-9b  → this hub 127.0.0.1:8000  → mac hub 192.168.0.14:8000 → llama-server :8081
@@ -369,7 +369,7 @@ own hub can equally proxy to a Windows-owned model.
 
 Today this powers the `mac-mini-m4` host (`192.168.0.14`, Apple M4):
 
-- **`qwen3.5-9b`** — moved here from `pc-cuda` (see
+- **`qwen3.5-9b`** — moved here from `tower` (see
   [Demoted candidates](#demoted-candidates-kept-defined-not-in-active-rotation)
   above); same `llama-server`, just running on the Mac.
 - **`parakeet-tdt-0.6b-v3`** — NVIDIA Parakeet TDT 0.6B v3 on the Apple
@@ -435,7 +435,7 @@ mac-mini-m4`) so a displayed PID is never mistaken for a local process.
 The **Machines** tab turns the hub into a fleet machine console — one place
 to see the health of every box and act on it. It reads the host inventory
 from `config/models.yaml` `hosts:` (now enrolling two managed-only machines
-alongside `pc-cuda` and `mac-mini-m4`: **OpenClaw**, a Linux laptop, and
+alongside `tower` and `mac-mini-m4`: **OpenClaw**, a Linux laptop, and
 **gaming**, a Ryzen Linux inference satellite — #323) and renders a card per machine:
 
 Every reachable machine shows the **same** snapshot — CPU / RAM / GPU / disk
@@ -775,7 +775,7 @@ launchers\run_tts_kokoro.bat     :: kokoro TTS on :8095 (on demand)
 launchers\run_tts_chatterbox.bat :: chatterbox TTS on :8092 (on demand)
 launchers\run_all.bat            :: start every backend in `enabled:` for this host
 
-:: Fallback / ad-hoc (still in `enabled:` on pc-cuda, not autostarted)
+:: Fallback / ad-hoc (still in `enabled:` on tower, not autostarted)
 launchers\run_gemma4_e4b.bat     :: previous agentic_light on :8086
 
 :: Demoted candidates — present but not in `enabled:` by default
