@@ -9,7 +9,6 @@ import time
 import wave
 from typing import Any, Dict, List
 
-import httpx
 from fastapi import APIRouter, HTTPException
 
 from src import backend_process as bp
@@ -17,6 +16,7 @@ from src import services as svc
 from src.host_profile import get_host, resolve as resolve_host
 from src.model_registry import Model, enabled_models, resolve as resolve_model
 from src.remote_proxy import remote_auth_token, remote_base_url
+from app_web.admin_forward import forward_admin_request
 from src.server_process import (
     OWNERSHIP_EXTERNAL,
     OWNERSHIP_NONE,
@@ -75,28 +75,18 @@ async def _forward_admin_call(
     ``target`` (#178) — used by start/stop/force-stop/log when the
     resolved model isn't local. Mirrors the local handlers' error shape
     (404/400/409 from the remote surface verbatim; 502 if the remote
-    hub itself is unreachable).
+    hub itself is unreachable) via the shared ``forward_admin_request``.
     """
     remote = remote_base_url(target)
     assert remote is not None
-    url = f"{remote}/admin/api/models/{target.id}{suffix}"
-    headers = _remote_admin_headers(target)
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.request(method, url, headers=headers, **kwargs)
-    except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"host {target.host!r} (owns {target.id!r}) unreachable: {exc}",
-        )
-    try:
-        body = r.json()
-    except Exception:  # noqa: BLE001
-        body = {"detail": r.text[:300]}
-    if r.status_code >= 400:
-        detail = body.get("detail", body) if isinstance(body, dict) else body
-        raise HTTPException(status_code=r.status_code, detail=detail)
-    return body
+    return await forward_admin_request(
+        remote,
+        f"/admin/api/models/{target.id}{suffix}",
+        method=method,
+        headers=_remote_admin_headers(target),
+        unreachable_detail=f"host {target.host!r} (owns {target.id!r}) unreachable",
+        **kwargs,
+    )
 
 
 def _ownership_from_snapshot(m: Model, listening: Dict[int, list]) -> tuple[str, Any]:
