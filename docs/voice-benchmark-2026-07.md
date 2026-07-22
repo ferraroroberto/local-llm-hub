@@ -100,7 +100,7 @@ Data-backed, superseding the pre-benchmark guess. Static `host:` targets:
 | `agentic_heavy` / `agentic_light` | **tower** | GPU-hungry; the box being reserved |
 | **piper** (`audio_speech`, HA voice) | **tower** (stay) | CPU — zero GPU cost, fastest option; moving it to an edge buys nothing until the mac/Linux piper installer exists, and even then only for locality |
 | **whisper-vanilla + whisper-translate** | **gaming** | low-frequency, non-latency-critical (Spanish notes, ES→EN); the ~2× slowdown is irrelevant here and it frees tower VRAM |
-| **whisper-turbo** (accurate dictation) | **gaming** *(once multi-day stable)* | 19× real time is imperceptible for dictation and frees ~2 GB on tower; **stays on tower until gaming proves multi-day stable** (see stability note) |
+| **whisper-turbo** (accurate dictation) | **gaming** | **No tower VRAM headroom** — agentic-heavy (~13 GB) + agentic-light fill the 16 GB card, so a GPU whisper can't co-reside on the tower. It lives on gaming (19× RT — imperceptible for dictation); interim reliability rides gaming stability + the #342 fallback (a last-resort CPU-whisper on the tower, which costs no VRAM). Migrate in earnest once gaming is multi-day stable |
 | **orpheus** (expressive TTS) | **gaming** (stay) | GPU engine, so moving it off tower is what actually frees GPU; 0.5× real time is fine for on-demand expressive speech |
 | **parakeet** | **mac** — selectable, not default | ANE speed is excellent (65× RT, sub-second) and suits HA voice commands; the dropped wake phrase + higher domain WER keep it a fast opt-in, not the accurate default. The ready-but-hangs wedge that blocked it is now fixed |
 | kokoro / chatterbox | tower, on-demand | low-priority comparison options; kokoro's Windows ONNX path is slow |
@@ -118,8 +118,11 @@ regressing the fast HA-voice path (piper stays put and stays instant).
    GRUB fix for the PC freezes (Server mode), **not** an inference-load crash —
    so no "whisper crashed gaming" conclusion is drawn. After that fix the box
    ran a full whisper STT matrix **and** an orpheus TTS run without crashing
-   (uptime climbed monotonically). Encouraging, but the "move whisper-turbo to
-   gaming" call still waits on **multi-day** stability, not a single clean run.
+   (uptime climbed monotonically). Encouraging, but not multi-day proof. Note
+   whisper-turbo **cannot** fall back to the tower's GPU in the interim —
+   agentic fills the 16 GB card — so its reliability during the migration rests
+   on gaming's uptime plus the #342 fallback chain (a CPU-whisper on the tower
+   costs no VRAM), not on keeping a GPU copy warm on the tower.
 2. **The pruned CUDA toolkit did not break inference.** The life-os agent
    removed `nvidia-cuda-toolkit` + nsight (~4 GB, build-time only) while
    `apt-mark manual`-protecting the runtime libs (`libcudart12` / `libcublas12`
