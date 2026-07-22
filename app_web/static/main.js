@@ -10,6 +10,7 @@ import { wireTabs, onTabChange } from './tabs.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchInstallStatus, fetchServicesStatus } from './hub.js';
 import { wireModels, fetchModels } from './models.js';
 import { wireStartupProfile, fetchStartupProfile } from './startup.js';
+import { wireFleetPlacement, fetchFleetPlacement } from './fleet_placement.js';
 import { wirePlayground, fetchPlaygroundModels, fetchTtsModels, fetchImageModels } from './playground.js';
 import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls, fetchTelemetryHealth } from './telemetry.js';
 import { wireCodeUsage, startCodeUsagePolls, stopCodeUsagePolls, restyleCodeUsageCharts } from './code_usage.js';
@@ -60,6 +61,7 @@ async function boot() {
   wireHub();
   wireModels();
   wireStartupProfile();
+  wireFleetPlacement();
   wirePlayground();
   wireTelemetry();
   wireCodeUsage();
@@ -89,6 +91,10 @@ async function boot() {
     } else {
       stopMachinesPolls();
     }
+    // Refresh fleet placement each time the Models tab opens so its per-host
+    // running/reachability status is current when you look at it. The GET runs
+    // live peer probes, so it's tab-triggered (+ post-toggle), never polled.
+    if (tab === 'models') fetchFleetPlacement().catch(function () {});
   });
   wireTabs();
 
@@ -98,6 +104,7 @@ async function boot() {
     fetchCounters(),
     fetchModels(),
     fetchStartupProfile(),
+    fetchFleetPlacement(),
     fetchInstallStatus(),
     fetchServicesStatus(),
     fetchTelemetryHealth(),
@@ -125,6 +132,7 @@ async function resumeAfterLogin() {
     fetchCounters(),
     fetchModels(),
     fetchStartupProfile(),
+    fetchFleetPlacement(),
     fetchInstallStatus(),
     fetchServicesStatus(),
     fetchTelemetryHealth(),

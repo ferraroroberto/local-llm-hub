@@ -63,6 +63,11 @@ export const state = {
   // Startup card — what autostarts with the hub (issue #265).
   startupProfile: null,   // /admin/api/startup-profile payload
 
+  // Fleet placement card — fleet-wide desired state (issue #354).
+  fleetPlacement: null,          // /admin/api/fleet-placement payload
+  fleetPlacementState: 'loading',// loading | ready | empty | stale | error
+  fleetPlacementUpdated: 0,      // Date.now() of the last good fetch
+
   // Models tab — "Active only" filter, default on (issue #266).
   modelsActiveOnly: true,
 
@@ -170,6 +175,11 @@ export const els = {
 
   // Startup card (issue #265)
   startupList: document.getElementById('startupList'),
+
+  // Fleet placement card (issue #354)
+  fleetPlacementBody: document.getElementById('fleetPlacementBody'),
+  fleetPlacementStaleNote: document.getElementById('fleetPlacementStaleNote'),
+  fleetPlacementRefreshBtn: document.getElementById('fleetPlacementRefreshBtn'),
 
   // Playground
   playgroundModel: document.getElementById('playgroundModel'),

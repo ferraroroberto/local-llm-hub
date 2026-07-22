@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from src import backend_process as bp  # noqa: E402
 from src import fleet_placement as fp  # noqa: E402
-from src import fleet_reconcile, services as svc  # noqa: E402
+from src import fleet_reconcile, remote_stats, services as svc  # noqa: E402
 from src import server as server_mod  # noqa: E402
 
 
@@ -29,18 +29,54 @@ def _isolate(monkeypatch, tmp_path, initial=None):
     return target
 
 
-def _stub_status(monkeypatch):
-    """Keep GET off the network: local snapshot + a reachable Mac Mini."""
+def _stub_status(monkeypatch, reachable=True):
+    """Keep GET off the network: local snapshot + a reachable Mac Mini. Peer
+    liveness is the hub-independent TCP probe (remote_stats.is_reachable), not a
+    hub /health call — the same signal the Machines tab uses."""
     monkeypatch.setattr(bp, "running_backends", lambda: {"whisper": object()})
 
-    async def health(host_id):
-        return {"reachable": True, "git_sha_match": True}
+    async def is_reachable(host):
+        return reachable
 
     async def remote_models(owner, **kw):
         return [{"id": "parakeet", "reachable": True}]
 
-    monkeypatch.setattr(svc, "mac_mini_health", health)
+    monkeypatch.setattr(remote_stats, "is_reachable", is_reachable)
     monkeypatch.setattr(svc, "remote_models", remote_models)
+
+
+def test_get_lists_every_fleet_host_with_manageability(monkeypatch, tmp_path):
+    """Every configured fleet host gets a row. A managed-only satellite that
+    runs no hub (gaming/openclaw — no launchable models) is shown with
+    runs_hub=False and an empty eligible list (the UI renders the "not placeable
+    here" note), never silently dropped — using the box's own TCP liveness for
+    its online/offline state, not a hub probe it doesn't answer."""
+    _isolate(monkeypatch, tmp_path, {})
+    monkeypatch.setattr(bp, "running_backends", lambda: {})
+
+    async def is_reachable(host):
+        return host.id == "gaming"  # gaming powered on; other peers off
+
+    async def remote_models(owner, **kw):
+        return []
+
+    monkeypatch.setattr(remote_stats, "is_reachable", is_reachable)
+    monkeypatch.setattr(svc, "remote_models", remote_models)
+
+    client = TestClient(server_mod.app)
+    body = client.get("/admin/api/fleet-placement").json()
+    hosts = {h["id"]: h for h in body["hosts"]}
+
+    # Full inventory — nothing dropped.
+    assert {"tower", "mac-mini-m4", "gaming", "openclaw"} <= set(hosts)
+    # Managed-only satellites: reachable by TCP, but no hub / nothing to place.
+    assert hosts["gaming"]["runs_hub"] is False
+    assert hosts["gaming"]["eligible"] == []
+    assert hosts["gaming"]["reachable"] is True   # powered on (TCP liveness)
+    assert hosts["openclaw"]["reachable"] is False
+    # Manageable hosts still carry their launchable models.
+    assert hosts["mac-mini-m4"]["runs_hub"] is True
+    assert hosts["tower"]["local"] is True
 
 
 def test_get_returns_placement_and_host_status(monkeypatch, tmp_path):

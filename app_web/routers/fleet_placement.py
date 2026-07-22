@@ -27,71 +27,84 @@ from fastapi import APIRouter, HTTPException
 
 from src import backend_process as bp
 from src import fleet_placement as fp
-from src import fleet_reconcile, services as svc
+from src import fleet_reconcile, remote_stats, services as svc
 from src.host_profile import HostProfile, all_hosts, resolve as resolve_host
 from src.model_registry import all_models, launchable_local_ids
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Live-running badges come from a manageable peer's own hub models API. Bound it
+# short so a peer that's powered on but whose hub is slow/absent doesn't stall an
+# on-demand tab-open — the box's own TCP liveness (below) already settles online
+# vs offline; the models call only enriches the badges.
+_GRID_PROBE_TIMEOUT_S = 2.5
+
 
 def _display_names() -> Dict[str, str]:
     return {m.id: m.display_name for m in all_models()}
 
 
-def _placeable_hosts(placement: Dict[str, List[str]]) -> List[HostProfile]:
-    """Hosts worth showing in the grid: any that can launch at least one model,
-    plus any that already carries a placement (so a placement made against a
-    now-empty host still renders rather than silently vanishing)."""
-    hosts = [h for h in all_hosts() if launchable_local_ids(h) or placement.get(h.id)]
-    return hosts
-
-
 async def _host_status(
     profile: HostProfile, active_id: str, placement: Dict[str, List[str]], names: Dict[str, str]
 ) -> Dict[str, Any]:
+    """One host's grid row: its placeable models, live status, and whether the
+    control plane can manage it.
+
+    Reachability is the **hub-independent TCP liveness** the Machines tab uses
+    (``remote_stats.is_reachable`` — *is the box powered on?*), not a hub
+    ``/health`` probe, so a managed-only satellite that runs no hub (``gaming``,
+    ``openclaw``) still reads "online" honestly. ``runs_hub`` (a host declares
+    launchable models) is what the reconcile loop needs to *place* onto a peer;
+    a host with none is shown but not placeable — a real state, spelled out in
+    the UI rather than an offer that can't be honoured.
+    """
     hid = profile.id
     eligible_ids = launchable_local_ids(profile)
     eligible_set = set(eligible_ids)
     eligible = [{"id": m, "display_name": names.get(m, m)} for m in eligible_ids]
     placed = placement.get(hid, [])
+    runs_hub = bool(eligible_ids)  # only a host with launchable models runs this hub
+
+    base = {
+        "id": hid, "display_name": profile.display_name or hid,
+        "icon": profile.icon or ("monitor" if hid == active_id else "server"),
+        "can_ssh": profile.can_ssh, "runs_hub": runs_hub,
+        "eligible": eligible, "placed": placed,
+    }
 
     if hid == active_id:
         # Only the placeable (eligible) models that are up — so a grid cell reads
         # "placed ✓ running / ✗ down". Excludes subscription + virtual rows.
         running = [m for m in bp.running_backends().keys() if m in eligible_set]
-        return {
-            "id": hid, "display_name": profile.display_name or hid,
-            "local": True, "reachable": True, "can_ssh": profile.can_ssh,
-            "eligible": eligible, "placed": placed, "running": running,
-        }
+        return {**base, "local": True, "reachable": True, "dormant": False, "running": running}
 
-    health = await svc.mac_mini_health(hid)  # generic peer /health + version probe
-    reachable = bool(health.get("reachable"))
+    # A peer: liveness by TCP connect (is the box on?), independent of whether it
+    # runs a hub. A dormant node is never live-probed (it's declared powered down).
+    reachable = False if profile.dormant else await remote_stats.is_reachable(profile)
     running: List[str] = []
-    if reachable:
-        rows = await svc.remote_models(profile) or []
+    if reachable and runs_hub:
+        # Only a hub-running peer exposes a models API for live running badges.
+        rows = await svc.remote_models(profile, timeout_s=_GRID_PROBE_TIMEOUT_S) or []
         running = [
             r["id"] for r in rows
             if isinstance(r, dict) and r.get("id") in eligible_set and r.get("reachable")
         ]
     return {
-        "id": hid, "display_name": profile.display_name or hid,
-        "local": False, "reachable": reachable, "can_ssh": profile.can_ssh,
-        "git_sha_match": health.get("git_sha_match"),
-        "eligible": eligible, "placed": placed, "running": running,
+        **base, "local": False, "reachable": reachable,
+        "dormant": profile.dormant, "running": running,
     }
 
 
 @router.get("/api/fleet-placement")
 async def get_fleet_placement() -> Dict[str, Any]:
-    """Desired placement + live per-host status (eligible / reachable / running)."""
+    """Desired placement + a row for **every** fleet host: its placeable models,
+    live liveness, and whether it's manageable from here."""
     placement = fp.load_fleet_placement()
     active_id = resolve_host().id
     names = _display_names()
-    hosts = _placeable_hosts(placement)
     statuses = await asyncio.gather(
-        *(_host_status(h, active_id, placement, names) for h in hosts)
+        *(_host_status(h, active_id, placement, names) for h in all_hosts())
     )
     return {"placement": placement, "hosts": list(statuses)}
 
