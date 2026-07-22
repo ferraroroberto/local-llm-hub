@@ -643,6 +643,7 @@ local-llm-hub/
 │   ├── smoke_test.py
 │   ├── gen_icons.py          # thin caller onto project-scaffolding's shared brand_gen.py (hub master)
 │   ├── bench_orpheus.py      # measure Orpheus llama-server throughput (tok/s, e2e)
+│   ├── bench_voice.py        # STT+TTS bench on any hub (RTFx/WER/latency) — placement decisions (#343)
 │   ├── download_models.py    # huggingface_hub → models/
 │   ├── detect_machine_specs.py   # populate config/machine_specs.yaml
 │   ├── install_llama_cpp.py      # CUDA-Windows / Metal-macOS release
