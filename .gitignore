@@ -56,6 +56,11 @@ config/machine_specs.yaml
 # config/startup_profile.example.json is the committed template + fresh-clone default.
 config/startup_profile.json
 
+# Runtime-mutated fleet placement (issue #353) — the placement grid rewrites
+# this on every toggle, so it must not be tracked. The committed
+# config/fleet_placement.example.json is the template + fresh-clone default.
+config/fleet_placement.json
+
 # Claude Code local settings
 .claude/settings.local.json
 

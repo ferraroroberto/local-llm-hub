@@ -430,6 +430,51 @@ The Models tab tags every remote-owned tile with a small `on <host-id>`
 badge (e.g. `qwen3.5-9b` / `parakeet-tdt-0.6b-v3` both show `on
 mac-mini-m4`) so a displayed PID is never mistaken for a local process.
 
+### Fleet placement: always-on desired state (#353)
+
+The per-machine autostart above (`startup_profile.json`) answers *"what
+should this box bring up when it boots?"*. **Fleet placement** answers the
+fleet-wide question — *"what should run on which machine, kept true even as
+boxes reboot or models die?"* — from a single control node (the tower).
+
+**`config/fleet_placement.json`** (gitignored live file; committed
+**[template](config/fleet_placement.example.json)** — a *copy-me* shape
+reference, **not** an auto-read fallback, so an absent file leaves the
+reconcile loop inert rather than enforcing an example across other machines)
+maps `{host_id: [model_id, …]}` — the models that *should* be running on each
+machine, including the tower's own. A background **reconcile loop**
+(`src/fleet_reconcile.py`, wired in `server_lifecycle.py`) enforces it on
+boot and every ~5 min (`LOCAL_LLM_HUB_FLEET_RECONCILE_INTERVAL_S`). For each
+host with placed models it: wakes an unreachable `can_ssh` satellite (same
+forced-command `bootstrap` as above); writes the desired set through to that
+host's own `startup_profile` (so it self-boots correctly on its *own* next
+reboot); and starts any placed model not already running. It leans entirely
+on existing idempotency — `backend_process.start` adopts a live port and a
+forwarded `/start` returns a benign `409` — so the periodic pass is safe to
+repeat forever and is strictly **additive**: it never stops a model you
+started by hand and didn't place.
+
+Drive it via the API (the Step 3 placement-grid UI is not built yet):
+
+```bash
+# See desired placement + live per-host status (eligible / reachable / running)
+curl -s http://127.0.0.1:8000/admin/api/fleet-placement | jq
+
+# Place parakeet + qwen on the Mac Mini (merge — other hosts untouched).
+# Un-placed models are stopped + de-profiled; newly-placed are started now.
+curl -s -X PATCH http://127.0.0.1:8000/admin/api/fleet-placement \
+  -H 'content-type: application/json' -d '{"mac-mini-m4": ["parakeet", "qwen"]}'
+
+# Force a convergence pass on demand (the loop already does this periodically)
+curl -s -X POST http://127.0.0.1:8000/admin/api/fleet-placement/reconcile
+```
+
+Placing a model onto a machine that's powered *off* is remembered and applied
+when it next reports in. Toggling `mac_mini_sync` in the startup profile still
+works for a Mac Mini that carries **no** fleet placement; once it's placed, the
+reconcile loop owns its wake/sync (the generalization of the once-hardcoded
+Mac-Mini boot branch).
+
 ### Linux satellite lifecycle: systemd (#323)
 
 A headless Linux satellite (`gaming`, later `openclaw`) has no
@@ -572,6 +617,8 @@ local-llm-hub/
 │   ├── diagnostics_settings.json     # retention + scheduled snapshot (#315, gitignored)
 │   ├── startup_profile.example.json  # template + fresh-clone default for what autostarts (#265)
 │   ├── startup_profile.json          # live autostart profile, rewritten by the admin UI (gitignored, #304)
+│   ├── fleet_placement.example.json  # copy-me shape template for fleet desired-state (#353)
+│   ├── fleet_placement.json          # live {host: [models]} placement, control-node only (gitignored, #353)
 │   └── webapp_config.json            # admin auth: bearer token, optional password, webauthn rp (gitignored)
 ├── webapp/                   # runtime data dir written by the /admin webapp
 │   ├── cloudflared.sample.yml  # sample named-tunnel config (copy to cloudflared.yml)
@@ -593,6 +640,8 @@ local-llm-hub/
 │   ├── openai_upstream.py    # httpx client + SSE think-strip pipeline
 │   ├── model_registry.py     # YAML loader (resolves display_name + aliases)
 │   ├── startup_profile.py    # config/startup_profile.json load/save (#265)
+│   ├── fleet_placement.py    # config/fleet_placement.json load/save — fleet desired state (#353)
+│   ├── fleet_reconcile.py    # additive reconcile loop: wake/write-through/start placed models (#353)
 │   ├── host_profile.py       # pick active host row
 │   ├── system_stats.py       # live RAM/CPU/GPU readings (consumed by Hub tab sparklines)
 │   ├── diagnostics/          # on-demand machine diagnostics (#315) — no resident process
@@ -625,8 +674,9 @@ local-llm-hub/
 │   ├── server.py             #   create_app() — middleware, routers, static mount
 │   ├── middleware.py         #   bearer-token gate (loopback bypasses)
 │   ├── routers/              #   misc / version / auth / webauthn / hub / models /
-│   │                         #   startup_profile / playground / services / telemetry /
-│   │                         #   code_usage / glossary / hosts / machines / diagnostics
+│   │                         #   startup_profile / fleet_placement / playground /
+│   │                         #   services / telemetry / code_usage / glossary /
+│   │                         #   hosts / machines / diagnostics
 │   └── static/               #   index.html + main.js + state.js + tabs.js + api.js +
 │                             #   hub.js + models.js + startup.js + playground.js + styles.css +
 │                             #   manifest.webmanifest + icon-*.png/favicon.ico (generated
