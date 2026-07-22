@@ -80,12 +80,18 @@ boxes):
   D3 (`Runtime D3 status: Not supported`, even after setting
   `NVreg_DynamicPowerManagement=0x02`); its idle GPU draw is a hardware
   ceiling, not fixable via driver config.
-- **`gaming`'s WiFi is intermittently flaky** — SSH/Tailscale both dropped
-  and recovered (10-20s) several times during this session's reboot
-  testing, independent of the boot-mode changes. Matches the open,
-  unresolved [#330](https://github.com/ferraroroberto/local-llm-hub/issues/330)
-  packet-loss issue — worth prioritizing now that this is a headless-only
-  box for remote access.
+- **`gaming`'s WiFi flakiness — resolved.** The 10-20s SSH/Tailscale drops
+  (tracked as [#340](https://github.com/ferraroroberto/local-llm-hub/issues/340))
+  were fixed in a life-os geek-out session (2026-07-22): the USB dongle's
+  5 GHz-tuned external antenna was reseated and the box pinned to the 5 GHz
+  SSID — 0% loss over 400 sustained pings after. 2.4 GHz remains unusable on
+  this dongle by design (antenna + USB3 RF noise); wired ethernet stays the
+  real upgrade.
+- **`gaming` serves the GPU voice pair since #323** — `whisper` (STT,
+  transcribe-role fallback; ~9.1 RTFx) and `orpheus` (TTS, explicit-model;
+  ~2× real-time) run under the systemd-supervised hub on `:8000`, CUDA-built
+  for the GTX 1070 (`sm_61`). The tower proxies both transparently and keeps
+  its VRAM for the agentic lanes.
 
 ## Tailscale identities
 

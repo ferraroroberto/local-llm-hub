@@ -100,9 +100,11 @@ hosts:
     # and proxy to it — genuinely bidirectional (#178), not Windows-only.
     enabled: [qwen, parakeet, qwen35_4b, qwen35_4b_nothink, gemma4_e4b, gemma4_26b, whisper, whisper_translate, whisper_vanilla, piper, chatterbox, orpheus, kokoro]
 
-  # --- Managed-only machines (issue #309) — Machines-tab console, no models ---
-  # These serve no models (no `enabled` list) and never run the hub; they are
-  # enrolled purely so the fleet machine console can show and act on them.
+  # --- Managed + satellite machines (issue #309) ---
+  # openclaw serves no models (no `enabled` list) and never runs the hub — it
+  # is enrolled purely so the fleet machine console can show and act on it.
+  # gaming graduated from managed-only to a model-serving satellite in #323
+  # (systemd-supervised hub, owns the voice pair below).
 
   openclaw:
     platform: linux
@@ -145,6 +147,11 @@ hosts:
     icon: monitor
     address: 192.168.0.16
     ssh_user: gaming
+    # Owns the GPU voice pair (#323): whisper STT + orpheus TTS moved here from
+    # the tower to free its VRAM for the agentic lanes. A non-empty list also
+    # makes this host placeable from the fleet grid (its hub runs under the
+    # #341 systemd unit; LOCAL_LLM_HUB_HOST=gaming pinned in its local .env).
+    enabled: [whisper, orpheus]
     # Wired-NIC MAC used for Wake-on-LAN (#356) — WiFi WOL is unsupported.
     mac: d4:5d:64:d6:7e:a0
     tailscale: gaming-linux.tail1121fd.ts.net
@@ -427,7 +434,12 @@ models:
   whisper:
     display_name: whisper-large-v3-turbo
     backend: whisper
-    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    # Owned by the gaming satellite since #323 (GTX 1070, CUDA-built
+    # whisper-server) — cross-enabled on tower + mac-mini-m4, which proxy to
+    # gaming's hub. ~9.1 RTFx there vs ~33.6 on the tower's 5060 Ti: slower,
+    # but whisper is only the transcribe role's FALLBACK (parakeet@mac is
+    # primary) and the move frees tower VRAM for the agentic lanes.
+    host: gaming
     engine: whisper-server
     port: 8090
     hf_repo: "ggerganov/whisper.cpp"
@@ -659,7 +671,11 @@ models:
   orpheus:
     display_name: orpheus-tts
     backend: tts
-    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    # Owned by the gaming satellite since #323 (llama-server CUDA-built for
+    # sm_61; ~2× real-time there) — cross-enabled on tower + mac-mini-m4.
+    # The audio_speech ROLE stays piper (tower CPU); orpheus serves explicit
+    # `model=orpheus` requests, proxied to gaming's hub.
+    host: gaming
     engine: tts-server
     tts_engine: orpheus
     port: 8093

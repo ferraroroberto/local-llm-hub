@@ -115,15 +115,15 @@ flowchart TB
     CLAUDEBIN["claude -p CLI\n(Claude Code subscription)"]
     AGYBIN["agy Antigravity CLI\n(Google AI Pro/Ultra subscription)"]
     LLAMA["llama-server (vendor/llama.cpp)\nQwen3.5-4B :8088 · Gemma4-26B-A4B :8087\n+ ad-hoc :8081/:8082/:8086"]
-    WHISPER["whisper-server (vendor/whisper.cpp)\nturbo :8090 · medium-translate :8091\nvanilla lazy :8094"]
-    TTS["tts_engines/ (piper · orpheus · kokoro · chatterbox)\nvia tts_server.py shim :8092/:8093/:8095/:8096"]
+    WHISPER["whisper-server (vendor/whisper.cpp)\nmedium-translate :8091 · vanilla lazy :8094\n(turbo moved to gaming, #323)"]
+    TTS["tts_engines/ (piper · kokoro · chatterbox)\nvia tts_server.py shim :8092/:8095/:8096\n(orpheus moved to gaming, #323)"]
     CCHOST["Any host Claude Code CLI session\n(incl. sub-agents — CLAUDE_CODE_ENABLE_TELEMETRY)"]
     MACMINI["Mac Mini (mac-mini-m4, 192.168.0.14)\npeer local-llm-hub install :8000\nowns qwen3.5-9b · parakeet-tdt-0.6b-v3"]
     PARAKEETWORKER["mac/parakeet-worker/ (Swift, ANE)\nFluidAudio Parakeet TDT 0.6B v3\nvia CoreML"]
     AGENTSVIEW["AgentsView server (optional, external)\nkenn-io/agentsview · :8080 (issue #280)"]
     SESSIONHOST["app-launcher session-host (:8446)\nloopback ConPTY/WS engine reused for the\nSSH terminal — needs app-launcher#558"]
     OPENCLAW["OpenClaw (Linux laptop, 192.168.0.239)\nmanaged-only machine: SSH reboot/shutdown/\nuptime + RDP (Machines console, #309)"]
-    GAMING["gaming (Ryzen Linux satellite, 192.168.0.16)\nmanaged-only machine: SSH reboot/shutdown/\nuptime + RDP (Machines console, #309/#323)"]
+    GAMING["gaming (Ryzen Linux satellite, 192.168.0.16)\npeer local-llm-hub install :8000 (systemd, #341)\nowns whisper-turbo (STT) + orpheus (TTS) — #323\nGTX 1070, CUDA sm_61 builds"]
   end
   CLAUDECLI --> CLAUDEBIN
   GEMINICLI --> AGYBIN
@@ -135,6 +135,7 @@ flowchart TB
   BACKPROC -.spawns.-> TTS
   CCHOST -->|OTLP/HTTP :8000/v1/metrics| OTELRECV
   REMOTEPROXY -->|forwards verbatim to owning :8000| MACMINI
+  REMOTEPROXY -->|whisper + orpheus to owning :8000| GAMING
   REMOTEBOOT -->|SSH forced-command bootstrap/sync| MACMINI
   PARAKEETSRV -.spawns.-> PARAKEETWORKER
 
