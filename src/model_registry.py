@@ -205,3 +205,32 @@ def resolve(name: str, host: Optional[HostProfile] = None) -> Optional[Model]:
             return m
     return None
 
+
+def audio_role_chain(role_key: str) -> List[str]:
+    """Ordered model-id chain for an audio role (issue #348).
+
+    Reads ``roles.audio.<role_key>`` from models.yaml and returns
+    ``[model_id, *fallback]`` — the primary followed by the ordered failover
+    models the audio proxy tries in turn when the primary's backend is
+    unavailable. ``role_key`` is ``"transcribe"`` / ``"translate"`` / ``"speech"``.
+
+    A role with only ``model_id`` (no ``fallback``) yields a one-element chain —
+    identical to the pre-#348 single-target behaviour. Returns ``[]`` when the
+    role is not configured, so the caller can fall back to its own heuristic.
+    Duplicate ids are collapsed (order-preserving) so a config that repeats the
+    primary in ``fallback`` never makes the proxy retry the same dead backend.
+    """
+    cfg = _load_config()
+    role = ((cfg.get("roles") or {}).get("audio") or {}).get(role_key)
+    if not isinstance(role, dict):
+        return []
+    chain: List[str] = []
+    primary = role.get("model_id")
+    if primary:
+        chain.append(str(primary))
+    fallback = role.get("fallback")
+    if isinstance(fallback, list):
+        chain.extend(str(x) for x in fallback if x)
+    seen: set[str] = set()
+    return [mid for mid in chain if not (mid in seen or seen.add(mid))]
+
