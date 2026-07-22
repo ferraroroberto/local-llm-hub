@@ -70,6 +70,7 @@ flowchart TB
   AUDIOR --> REMOTEPROXY
   LIFECYCLE -->|periodic reconcile| FLEETREC
   FLEETREC -->|wake unreachable satellite| REMOTEBOOT
+  FLEETREC -->|WOL cold satellite first (#364)| WOL
   FLEETREC -->|start local placed models| BACKPROC
   FLEETREC -->|peer profile-write + model start| MACMINI
   FLEETREC -.reads.-> FLEETCFG

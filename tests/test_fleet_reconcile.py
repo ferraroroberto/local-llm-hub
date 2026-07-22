@@ -36,6 +36,18 @@ def _stub_peer_transport(monkeypatch, calls):
     monkeypatch.setattr(fr, "_remote_model_action", model_action)
 
 
+def _stub_wol(monkeypatch, sent, *, fail=False):
+    """Record magic packets instead of broadcasting real UDP (#364). Registry
+    hosts now carry real MACs, so any unreachable-branch test would otherwise
+    put actual wake packets on the LAN."""
+    def fake_send_wake(mac):
+        if fail:
+            raise fr.WakeOnLanError(f"boom sending to {mac}")
+        sent.append(mac)
+
+    monkeypatch.setattr(fr, "send_wake", fake_send_wake)
+
+
 # --------------------------------------------------------------------------- #
 # reconcile_once — additive convergence
 # --------------------------------------------------------------------------- #
@@ -59,6 +71,7 @@ def test_reachable_remote_starts_every_placed_model(monkeypatch, tmp_path):
 def test_unreachable_can_ssh_host_is_woken(monkeypatch, tmp_path):
     calls: list = []
     _stub_peer_transport(monkeypatch, calls)
+    _stub_wol(monkeypatch, [])
     woke = {"woke": []}
     monkeypatch.setattr(fleet_placement, "load_fleet_placement",
                         lambda: {"mac-mini-m4": ["parakeet"]})
@@ -80,6 +93,7 @@ def test_unreachable_can_ssh_host_is_woken(monkeypatch, tmp_path):
 def test_woken_host_converges_in_same_pass(monkeypatch, tmp_path):
     calls: list = []
     _stub_peer_transport(monkeypatch, calls)
+    _stub_wol(monkeypatch, [])
     monkeypatch.setattr(fleet_placement, "load_fleet_placement",
                         lambda: {"mac-mini-m4": ["parakeet"]})
     monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": False}))
@@ -88,6 +102,72 @@ def test_woken_host_converges_in_same_pass(monkeypatch, tmp_path):
     _run(fr.reconcile_once())
 
     assert ("start", "mac-mini-m4", "parakeet") in calls  # started after wake
+
+
+# --------------------------------------------------------------------------- #
+# WOL before the SSH bootstrap (#364 — Phase 2 of #356)
+# --------------------------------------------------------------------------- #
+def test_unreachable_mac_host_gets_wol_then_bootstrap_same_pass(monkeypatch):
+    calls: list = []
+    _stub_peer_transport(monkeypatch, calls)
+    sent: list = []
+    _stub_wol(monkeypatch, sent)
+    bootstraps: list = []
+    monkeypatch.setattr(fleet_placement, "load_fleet_placement",
+                        lambda: {"mac-mini-m4": ["parakeet"]})
+    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": False}))
+
+    async def fake_bootstrap(host_id):
+        bootstraps.append(host_id)
+        return {"ok": False}  # cold box: SSH can't reach it this pass
+
+    monkeypatch.setattr(remote_bootstrap, "bootstrap_host", fake_bootstrap)
+
+    results = _run(fr.reconcile_once())
+
+    assert len(sent) == 1                                  # exactly one packet
+    assert bootstraps == ["mac-mini-m4"]                   # bootstrap still tried
+    assert results["mac-mini-m4"]["wol_sent"] is True
+    assert results["mac-mini-m4"]["reachable"] is False    # fire-and-continue
+
+
+def test_unreachable_macless_host_sends_no_wol(monkeypatch):
+    calls: list = []
+    _stub_peer_transport(monkeypatch, calls)
+    sent: list = []
+    _stub_wol(monkeypatch, sent)
+    monkeypatch.setattr(fleet_placement, "load_fleet_placement",
+                        lambda: {"openclaw": ["parakeet"]})  # no wired NIC, no mac
+    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": False}))
+    monkeypatch.setattr(remote_bootstrap, "bootstrap_host", _async_ret({"ok": False}))
+
+    results = _run(fr.reconcile_once())
+
+    assert sent == []                                      # nothing to send
+    assert results["openclaw"]["wol_sent"] is False
+    assert results["openclaw"]["reachable"] is False
+
+
+def test_wol_send_failure_is_swallowed_and_pass_continues(monkeypatch):
+    calls: list = []
+    _stub_peer_transport(monkeypatch, calls)
+    _stub_wol(monkeypatch, [], fail=True)
+    bootstraps: list = []
+    monkeypatch.setattr(fleet_placement, "load_fleet_placement",
+                        lambda: {"mac-mini-m4": ["parakeet"]})
+    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": False}))
+
+    async def fake_bootstrap(host_id):
+        bootstraps.append(host_id)
+        return {"ok": True}  # box was actually just hub-dead, SSH worked
+
+    monkeypatch.setattr(remote_bootstrap, "bootstrap_host", fake_bootstrap)
+
+    results = _run(fr.reconcile_once())
+
+    assert bootstraps == ["mac-mini-m4"]                   # failure didn't abort
+    assert results["mac-mini-m4"]["wol_sent"] is False
+    assert results["mac-mini-m4"]["reachable"] is True     # converged via SSH
 
 
 def test_empty_placement_host_is_skipped(monkeypatch):

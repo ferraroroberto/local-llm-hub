@@ -36,6 +36,8 @@ from typing import Any, Dict, List
 
 import httpx
 
+from .wake_on_lan import WakeOnLanError, send_wake
+
 logger = logging.getLogger(__name__)
 
 # The reconcile cadence (issue #353): a pass on boot, then every few minutes.
@@ -137,22 +139,41 @@ async def _reconcile_remote(host_id: str, desired: List[str]) -> Dict[str, Any]:
     health = await services.mac_mini_health(host_id)  # generic peer /health probe
     reachable = bool(health.get("reachable"))
     woke: Any = None
+    wol_sent = False
     if not reachable:
+        # True power-on beneath the SSH bootstrap (#364, Phase 2 of #356): a
+        # MAC-registered satellite may be fully off, where SSH can't reach it.
+        # Fire-and-continue by design — a cold boot takes minutes while this
+        # pass's reachability budget is seconds, so we never wait on the wake
+        # here; the next periodic pass finds the box up and converges.
+        if owner.mac:
+            try:
+                await asyncio.to_thread(send_wake, owner.mac)
+                wol_sent = True
+                logger.info("fleet reconcile: WOL packet sent to %s (%s)", host_id, owner.mac)
+            except WakeOnLanError as exc:
+                logger.warning("fleet reconcile: WOL send to %s failed: %s", host_id, exc)
         if not owner.can_ssh:
-            return {"reachable": False, "error": "unreachable, cannot ssh"}
+            return {"reachable": False, "wol_sent": wol_sent, "error": "unreachable, cannot ssh"}
         woke = await remote_bootstrap.bootstrap_host(host_id)
         reachable = bool(woke.get("ok"))
         logger.info("fleet reconcile: wake %s -> reachable=%s", host_id, reachable)
         if not reachable:
             # Couldn't bring it up this pass — the next pass will retry.
-            return {"reachable": False, "woke": woke}
+            return {"reachable": False, "wol_sent": wol_sent, "woke": woke}
 
     base = _peer_base(owner)
     profile = await _remote_write_profile(host_id, base, desired)
     started: List[Dict[str, Any]] = []
     for model_id in desired:
         started.append({"id": model_id, **await _remote_model_action(host_id, base, model_id, "start")})
-    return {"reachable": True, "woke": woke, "profile_written": profile.get("ok"), "started": started}
+    return {
+        "reachable": True,
+        "wol_sent": wol_sent,
+        "woke": woke,
+        "profile_written": profile.get("ok"),
+        "started": started,
+    }
 
 
 async def _reconcile_host(host_id: str, desired: List[str], active_id: str) -> Dict[str, Any]:
