@@ -63,6 +63,7 @@ flowchart TB
     DIAG["diagnostics/ (issue #315)\nsampler (in-hub asyncio task, no resident proc) ·\nattribution (process -> fleet app + ports, per-OS) ·\nrules (health verdict) · coverage (measured vs blind, #322) ·\nreport (summary/drift/md) · store (SQLite) ·\ningest (foreign portable capture, #316)"]
     PARAKEETSRV["parakeet_server.py\nOpenAI-shape ASR shim ->\nFluidAudio Parakeet CoreML worker"]
     FLEETREC["fleet_reconcile.py (issue #353)\nadditive convergence: wake offline can-ssh\nsatellite -> write-through its startup_profile\n-> start placed-but-not-running models\n(fleet_placement.py = desired-state file)"]
+    WOL["wake_on_lan.py (issue #356)\nmagic-packet builder + UDP broadcast\n(true power-on beneath the SSH bootstrap)"]
   end
   CHATT --> REMOTEPROXY
   SRV --> REMOTEPROXY
@@ -76,6 +77,8 @@ flowchart TB
   WROUT -->|hosts tab| REMOTEBOOT
   WROUT -->|machines tab| MACHINECON
   WROUT -->|machines: reboot/shutdown| REMOTEBOOT
+  WROUT -->|machines: wake| WOL
+  WOL -->|UDP :9 broadcast to wired-NIC MAC| GAMING
   WROUT -->|machines: SSH terminal WS proxy| SSHTERM
   MACHINECON --> REMOTEBOOT
   MACHINECON --> REMOTESTATS

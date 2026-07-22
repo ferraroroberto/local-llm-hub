@@ -62,6 +62,10 @@ class HostProfile:
     # Remote-Desktop launch target: {"address": ..., "user": ...}. Unset on
     # hosts with no RDP path (e.g. the local host, or SSH/VNC-only peers).
     rdp: Optional[Dict[str, str]] = None
+    # Wired-NIC MAC address for Wake-on-LAN (#356), e.g. "aa:bb:cc:dd:ee:ff".
+    # WiFi WOL is unsupported — unset on hosts with no wired NIC (e.g. a
+    # laptop) or that nothing ever wakes remotely.
+    mac: Optional[str] = None
 
     @property
     def can_ssh(self) -> bool:
@@ -108,6 +112,7 @@ def _row_to_profile(host_id: str, row: Dict[str, Any], *, source: str) -> HostPr
         dormant=bool(row.get("dormant", False)),
         tailscale=row.get("tailscale"),
         rdp=row.get("rdp"),
+        mac=row.get("mac"),
     )
 
 

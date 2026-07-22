@@ -534,6 +534,18 @@ drop-in (already in place on the Mac Mini and OpenClaw); **nothing has to be
 deployed to a managed machine** — no per-peer key, no forced-command script.
 This is why OpenClaw's power buttons work the moment it is reachable.
 
+**Wake (non-destructive, #356).** A machine that is **down or dormant** and
+has a wired-NIC `mac:` recorded in its `config/models.yaml` host row offers a
+**Wake** button — a fire-and-forget Wake-on-LAN magic packet
+(`src/wake_on_lan.py`, UDP broadcast to `255.255.255.255:9`, stdlib socket
+only) via `POST /admin/api/machines/{id}/wake`. No confirmation loop: the
+card flips to *Rechecking…* and the next status poll reports whether the box
+came up. The hub can't wake its own host (that's BIOS AC-restore territory),
+and a host without a `mac:` simply has no Wake action. Per-machine WOL state
+and caveats (Apple-silicon wakes from sleep only; openclaw has no wired NIC)
+live in `docs/machines.md`. home-automation's UPS orchestration consumes this
+endpoint over loopback for deliberate remote power-on.
+
 **Remote Desktop.** A per-machine **Remote Desktop** action serves a
 generated `.rdp` launcher (built from the machine's configured `rdp`
 `{address, user}` target) that the viewing device downloads and opens — no

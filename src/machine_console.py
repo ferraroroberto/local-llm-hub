@@ -51,16 +51,20 @@ def _actions_for(host: HostProfile, *, is_host: bool) -> Dict[str, bool]:
     """Which actions the SPA may offer for this machine.
 
     The active hub host offers none (reboot/shutdown are the excluded
-    destructive actions; SSH/RDP to self is pointless). A peer with SSH
-    (address + ssh_user) gets reboot/shutdown + an SSH terminal; RDP is
-    offered wherever an ``rdp`` target is configured."""
+    destructive actions; SSH/RDP to self is pointless — and waking the box
+    the hub is already running on is meaningless). A peer with SSH (address
+    + ssh_user) gets reboot/shutdown + an SSH terminal; RDP is offered
+    wherever an ``rdp`` target is configured; wake (#356) is offered
+    wherever a ``mac`` is configured, independent of SSH/reachability —
+    Wake-on-LAN's whole point is reaching a box that's down."""
     if is_host:
-        return {"reboot": False, "shutdown": False, "rdp": False, "ssh_terminal": False}
+        return {"reboot": False, "shutdown": False, "rdp": False, "ssh_terminal": False, "wake": False}
     return {
         "reboot": host.can_ssh,
         "shutdown": host.can_ssh,
         "ssh_terminal": host.can_ssh,
         "rdp": bool(host.rdp),
+        "wake": bool(host.mac) and not is_host,
     }
 
 

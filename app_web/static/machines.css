@@ -110,6 +110,11 @@
   cursor: default;
 }
 .machine-action:disabled .icon { opacity: 0.9; }
+/* Wake-on-LAN: the single action a powered-off machine can take, so it spans
+ * the full rail on its own row below the (disabled) up-only actions rather
+ * than sitting as a fifth unequal cell. Still the shared ghost action recipe
+ * (.machine-action) — non-danger, no new tokens. */
+.machine-action--wake { grid-column: 1 / -1; }
 /* 2×2 on coarse pointers / narrow viewports. */
 @media (pointer: coarse), (max-width: 560px) {
   .machine-actions { grid-template-columns: repeat(2, 1fr); }
