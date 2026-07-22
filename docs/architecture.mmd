@@ -19,7 +19,7 @@ flowchart TB
   subgraph core["src/server.py — FastAPI hub (:8000)"]
     SRV["POST /v1/messages (Anthropic shape)\nPOST /v1/chat/completions (OpenAI shape)\nGET /v1/models · /health · /info\nGET / -> 307 /admin/"]
     CHATT["chat_translation.py\nschemas + media extraction + prompt flatten +\nper-backend dispatch (split out of server.py, issue #245)"]
-    LIFECYCLE["server_lifecycle.py\nstartup/shutdown hooks + resource sampler +\nstartup-profile autostart (backends/Docker/\nLangfuse/Mac-Mini-sync, issue #265)"]
+    LIFECYCLE["server_lifecycle.py\nstartup/shutdown hooks + resource sampler +\nstartup-profile autostart (backends/Docker/\nLangfuse/Mac-Mini-sync, issue #265) +\nfleet reconcile loop (boot + ~5min, issue #353)"]
     REG["model_registry.py\nModel rows from config/models.yaml"]
     HOSTP["host_profile.py\nresolve active host"]
     OTELRECV["server_otel_receiver.py\nPOST /v1/metrics (OTLP receiver, issue #68)"]
@@ -62,10 +62,16 @@ flowchart TB
     SSHTERM["ssh_terminal.py\nin-browser SSH terminal (#309): drives\napp-launcher's session-host over loopback"]
     DIAG["diagnostics/ (issue #315)\nsampler (in-hub asyncio task, no resident proc) ·\nattribution (process -> fleet app + ports, per-OS) ·\nrules (health verdict) · coverage (measured vs blind, #322) ·\nreport (summary/drift/md) · store (SQLite) ·\ningest (foreign portable capture, #316)"]
     PARAKEETSRV["parakeet_server.py\nOpenAI-shape ASR shim ->\nFluidAudio Parakeet CoreML worker"]
+    FLEETREC["fleet_reconcile.py (issue #353)\nadditive convergence: wake offline can-ssh\nsatellite -> write-through its startup_profile\n-> start placed-but-not-running models\n(fleet_placement.py = desired-state file)"]
   end
   CHATT --> REMOTEPROXY
   SRV --> REMOTEPROXY
   AUDIOR --> REMOTEPROXY
+  LIFECYCLE -->|periodic reconcile| FLEETREC
+  FLEETREC -->|wake unreachable satellite| REMOTEBOOT
+  FLEETREC -->|start local placed models| BACKPROC
+  FLEETREC -->|peer profile-write + model start| MACMINI
+  FLEETREC -.reads.-> FLEETCFG
   WROUT -->|models tab proxy check| REMOTEPROXY
   WROUT -->|hosts tab| REMOTEBOOT
   WROUT -->|machines tab| MACHINECON
@@ -130,7 +136,7 @@ flowchart TB
 
   subgraph admin["app_web/ — admin SPA, sub-app mounted at /admin"]
     WSRV["server.py\ncreate_app() + versioned static"]
-    WROUT["routers/\nhub · models · startup_profile · playground ·\nservices · telemetry · code_usage · glossary ·\nhosts · machines · diagnostics · auth · webauthn ·\nversion · misc"]
+    WROUT["routers/\nhub · models · startup_profile · fleet_placement ·\nplayground · services · telemetry · code_usage ·\nglossary · hosts · machines · diagnostics · auth ·\nwebauthn · version · misc"]
     WSTATIC["static/\nindex.html SPA + per-tab JS/CSS"]
   end
   SRV -.mounts.-> WSRV
@@ -139,6 +145,8 @@ flowchart TB
   WROUT -->|hub tab| SERVPROC
   WROUT -->|hub restart| WATCHDOG
   WROUT -->|models tab| BACKPROC
+  WROUT -->|fleet-placement tab: PATCH/reconcile| FLEETREC
+  WROUT -.reads/writes.-> FLEETCFG
   WROUT -->|playground tab| SRV
 
   subgraph obs["Observability"]
@@ -158,6 +166,7 @@ flowchart TB
     WEBCFG[("config/webapp_config.json\nauth token + allowlist")]
     GLOSSARY[("config/transcription_glossary.json\nASR post-processing rules")]
     STARTUPCFG[("config/startup_profile.json (gitignored; .example committed)\ndocker/langfuse/mac-mini-sync/models\n(issues #265, #304)")]
+    FLEETCFG[("config/fleet_placement.json (gitignored; .example committed)\n{host_id: [model_id]} fleet-wide desired state\n(issue #353)")]
     MODELSDIR["models/ (gitignored)\nGGUF + whisper weights"]
     USAGEHIST[("data/code_usage_history.json\ndaily usage rollups — outlive\ntranscript pruning (issue #280)")]
     DIAGCFG[("config/diagnostics_apps.json + _rules.json (committed)\nprocess->app attribution + health thresholds;\nconfig/diagnostics_settings.json (gitignored)\nretention + scheduled snapshot (issue #315)")]

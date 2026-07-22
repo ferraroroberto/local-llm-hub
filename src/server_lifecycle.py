@@ -110,6 +110,9 @@ async def wire_observatory_loop() -> None:
     # Same idea for Docker/Langfuse/Mac-Mini-sync (issue #265) — the
     # startup profile's non-model flags.
     loop.create_task(_autostart_services())
+    # Fleet always-on control plane (issue #353): converge every host to its
+    # desired placement on boot + every few minutes.
+    loop.create_task(_fleet_reconcile_loop())
     # Diagnostics (issue #315): close any capture orphaned by a previous hub
     # and arm the scheduled snapshot if it's enabled. No task is created when
     # it's off — the feature costs nothing until asked for.
@@ -165,6 +168,7 @@ async def _autostart_services() -> None:
     its own startup.
     """
     from . import services as svc
+    from .fleet_placement import load_fleet_placement
     from .host_profile import MAC_MINI_HOST_ID, resolve as resolve_host
     from .startup_profile import load_startup_profile
 
@@ -192,7 +196,12 @@ async def _autostart_services() -> None:
         except Exception as exc:  # noqa: BLE001
             logger.warning("autostart: agentsview launch raised: %s", exc)
 
-    if profile.mac_mini_sync and resolve_host().id != MAC_MINI_HOST_ID:
+    # The fleet reconcile loop (#353) owns wake/sync for any host it has models
+    # placed on, so defer the legacy mac-mini boot branch to it there — this is
+    # the generalization of the once-hardcoded MAC_MINI_HOST_ID path. The flag
+    # still drives the sync when the Mac Mini carries no fleet placement.
+    mac_mini_placed = bool(load_fleet_placement().get(MAC_MINI_HOST_ID))
+    if profile.mac_mini_sync and resolve_host().id != MAC_MINI_HOST_ID and not mac_mini_placed:
         try:
             from . import remote_bootstrap
 
@@ -207,6 +216,29 @@ async def _autostart_services() -> None:
                 logger.info("autostart: Mac Mini already reachable and in sync")
         except Exception as exc:  # noqa: BLE001
             logger.warning("autostart: Mac Mini sync raised: %s", exc)
+
+
+async def _fleet_reconcile_loop() -> None:
+    """Periodic fleet convergence (issue #353).
+
+    A short boot delay lets ``_autostart_configured_backends`` +
+    ``inherit_running_backends`` settle so the first pass sees accurate running
+    state (and never races them into a double-spawn), then an additive
+    ``reconcile_once`` every ``FLEET_RECONCILE_INTERVAL_S``. Soft-failing, same
+    spirit as the sampler: a reconcile error must never take the loop (or the
+    hub) down. No-ops cheaply when no placement is configured.
+    """
+    from . import fleet_reconcile
+
+    await asyncio.sleep(fleet_reconcile.FLEET_RECONCILE_BOOT_DELAY_S)
+    while True:
+        try:
+            results = await fleet_reconcile.reconcile_once()
+            if results:
+                logger.info("🛰️ fleet reconcile pass: %s", list(results.keys()))
+        except Exception as exc:  # noqa: BLE001 — loop must not die
+            logger.warning("fleet reconcile pass raised: %s", exc)
+        await asyncio.sleep(fleet_reconcile.FLEET_RECONCILE_INTERVAL_S)
 
 
 async def _resource_sampler() -> None:
