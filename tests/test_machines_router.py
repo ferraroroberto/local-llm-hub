@@ -137,11 +137,10 @@ def test_card_runs_hub_true_for_model_hosts():
 
 
 def test_card_runs_hub_false_for_managed_only_machines():
-    """openclaw and gaming are managed-only (#309) — no `enabled` models, so
-    they never run this hub and get no Diagnostics footnote either."""
-    for host_id in ("openclaw", "gaming"):
-        card = mc._card_base(get_host(host_id), is_host=False)
-        assert card["runs_hub"] is False, host_id
+    """openclaw is managed-only (#309) — no `enabled` models, so it never runs
+    this hub. gaming graduated to a hub-running voice-pair satellite (#323)."""
+    assert mc._card_base(get_host("openclaw"), is_host=False)["runs_hub"] is False
+    assert mc._card_base(get_host("gaming"), is_host=False)["runs_hub"] is True
 
 
 # ------------------------------------------------------------------------ RDP

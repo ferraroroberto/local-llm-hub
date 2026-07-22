@@ -383,6 +383,20 @@ Today this powers the `mac-mini-m4` host (`192.168.0.14`, Apple M4):
   measurement + trade-off writeup:
   [docs/parakeet-asr-evaluation.md](docs/parakeet-asr-evaluation.md).
 
+The same pattern powers the **`gaming`** satellite (`192.168.0.16`, Ryzen 9
+5900X, GTX 1070 8 GB, headless Ubuntu — #323), which owns the GPU voice pair
+moved off the tower to free its VRAM for the agentic lanes:
+
+- **`whisper-large-v3-turbo`** — the transcribe role's *fallback* (parakeet on
+  the Mac stays primary); CUDA-built whisper-server for `sm_61`, ~9.1 RTFx
+  there vs ~33.6 on the tower's 5060 Ti — slower, but a failover path, not the
+  daily-dictation primary. The tower keeps `whisper_translate`/
+  `whisper_vanilla` (CPU/lazy) locally, and voice-transcriber retains its own
+  local `:8090` escape-hatch spawner for transport failures.
+- **`orpheus-tts`** — llama-server CUDA-built for `sm_61`, ~2× real-time; the
+  `audio_speech` role default stays `piper` (tower CPU), so orpheus serves
+  explicit `model=orpheus` calls, proxied to gaming's hub.
+
 The Windows hub's admin UI Services card shows a live Mac Mini reachability
 pill alongside Docker/Langfuse. Cross-host auth reuses `extra_allowlist` in
 `config/webapp_config.json` (per-machine, not committed) — each host's LAN
@@ -460,11 +474,13 @@ flip one on and the reconcile loop starts it there (waking a wake-capable
 satellite); an offline but manageable machine still shows its placement with an
 *"applies on power-up"* note rather than an error. Liveness is the same
 hub-independent TCP probe the Machines tab uses (*is the box on?*), so a
-**managed-only satellite that runs no hub** (`gaming`, `openclaw` — driven
-directly over SSH, no models registered) reads *online* honestly and is shown
-with a *"not placeable from here yet"* note instead of toggles that couldn't do
-anything. A host becomes placeable once it runs a hub and declares launchable
-models in `config/models.yaml`. Or drive the same API directly:
+**managed-only satellite that runs no hub** (`openclaw` — driven directly over
+SSH, no models registered) reads *online* honestly and is shown with a *"not
+placeable from here yet"* note instead of toggles that couldn't do anything. A
+host becomes placeable once it runs a hub and declares launchable models in
+`config/models.yaml` — `gaming` crossed exactly that line in #323 (systemd-run
+hub + the whisper/orpheus rows), so the grid now steers it like the Mac. Or
+drive the same API directly:
 
 ```bash
 # See desired placement + live per-host status (eligible / reachable / running)
@@ -492,10 +508,11 @@ tray-equivalent and no LaunchAgent — a **systemd unit** fills that role,
 the counterpart to `tray.bat` on Windows and the LaunchAgent on macOS. The
 template lives at `linux/systemd/local-llm-hub.service`: it runs the
 existing `run_hub.sh` under `Restart=always` and enables at boot with no
-login required (`WantedBy=multi-user.target`). It is **not** installed
-automatically (no `install.py --fix` path yet — deferred until a satellite
-actually serves models); the file's header carries the two-placeholder
-`sed`-and-`enable` install steps. Unlike launchd's respawn-on-any-signal
+login required (`WantedBy=multi-user.target`). It is installed and live on
+`gaming` (which serves whisper + orpheus since #323) but still has no
+`install.py --fix` path — the file's header carries the two-placeholder
+`sed`-and-`enable` install steps, and the Linux install/sync parity gap is
+tracked as a follow-up. Unlike launchd's respawn-on-any-signal
 quirk, systemd honours a commanded `systemctl stop`, so the stop story is
 simpler than the Mac's `bootout` dance — no admin-endpoint plumbing is
 wired for it (a deferred follow-up on #323).

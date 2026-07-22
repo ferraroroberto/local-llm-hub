@@ -129,14 +129,17 @@ def _admin_client() -> TestClient:
 
 
 def test_log_endpoint_returns_tail(monkeypatch):
+    # A TOWER-owned model id, deliberately: a remote-owned row (e.g. whisper,
+    # host: gaming since #323) makes this endpoint forward to the owning peer's
+    # live hub — a unit test must never leave the box.
     monkeypatch.setattr(bp, "log_lines", lambda mid, limit=400: ["line-a", "line-b"])
 
-    resp = _admin_client().get("/api/models/whisper/log")
+    resp = _admin_client().get("/api/models/whisper_translate/log")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["id"] == "whisper"
+    assert body["id"] == "whisper_translate"
     assert body["lines"] == ["line-a", "line-b"]
-    assert body["path"] == "data/logs/backend-whisper.log"
+    assert body["path"] == "data/logs/backend-whisper_translate.log"
 
 
 def test_log_endpoint_unknown_model_404():

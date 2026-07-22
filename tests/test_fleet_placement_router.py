@@ -33,7 +33,7 @@ def _stub_status(monkeypatch, reachable=True):
     """Keep GET off the network: local snapshot + a reachable Mac Mini. Peer
     liveness is the hub-independent TCP probe (remote_stats.is_reachable), not a
     hub /health call — the same signal the Machines tab uses."""
-    monkeypatch.setattr(bp, "running_backends", lambda: {"whisper": object()})
+    monkeypatch.setattr(bp, "running_backends", lambda: {"piper": object()})
 
     async def is_reachable(host):
         return reachable
@@ -47,10 +47,11 @@ def _stub_status(monkeypatch, reachable=True):
 
 def test_get_lists_every_fleet_host_with_manageability(monkeypatch, tmp_path):
     """Every configured fleet host gets a row. A managed-only satellite that
-    runs no hub (gaming/openclaw — no launchable models) is shown with
-    runs_hub=False and an empty eligible list (the UI renders the "not placeable
-    here" note), never silently dropped — using the box's own TCP liveness for
-    its online/offline state, not a hub probe it doesn't answer."""
+    runs no hub (openclaw — no launchable models) is shown with runs_hub=False
+    and an empty eligible list (the UI renders the "not placeable here" note),
+    never silently dropped — using the box's own TCP liveness for its
+    online/offline state, not a hub probe it doesn't answer. gaming graduated
+    to a placeable voice-pair host in #323."""
     _isolate(monkeypatch, tmp_path, {})
     monkeypatch.setattr(bp, "running_backends", lambda: {})
 
@@ -69,27 +70,30 @@ def test_get_lists_every_fleet_host_with_manageability(monkeypatch, tmp_path):
 
     # Full inventory — nothing dropped.
     assert {"tower", "mac-mini-m4", "gaming", "openclaw"} <= set(hosts)
-    # Managed-only satellites: reachable by TCP, but no hub / nothing to place.
-    assert hosts["gaming"]["runs_hub"] is False
-    assert hosts["gaming"]["eligible"] == []
-    assert hosts["gaming"]["reachable"] is True   # powered on (TCP liveness)
+    # Managed-only satellite: reachable by TCP, but no hub / nothing to place.
+    assert hosts["openclaw"]["runs_hub"] is False
+    assert hosts["openclaw"]["eligible"] == []
     assert hosts["openclaw"]["reachable"] is False
+    # gaming is a placeable voice-pair host since #323.
+    assert hosts["gaming"]["runs_hub"] is True
+    assert {e["id"] for e in hosts["gaming"]["eligible"]} == {"whisper", "orpheus"}
+    assert hosts["gaming"]["reachable"] is True   # powered on (TCP liveness)
     # Manageable hosts still carry their launchable models.
     assert hosts["mac-mini-m4"]["runs_hub"] is True
     assert hosts["tower"]["local"] is True
 
 
 def test_get_returns_placement_and_host_status(monkeypatch, tmp_path):
-    _isolate(monkeypatch, tmp_path, {"tower": ["whisper"], "mac-mini-m4": ["parakeet"]})
+    _isolate(monkeypatch, tmp_path, {"tower": ["piper"], "mac-mini-m4": ["parakeet"]})
     _stub_status(monkeypatch)
     client = TestClient(server_mod.app)
     r = client.get("/admin/api/fleet-placement")
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["placement"] == {"tower": ["whisper"], "mac-mini-m4": ["parakeet"]}
+    assert body["placement"] == {"tower": ["piper"], "mac-mini-m4": ["parakeet"]}
     hosts = {h["id"]: h for h in body["hosts"]}
     assert hosts["tower"]["local"] is True
-    assert hosts["tower"]["running"] == ["whisper"]
+    assert hosts["tower"]["running"] == ["piper"]
     assert hosts["mac-mini-m4"]["reachable"] is True
     assert hosts["mac-mini-m4"]["placed"] == ["parakeet"]
     # eligible carries display names for the grid to render
@@ -97,7 +101,7 @@ def test_get_returns_placement_and_host_status(monkeypatch, tmp_path):
 
 
 def test_patch_merges_persists_and_applies(monkeypatch, tmp_path):
-    target = _isolate(monkeypatch, tmp_path, {"tower": ["whisper"], "mac-mini-m4": ["parakeet"]})
+    target = _isolate(monkeypatch, tmp_path, {"tower": ["piper"], "mac-mini-m4": ["parakeet"]})
     applied_calls = []
 
     async def fake_apply(host_id, old_ids, new_ids, active_id):
@@ -111,7 +115,7 @@ def test_patch_merges_persists_and_applies(monkeypatch, tmp_path):
     assert r.status_code == 200, r.text
     body = r.json()
     # tower untouched by the merge; mac-mini replaced
-    assert body["placement"] == {"tower": ["whisper"], "mac-mini-m4": ["parakeet", "qwen"]}
+    assert body["placement"] == {"tower": ["piper"], "mac-mini-m4": ["parakeet", "qwen"]}
     on_disk = json.loads(target.read_text(encoding="utf-8"))
     assert on_disk["mac-mini-m4"] == ["parakeet", "qwen"]
     # only the touched host had its delta applied, with the right old→new
