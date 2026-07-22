@@ -232,6 +232,34 @@ def test_unplace_remote_stops_via_peer(monkeypatch):
     assert ("start", "mac-mini-m4", "qwen") in calls      # survivor converged
 
 
+def test_unplace_last_remote_model_deprofiles_peer(monkeypatch):
+    # #360: emptying a remote host's placement must still write the profile
+    # through (models: []) so the un-placed model can't resurrect on reboot.
+    calls: list = []
+    _stub_peer_transport(monkeypatch, calls)
+    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": True}))
+
+    result = _run(fr.apply_placement_change("mac-mini-m4", ["parakeet"], [], "tower"))
+
+    assert ("stop", "mac-mini-m4", "parakeet") in calls
+    assert ("profile", "mac-mini-m4", ()) in calls        # empty write-through sent
+    assert result["converged"]["profile_written"] is True
+    assert not [c for c in calls if c[0] == "start"]
+
+
+def test_unplace_last_remote_model_soft_fails_when_peer_down(monkeypatch):
+    # Unreachable peer: the un-place itself must not error; no profile PATCH,
+    # no wake/bootstrap attempt — the stale entry waits for the peer's return.
+    calls: list = []
+    _stub_peer_transport(monkeypatch, calls)
+    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": False}))
+
+    result = _run(fr.apply_placement_change("mac-mini-m4", ["parakeet"], [], "tower"))
+
+    assert not [c for c in calls if c[0] == "profile"]
+    assert result["converged"] == {"reachable": False, "profile_written": False}
+
+
 def _async_ret(value):
     async def _f(*args, **kwargs):
         return value

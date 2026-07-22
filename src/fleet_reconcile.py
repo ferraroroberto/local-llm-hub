@@ -259,9 +259,38 @@ async def apply_placement_change(
     model — the periodic loop never does). Then the host is converged additively
     to ``new_ids`` (start newly-placed / write-through the peer profile). A
     remote host's de-profiling happens implicitly in the converge write-through,
-    which rewrites its profile to exactly ``new_ids``.
+    which rewrites its profile to exactly ``new_ids`` — including when
+    ``new_ids`` is empty (#360): skipping the converge entirely there left the
+    peer's profile holding the un-placed model, resurrecting it on the peer's
+    next reboot. The empty-set write-through goes straight to the profile PATCH
+    (reachability-checked, soft-fail) — never the wake/bootstrap machinery,
+    which exists to *start* things, not to erase a line from a profile.
     """
     removed = [m for m in old_ids if m not in set(new_ids)]
     stopped = await _unplace(host_id, removed, active_id) if removed else []
-    converged = await _reconcile_host(host_id, list(new_ids), active_id) if new_ids else {}
+    if new_ids:
+        converged = await _reconcile_host(host_id, list(new_ids), active_id)
+    elif removed and host_id != active_id:
+        converged = await _deprofile_remote(host_id)
+    else:
+        converged = {}
     return {"stopped": stopped, "converged": converged}
+
+
+async def _deprofile_remote(host_id: str) -> Dict[str, Any]:
+    """Rewrite a remote peer's profile to no models (last-model un-place, #360).
+
+    Reachable peer → PATCH ``{"models": []}``; unreachable/unknown peer →
+    soft-fail (the stale profile entry survives until the peer is next up, but
+    the un-place itself never errors on it)."""
+    from . import services
+    from .host_profile import get_host
+
+    owner = get_host(host_id)
+    if owner is None or not owner.address:
+        return {"reachable": False, "error": "no address configured"}
+    health = await services.mac_mini_health(host_id)
+    if not health.get("reachable"):
+        return {"reachable": False, "profile_written": False}
+    profile = await _remote_write_profile(host_id, _peer_base(owner), [])
+    return {"reachable": True, "profile_written": profile.get("ok")}
