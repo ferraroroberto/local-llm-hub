@@ -277,6 +277,32 @@
           <ul id="startupList" class="startup-list"></ul>
         </div>
       </details>
+
+      <!-- Fleet-wide desired placement (#354): which models should run on which
+           machine. Folded by default — a control surface, checked when you're
+           steering the fleet, not every visit. -->
+      <details class="card card--collapsible" id="fleetPlacementCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon" aria-hidden="true"><use href="#i-layers"></use></svg>
+            <h3 class="collapse-title">Fleet placement</h3>
+          </span>
+          <span class="collapse-actions">
+            <button id="fleetPlacementRefreshBtn" type="button" class="icon-header-btn" aria-label="Refresh fleet placement" title="Refresh"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg></button>
+            <span class="collapse-chevron" aria-hidden="true">›</span>
+          </span>
+        </summary>
+        <div class="collapse-body">
+          <p class="muted small">Which models should run on each machine across the fleet — toggle
+            a model on and the tower's reconcile loop starts it there (waking the machine if it's a
+            wake-capable satellite). An offline machine keeps its placement and applies it on power-up.
+            Desired state persists to <code>config/fleet_placement.json</code>.</p>
+          <div id="fleetPlacementBody" class="fleet-placement">
+            <div class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-server"></use></svg><p class="empty-state-message">Reading fleet placement…</p></div>
+          </div>
+          <p id="fleetPlacementStaleNote" class="muted small" role="status" aria-live="polite" hidden></p>
+        </div>
+      </details>
     </section>
 
     <section id="panePlayground" class="pane" hidden role="tabpanel">

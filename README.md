@@ -454,7 +454,17 @@ forwarded `/start` returns a benign `409` — so the periodic pass is safe to
 repeat forever and is strictly **additive**: it never stops a model you
 started by hand and didn't place.
 
-Drive it via the API (the Step 3 placement-grid UI is not built yet):
+Steer it from the **Fleet placement** card in the Models tab (#354): a
+per-machine grid over **every** configured fleet host, each model a switch —
+flip one on and the reconcile loop starts it there (waking a wake-capable
+satellite); an offline but manageable machine still shows its placement with an
+*"applies on power-up"* note rather than an error. Liveness is the same
+hub-independent TCP probe the Machines tab uses (*is the box on?*), so a
+**managed-only satellite that runs no hub** (`gaming`, `openclaw` — driven
+directly over SSH, no models registered) reads *online* honestly and is shown
+with a *"not placeable from here yet"* note instead of toggles that couldn't do
+anything. A host becomes placeable once it runs a hub and declares launchable
+models in `config/models.yaml`. Or drive the same API directly:
 
 ```bash
 # See desired placement + live per-host status (eligible / reachable / running)
@@ -678,7 +688,8 @@ local-llm-hub/
 │   │                         #   services / telemetry / code_usage / glossary /
 │   │                         #   hosts / machines / diagnostics
 │   └── static/               #   index.html + main.js + state.js + tabs.js + api.js +
-│                             #   hub.js + models.js + startup.js + playground.js + styles.css +
+│                             #   hub.js + models.js + startup.js + fleet_placement.js +
+│                             #   playground.js + styles.css +
 │                             #   manifest.webmanifest + icon-*.png/favicon.ico (generated
 │                             #   by scripts/gen_icons.py, committed)
 │       └── _vendored/icons/  #   Lucide icon sprite + icons.js helper (vendored from

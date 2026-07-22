@@ -899,6 +899,57 @@ h2 { display: flex; align-items: center; gap: 8px; }
 /* Section labels reuse .opt-group-title (playground's existing group-label
  * pattern) rather than a new one-off class. */
 
+/* ---------- Fleet placement card — per-machine desired state (#354) ----------
+ * The fleet-wide sibling of the Startup card: model rows reuse .startup-row /
+ * .startup-list and the vendored switch verbatim; only the per-host grouping
+ * (header + status chip + offline note) is new here. */
+.fleet-placement {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+.fleet-host + .fleet-host {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-muted);
+}
+.fleet-host-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.fleet-host-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--font-label);
+  font-weight: 600;
+}
+.fleet-host-name > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fleet-host-name .icon {
+  width: var(--icon-title);
+  height: var(--icon-title);
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.fleet-host-head .hub-live-status { flex-shrink: 0; }
+.fleet-host-note { margin: 6px 0 0; }
+/* The .startup-list under a host group has no extra top margin — the head +
+ * note already own the spacing above it. */
+.fleet-host .startup-list { margin-top: 2px; }
+.fleet-model-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 /* ---------- install panel rows ---------- */
 .install-row {
   display: grid;
