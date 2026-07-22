@@ -705,7 +705,8 @@ roles:
   #     fallback: [whisper]
   audio:
     transcribe:
-      model_id: whisper            # whisper-large-v3-turbo on :8090
+      model_id: parakeet           # parakeet-tdt-0.6b-v3 on the Mac ANE (#350)
+      fallback: [whisper]          # → whisper-large-v3-turbo on :8090 if parakeet is down (#348)
     translate:
       model_id: whisper_translate  # whisper-medium on :8091, eager CPU
     speech:

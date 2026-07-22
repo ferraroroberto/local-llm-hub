@@ -233,6 +233,7 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
 
     ctx = getattr(request.state, "obs_ctx", None)
     span = current_otel_span()
+    client = get_async_client()  # fetch once, reuse for every candidate
 
     last_http_exc: Optional[HTTPException] = None
     for idx, target in enumerate(chain):
@@ -240,7 +241,7 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
         try:
             return await _forward_to_candidate(
                 target, send, upstream_path, default_role, model_name,
-                ctx, span, connect_fast=not is_last,
+                ctx, span, client, connect_fast=not is_last,
             )
         except _BackendUnavailable as bu:
             last_http_exc = bu.http_exc
@@ -255,7 +256,7 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
 
 async def _forward_to_candidate(
     target: Model, send: dict, upstream_path: str, default_role: str,
-    model_name: str, ctx, span, *, connect_fast: bool,
+    model_name: str, ctx, span, client, *, connect_fast: bool,
 ) -> Response:
     """POST the prepared payload to one candidate backend and return its
     Response, or raise :class:`_BackendUnavailable` when the backend is down so
@@ -294,7 +295,7 @@ async def _forward_to_candidate(
         post_kwargs["content"] = send["content"]
 
     try:
-        upstream = await get_async_client().post(url, **post_kwargs)
+        upstream = await client.post(url, **post_kwargs)
     except _httpx.HTTPError as exc:
         raise _BackendUnavailable(_audio_upstream_error(exc, backend="whisper-server", port=port))
     if upstream.status_code in (502, 503, 504):
