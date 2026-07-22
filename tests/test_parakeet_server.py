@@ -70,9 +70,10 @@ def test_start_worker_returns_once_ready(monkeypatch):
     fake = _FakeProc(["loading model...\n", "READY\n"])
     monkeypatch.setattr(parakeet_server.subprocess, "Popen", lambda *a, **k: fake)
 
-    proc = parakeet_server._start_worker()
+    proc, out_q = parakeet_server._start_worker()
 
     assert proc is fake
+    assert out_q is not None
     assert not fake.terminated
 
 
