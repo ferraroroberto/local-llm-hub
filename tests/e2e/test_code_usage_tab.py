@@ -163,9 +163,12 @@ def test_vendor_toggle_changes_selector(page, admin_url):
         "document.querySelector('#cldVendorSeg button.active')?.dataset.vendor"
     )
     assert active_vendor == "codex", f"expected 'codex', got {active_vendor!r}"
-    # Per-vendor card is hidden when a single vendor is selected.
-    page.wait_for_timeout(1500)
-    assert page.locator("#cldVendorCard").is_hidden()
+    # Per-vendor card is hidden when a single vendor is selected. Condition
+    # wait, not a fixed sleep: the vendor-switch re-render sits behind the
+    # summary fetch, which cold-scans full multi-vendor history and overruns
+    # any fixed budget under host contention (issue #361 — same flake class
+    # as the pane switches, #177).
+    page.wait_for_selector("#cldVendorCard", state="hidden", timeout=PANE_TIMEOUT)
 
 
 def test_code_usage_tab_phone_screenshot(page, admin_url, browser_name):
