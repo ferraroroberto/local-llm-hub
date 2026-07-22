@@ -19,22 +19,33 @@ from .host_profile import resolve as resolve_host
 from .model_registry import Model
 
 
+def remote_base_url_for_host(host_id: Optional[str]) -> Optional[str]:
+    """Hub base URL of ``host_id`` (e.g. ``http://192.168.0.14:8000``, no
+    trailing slash, no ``/v1``) when it is remote relative to the active host —
+    ``None`` when ``host_id`` is empty, names the active host, or names a host
+    with no ``address`` configured.
+
+    Host-level analogue of :func:`remote_base_url` for admin calls addressed to
+    a *host* rather than a single model (e.g. the startup-profile API, #352).
+    """
+    if not host_id:
+        return None
+    active = resolve_host()
+    if host_id == active.id:
+        return None
+    owner = get_host(host_id)
+    if owner is None or not owner.address:
+        return None
+    return f"http://{owner.address}:{hub_port()}"
+
+
 def remote_base_url(model: Model) -> Optional[str]:
     """Owning host's hub base URL (e.g. ``http://192.168.0.14:8000``, no
     trailing slash, no ``/v1``) when ``model`` is remote relative to the
     active host — ``None`` when it's local (no ``host`` set, or it matches
     the active host) or when the owning host has no ``address`` configured.
     """
-    model_host = getattr(model, "host", None)
-    if not model_host:
-        return None
-    active = resolve_host()
-    if model_host == active.id:
-        return None
-    owner = get_host(model_host)
-    if owner is None or not owner.address:
-        return None
-    return f"http://{owner.address}:{hub_port()}"
+    return remote_base_url_for_host(getattr(model, "host", None))
 
 
 def remote_auth_token(owning_host_id: str) -> Optional[str]:

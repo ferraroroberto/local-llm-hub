@@ -16,12 +16,16 @@ can actually spawn).
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
+from app_web.admin_forward import forward_admin_request
 from src import startup_profile as sp
+from src.host_profile import get_host
+from src.host_profile import resolve as resolve_host
 from src.model_registry import local_models
+from src.remote_proxy import remote_auth_token, remote_base_url_for_host
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -46,8 +50,47 @@ def _eligible_models() -> List[Dict[str, Any]]:
     ]
 
 
+def _remote_target(host: Optional[str]) -> Optional[str]:
+    """Resolve ``host`` to a peer hub base URL to forward to, or ``None`` when
+    the request targets this (active) host and should be served locally (#352).
+
+    ``host`` absent or naming the active host → ``None`` (local). A known remote
+    host with an ``address`` → its hub base URL. An unknown host → 404; a known
+    host with no ``address`` (can't be reached) → 400.
+    """
+    if not host or host == resolve_host().id:
+        return None
+    if get_host(host) is None:
+        raise HTTPException(status_code=404, detail=f"unknown host {host!r}")
+    remote = remote_base_url_for_host(host)
+    if remote is None:
+        raise HTTPException(
+            status_code=400, detail=f"host {host!r} has no address configured"
+        )
+    return remote
+
+
+def _host_headers(host: str) -> Dict[str, str]:
+    token = remote_auth_token(host)
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
 @router.get("/api/startup-profile")
-async def get_startup_profile() -> Dict[str, Any]:
+async def get_startup_profile(host: Optional[str] = Query(None)) -> Dict[str, Any]:
+    """The addressed host's startup profile + eligible items.
+
+    ``?host=<id>`` targets a peer hub's profile (forwarded, #352); omitted or
+    self → this host's own profile and locally-launchable models, unchanged.
+    """
+    remote = _remote_target(host)
+    if remote is not None:
+        return await forward_admin_request(
+            remote,
+            "/admin/api/startup-profile",
+            method="GET",
+            headers=_host_headers(host),
+            unreachable_detail=f"host {host!r} unreachable",
+        )
     profile = sp.load_startup_profile()
     return {
         "profile": profile.as_dict(),
@@ -57,13 +100,25 @@ async def get_startup_profile() -> Dict[str, Any]:
 
 
 @router.patch("/api/startup-profile")
-async def patch_startup_profile(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Merge ``payload`` over the current profile, validate, and persist.
+async def patch_startup_profile(
+    payload: Dict[str, Any], host: Optional[str] = Query(None)
+) -> Dict[str, Any]:
+    """Merge ``payload`` over the addressed host's profile, validate, and persist.
 
-    Accepts a partial body — e.g. ``{"docker": false}`` or
-    ``{"models": [...]}`` — so a single toggle click never has to resend
-    the whole profile.
+    Accepts a partial body — e.g. ``{"docker": false}`` or ``{"models": [...]}``
+    — so a single toggle click never has to resend the whole profile. ``?host=``
+    forwards the write to a peer hub (#352); omitted or self writes locally.
     """
+    remote = _remote_target(host)
+    if remote is not None:
+        return await forward_admin_request(
+            remote,
+            "/admin/api/startup-profile",
+            method="PATCH",
+            headers=_host_headers(host),
+            json=payload,
+            unreachable_detail=f"host {host!r} unreachable",
+        )
     current = sp.load_startup_profile().as_dict()
     merged = {**current, **(payload or {})}
     try:
