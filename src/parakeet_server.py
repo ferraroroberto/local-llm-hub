@@ -51,15 +51,24 @@ DEFAULT_MODEL_ID = "parakeet"
 # wait; _start_worker previously blocked forever on a wedged CoreML load
 # (issue #297).
 STARTUP_DEADLINE_S = 60.0
+# Bound the per-request worker round-trip too. The startup wait was already
+# bounded (#297); the request path was not — and a subtler bug made every
+# request hang regardless: the startup ``_pump`` daemon keeps reading the
+# worker's stdout for its whole lifetime, so a direct ``proc.stdout.readline()``
+# in the request path raced that thread and blocked forever (the pump ate the
+# reply). Requests now read the worker's replies from the same pump queue, with
+# this deadline as a backstop so a genuinely wedged worker 504s, never hangs.
+TRANSCRIBE_DEADLINE_S = 120.0
 
 
 class _State:
     def __init__(self) -> None:
         self.proc: Optional[subprocess.Popen] = None
+        self.out_q: "Optional[queue.Queue[str]]" = None
         self.lock = asyncio.Lock()
 
 
-def _start_worker() -> subprocess.Popen:
+def _start_worker() -> "tuple[subprocess.Popen, queue.Queue[str]]":
     if not WORKER_BIN.exists():
         raise RuntimeError(
             f"ParakeetWorker binary missing at {WORKER_BIN} — "
@@ -115,7 +124,9 @@ def _start_worker() -> subprocess.Popen:
             break
 
     log.info("ParakeetWorker ready (pid=%s)", proc.pid)
-    return proc
+    # Hand the pump's queue back so the request path reads replies from it
+    # rather than contending with the still-running pump thread on stdout.
+    return proc, lines
 
 
 def _to_wav16k_mono(src: Path) -> Path:
@@ -134,7 +145,7 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         try:
-            state.proc = await asyncio.to_thread(_start_worker)
+            state.proc, state.out_q = await asyncio.to_thread(_start_worker)
         except Exception as exc:  # noqa: BLE001
             log.error("ParakeetWorker startup failed: %s", exc)
         try:
@@ -155,8 +166,9 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
         async with state.lock:
             if state.proc is None or state.proc.poll() is not None:
                 log.warning("worker not alive, restarting")
-                state.proc = await asyncio.to_thread(_start_worker)
+                state.proc, state.out_q = await asyncio.to_thread(_start_worker)
             proc = state.proc
+            out_q = state.out_q
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 raw_path = Path(tmpdir) / (file.filename or "upload.bin")
@@ -171,9 +183,16 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
                 def _roundtrip() -> str:
                     proc.stdin.write(str(wav_path) + "\n")
                     proc.stdin.flush()
-                    return proc.stdout.readline()
+                    # Read the reply from the pump queue, NOT proc.stdout
+                    # directly — the startup pump thread owns stdout for the
+                    # worker's lifetime, so a direct readline() here races it
+                    # and hangs. Bounded so a wedged worker 504s, never hangs.
+                    return out_q.get(timeout=TRANSCRIBE_DEADLINE_S)
 
-                line = await asyncio.to_thread(_roundtrip)
+                try:
+                    line = await asyncio.to_thread(_roundtrip)
+                except queue.Empty:
+                    raise HTTPException(504, "parakeet worker timed out — no response")
 
             if not line:
                 err = proc.stderr.read() if proc.stderr else ""
