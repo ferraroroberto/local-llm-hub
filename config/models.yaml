@@ -695,6 +695,14 @@ roles:
   agentic_heavy:
     model_id: gemma4_26b
     notes: "OpenClaw deep lane, transcripts, documents, translation, disfluency removal"
+  # Audio roles support an optional ordered `fallback:` list (issue #348): the
+  # hub's audio proxy tries `model_id` first, then each fallback in turn when a
+  # backend is unavailable (connection error / 502-503-504) — so STT never errors
+  # on a dead primary. A role with only `model_id` behaves exactly as before.
+  # Example (activated by the parakeet switch):
+  #   transcribe:
+  #     model_id: parakeet
+  #     fallback: [whisper]
   audio:
     transcribe:
       model_id: whisper            # whisper-large-v3-turbo on :8090

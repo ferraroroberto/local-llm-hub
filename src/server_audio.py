@@ -14,7 +14,7 @@ onto the parent hub app by ``server.py`` via ``include_router``.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
@@ -109,26 +109,77 @@ def _whisper_model_for_request(model_name: str, *, default_role: str) -> Optiona
     return whispers[0]
 
 
-async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) -> Response:
-    """Stream a multipart audio request through to a whisper backend.
+class _BackendUnavailable(Exception):
+    """Raised inside a single candidate attempt when that backend is *down* —
+    a connection error/timeout or an upstream 502/503/504 — so ``_proxy_audio``
+    can fail over to the next model in the role chain (#348). Carries the
+    HTTPException to surface if this turns out to be the last candidate."""
 
-    The whisper-server already speaks the OpenAI ``/v1/audio/*`` shape,
-    so we just forward the bytes + headers and pass the response back.
-    The hub's observability middleware records the request in the live
-    ring — that's the whole point of going through us instead of
-    hitting :8090 / :8091 directly.
+    def __init__(self, http_exc: HTTPException) -> None:
+        self.http_exc = http_exc
 
-    For ``audio_translate`` requests the raw-bytes path cannot be used:
-    whisper-server exposes exactly one inference endpoint
-    (``/v1/audio/transcriptions``), and it expects whisper.cpp's own
-    ``translate=true`` boolean rather than OpenAI's ``task=translate``
-    string field.  We therefore parse the multipart form, rewrite
-    ``task=translate`` → ``translate=true``, and POST to the backend's
-    real ``/v1/audio/transcriptions`` path — mirroring the logic the
-    lazy-load shim in ``whisper_translate_proxy.py`` already uses.
+
+# Role aliases a caller may send as ``model=`` to explicitly ask for the
+# failover chain; a *concrete* model id is honoured single-shot instead.
+_ROLE_ALIASES = {"audio_transcribe", "audio_translate"}
+
+
+def _whisper_chain_for_request(model_name: str, *, default_role: str) -> List[Model]:
+    """Ordered whisper-shaped candidates to try for this request (#348).
+
+    * An explicit **concrete** model (``model=whisper-vanilla``) → a one-element
+      chain: honour it exactly, never fail over. Preserves #128 — a caller that
+      picked ``whisper-vanilla`` to escape the glossary must not silently land
+      on turbo.
+    * The **role** path (no ``model``, or a role alias like ``audio_transcribe``)
+      → the configured ``roles.audio.<role>`` chain (``model_id`` + ``fallback``),
+      resolved via the registry so it can include remote/cross-enabled rows
+      (e.g. ``parakeet`` on the Mac).
+    * If the config chain is empty/unresolvable → the legacy local-only heuristic
+      (:func:`_whisper_model_for_request`), so nothing regresses.
     """
-    import httpx as _httpx
+    from .model_registry import audio_role_chain, resolve as _resolve_model
 
+    if model_name and model_name not in _ROLE_ALIASES:
+        m = _resolve_model(model_name)
+        if m and m.backend == "whisper" and m.port:
+            return [m]
+        # unresolvable / non-whisper explicit id → fall through to the role chain
+
+    role_key = "translate" if default_role == "audio_translate" else "transcribe"
+    chain: List[Model] = []
+    seen: set = set()
+    for mid in audio_role_chain(role_key):
+        m = _resolve_model(mid)
+        if m and m.backend == "whisper" and m.port and m.id not in seen:
+            seen.add(m.id)
+            chain.append(m)
+    if chain:
+        return chain
+
+    m = _whisper_model_for_request(model_name, default_role=default_role)
+    return [m] if m is not None else []
+
+
+async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) -> Response:
+    """Forward a multipart audio request to a whisper backend, failing over
+    across the role's model chain (#348).
+
+    The whisper-server already speaks the OpenAI ``/v1/audio/*`` shape, so we
+    forward the bytes/form and pass the response back — the point of going
+    through the hub (vs hitting :8090/:8091/:8098 directly) is the observability
+    ring. When the primary model's backend is *unavailable* (a connection
+    error/timeout or a 502/503/504), the request transparently retries the next
+    model in ``roles.audio.<role>`` instead of erroring — so a dead
+    ``parakeet@mac`` silently falls through to whisper, never a failed
+    dictation. A real client error (4xx) or a 200 is returned as-is.
+
+    For ``audio_translate`` the raw-bytes path can't be used: whisper-server
+    exposes a single inference endpoint (``/v1/audio/transcriptions``) and wants
+    whisper.cpp's ``translate=true`` boolean, not OpenAI's ``task=translate``.
+    The form is parsed+rewritten once up front; its file bytes are read into
+    ``files`` there, so the payload is safe to resend to each candidate.
+    """
     body = await request.body()
 
     # Peek the ``model`` field out of the multipart body to choose a
@@ -152,80 +203,110 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
     except Exception:  # noqa: BLE001
         pass
 
-    target = _whisper_model_for_request(model_name, default_role=default_role)
-    if target is None:
-        raise HTTPException(
-            status_code=503,
-            detail="no whisper backend enabled on this host",
-        )
+    chain = _whisper_chain_for_request(model_name, default_role=default_role)
+    if not chain:
+        raise HTTPException(status_code=503, detail="no whisper backend enabled on this host")
+
+    # Build the reusable upstream payload once — bytes-based, so it can be
+    # resent to each candidate without re-reading the request stream.
+    if default_role == "audio_translate":
+        # whisper-server exposes a single inference path and wants whisper.cpp's
+        # `translate=true` boolean, not OpenAI's `task=translate` string. Parse +
+        # rewrite via the shared helper (the lazy-load shim in
+        # whisper_translate_proxy.py calls the same one — issue #132).
+        try:
+            form = await request.form()
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"invalid multipart body: {exc}")
+        upload, data, files = await build_whisper_upstream_request(form)
+        if upload is None:
+            raise HTTPException(status_code=400, detail="missing required form field: file")
+        send = {"files": files, "data": data}
+        upstream_path = "/v1/audio/transcriptions"
+    else:
+        fwd_headers = {
+            k: v for k, v in request.headers.items()
+            if k.lower() in {"content-type", "accept"}
+        }
+        send = {"content": body, "headers": fwd_headers}
+        upstream_path = ctx_path
+
+    ctx = getattr(request.state, "obs_ctx", None)
+    span = current_otel_span()
+
+    last_http_exc: Optional[HTTPException] = None
+    for idx, target in enumerate(chain):
+        is_last = idx == len(chain) - 1
+        try:
+            return await _forward_to_candidate(
+                target, send, upstream_path, default_role, model_name,
+                ctx, span, connect_fast=not is_last,
+            )
+        except _BackendUnavailable as bu:
+            last_http_exc = bu.http_exc
+            if not is_last:
+                logger.warning(
+                    "🔁 audio failover: %s unavailable (%s) — trying next in chain",
+                    target.id, bu.http_exc.status_code,
+                )
+            continue
+    raise last_http_exc or HTTPException(status_code=503, detail="no audio backend answered")
+
+
+async def _forward_to_candidate(
+    target: Model, send: dict, upstream_path: str, default_role: str,
+    model_name: str, ctx, span, *, connect_fast: bool,
+) -> Response:
+    """POST the prepared payload to one candidate backend and return its
+    Response, or raise :class:`_BackendUnavailable` when the backend is down so
+    the caller can try the next model (#348). Records obs/OTel against the model
+    that actually served, and applies the #90 glossary to a 200 transcript."""
+    import httpx as _httpx
+
     port = target.port
     remote = remote_base_url(target)
 
-    ctx = getattr(request.state, "obs_ctx", None)
     if ctx is not None:
-        ctx.model = model_name
+        ctx.model = model_name or target.id
         ctx.backend = "whisper"
-
-    span = current_otel_span()
     if span is not None and hasattr(span, "set_attribute"):
         with safe_span("whisper_attrs"):
             span.set_attribute("gen_ai.system", "whisper")
             span.set_attribute("gen_ai.operation.name", default_role)
-            if model_name:
-                span.set_attribute("gen_ai.request.model", model_name)
+            span.set_attribute("gen_ai.request.model", model_name or target.id)
             span.set_attribute("whisper.port", int(port))
+            span.set_attribute("whisper.model_id", target.id)
     stash_trace_id_on_ctx(ctx, span)
 
-    if default_role == "audio_translate":
-        # whisper-server exposes a single inference path (/v1/audio/transcriptions)
-        # and uses whisper.cpp's own `translate=true` boolean, not OpenAI's
-        # `task=translate` string. Parse the multipart form, then bridge it to
-        # the upstream request via the shared helper (the lazy-load shim in
-        # whisper_translate_proxy.py calls the same helper — issue #132).
-        try:
-            form = await request.form()
-        except Exception as exc:
-            raise HTTPException(
-                status_code=400,
-                detail=f"invalid multipart body: {exc}",
-            )
-
-        upload, data, files = await build_whisper_upstream_request(form)
-        if upload is None:
-            raise HTTPException(
-                status_code=400,
-                detail="missing required form field: file",
-            )
-
-        upstream_url = f"{remote}/v1/audio/transcriptions" if remote else f"http://127.0.0.1:{port}/v1/audio/transcriptions"
-        try:
-            upstream = await get_async_client().post(
-                upstream_url, files=files, data=data,
-                headers=_remote_audio_headers(target) if remote else None,
-                timeout=300.0,
-            )
-        except _httpx.HTTPError as exc:
-            raise _audio_upstream_error(exc, backend="whisper-server", port=port)
+    base = remote if remote else f"http://127.0.0.1:{port}"
+    url = f"{base}{upstream_path}"
+    headers = dict(send.get("headers") or {})
+    if remote:
+        headers.update(_remote_audio_headers(target) or {})
+    # A dead primary should fail over fast (short connect); the last resort keeps
+    # a patient connect. Read stays long — a transcription can take a while.
+    timeout = _httpx.Timeout(4.0 if connect_fast else 30.0, read=300.0, write=60.0, pool=10.0)
+    post_kwargs: dict = {"headers": headers or None, "timeout": timeout}
+    if "files" in send:
+        post_kwargs["files"] = send["files"]
+        post_kwargs["data"] = send["data"]
     else:
-        upstream_url = f"{remote}{ctx_path}" if remote else f"http://127.0.0.1:{port}{ctx_path}"
-        headers = {
-            k: v for k, v in request.headers.items()
-            if k.lower() in {"content-type", "accept"}
-        }
-        if remote:
-            headers.update(_remote_audio_headers(target) or {})
-        try:
-            upstream = await get_async_client().post(
-                upstream_url, content=body, headers=headers, timeout=300.0
-            )
-        except _httpx.HTTPError as exc:
-            raise _audio_upstream_error(exc, backend="whisper-server", port=port)
+        post_kwargs["content"] = send["content"]
 
-    # Apply the committed transcription glossary (issue #90) to the
-    # transcript text before returning. Deterministic literal fixes for
-    # acoustically-strong errors recognition-level biasing can't solve
-    # (e.g. "cloud code" → "Claude Code"). Wrapped defensively: a broken
-    # glossary must never break the passthrough.
+    try:
+        upstream = await get_async_client().post(url, **post_kwargs)
+    except _httpx.HTTPError as exc:
+        raise _BackendUnavailable(_audio_upstream_error(exc, backend="whisper-server", port=port))
+    if upstream.status_code in (502, 503, 504):
+        raise _BackendUnavailable(HTTPException(
+            status_code=upstream.status_code,
+            detail=f"whisper backend {target.id} unavailable ({upstream.status_code})",
+        ))
+
+    # Apply the committed transcription glossary (issue #90) to a 200 transcript
+    # before returning. Deterministic literal fixes (e.g. "cloud code" →
+    # "Claude Code") for acoustically-strong errors biasing can't solve. Wrapped
+    # defensively: a broken glossary must never break the passthrough.
     out_content = upstream.content
     if upstream.status_code == 200:
         try:
@@ -234,9 +315,7 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
             rules = load_rules()
             if rules:
                 out_content = apply_to_response(
-                    upstream.content,
-                    upstream.headers.get("content-type"),
-                    rules,
+                    upstream.content, upstream.headers.get("content-type"), rules,
                 )
         except Exception:  # noqa: BLE001 — never let post-processing fail the proxy
             out_content = upstream.content
