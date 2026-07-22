@@ -65,6 +65,8 @@ hosts:
     # LAN address other hosts dial to reach this host's own hub (:8000) when
     # proxying to a model this host owns (`host: tower` in a models: row).
     address: 192.168.0.13
+    # Wired-NIC MAC used for Wake-on-LAN (#356) — WiFi WOL is unsupported.
+    mac: 34:5a:60:d3:59:53
     # glm is kept defined below as a candidate for ad-hoc bring-up, but is
     # out of the active rotation. To bring it up: add its id back to this
     # list and run `python -m src.install --fix`, or just launch
@@ -87,6 +89,8 @@ hosts:
     # proxying to a model this host owns (`host: mac-mini-m4`) — e.g. qwen,
     # parakeet. Mac-native TTS (mac_say) is a follow-up, not yet enrolled.
     address: 192.168.0.14
+    # Wired-NIC MAC used for Wake-on-LAN (#356) — WiFi WOL is unsupported.
+    mac: 1c:f6:4c:56:05:da
     # SSH login used for the remote-bootstrap/sync endpoints (#181) — not a
     # secret, just which account the forced-command key logs in as. The
     # private key itself lives outside git (LOCAL_LLM_HUB_SSH_KEY in .env).
@@ -111,6 +115,8 @@ hosts:
     # work as soon as OpenClaw is reachable — no key deploy needed (#311).
     address: 192.168.0.239
     ssh_user: openclaw
+    # No `mac:` — the laptop has no wired NIC, so Wake-on-LAN is impossible
+    # (#356/#357 recon).
     # Tailscale magic-DNS name — used for reachability + RDP when off-LAN.
     # This box is the tailnet node `asus-linux` (confirmed 2026-07-21).
     tailscale: asus-linux.tail1121fd.ts.net
@@ -139,6 +145,8 @@ hosts:
     icon: monitor
     address: 192.168.0.16
     ssh_user: gaming
+    # Wired-NIC MAC used for Wake-on-LAN (#356) — WiFi WOL is unsupported.
+    mac: d4:5d:64:d6:7e:a0
     tailscale: gaming-linux.tail1121fd.ts.net
     rdp:
       address: 192.168.0.16

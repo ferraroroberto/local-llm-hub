@@ -9,6 +9,10 @@ Machines tab.
   * ``POST /admin/api/machines/{id}/reboot`` and ``.../shutdown`` —
     destructive power actions over the hub user's own general SSH (#311). The
     active hub host is refused (it is the excluded destructive case).
+  * ``POST /admin/api/machines/{id}/wake`` — fire-and-forget Wake-on-LAN
+    (#356) for a machine with a configured ``mac``. Unlike reboot/shutdown
+    this legitimately targets a powered-down box, so it is not gated on
+    reachability — only on having a MAC and not being the hub's own host.
   * ``GET  /admin/api/machines/{id}/rdp`` — download a generated ``.rdp``
     launcher for the machine's Remote-Desktop action.
   * ``GET  /admin/api/machines/terminal/status`` — is the in-browser SSH
@@ -33,6 +37,7 @@ from starlette.responses import Response
 
 from src import machine_console, remote_bootstrap, ssh_terminal
 from src.host_profile import get_host, resolve
+from src.wake_on_lan import WakeOnLanError, send_wake
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -82,6 +87,34 @@ async def machine_shutdown(host_id: str) -> Dict[str, Any]:
     if not result["ok"]:
         raise HTTPException(status_code=502, detail=result["detail"])
     return result
+
+
+def _require_wake_target(host_id: str):
+    """Resolve a wake target or raise. Unlike reboot/shutdown, wake
+    legitimately targets a box that is powered down — no reachability
+    check — but it still refuses the hub's own host (waking a box the hub
+    is already running on is meaningless) and requires a configured `mac`."""
+    if host_id == resolve().id:
+        raise HTTPException(status_code=400, detail="refusing to wake the hub host")
+    host = get_host(host_id)
+    if host is None:
+        raise HTTPException(status_code=404, detail=f"unknown machine {host_id!r}")
+    if not host.mac:
+        raise HTTPException(status_code=400, detail=f"{host_id!r} has no MAC address configured for wake")
+    return host
+
+
+@router.post("/api/machines/{host_id}/wake")
+async def machine_wake(host_id: str) -> Dict[str, Any]:
+    """Fire-and-forget Wake-on-LAN (#356) — no confirmation loop, no
+    reachability polling; the caller only learns the packet was sent."""
+    host = _require_wake_target(host_id)
+    logger.info("🌅 /admin/api/machines/%s/wake", host_id)
+    try:
+        send_wake(host.mac)
+    except WakeOnLanError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"ok": True, "sent": True}
 
 
 @router.get("/api/machines/{host_id}/rdp")

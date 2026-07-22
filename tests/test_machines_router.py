@@ -94,7 +94,7 @@ def test_tower_is_the_hub_box_not_the_old_satellite():
 def test_actions_host_offers_nothing():
     host = get_host(resolve().id)
     acts = mc._actions_for(host, is_host=True)
-    assert acts == {"reboot": False, "shutdown": False, "rdp": False, "ssh_terminal": False}
+    assert acts == {"reboot": False, "shutdown": False, "rdp": False, "ssh_terminal": False, "wake": False}
 
 
 def test_actions_ssh_peer_offers_power_and_terminal():
@@ -104,7 +104,24 @@ def test_actions_ssh_peer_offers_power_and_terminal():
 
 def test_actions_gaming_offers_power_terminal_and_rdp():
     acts = mc._actions_for(get_host("gaming"), is_host=False)
-    assert acts == {"reboot": True, "shutdown": True, "ssh_terminal": True, "rdp": True}
+    assert acts == {"reboot": True, "shutdown": True, "ssh_terminal": True, "rdp": True, "wake": True}
+
+
+def test_actions_wake_true_only_for_mac_equipped_peers():
+    """openclaw has no `mac:` row (laptop, no wired NIC) — no wake action;
+    mac-mini-m4 and gaming both have one configured (#356)."""
+    assert mc._actions_for(get_host("openclaw"), is_host=False)["wake"] is False
+    assert mc._actions_for(get_host("mac-mini-m4"), is_host=False)["wake"] is True
+    assert mc._actions_for(get_host("gaming"), is_host=False)["wake"] is True
+
+
+def test_actions_wake_false_for_hub_host_even_with_mac():
+    """`tower` has a `mac:` row configured but is the active hub host in this
+    test environment — waking the box the hub already runs on is meaningless
+    (#356), so `wake` must be False when `is_host=True` regardless of MAC."""
+    host = get_host(resolve().id)
+    assert host.mac  # tower does carry a mac row
+    assert mc._actions_for(host, is_host=True)["wake"] is False
 
 
 # ------------------------------------------------------------ card runs_hub
@@ -339,6 +356,55 @@ def test_reboot_failure_bubbles_502(monkeypatch):
     monkeypatch.setattr(remote_bootstrap, "reboot_host", _fail)
     r = _client().post("/admin/api/machines/mac-mini-m4/reboot")
     assert r.status_code == 502, r.text
+
+
+# --------------------------------------------------------------- wake (#356)
+
+
+def test_wake_refuses_hub_host():
+    r = _client().post(f"/admin/api/machines/{resolve().id}/wake")
+    assert r.status_code == 400, r.text
+    assert "hub host" in r.json()["detail"]
+
+
+def test_wake_404_unknown_machine():
+    r = _client().post("/admin/api/machines/nope/wake")
+    assert r.status_code == 404, r.text
+
+
+def test_wake_400_for_mac_less_host():
+    # openclaw has no `mac:` row configured (laptop, no wired NIC).
+    r = _client().post("/admin/api/machines/openclaw/wake")
+    assert r.status_code == 400, r.text
+    assert "MAC" in r.json()["detail"]
+
+
+def test_wake_success_sends_configured_mac(monkeypatch):
+    import app_web.routers.machines as machines_router
+
+    captured = {}
+
+    def _fake_send_wake(mac, *args, **kwargs):
+        captured["mac"] = mac
+
+    monkeypatch.setattr(machines_router, "send_wake", _fake_send_wake)
+    r = _client().post("/admin/api/machines/mac-mini-m4/wake")
+    assert r.status_code == 200, r.text
+    assert r.json() == {"ok": True, "sent": True}
+    assert captured["mac"] == get_host("mac-mini-m4").mac
+
+
+def test_wake_send_failure_yields_clean_error_not_500(monkeypatch):
+    import app_web.routers.machines as machines_router
+    from src.wake_on_lan import WakeOnLanError
+
+    def _boom(mac, *args, **kwargs):
+        raise WakeOnLanError(f"failed to send wake packet for {mac!r}: [Errno 101] Network is unreachable")
+
+    monkeypatch.setattr(machines_router, "send_wake", _boom)
+    r = _client().post("/admin/api/machines/mac-mini-m4/wake")
+    assert r.status_code == 502, r.text
+    assert "failed to send wake packet" in r.json()["detail"]
 
 
 # ------------------------------------------------------------- terminal status

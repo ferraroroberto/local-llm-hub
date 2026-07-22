@@ -151,9 +151,10 @@ function renderActions(m, isStale) {
     if (rechecking) return 'Rechecking…';
     return base;
   };
-  function btn(action, iconName, label, available, danger, extraDisabled) {
+  function btn(action, iconName, label, available, danger, extraDisabled, extraClass) {
     const disabled = !available || extraDisabled;
-    return '<button type="button" class="ghost-btn machine-action' + (danger ? ' danger' : '') + '"'
+    return '<button type="button" class="ghost-btn machine-action' + (danger ? ' danger' : '')
+      + (extraClass ? ' ' + extraClass : '') + '"'
       + ' data-action="' + action + '"' + (disabled ? ' disabled' : '') + '>'
       + icon(iconName) + '<span>' + escapeHtml(label) + '</span></button>';
   }
@@ -163,6 +164,19 @@ function renderActions(m, isStale) {
     btn('reboot', 'rotate-ccw', powerLabel('reboot', 'Reboot'), a.reboot, true, disablePower),
     btn('shutdown', 'power', powerLabel('shutdown', 'Shut down'), a.shutdown, true, disablePower),
   ];
+  // Wake-on-LAN: the single action a powered-off machine can take, so it
+  // inverts the four above (which all need the machine already up) and is
+  // offered ONLY when the host is MAC-equipped (a.wake) and actually
+  // down/dormant. It is non-destructive — a magic packet, never a confirm —
+  // so it is not a danger button. Unlike the power actions it is NOT gated on
+  // freshness (isStale): sending a packet to a machine we last saw down is
+  // always safe. The recheck guard is the only in-flight lock, so a second
+  // click can't fire while the first wake is being confirmed. It spans the
+  // full rail on its own row (see .machine-action--wake) rather than sitting
+  // as a fifth unequal cell.
+  if (a.wake && (m.state === 'down' || m.state === 'dormant')) {
+    btns.push(btn('wake', 'power', rechecking ? 'Rechecking…' : 'Wake', true, false, rechecking, 'machine-action--wake'));
+  }
   return '<div class="machine-actions">' + btns.join('') + '</div>';
 }
 
@@ -332,6 +346,28 @@ async function downloadRdp(id, displayName) {
   }
 }
 
+// --------------------------------------------------------- wake-on-LAN
+/* Fire a magic packet at a powered-off machine, then mark it for recheck so
+ * the card shows "Rechecking…" until the next status read reflects the (hoped)
+ * boot. Non-destructive, so — unlike reboot/shutdown — there is no confirm
+ * dialog and no danger styling; the click goes straight to the endpoint. */
+async function wakeMachine(id, displayName) {
+  try {
+    await postJson('/admin/api/machines/' + encodeURIComponent(id) + '/wake', {});
+    toast('Wake packet sent to ' + displayName + '.', 'good');
+    state.machinesRecheckIds = Object.assign({}, state.machinesRecheckIds);
+    state.machinesRecheckIds[id] = true;
+    renderMachinesList();
+    fetchMachinesStatus();
+  } catch (exc) {
+    if (String(exc.message) === 'auth required') return;
+    // The wake endpoint returns a clean, user-safe detail (no-MAC / clean send
+    // failure), so surface it directly; fall back to a sanitized line if the
+    // throw carried no message.
+    toast(exc.message || 'Could not send the wake packet to ' + displayName + '.', 'error');
+  }
+}
+
 // --------------------------------------------------------- wiring
 function onMachinesListClick(ev) {
   const btn = ev.target.closest('button[data-action]');
@@ -348,6 +384,8 @@ function onMachinesListClick(ev) {
     openMachinesTerminal(id, displayName);
   } else if (action === 'rdp') {
     downloadRdp(id, displayName);
+  } else if (action === 'wake') {
+    wakeMachine(id, displayName);
   } else if (action === 'reboot' || action === 'shutdown') {
     openConfirm(id, displayName, action);
   }
