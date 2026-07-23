@@ -431,14 +431,16 @@ Mac's checkout before restarting it). An **out-of-sync** badge appears on
 the pill when the two hubs' `git_sha` (from `/admin/api/version`) differ —
 `sync` is the fix.
 
-When `mac_mini_sync` is `true` in **`config/startup_profile.json`** (see the
-committed **[template](config/startup_profile.example.json)** — the live file
-is gitignored, issue #304)
-(the default — toggle it off from the Models tab's **Startup** card), the
-Windows hub does this automatically on its own boot instead of waiting for
-a manual click: bootstrap if the Mac Mini is unreachable, sync if it's
-reachable but its `git_sha` doesn't match (issue #265). The Mac Mini's own
-hub skips this self-probe when it resolves as the active host.
+Automatic peer wake/sync on the tower's own boot is no longer a separate
+per-service toggle (the old `mac_mini_sync` flag was retired in #374). It is
+owned entirely by the **fleet reconcile loop** (see the next section): on boot,
+the loop wakes + syncs + starts every peer that carries fleet placement. A peer
+with **no** placement is deliberately left asleep (nothing to run means no
+reason to wake it) — the manual **Wake**/**Sync** buttons above stay available
+for that case, or place a model on it to have the loop take over. `git_sha`
+currency of an already-running peer is surfaced by the out-of-sync badge and
+fixed with the manual **Sync** button; the reconcile loop's own sync happens
+along the wake/bootstrap path when a peer is brought up cold.
 
 The Models tab tags every remote-owned tile with a small `on <host-id>`
 badge (e.g. `qwen3.5-9b` / `parakeet-tdt-0.6b-v3` both show `on
@@ -496,10 +498,13 @@ curl -s -X POST http://127.0.0.1:8000/admin/api/fleet-placement/reconcile
 ```
 
 Placing a model onto a machine that's powered *off* is remembered and applied
-when it next reports in. Toggling `mac_mini_sync` in the startup profile still
-works for a Mac Mini that carries **no** fleet placement; once it's placed, the
-reconcile loop owns its wake/sync (the generalization of the once-hardcoded
-Mac-Mini boot branch).
+when it next reports in. Since #374, `fleet_placement.json` is the **sole**
+cross-host source of truth for peer model placement: the reconcile loop owns all
+peer wake/sync uniformly (mac-mini, gaming, and any future satellite), so there
+is no longer a per-peer boot toggle to keep in sync with reality. `startup_profile.json`'s
+`models` list stays as each host's *own* materialized autostart — the reconcile
+write-through keeps a peer's copy in step with the tower's intent so it self-boots
+correctly even when the tower is down.
 
 ### Linux satellite lifecycle: systemd (#323)
 
@@ -916,14 +921,15 @@ Starts a resident system-tray icon (silent — no terminal window) that:
   `models` (default `[qwen35_4b, whisper, whisper_translate,
   whisper_vanilla, piper, orpheus]` — Qwen fast lane, both eager ASR slots
   plus the unbiased-detection whisper-vanilla escape hatch, fast Piper
-  speech, and expressive Orpheus speech), Docker + Langfuse if `docker` /
+  speech, and expressive Orpheus speech), and Docker + Langfuse if `docker` /
   `langfuse` are `true` (via the same `launch_stack()` the Services card's
-  manual launch button uses), and a Mac Mini wake/sync if `mac_mini_sync`
-  is `true` (bootstrap if unreachable, sync if reachable but out of date).
-  Toggle any item off from the Startup card, or hand-edit the JSON. A fresh
-  clone without that file yet falls back to `config/models.yaml`'s legacy
-  `tray.autostart_models` list for local models only (no Docker/Langfuse/Mac
-  Mini autostart until a profile has been saved once).
+  manual launch button uses). Peer wake/sync is *not* a startup-profile toggle
+  anymore (the `mac_mini_sync` flag was retired in #374) — it is owned by the
+  fleet reconcile loop, driven by `config/fleet_placement.json`. Toggle any item
+  off from the Startup card, or hand-edit the JSON. A fresh clone without that
+  file yet falls back to `config/models.yaml`'s legacy `tray.autostart_models`
+  list for local models only (no Docker/Langfuse autostart until a profile has
+  been saved once).
 - Lets you toggle any other enabled local model on/off from the
   **🧠 Models** submenu (multiple may run concurrently).
 - Surfaces the admin webapp via **🚀 Open admin** — same `:8000/admin/`

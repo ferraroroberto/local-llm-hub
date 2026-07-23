@@ -31,7 +31,7 @@ def test_falls_back_to_example_when_live_file_absent(tmp_path, monkeypatch):
     example = tmp_path / "startup_profile.example.json"
     example.write_text(json.dumps({
         "docker": False,
-        "mac_mini_sync": False,
+        "langfuse": False,
         "models": ["orpheus"],
     }), encoding="utf-8")
     monkeypatch.setattr(sp, "DEFAULT_PROFILE_PATH", tmp_path / "startup_profile.json")
@@ -39,7 +39,7 @@ def test_falls_back_to_example_when_live_file_absent(tmp_path, monkeypatch):
 
     profile = sp.load_startup_profile()
     assert profile.docker is False
-    assert profile.mac_mini_sync is False
+    assert profile.langfuse is False
     assert profile.models == ["orpheus"]
 
 
@@ -65,15 +65,38 @@ def test_loads_committed_shape(tmp_path, monkeypatch):
     target.write_text(json.dumps({
         "docker": False,
         "langfuse": True,
-        "mac_mini_sync": False,
+        "agentsview": False,
         "models": ["qwen35_4b", "piper"],
     }), encoding="utf-8")
     monkeypatch.setattr(sp, "DEFAULT_PROFILE_PATH", target)
     profile = sp.load_startup_profile()
     assert profile.docker is False
     assert profile.langfuse is True
-    assert profile.mac_mini_sync is False
+    assert profile.agentsview is False
     assert profile.models == ["qwen35_4b", "piper"]
+
+
+def test_legacy_mac_mini_sync_key_is_ignored(tmp_path, monkeypatch):
+    """A stale ``mac_mini_sync`` key from a pre-#374 live file loads cleanly and
+    is dropped — the toggle was retired (peer sync is reconcile-driven now), so
+    the field no longer exists on the profile and never round-trips on save."""
+    target = tmp_path / "startup_profile.json"
+    target.write_text(json.dumps({
+        "docker": True,
+        "langfuse": True,
+        "mac_mini_sync": True,   # legacy key that must not break the load
+        "models": ["piper"],
+    }), encoding="utf-8")
+    monkeypatch.setattr(sp, "DEFAULT_PROFILE_PATH", target)
+    profile = sp.load_startup_profile()
+    assert profile.models == ["piper"]
+    assert not hasattr(profile, "mac_mini_sync")
+    assert "mac_mini_sync" not in profile.as_dict()
+
+    # normalize (the save path) also ignores a lingering legacy key.
+    monkeypatch.setattr("src.model_registry.launchable_local_ids", lambda host=None: ["piper"])
+    clean = sp.normalize_profile({"mac_mini_sync": True, "models": ["piper"]})
+    assert "mac_mini_sync" not in clean.as_dict()
 
 
 def test_cache_busts_when_default_path_swapped(tmp_path, monkeypatch):
@@ -118,7 +141,7 @@ def test_save_writes_atomically_and_busts_cache(tmp_path, monkeypatch):
     # Prime the cache with the (missing-file) default.
     assert sp.load_startup_profile().models == []
 
-    saved = sp.save_startup_profile({"docker": False, "langfuse": True, "mac_mini_sync": True, "models": ["piper"]})
+    saved = sp.save_startup_profile({"docker": False, "langfuse": True, "models": ["piper"]})
     assert saved.docker is False
     assert saved.models == ["piper"]
 

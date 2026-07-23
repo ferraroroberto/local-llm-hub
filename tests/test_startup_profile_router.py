@@ -27,7 +27,7 @@ def _isolate_profile(monkeypatch, tmp_path, initial=None):
 
 def test_get_returns_profile_and_eligible_items(monkeypatch, tmp_path):
     _isolate_profile(monkeypatch, tmp_path, {
-        "docker": True, "langfuse": False, "mac_mini_sync": True,
+        "docker": True, "langfuse": False,
         "models": ["piper"],
     })
     client = TestClient(server_mod.app)
@@ -38,13 +38,14 @@ def test_get_returns_profile_and_eligible_items(monkeypatch, tmp_path):
     assert body["profile"]["langfuse"] is False
     assert body["profile"]["models"] == ["piper"]
     service_ids = {s["id"] for s in body["services"]}
-    assert service_ids == {"docker", "langfuse", "mac_mini_sync", "agentsview"}
+    # mac_mini_sync retired in #374 — peer sync is reconcile-driven now.
+    assert service_ids == {"docker", "langfuse", "agentsview"}
     assert isinstance(body["models"], list)
 
 
 def test_patch_merges_partial_payload(monkeypatch, tmp_path):
     target = _isolate_profile(monkeypatch, tmp_path, {
-        "docker": True, "langfuse": True, "mac_mini_sync": True,
+        "docker": True, "langfuse": True,
         "models": ["piper"],
     })
     client = TestClient(server_mod.app)
@@ -63,7 +64,7 @@ def test_patch_merges_partial_payload(monkeypatch, tmp_path):
 
 def test_patch_validates_model_ids_against_launchable_set(monkeypatch, tmp_path):
     _isolate_profile(monkeypatch, tmp_path, {
-        "docker": True, "langfuse": True, "mac_mini_sync": True, "models": [],
+        "docker": True, "langfuse": True, "models": [],
     })
     monkeypatch.setattr("src.model_registry.launchable_local_ids", lambda host=None: ["piper"])
     client = TestClient(server_mod.app)
@@ -73,7 +74,7 @@ def test_patch_validates_model_ids_against_launchable_set(monkeypatch, tmp_path)
 
 
 def test_patch_rejects_bad_shape(monkeypatch, tmp_path):
-    _isolate_profile(monkeypatch, tmp_path, {"docker": True, "langfuse": True, "mac_mini_sync": True, "models": []})
+    _isolate_profile(monkeypatch, tmp_path, {"docker": True, "langfuse": True, "models": []})
     client = TestClient(server_mod.app)
     r = client.patch("/admin/api/startup-profile", json={"models": "not-a-list"})
     assert r.status_code == 400
@@ -102,7 +103,7 @@ def _fake_remote(monkeypatch, base="http://10.0.0.9:8000", known=True):
 
 def test_get_host_self_is_served_locally(monkeypatch, tmp_path):
     _isolate_profile(monkeypatch, tmp_path, {
-        "docker": True, "langfuse": False, "mac_mini_sync": True, "models": ["piper"],
+        "docker": True, "langfuse": False, "models": ["piper"],
     })
     # No forward mock — if it tried to forward, it would fail.
     client = TestClient(server_mod.app)
