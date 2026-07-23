@@ -406,8 +406,10 @@ orpheus 2800 + whisper_translate 0 + whisper_vanilla 2000 = 6800 MB, against
 an 8192 MB ceiling (`vram_mb` in `config/models.yaml`, #375) — comfortably
 under, no capacity warning expected.
 
-The Windows hub's admin UI Services card shows a live Mac Mini reachability
-pill alongside Docker/Langfuse. Cross-host auth reuses `extra_allowlist` in
+The Windows hub's admin UI Services card shows a live reachability pill for
+every other hub-running peer (mac-mini-m4, gaming — any future satellite
+with a non-empty `enabled:` list appears automatically, #372) alongside
+Docker/Langfuse. Cross-host auth reuses `extra_allowlist` in
 `config/webapp_config.json` (per-machine, not committed) — each host's LAN
 IP is allowlisted on the other, the same bypass the bearer-token middleware
 already grants loopback callers.
@@ -432,13 +434,15 @@ For the case where the Mac's hub is fully dead (crashed before
 (`~/.ssh/local-llm-hub-remote-ctl`, path in `.env`'s
 `LOCAL_LLM_HUB_SSH_KEY`) — the Mac's `authorized_keys` restricts that key
 to `mac/bin/hub-remote-ctl.sh`, which only allows two verbs
-(`bootstrap` / `sync`), no general shell. The Services card's Mac Mini row
-gets a **Wake** button (visible when unreachable →
-`POST /admin/api/hosts/mac-mini-m4/bootstrap`) and a **Sync** button
-(visible when reachable → `.../sync`, which `git pull --ff-only`s the
-Mac's checkout before restarting it). An **out-of-sync** badge appears on
-the pill when the two hubs' `git_sha` (from `/admin/api/version`) differ —
-`sync` is the fix.
+(`bootstrap` / `sync`), no general shell. The Services card renders one row
+per hub-running peer (#372 generalized this from a hardcoded Mac-Mini-only
+row); each gets a **Wake** button (visible when unreachable →
+`POST /admin/api/hosts/<host-id>/bootstrap`) and a **Sync** button (visible
+when reachable → `.../sync`, which `git pull --ff-only`s that peer's
+checkout before restarting it — the Linux dispatcher, `linux/bin/hub-remote-ctl.sh`,
+gives `gaming` the same two verbs since #368). An **out-of-sync** badge
+appears on a peer's pill when the two hubs' `git_sha` (from
+`/admin/api/version`) differ — `sync` is the fix.
 
 Automatic peer wake/sync on the tower's own boot is no longer a separate
 per-service toggle (the old `mac_mini_sync` flag was retired in #374). It is

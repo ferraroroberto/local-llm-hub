@@ -56,7 +56,7 @@ def test_reachable_remote_starts_every_placed_model(monkeypatch, tmp_path):
     _stub_peer_transport(monkeypatch, calls)
     monkeypatch.setattr(fleet_placement, "load_fleet_placement",
                         lambda: {"mac-mini-m4": ["parakeet", "qwen"]})
-    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": True}))
+    monkeypatch.setattr(services, "peer_health", _async_ret({"reachable": True}))
 
     results = _run(fr.reconcile_once())
 
@@ -75,7 +75,7 @@ def test_unreachable_can_ssh_host_is_woken(monkeypatch, tmp_path):
     woke = {"woke": []}
     monkeypatch.setattr(fleet_placement, "load_fleet_placement",
                         lambda: {"mac-mini-m4": ["parakeet"]})
-    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": False}))
+    monkeypatch.setattr(services, "peer_health", _async_ret({"reachable": False}))
 
     async def fake_bootstrap(host_id):
         woke["woke"].append(host_id)
@@ -96,7 +96,7 @@ def test_woken_host_converges_in_same_pass(monkeypatch, tmp_path):
     _stub_wol(monkeypatch, [])
     monkeypatch.setattr(fleet_placement, "load_fleet_placement",
                         lambda: {"mac-mini-m4": ["parakeet"]})
-    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": False}))
+    monkeypatch.setattr(services, "peer_health", _async_ret({"reachable": False}))
     monkeypatch.setattr(remote_bootstrap, "bootstrap_host", _async_ret({"ok": True}))
 
     _run(fr.reconcile_once())
@@ -115,7 +115,7 @@ def test_unreachable_mac_host_gets_wol_then_bootstrap_same_pass(monkeypatch):
     bootstraps: list = []
     monkeypatch.setattr(fleet_placement, "load_fleet_placement",
                         lambda: {"mac-mini-m4": ["parakeet"]})
-    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": False}))
+    monkeypatch.setattr(services, "peer_health", _async_ret({"reachable": False}))
 
     async def fake_bootstrap(host_id):
         bootstraps.append(host_id)
@@ -138,7 +138,7 @@ def test_unreachable_macless_host_sends_no_wol(monkeypatch):
     _stub_wol(monkeypatch, sent)
     monkeypatch.setattr(fleet_placement, "load_fleet_placement",
                         lambda: {"openclaw": ["parakeet"]})  # no wired NIC, no mac
-    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": False}))
+    monkeypatch.setattr(services, "peer_health", _async_ret({"reachable": False}))
     monkeypatch.setattr(remote_bootstrap, "bootstrap_host", _async_ret({"ok": False}))
 
     results = _run(fr.reconcile_once())
@@ -155,7 +155,7 @@ def test_wol_send_failure_is_swallowed_and_pass_continues(monkeypatch):
     bootstraps: list = []
     monkeypatch.setattr(fleet_placement, "load_fleet_placement",
                         lambda: {"mac-mini-m4": ["parakeet"]})
-    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": False}))
+    monkeypatch.setattr(services, "peer_health", _async_ret({"reachable": False}))
 
     async def fake_bootstrap(host_id):
         bootstraps.append(host_id)
@@ -180,7 +180,7 @@ def test_empty_placement_host_is_skipped(monkeypatch):
         return {"reachable": True}
 
     monkeypatch.setattr(fleet_placement, "load_fleet_placement", lambda: {"mac-mini-m4": []})
-    monkeypatch.setattr(services, "mac_mini_health", health)
+    monkeypatch.setattr(services, "peer_health", health)
 
     results = _run(fr.reconcile_once())
     assert results == {}          # nothing placed → nothing converged
@@ -224,7 +224,7 @@ def test_unplace_local_stops_and_deprofiles(monkeypatch):
 def test_unplace_remote_stops_via_peer(monkeypatch):
     calls: list = []
     _stub_peer_transport(monkeypatch, calls)
-    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": True}))
+    monkeypatch.setattr(services, "peer_health", _async_ret({"reachable": True}))
 
     _run(fr.apply_placement_change("mac-mini-m4", ["parakeet", "qwen"], ["qwen"], "tower"))
 
@@ -237,7 +237,7 @@ def test_unplace_last_remote_model_deprofiles_peer(monkeypatch):
     # through (models: []) so the un-placed model can't resurrect on reboot.
     calls: list = []
     _stub_peer_transport(monkeypatch, calls)
-    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": True}))
+    monkeypatch.setattr(services, "peer_health", _async_ret({"reachable": True}))
 
     result = _run(fr.apply_placement_change("mac-mini-m4", ["parakeet"], [], "tower"))
 
@@ -252,7 +252,7 @@ def test_unplace_last_remote_model_soft_fails_when_peer_down(monkeypatch):
     # no wake/bootstrap attempt — the stale entry waits for the peer's return.
     calls: list = []
     _stub_peer_transport(monkeypatch, calls)
-    monkeypatch.setattr(services, "mac_mini_health", _async_ret({"reachable": False}))
+    monkeypatch.setattr(services, "peer_health", _async_ret({"reachable": False}))
 
     result = _run(fr.apply_placement_change("mac-mini-m4", ["parakeet"], [], "tower"))
 

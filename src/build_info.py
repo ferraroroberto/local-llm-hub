@@ -1,8 +1,9 @@
 """What commit is this process running? Single source of truth.
 
 Shared by `/admin/api/version` (own build identity) and
-`mac_mini_health()` (peer build identity comparison, #181) so both ask the
-same question the same way instead of computing it independently twice.
+`peer_health()` (peer build identity comparison, #181, generalized #372) so
+both ask the same question the same way instead of computing it
+independently twice.
 """
 
 from __future__ import annotations

@@ -132,15 +132,11 @@
               <button id="agentsviewStopBtn" type="button" class="icon-btn danger" hidden title="Stop" aria-label="Stop AgentsView"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg></button>
             </span>
           </div>
-          <div class="services-row" id="macMiniRow" hidden>
-            <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-signal"></use></svg>Mac Mini</span>
-            <span id="macMiniStatus" class="hub-live-status">
-              <span class="dot"></span><span id="macMiniStatusText">—</span>
-            </span>
-            <span id="macMiniDetail" class="muted small services-detail"></span>
-            <button id="macMiniWakeBtn" type="button" class="ghost-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Wake</button>
-            <button id="macMiniSyncBtn" type="button" class="ghost-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>Sync</button>
-          </div>
+          <!-- Peer rows (#372): one per hub-running peer (mac-mini-m4, gaming,
+               any future satellite), rendered by hub.js's renderPeerRows()
+               from /admin/api/services/status's `peers` list — generalized
+               from the old hardcoded single Mac Mini row. -->
+          <div id="peerRows"></div>
         </div>
         <div class="card-actions" id="servicesActions" hidden>
           <button id="servicesLaunchBtn" type="button" class="button-primary launch-btn"><svg class="icon" aria-hidden="true"><use href="#i-rocket"></use></svg>Launch Docker + Langfuse</button>

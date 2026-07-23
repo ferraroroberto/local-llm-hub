@@ -31,7 +31,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from src.host_profile import MAC_MINI_HOST_ID, HostProfile, hub_port
+from src.host_profile import HostProfile, hub_port
 from src.observability import langfuse_host
 
 logger = logging.getLogger(__name__)
@@ -211,10 +211,11 @@ async def remote_models(
         return None
 
 
-async def mac_mini_health(
-    host_id: str = MAC_MINI_HOST_ID, timeout_s: float = REMOTE_HUB_PROBE_TIMEOUT_S
+async def peer_health(
+    host_id: str, timeout_s: float = REMOTE_HUB_PROBE_TIMEOUT_S
 ) -> Dict[str, Any]:
-    """Probe the Mac Mini host's own hub `/health` endpoint (#179).
+    """Probe any hub-running peer host's own hub `/health` endpoint (#179,
+    generalized from the Mac-Mini-only original in #372).
 
     Clone of ``langfuse_health()``'s try/timeout shape, but the address
     comes from ``HostProfile.address`` (config/models.yaml) + ``hub_port()``
@@ -267,6 +268,35 @@ async def mac_mini_health(
         except Exception:  # noqa: BLE001 — version probe is best-effort
             pass
     return result
+
+
+async def hub_peers(active_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Every other hub-running host's reachability + build identity (#372).
+
+    Generalizes the old Mac-Mini-only Services-card probe into a peer list:
+    every declared host besides ``active_id`` that runs its own hub — has at
+    least one launchable local model, the same test the fleet placement grid
+    already applies per host row (``model_registry.hub_peer_ids``) — is
+    probed in parallel via :func:`peer_health`. Drives the Services card's
+    per-peer status/detail/Wake/Sync rows; a future satellite with a
+    non-empty ``enabled:`` list appears here automatically, no code change.
+    """
+    from src.host_profile import get_host, resolve as resolve_host
+    from src.model_registry import hub_peer_ids
+
+    active = active_id if active_id is not None else resolve_host().id
+    peer_ids = hub_peer_ids(active)
+
+    async def _one(host_id: str) -> Dict[str, Any]:
+        owner = get_host(host_id)
+        health = await peer_health(host_id)
+        return {
+            "host_id": host_id,
+            "display_name": (owner.display_name if owner else None) or host_id,
+            **health,
+        }
+
+    return list(await asyncio.gather(*(_one(hid) for hid in peer_ids)))
 
 
 # ---------------------------------------------------------------- launch

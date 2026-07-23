@@ -19,11 +19,11 @@ flowchart TB
   subgraph core["src/server.py — FastAPI hub (:8000)"]
     SRV["POST /v1/messages (Anthropic shape)\nPOST /v1/chat/completions (OpenAI shape)\nGET /v1/models · /health · /info\nGET / -> 307 /admin/"]
     CHATT["chat_translation.py\nschemas + media extraction + prompt flatten +\nper-backend dispatch (split out of server.py, issue #245)"]
-    LIFECYCLE["server_lifecycle.py\nstartup/shutdown hooks + resource sampler +\nstartup-profile autostart (backends/Docker/\nLangfuse/Mac-Mini-sync, issue #265) +\nfleet reconcile loop (boot + ~5min, issue #353)"]
-    REG["model_registry.py\nModel rows from config/models.yaml"]
+    LIFECYCLE["server_lifecycle.py\nstartup/shutdown hooks + resource sampler +\nstartup-profile autostart (backends/Docker/\nLangfuse, issue #265) +\nfleet reconcile loop (boot + ~5min, issue #353)"]
+    REG["model_registry.py\nModel rows from config/models.yaml +\nhub_peer_ids() (hub-running peers, #372)"]
     HOSTP["host_profile.py\nresolve active host"]
     OTELRECV["server_otel_receiver.py\nPOST /v1/metrics (OTLP receiver, issue #68)"]
-    SVC["services.py\nDocker/Langfuse probe + launch_stack,\nMac Mini health probe (issue #27)"]
+    SVC["services.py\nDocker/Langfuse probe + launch_stack,\npeer health probe (issue #27, generalized #372)"]
   end
   TRAY --> SRV
   RUNHUB --> SRV
@@ -54,7 +54,7 @@ flowchart TB
   SRV --> OTELRECV
   IMAGESR -->|call_gemini_image| GEMINICLI
 
-  subgraph multihost["Multi-host (Mac Mini, issue #181)"]
+  subgraph multihost["Multi-host (Mac Mini + gaming peers, issue #181/#372)"]
     REMOTEPROXY["remote_proxy.py\nresolve owning host's own base_url\nfor a model this host doesn't own"]
     REMOTEBOOT["remote_bootstrap.py\nSSH forced-command verbs: bootstrap/sync\n(dead peer hub, #181; OS-agnostic tower side —\nmac/ + linux/ bin/hub-remote-ctl.sh dispatchers, #368)\n+ general-SSH reboot/shutdown (#309/#311)"]
     MACHINECON["machine_console.py\nMachines-tab console (#309): host inventory\n+ per-machine card assembly + RDP gen"]
