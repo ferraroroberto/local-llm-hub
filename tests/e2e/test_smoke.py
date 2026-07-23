@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import re
 import time
+import uuid
 from pathlib import Path
 
 import httpx
@@ -250,24 +251,47 @@ def test_playground_tab_phone_screenshot(page, admin_url, browser_name):
 
 
 def test_live_request_ring(admin_url: str):
-    """A bad /v1/messages call must land in the live ring."""
+    """A bad /v1/messages call must land in the live ring.
+
+    Hardened for #392 (same flake class as #361): the old shape was a
+    fixed ``time.sleep(0.2)`` followed by asserting ``requests[0]`` was
+    our row — a fixed wait racing ring ingestion, plus an ordering
+    assumption. Under host contention (parallel e2e suites + live hub)
+    the autobooted hub's event loop can also be starved past the 5s
+    fast-path timeout this file uses elsewhere, so the POST and the
+    poll both get the 10s-class headroom already established for
+    slower-CI operations (#192).
+    """
     base = admin_url.rsplit("/admin/", 1)[0]
-    # Make a deliberately-bad request — unknown model name.
+    # Unique marker model so we match *our* row in the ring — never an
+    # ordering assumption on requests[0], never a stale row from an
+    # earlier run against the same session hub.
+    marker = f"e2e-live-ring-{uuid.uuid4().hex[:8]}"
     r = httpx.post(
         f"{base}/v1/messages",
-        json={"model": "definitely-not-a-real-model", "messages": [{"role": "user", "content": "hi"}]},
-        timeout=5.0,
+        json={"model": marker, "messages": [{"role": "user", "content": "hi"}]},
+        timeout=10.0,
     )
-    assert r.status_code == 400
-    # Give the ring a beat to ingest.
-    time.sleep(0.2)
-    r2 = httpx.get(admin_url.rstrip("/") + "/api/hub/requests/recent", timeout=5.0)
-    body = r2.json()
-    assert body["requests"], "request ring should not be empty"
-    first = body["requests"][0]
-    assert first["status"] == 400
-    assert first["model"] == "definitely-not-a-real-model"
-    assert first["latency_ms"] >= 0  # monotonic-clock duration is non-negative but can read 0.0 below clock resolution (coarse QPC ticks on CI Windows runners)
+    assert r.status_code == 400, r.text
+    # Condition-wait, not a fixed sleep: poll the ring until the marker
+    # row lands. A transient GET timeout under load retries within the
+    # same deadline instead of failing the test outright.
+    deadline = time.monotonic() + 10.0
+    row = None
+    last_body = None
+    while time.monotonic() < deadline:
+        try:
+            r2 = httpx.get(admin_url.rstrip("/") + "/api/hub/requests/recent", timeout=5.0)
+        except httpx.TimeoutException:
+            continue
+        last_body = r2.json()
+        row = next((q for q in last_body["requests"] if q["model"] == marker), None)
+        if row is not None:
+            break
+        time.sleep(0.2)
+    assert row is not None, f"marker {marker} never landed in the ring; last snapshot: {last_body}"
+    assert row["status"] == 400
+    assert row["latency_ms"] >= 0  # monotonic-clock duration is non-negative but can read 0.0 below clock resolution (coarse QPC ticks on CI Windows runners)
 
 
 def test_live_requests_stream_rolls_forward(page, admin_url):

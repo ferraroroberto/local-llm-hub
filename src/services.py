@@ -29,9 +29,8 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 from urllib.parse import urlparse
 
-import httpx
-
 from src.host_profile import HostProfile, hub_port
+from src.http_client import get_async_client
 from src.observability import langfuse_host
 
 logger = logging.getLogger(__name__)
@@ -157,8 +156,11 @@ async def langfuse_health(timeout_s: float = LANGFUSE_PROBE_TIMEOUT_S) -> Dict[s
     """
     host = langfuse_host()
     try:
-        async with httpx.AsyncClient(timeout=timeout_s) as client:
-            r = await client.get(f"{host}/api/public/health")
+        # Shared pooled client (#165/#392): a fresh AsyncClient builds an SSL
+        # context (~0.26 s on Windows, cert-store scan) *on the event loop* —
+        # the SPA polls this constantly, and those constructions stacked into
+        # multi-second loop stalls that tripped 5 s e2e httpx timeouts.
+        r = await get_async_client().get(f"{host}/api/public/health", timeout=timeout_s)
         return {
             "reachable": r.status_code < 500,
             "status_code": r.status_code,
@@ -198,12 +200,15 @@ async def remote_models(
     token = remote_auth_token(owner.id)
     headers = {"Authorization": f"Bearer {token}"} if token else None
     try:
-        async with httpx.AsyncClient(timeout=timeout_s) as client:
-            # local_only=true: two bidirectionally cross-enabled hosts would
-            # otherwise recurse into each other's /api/models forever.
-            r = await client.get(
-                f"{base}/admin/api/models", params={"local_only": "true"}, headers=headers
-            )
+        # local_only=true: two bidirectionally cross-enabled hosts would
+        # otherwise recurse into each other's /api/models forever.
+        # Shared pooled client — see langfuse_health() (#165/#392).
+        r = await get_async_client().get(
+            f"{base}/admin/api/models",
+            params={"local_only": "true"},
+            headers=headers,
+            timeout=timeout_s,
+        )
         if r.status_code >= 400:
             return None
         body = r.json()
@@ -238,8 +243,8 @@ async def peer_health(
         return {"reachable": False, "error": f"host {host_id!r} has no address configured", "address": None}
     base = f"http://{address}:{hub_port()}"
     try:
-        async with httpx.AsyncClient(timeout=timeout_s) as client:
-            r = await client.get(f"{base}/health")
+        # Shared pooled client — see langfuse_health() (#165/#392).
+        r = await get_async_client().get(f"{base}/health", timeout=timeout_s)
         result: Dict[str, Any] = {
             "reachable": r.status_code < 500,
             "status_code": r.status_code,
@@ -260,8 +265,7 @@ async def peer_health(
     result["git_sha_match"] = None
     if result["reachable"]:
         try:
-            async with httpx.AsyncClient(timeout=timeout_s) as client:
-                v = await client.get(f"{base}/admin/api/version")
+            v = await get_async_client().get(f"{base}/admin/api/version", timeout=timeout_s)
             remote_sha = v.json().get("git_sha") if v.status_code < 500 else None
             result["remote_git_sha"] = remote_sha
             result["git_sha_match"] = (
@@ -718,8 +722,8 @@ async def agentsview_health(
             "installed": installed,
         }
     try:
-        async with httpx.AsyncClient(timeout=timeout_s) as client:
-            r = await client.get(f"{host}/api/ping")
+        # Shared pooled client — see langfuse_health() (#165/#392).
+        r = await get_async_client().get(f"{host}/api/ping", timeout=timeout_s)
         body = r.json() if r.status_code < 500 else {}
         is_av = bool(body.get("ok")) and "agentsview" in str(body.get("service", ""))
         return {
