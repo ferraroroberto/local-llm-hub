@@ -19,7 +19,7 @@ cross-machine SSH/access details also live in the `life-os` `geek-out`
 | --- | --- | --- | --- | --- | --- | --- |
 | `tower` | The hub runs here; Windows workstation | Windows 11 | `192.168.0.13` | — (active host, never remote-powered) | `34:5a:60:d3:59:53` (Realtek 2.5GbE) | Ryzen 7 7800X3D · RTX 5060 Ti 16 GB · 128 GB RAM · hostname `tower` |
 | `mac-mini-m4` | Apple-silicon hub peer (owns `qwen3.5-9b`, `parakeet`) | macOS | `192.168.0.14` | `roberto` | `1c:f6:4c:56:05:da` | Apple M4 |
-| `openclaw` | Ubuntu laptop · future inference node | Ubuntu | `192.168.0.239` | `openclaw` | *(no wired NIC — Wi‑Fi only)* | GeForce MX250 |
+| `openclaw` | Ubuntu laptop · future inference node | Ubuntu | `192.168.0.11` | `openclaw` | *(no wired NIC — Wi‑Fi only)* | GeForce MX250 |
 | `gaming` | Ryzen inference satellite · STT/TTS offload (#323) | Ubuntu 24.04 (HWE, kernel 7.0) | `192.168.0.16` (static) | `gaming` | `d4:5d:64:d6:7e:a0` (`enp4s0`) | Ryzen 9 5900X · GeForce GTX 1070 8 GB (`nvidia-driver-535`, installed 2026-07-21) · 16 GB RAM (single stick) |
 
 All non-host machines carry a `sudoers.d/99-<user>-nopasswd` drop-in
@@ -78,11 +78,11 @@ Mechanically, waking a host sends a standard 102-byte magic packet (6 bytes of `
 ### Per-machine WOL status (as of 2026-07-22, from #357 remote-prep recon)
 
 - **`tower`** (Windows 11, hub host) — wired MAC `34:5a:60:d3:59:53` (Realtek 2.5GbE, link up). Tailscale service is Running/Automatic, but reboot-with-no-login verification is still pending. BIOS WOL + AC-restore are **not yet verified** — manual checklist tracked in #357.
-- **`mac-mini-m4`** (macOS, Apple silicon) — ethernet MAC `1c:f6:4c:56:05:da`; `pmset womp=1` and `autorestart=1` both set 2026-07-22. **Ethernet is currently unplugged** (box is on Wi‑Fi), so WOL is armed but inert until it's wired back in. Apple-silicon caveat: WOL only wakes from sleep, never from a full power-off — full-off recovery instead relies on "start up after power failure" (already enabled via `autorestart`).
+- **`mac-mini-m4`** (macOS, Apple silicon) — ethernet MAC `1c:f6:4c:56:05:da`; `pmset womp=1` and `autorestart=1` both set 2026-07-22. **Wired since 2026-07-23**: `en0` holds the reserved `192.168.0.14` (DHCP reservation is on this wired MAC), so WOL is live for wake-from-sleep; `en1` Wi‑Fi stays up as an unreserved fallback on a pool address. Apple-silicon caveat: WOL only wakes from sleep, never from a full power-off — full-off recovery instead relies on "start up after power failure" (already enabled via `autorestart`).
 - **`openclaw`** (Ubuntu laptop) — **no wired NIC exists** (Wi‑Fi only), so Wake-on-LAN isn't possible without a USB-ethernet adapter; no `mac:` is set in the registry. `tailscaled` is enabled.
 - **`gaming`** (Ubuntu 24.04) — **wired since 2026-07-23** (#383): `enp4s0`, MAC `d4:5d:64:d6:7e:a0`, 1 Gb/s full duplex, and the router's DHCP reservation hands it the same `192.168.0.16`. WOL is persistently enabled (`nmcli 802-3-ethernet.wake-on-lan magic` + `ethtool wol g`, set 2026-07-22) and now genuinely armed — a wake packet has a live NIC to land on. The USB Wi‑Fi dongle is parked (connection kept, `autoconnect no`) as a manual fallback only; `tailscaled` is enabled and rides whichever link is up. BIOS WOL / AC-restore are still unverified.
 
-**Pending manual items** — tracked in #357: BIOS-level WOL + AC-restore verification per box, plugging the wired ethernet cable into `mac-mini-m4` (`gaming` was wired 2026-07-23), and completing the reboot-with-no-login Tailscale proof on `tower`.
+**Pending manual items** — tracked in #357: BIOS-level WOL + AC-restore verification per box, and completing the reboot-with-no-login Tailscale proof on `tower`. (`gaming` and `mac-mini-m4` were both wired 2026-07-23.)
 
 ## Boot mode — Server (headless) default, Desktop (GUI) opt-in
 

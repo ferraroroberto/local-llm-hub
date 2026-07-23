@@ -58,7 +58,7 @@ def test_openclaw_has_ssh_and_rdp():
     h = get_host("openclaw")
     assert h is not None
     assert h.can_ssh is True  # address + ssh_user
-    assert h.rdp and h.rdp["address"] == "192.168.0.239"
+    assert h.rdp and h.rdp["address"] == "192.168.0.11"
     assert h.tailscale == "asus-linux.tail1121fd.ts.net"  # tailnet node (#335)
     assert h.dormant is False
 
@@ -242,7 +242,7 @@ def test_rdp_file_generated_for_peer_with_target():
     assert generated is not None
     filename, content = generated
     assert filename == "openclaw.rdp"
-    assert "full address:s:192.168.0.239" in content
+    assert "full address:s:192.168.0.11" in content
     assert "username:s:openclaw" in content
 
 
@@ -388,7 +388,7 @@ def test_rdp_endpoint_downloads_for_peer():
     r = _client().get("/admin/api/machines/openclaw/rdp")
     assert r.status_code == 200, r.text
     assert "attachment" in r.headers.get("content-disposition", "")
-    assert "full address:s:192.168.0.239" in r.text
+    assert "full address:s:192.168.0.11" in r.text
 
 
 def test_rdp_endpoint_404_for_host():
