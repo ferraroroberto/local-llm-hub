@@ -98,13 +98,45 @@ def test_actions_host_offers_nothing():
 
 
 def test_actions_ssh_peer_offers_power_and_terminal():
-    acts = mc._actions_for(get_host("mac-mini-m4"), is_host=False)
+    """A confirmed-reachable peer (``reachable=True``) gets the full set."""
+    acts = mc._actions_for(get_host("mac-mini-m4"), is_host=False, reachable=True)
     assert acts["reboot"] and acts["shutdown"] and acts["ssh_terminal"]
 
 
 def test_actions_gaming_offers_power_terminal_and_rdp():
-    acts = mc._actions_for(get_host("gaming"), is_host=False)
+    acts = mc._actions_for(get_host("gaming"), is_host=False, reachable=True)
     assert acts == {"reboot": True, "shutdown": True, "ssh_terminal": True, "rdp": True, "wake": True}
+
+
+# ------------------------------------------------------- actions: offline gating (#388)
+
+
+def test_actions_unreachable_peer_only_wake():
+    """A peer the TCP probe just found down (``reachable=False``) must gray
+    out every SSH/RDP action — they can only fail against a box nothing is
+    listening on. Wake survives, since that's the one action meant to reach
+    a box that's down. gaming has both SSH+RDP configured and a mac row, so
+    it exercises every field at once."""
+    acts = mc._actions_for(get_host("gaming"), is_host=False, reachable=False)
+    assert acts == {"reboot": False, "shutdown": False, "ssh_terminal": False, "rdp": False, "wake": True}
+
+
+def test_actions_unreachable_peer_without_mac_has_no_wake_either():
+    """openclaw has no `mac:` row — offline gating still leaves wake False,
+    matching 'only Wake enabled (when it has a mac)' from the issue."""
+    acts = mc._actions_for(get_host("openclaw"), is_host=False, reachable=False)
+    assert acts == {"reboot": False, "shutdown": False, "ssh_terminal": False, "rdp": False, "wake": False}
+
+
+def test_actions_reachable_none_gates_same_as_false():
+    """``reachable=None`` (dormant / no probe path / a probe error) must gate
+    identically to a confirmed-down peer — anything short of a confirmed-up
+    TCP probe disables the SSH/RDP actions. Also the default, so callers
+    that omit ``reachable`` entirely stay gated rather than fail open."""
+    acts_none = mc._actions_for(get_host("gaming"), is_host=False, reachable=None)
+    acts_default = mc._actions_for(get_host("gaming"), is_host=False)
+    acts_false = mc._actions_for(get_host("gaming"), is_host=False, reachable=False)
+    assert acts_none == acts_default == acts_false
 
 
 def test_actions_wake_true_only_for_mac_equipped_peers():
@@ -141,6 +173,65 @@ def test_card_runs_hub_false_for_managed_only_machines():
     this hub. gaming graduated to a hub-running voice-pair satellite (#323)."""
     assert mc._card_base(get_host("openclaw"), is_host=False)["runs_hub"] is False
     assert mc._card_base(get_host("gaming"), is_host=False)["runs_hub"] is True
+
+
+# --------------------------------------------------- _probe_machine card wiring (#388)
+
+
+def test_probe_machine_offline_peer_grays_every_action_but_wake(monkeypatch):
+    """End-to-end through `_probe_machine`: a peer the TCP probe reports down
+    gets `state: "down"` and every SSH/RDP action disabled — only wake (mac
+    is configured on gaming) survives."""
+    async def _unreachable(host):
+        return False
+
+    monkeypatch.setattr(mc.remote_stats, "is_reachable", _unreachable)
+    card = _run(mc._probe_machine(get_host("gaming"), "tower"))
+    assert card["state"] == "down"
+    assert card["actions"] == {
+        "reboot": False, "shutdown": False, "ssh_terminal": False, "rdp": False, "wake": True,
+    }
+
+
+def test_probe_machine_online_peer_keeps_full_actions(monkeypatch):
+    """An online peer is unaffected by the new gating — full action set."""
+    async def _reachable(host):
+        return True
+
+    async def _fake_collect(host):
+        return {"uptime_seconds": 42}
+
+    monkeypatch.setattr(mc.remote_stats, "is_reachable", _reachable)
+    monkeypatch.setattr(mc.remote_stats, "collect", _fake_collect)
+    card = _run(mc._probe_machine(get_host("gaming"), "tower"))
+    assert card["state"] == "up"
+    assert card["actions"] == {
+        "reboot": True, "shutdown": True, "ssh_terminal": True, "rdp": True, "wake": True,
+    }
+
+
+def test_probe_machine_dormant_peer_grays_every_action_but_wake():
+    """A dormant node is never live-probed but must gate identically to a
+    confirmed-down peer — only wake, when mac-equipped."""
+    host = HostProfile(
+        id="sleeper", platform="linux", enabled=[], dormant=True, mac="aa:bb:cc:dd:ee:ff",
+    )
+    card = _run(mc._probe_machine(host, "tower"))
+    assert card["state"] == "dormant"
+    assert card["actions"] == {
+        "reboot": False, "shutdown": False, "ssh_terminal": False, "rdp": False, "wake": True,
+    }
+
+
+def test_probe_machine_this_machine_unchanged(monkeypatch):
+    """The active hub host still offers nothing, regardless of #388."""
+    monkeypatch.setattr(mc.system_stats, "gpu_stats", lambda: [])  # skip nvidia-smi
+    active_id = resolve().id
+    card = _run(mc._probe_machine(get_host(active_id), active_id))
+    assert card["state"] == "self"
+    assert card["actions"] == {
+        "reboot": False, "shutdown": False, "rdp": False, "ssh_terminal": False, "wake": False,
+    }
 
 
 # ------------------------------------------------------------------------ RDP
