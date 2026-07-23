@@ -170,6 +170,12 @@ class PiperEngine(TTSEngine):
 
     def __init__(self, model: Model, device: str = "auto") -> None:
         self.model_row = model
+        # `device` (config's `--device` arg, if any) is accepted for interface
+        # parity with the other TTS engines but deliberately ignored: piper's
+        # standalone VITS binary is CPU-only by design — light enough it never
+        # needed GPU, unlike chatterbox/orpheus/kokoro's resolve_device() path
+        # (see .common.resolve_device). Config carries no `--device` arg for
+        # this row (#371) since there is nothing here for it to steer.
         self.device_arg = device
         self.device = "cpu"
         self.binary = self._default_binary()
@@ -211,7 +217,7 @@ class PiperEngine(TTSEngine):
             )
         self.default_model = model_path
         self.sample_rate = self._read_sample_rate(config_path)
-        self.device = "cpu"
+        self.device = "cpu"  # always — see the __init__ note on device_arg
         self._out_dir = Path(tempfile.mkdtemp(prefix="piper-resident-"))
         # Tie resident children to a kill-on-close job so a TerminateProcess on
         # this backend (the hub's stop path) can't leak piper.exe processes.

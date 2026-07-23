@@ -650,9 +650,9 @@ models:
     tts_engine: piper
     port: 8096
     model_path: "models/piper/en_US-amy-medium.onnx"
-    args:
-      - "--device"
-      - "cpu"
+    # No `--device` arg: piper.py hardcodes CPU unconditionally (#371) — the
+    # standalone binary is lightweight enough it never needed GPU, unlike
+    # chatterbox/orpheus/kokoro's resolve_device() path below.
 
   # --- Local Orpheus TTS (3B) — llama.cpp GGUF + SNAC decoder ---
   # Expressive on-demand speech. Orpheus is an LLM-based TTS (Llama-3B

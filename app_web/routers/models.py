@@ -7,7 +7,7 @@ import io
 import logging
 import time
 import wave
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 
@@ -124,6 +124,9 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
     do a single netstat snapshot up front instead of one per backend —
     O(N) → O(1) subprocesses, O(N) → O(0.5 s) wall time when all
     backends are alive.
+
+    A reachable TTS row also gets a second, equally-fanned-out probe for
+    its resolved ``device`` (cuda/cpu/mps) — see ``_probe_device`` below.
     """
     active = resolve_host()
     all_enabled = list(enabled_models())
@@ -148,8 +151,27 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
 
     reach_results = await asyncio.gather(*(_probe_reach(m) for m in local_models))
 
+    async def _probe_device(m: Model, reachable: bool) -> Optional[str]:
+        # TTS backends resolve a real device (cuda/cpu/mps) at load time and
+        # report it on their own /health (tts_server.py's state.device) —
+        # other backends have no comparable concept. Only probe a row that's
+        # already known-reachable, and only trust a fully-resolved value: a
+        # backend still loading reports its raw "auto" arg, and surfacing
+        # that would be actively misleading — omit rather than guess wrong.
+        if not reachable or m.backend != "tts":
+            return None
+        body = await asyncio.to_thread(bp.probe_health, m, 0.4)
+        dev = body.get("device") if isinstance(body, dict) else None
+        if isinstance(dev, str) and dev.strip().lower() in ("cpu", "cuda", "mps"):
+            return dev.strip().lower()
+        return None
+
+    device_results = await asyncio.gather(
+        *(_probe_device(m, reachable) for m, reachable in zip(local_models, reach_results))
+    )
+
     rows: List[Dict[str, Any]] = []
-    for m, reachable in zip(local_models, reach_results):
+    for m, reachable, device in zip(local_models, reach_results, device_results):
         # Virtual aliases share an existing backend's port and own no process,
         # so they're reachable but never independently start/stop-able.
         controllable = m.backend in ("openai", "whisper", "tts") and not m.virtual
@@ -157,23 +179,24 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
         pid: Any = None
         if controllable:
             own, pid = _ownership_from_snapshot(m, listening)
-        rows.append(
-            {
-                "id": m.id,
-                "display_name": m.display_name,
-                "backend": m.backend,
-                "engine": m.engine,
-                "port": m.port,
-                "url": m.url,
-                "aliases": list(m.aliases or []),
-                "controllable": controllable,
-                "ownership": own,
-                "pid": pid,
-                "reachable": bool(reachable),
-                "model_path": m.model_path,
-                "host": active.id,
-            }
-        )
+        row: Dict[str, Any] = {
+            "id": m.id,
+            "display_name": m.display_name,
+            "backend": m.backend,
+            "engine": m.engine,
+            "port": m.port,
+            "url": m.url,
+            "aliases": list(m.aliases or []),
+            "controllable": controllable,
+            "ownership": own,
+            "pid": pid,
+            "reachable": bool(reachable),
+            "model_path": m.model_path,
+            "host": active.id,
+        }
+        if device:
+            row["device"] = device
+        rows.append(row)
 
     if local_only:
         return {"models": rows}
