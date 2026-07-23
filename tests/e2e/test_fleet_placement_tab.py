@@ -28,6 +28,7 @@ FAKE_PLACEMENT = {
             "eligible": [
                 {"id": "whisper", "display_name": "Whisper Turbo"},
                 {"id": "qwen35_4b", "display_name": "Qwen3.5 4B"},
+                {"id": "piper", "display_name": "Piper TTS", "device": "cpu"},
             ],
             "placed": ["whisper"], "running": ["whisper"],
         },
@@ -92,7 +93,12 @@ def test_fleet_placement_renders_host_groups(page, admin_url):
     assert "This machine" in tower.locator(".hub-live-status").inner_text()
     # Placed + running → the running badge; every eligible model has a switch.
     assert tower.locator(".startup-row", has_text="Whisper Turbo").locator(".badge.good").count() == 1
-    assert tower.locator("button.toggle[role='switch']").count() == 2
+    assert tower.locator("button.toggle[role='switch']").count() == 3
+
+    # A statically CPU-resident model (piper) carries the 'cpu' device hint
+    # (#387); a GPU-backed model (whisper) does not.
+    assert "cpu" in tower.locator(".startup-row", has_text="Piper TTS").inner_text().lower()
+    assert "cpu" not in tower.locator(".startup-row", has_text="Whisper Turbo").inner_text().lower()
 
     mac = page.locator(".fleet-host", has_text="Mac Mini M4")
     assert "Offline" in mac.locator(".hub-live-status").inner_text()
