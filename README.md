@@ -528,22 +528,51 @@ is no longer a per-peer boot toggle to keep in sync with reality. `startup_profi
 write-through keeps a peer's copy in step with the tower's intent so it self-boots
 correctly even when the tower is down.
 
-### Linux satellite lifecycle: systemd (#323)
+### Linux satellite lifecycle: systemd (#323, #368)
 
 A headless Linux satellite (`gaming`, later `openclaw`) has no
 tray-equivalent and no LaunchAgent — a **systemd unit** fills that role,
 the counterpart to `tray.bat` on Windows and the LaunchAgent on macOS. The
 template lives at `linux/systemd/local-llm-hub.service`: it runs the
 existing `run_hub.sh` under `Restart=always` and enables at boot with no
-login required (`WantedBy=multi-user.target`). It is installed and live on
-`gaming` (which serves whisper + orpheus since #323, plus whisper_translate +
-whisper_vanilla since #370) but still has no
-`install.py --fix` path — the file's header carries the two-placeholder
-`sed`-and-`enable` install steps, and the Linux install/sync parity gap is
-tracked as a follow-up. Unlike launchd's respawn-on-any-signal
-quirk, systemd honours a commanded `systemctl stop`, so the stop story is
-simpler than the Mac's `bootout` dance — no admin-endpoint plumbing is
-wired for it (a deferred follow-up on #323).
+login required (`WantedBy=multi-user.target`).
+
+Since #368 the Linux peer has **full lifecycle parity** with the Mac:
+
+- **`install.py` fix** — `python -m src.install` on a Linux box checks the
+  systemd unit (`is-active`/`is-enabled`) and the GPU (`nvidia-smi`); `--fix`
+  renders the template's two placeholders, writes it to
+  `/etc/systemd/system/` via `sudo -n tee`, then `daemon-reload` +
+  `enable --now` (the systemd analogue of `_fix_launchagent`). Passwordless
+  sudo is a prerequisite (see `docs/machines.md`); `sudo -n` fails fast with a
+  clear message if it is missing rather than hanging on a prompt.
+- **Remote bootstrap/sync** — `linux/bin/hub-remote-ctl.sh` is the systemd
+  counterpart to `mac/bin/hub-remote-ctl.sh`, wired to the **same
+  forced-command SSH key** (below). `sync` = `git pull --ff-only` +
+  `./.venv/bin/python -m pip install -q -r requirements.txt` +
+  `systemctl restart`; `bootstrap` = the same, tolerant of a
+  dead/never-started unit (`restart`, falling back to `start`). So
+  `POST /admin/api/hosts/gaming/{bootstrap,sync}` and the reconcile loop's
+  wake→bootstrap chain (#364) work on any systemd satellite, not just the Mac.
+- **Admin stop/restart** — `POST /admin/api/hub/{stop,restart}` drive
+  `systemctl stop`/`restart` when the hub detects it is running under systemd
+  (`INVOCATION_ID` set). This is necessary because `Restart=always` would
+  respawn a bare self-SIGTERM — a *deliberate* stop must go through systemd,
+  the same reason the Mac's stop goes through `launchctl bootout`.
+
+**Forced-command `authorized_keys` line (Linux peer).** The dedicated
+automation key's entry in the satellite's `~/.ssh/authorized_keys` pins the
+command exactly as the Mac's does — the key can only run the dispatcher, never
+a shell:
+
+```
+command="/home/<user>/local-llm-hub/linux/bin/hub-remote-ctl.sh",no-port-forwarding,no-x11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... local-llm-hub-remote-ctl
+```
+
+(On `gaming` the checkout is at `/home/gaming/local-llm-hub`, so the path is
+`/home/gaming/local-llm-hub/linux/bin/hub-remote-ctl.sh`.) The script assumes
+the repo lives at `~/local-llm-hub` — the same convention the Mac dispatcher
+uses.
 
 ### Machines console (#309)
 
@@ -564,8 +593,9 @@ Every reachable machine shows the **same** snapshot — CPU / RAM / GPU / disk
   hub user's **own** passwordless SSH (a read-only one-liner, per-OS). A node
   flagged `dormant` is shown but not live-probed (none at present). All peer actions —
   read-only observability *and* reboot/shutdown — go over that general SSH
-  (plus TCP for liveness); the forced-command key is reserved for the Mac
-  Mini's hub-lifecycle `bootstrap`/`sync` (#181).
+  (plus TCP for liveness); the forced-command key is reserved for the
+  hub-lifecycle `bootstrap`/`sync` (#181/#368) on the model-serving peers
+  (Mac Mini and `gaming`, each running its own dispatcher script).
 
 **Reboot / shutdown (destructive, peers only).** Any peer with an SSH channel
 (`address` + `ssh_user`) offers **Reboot** and **Shut down** actions; the

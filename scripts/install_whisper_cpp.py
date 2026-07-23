@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import platform
 import shutil
 import subprocess
@@ -23,7 +24,14 @@ from pathlib import Path
 from typing import List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _lib import InstallError, download, extract, flatten_if_nested, no_window_flags  # noqa: E402
+from _lib import (  # noqa: E402
+    InstallError,
+    detect_cuda_arch,
+    download,
+    extract,
+    flatten_if_nested,
+    no_window_flags,
+)
 
 log = logging.getLogger(__name__)
 
@@ -78,6 +86,29 @@ def already_installed() -> bool:
         if attempt < 2:
             time.sleep(1.5)
     return False
+
+
+def _linux_cuda_build_hint() -> str:
+    """A reproducible from-source CUDA build recipe for a Linux satellite.
+
+    Upstream ships no prebuilt Linux CUDA whisper-server; gaming's sm_61 build
+    was compiled by hand (#368). Rather than an untested automated compile,
+    surface the exact commands with the arch defaulted to this host's detected
+    GPU (override via ``LOCAL_LLM_HUB_CUDA_ARCH``). Pinned tag matches the
+    Windows/macOS vendored line. The automated build itself is a follow-up.
+    """
+    arch = os.environ.get("LOCAL_LLM_HUB_CUDA_ARCH") or detect_cuda_arch() or "61"
+    return (
+        "no prebuilt whisper.cpp asset for Linux — build from source with CUDA.\n"
+        f"target GPU arch: sm_{arch} (override via LOCAL_LLM_HUB_CUDA_ARCH). "
+        "Reproducible build (run on the satellite; not yet automated — #368):\n"
+        f"  git clone --branch {PINNED_TAG} --depth 1 "
+        "https://github.com/ggml-org/whisper.cpp /tmp/whisper.cpp\n"
+        "  cmake -S /tmp/whisper.cpp -B /tmp/whisper.cpp/build "
+        f"-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES={arch} -DWHISPER_BUILD_SERVER=ON\n"
+        "  cmake --build /tmp/whisper.cpp/build --config Release -j --target whisper-server\n"
+        f"  cp /tmp/whisper.cpp/build/bin/whisper-server {VENDOR_DIR}/"
+    )
 
 
 def _fetch_release() -> dict:
@@ -182,6 +213,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     elif already_installed():
         log.info("whisper.cpp already installed at %s", _server_binary())
         return 0
+
+    if sys.platform.startswith("linux"):
+        # A hand-built binary already present is caught by already_installed()
+        # above; reaching here means it's missing (or --force purged it) and
+        # must be compiled from source.
+        raise InstallError(_linux_cuda_build_hint())
 
     release = _fetch_release()
     tag = release.get("tag_name", "?")

@@ -37,6 +37,25 @@ def no_window_flags() -> int:
     return subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
+def detect_cuda_arch() -> str:
+    """The host GPU's CUDA compute capability as a bare arch (e.g. ``61`` for a
+    GTX 1070's sm_61), from ``nvidia-smi --query-gpu=compute_cap``. Empty string
+    if nvidia-smi is absent/unreadable — the caller supplies a default. Used by
+    the Linux from-source build hints (#368), where the vendored-release path
+    upstream ships for Windows/macOS has no Linux equivalent.
+    """
+    try:
+        r = subprocess.run(
+            ["nvidia-smi", "--query-gpu=compute_cap", "--format=csv,noheader"],
+            capture_output=True, text=True, timeout=10, creationflags=no_window_flags(),
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip().splitlines()[0].strip().replace(".", "")
+    except Exception:  # noqa: BLE001 — best-effort probe
+        pass
+    return ""
+
+
 def download(url: str, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     log.info("downloading %s", url)
