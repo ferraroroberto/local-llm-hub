@@ -55,7 +55,7 @@ export const state = {
   // Services card — Docker + Langfuse status (issue #27).
   services: null,
   servicesLaunching: false,
-  macMiniBusy: false,   // wake/sync in flight (#181)
+  peerBusyIds: {},   // host_id -> true while that peer's wake/sync is in flight (#181, generalized #372)
   agentsviewBusy: false,   // AgentsView start/stop in flight (#280, #284)
   dockerBusy: false,   // Docker Desktop start/stop in flight (#284)
   langfuseBusy: false,   // Langfuse stack start/stop in flight (#284)
@@ -140,12 +140,7 @@ export const els = {
   agentsviewDetail: document.getElementById('agentsviewDetail'),
   agentsviewStartBtn: document.getElementById('agentsviewStartBtn'),
   agentsviewStopBtn: document.getElementById('agentsviewStopBtn'),
-  macMiniRow: document.getElementById('macMiniRow'),
-  macMiniStatus: document.getElementById('macMiniStatus'),
-  macMiniStatusText: document.getElementById('macMiniStatusText'),
-  macMiniDetail: document.getElementById('macMiniDetail'),
-  macMiniWakeBtn: document.getElementById('macMiniWakeBtn'),
-  macMiniSyncBtn: document.getElementById('macMiniSyncBtn'),
+  peerRows: document.getElementById('peerRows'),
   servicesActions: document.getElementById('servicesActions'),
   servicesLaunchBtn: document.getElementById('servicesLaunchBtn'),
   servicesHint: document.getElementById('servicesHint'),

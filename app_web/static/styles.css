@@ -847,6 +847,11 @@ h2 { display: flex; align-items: center; gap: 8px; }
   border-bottom: 1px solid var(--line-muted);
 }
 .services-row:last-child { border-bottom: 0; }
+/* Peer rows (#372) render into this anchor via innerHTML — `display:
+ * contents` keeps it out of the flex box model so its .services-row
+ * children lay out as direct siblings of the static Docker/Langfuse/
+ * AgentsView rows above, with the same gap rhythm. */
+#peerRows { display: contents; }
 .services-detail {
   word-break: break-word;
   min-width: 0;

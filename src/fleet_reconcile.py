@@ -136,7 +136,7 @@ async def _reconcile_remote(host_id: str, desired: List[str]) -> Dict[str, Any]:
     if owner is None or not owner.address:
         return {"reachable": False, "error": "no address configured"}
 
-    health = await services.mac_mini_health(host_id)  # generic peer /health probe
+    health = await services.peer_health(host_id)
     reachable = bool(health.get("reachable"))
     woke: Any = None
     wol_sent = False
@@ -289,7 +289,7 @@ async def _deprofile_remote(host_id: str) -> Dict[str, Any]:
     owner = get_host(host_id)
     if owner is None or not owner.address:
         return {"reachable": False, "error": "no address configured"}
-    health = await services.mac_mini_health(host_id)
+    health = await services.peer_health(host_id)
     if not health.get("reachable"):
         return {"reachable": False, "profile_written": False}
     profile = await _remote_write_profile(host_id, _peer_base(owner), [])

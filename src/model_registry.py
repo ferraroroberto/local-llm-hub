@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .host_profile import HostProfile, _load_config, resolve as resolve_host
+from .host_profile import HostProfile, _load_config, all_hosts, resolve as resolve_host
 
 
 @dataclass(frozen=True)
@@ -162,6 +162,26 @@ def launchable_local_ids(host: Optional[HostProfile] = None) -> List[str]:
     return [
         m.id for m in local_models(host)
         if m.backend in _SPAWNABLE_BACKENDS and not m.virtual
+    ]
+
+
+def hub_peer_ids(active_id: Optional[str] = None) -> List[str]:
+    """Ids of every declared host — other than ``active_id`` — that runs its
+    own hub (issue #372).
+
+    "Runs a hub" reuses the exact same test ``app_web/routers/fleet_placement.py``
+    already applies per host row (``runs_hub = bool(launchable_local_ids(profile))``)
+    rather than re-deriving it: a host with at least one launchable local
+    model spawns a hub process, so a managed-only machine with an empty
+    ``enabled:`` list (e.g. ``openclaw``) is correctly excluded. This is the
+    peer set the Services card's Wake/Sync rows enumerate — mac-mini-m4 and
+    gaming today, any future hub-running satellite automatically once it
+    declares a non-empty ``enabled:``.
+    """
+    active = active_id if active_id is not None else resolve_host().id
+    return [
+        h.id for h in all_hosts()
+        if h.id != active and launchable_local_ids(h)
     ]
 
 

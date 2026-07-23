@@ -25,12 +25,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = PROJECT_ROOT / "config" / "models.yaml"
 ENV_OVERRIDE = "LOCAL_LLM_HUB_HOST"
 
-# The Mac Mini peer host id (#179/#181's Services-tab probe + wake/sync
-# actions). Single source of truth — app_web/routers/services.py exposes it
-# to the SPA via /admin/api/services/status so hub.js reads it from the API
-# response instead of hardcoding the same string (issue #245).
-MAC_MINI_HOST_ID = "mac-mini-m4"
-
 
 @dataclass(frozen=True)
 class HostProfile:

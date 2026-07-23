@@ -333,42 +333,10 @@ function renderServices() {
     els.agentsviewStopBtn.disabled = state.agentsviewBusy;
   }
 
-  // Mac Mini (#179): the pill itself doesn't factor into the overall
-  // status/launch-button logic above — it tells the Mac's own story.
-  const macMini = body.mac_mini;
-  if (els.macMiniRow) els.macMiniRow.hidden = !macMini;
-  if (macMini) {
-    const mmKind = macMini.reachable ? 'good' : 'danger';
-    const mmLabel = macMini.reachable ? 'up' : 'down';
-    setStatusPill(els.macMiniStatus, els.macMiniStatusText, mmKind, mmLabel);
-    if (els.macMiniDetail) {
-      // git_sha_match is null until both sides answer; only warn on an
-      // explicit false, never on "haven't compared yet" (#181).
-      const outOfSync = macMini.reachable && macMini.git_sha_match === false;
-      els.macMiniDetail.innerHTML = !macMini.reachable
-        ? escapeHtml(macMini.error || '')
-        : outOfSync
-          ? '<span class="badge warn">out of sync</span> ' +
-            escapeHtml(macMini.remote_git_sha || '?') + ' vs ' + escapeHtml(macMini.local_git_sha || '?')
-          : '';
-    }
-    // Wake/Sync (#181): mirrors the Docker/Langfuse launch-button pattern —
-    // one action visible at a time depending on reachability.
-    if (els.macMiniWakeBtn) {
-      els.macMiniWakeBtn.hidden = macMini.reachable;
-      els.macMiniWakeBtn.disabled = state.macMiniBusy;
-      els.macMiniWakeBtn.innerHTML = state.macMiniBusy
-        ? 'Waking…'
-        : icon('play') + 'Wake';
-    }
-    if (els.macMiniSyncBtn) {
-      els.macMiniSyncBtn.hidden = !macMini.reachable;
-      els.macMiniSyncBtn.disabled = state.macMiniBusy;
-      els.macMiniSyncBtn.innerHTML = state.macMiniBusy
-        ? 'Syncing…'
-        : icon('refresh-cw') + 'Sync';
-    }
-  }
+  // Peer rows (#179, generalized #372): the pills don't factor into the
+  // overall status/launch-button logic above — each tells its own peer's
+  // story. See renderPeerRows() below.
+  renderPeerRows();
 
   // Overall pill summarises both.
   let overallKind = 'good';
@@ -432,30 +400,75 @@ async function onServicesLaunchClick() {
   }
 }
 
-async function onMacMiniAction(action, pastTense) {
-  if (state.macMiniBusy) return;
-  state.macMiniBusy = true;
-  renderServices();
+// Peer rows (#179, generalized #372): one row per hub-running peer, driven
+// by the `peers` list on /admin/api/services/status — never hardcoded (was
+// issue #245's original point for the single Mac Mini row; still holds for
+// N peers). Renders like machines.js's renderMachineCard()/onMachinesListClick
+// — an innerHTML template + one delegated click listener on the container —
+// rather than binding a listener per row, since the row count varies.
+function renderPeerRows() {
+  const container = els.peerRows;
+  if (!container) return;
+  const peers = (state.services && state.services.peers) || [];
+  container.innerHTML = peers.map(renderPeerRow).join('');
+}
+
+function renderPeerRow(peer) {
+  const busy = !!(state.peerBusyIds && state.peerBusyIds[peer.host_id]);
+  const kind = peer.reachable ? 'good' : 'danger';
+  const label = peer.reachable ? 'up' : 'down';
+  // git_sha_match is null until both sides answer; only warn on an explicit
+  // false, never on "haven't compared yet" (#181).
+  const outOfSync = peer.reachable && peer.git_sha_match === false;
+  const detail = !peer.reachable
+    ? escapeHtml(peer.error || '')
+    : outOfSync
+      ? '<span class="badge warn">out of sync</span> ' +
+        escapeHtml(peer.remote_git_sha || '?') + ' vs ' + escapeHtml(peer.local_git_sha || '?')
+      : '';
+  // Wake/Sync: mirrors the Docker/Langfuse launch-button pattern — one
+  // action visible at a time depending on reachability.
+  const wakeHtml = busy ? 'Waking…' : icon('play') + 'Wake';
+  const syncHtml = busy ? 'Syncing…' : icon('refresh-cw') + 'Sync';
+  return '<div class="services-row" data-host-id="' + escapeHtml(peer.host_id) + '">'
+    + '<span class="services-label">' + icon('signal') + escapeHtml(peer.display_name || peer.host_id) + '</span>'
+    + '<span class="hub-live-status ' + kind + '"><span class="dot"></span><span>' + label + '</span></span>'
+    + '<span class="muted small services-detail">' + detail + '</span>'
+    + '<button type="button" class="ghost-btn" data-action="bootstrap"' + (peer.reachable ? ' hidden' : '') + (busy ? ' disabled' : '') + '>' + wakeHtml + '</button>'
+    + '<button type="button" class="ghost-btn" data-action="sync"' + (peer.reachable ? '' : ' hidden') + (busy ? ' disabled' : '') + '>' + syncHtml + '</button>'
+    + '</div>';
+}
+
+function onPeerRowsClick(ev) {
+  const btn = ev.target.closest('button[data-action]');
+  if (!btn || btn.disabled) return;
+  const row = btn.closest('.services-row');
+  const hostId = row && row.dataset ? row.dataset.hostId : '';
+  if (!hostId) return;
+  const action = btn.dataset.action; // 'bootstrap' | 'sync'
+  onPeerAction(hostId, action, action === 'bootstrap' ? 'woken up' : 'synced');
+}
+
+async function onPeerAction(hostId, action, pastTense) {
+  if (state.peerBusyIds && state.peerBusyIds[hostId]) return;
+  state.peerBusyIds = Object.assign({}, state.peerBusyIds);
+  state.peerBusyIds[hostId] = true;
+  renderPeerRows();
+  const peers = (state.services && state.services.peers) || [];
+  const found = peers.find(function (p) { return p.host_id === hostId; });
+  const label = (found && found.display_name) || hostId;
   try {
-    // Sourced from the last /admin/api/services/status response, not
-    // hardcoded here — the backend's src/host_profile.py owns the id
-    // (issue #245: was duplicated as a JS literal with no shared source
-    // of truth). Only reachable once state.services.mac_mini is truthy
-    // (renderServices() keeps the wake/sync buttons hidden until then),
-    // so mac_mini_host_id is always populated by the time this fires.
-    const hostId = (state.services && state.services.mac_mini_host_id) || '';
     await postJson('/admin/api/hosts/' + hostId + '/' + action, {});
-    toast('Mac Mini ' + pastTense, 'good');
+    toast(label + ' ' + pastTense, 'good');
   } catch (exc) {
-    toast('Mac Mini ' + action + ' failed: ' + (exc.message || exc), 'error');
+    toast(label + ' ' + action + ' failed: ' + (exc.message || exc), 'error');
   } finally {
-    state.macMiniBusy = false;
+    const nextBusy = Object.assign({}, state.peerBusyIds);
+    delete nextBusy[hostId];
+    state.peerBusyIds = nextBusy;
     await fetchServicesStatus();
   }
 }
-
-function onMacMiniWakeClick() { return onMacMiniAction('bootstrap', 'woken up'); }
-function onMacMiniSyncClick() { return onMacMiniAction('sync', 'synced'); }
 
 async function onAgentsviewStartClick() {
   if (state.agentsviewBusy) return;
@@ -580,11 +593,8 @@ export function wireHub() {
   if (els.servicesLaunchBtn) {
     els.servicesLaunchBtn.addEventListener('click', onServicesLaunchClick);
   }
-  if (els.macMiniWakeBtn) {
-    els.macMiniWakeBtn.addEventListener('click', onMacMiniWakeClick);
-  }
-  if (els.macMiniSyncBtn) {
-    els.macMiniSyncBtn.addEventListener('click', onMacMiniSyncClick);
+  if (els.peerRows) {
+    els.peerRows.addEventListener('click', onPeerRowsClick);
   }
   if (els.agentsviewStartBtn) {
     els.agentsviewStartBtn.addEventListener('click', onAgentsviewStartClick);
