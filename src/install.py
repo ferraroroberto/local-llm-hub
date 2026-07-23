@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import getpass
 import importlib
 import json
 import logging
@@ -181,29 +182,39 @@ def _check_gemini_cli() -> Check:
     )
 
 
+def _nvidia_smi_gpu_check() -> Check:
+    """nvidia-smi name+VRAM probe — shared by the Windows and Linux branches
+    (the tower and the CUDA satellites both read their GPU the same way)."""
+    nv = shutil.which("nvidia-smi")
+    if not nv:
+        return Check("gpu", "GPU / accelerator detected", "warn", "nvidia-smi not found")
+    try:
+        r = subprocess.run(
+            [nv, "--query-gpu=name,memory.total", "--format=csv,noheader"],
+            capture_output=True, text=True, timeout=10,
+            creationflags=_no_window_flags(),
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            return Check("gpu", "GPU / accelerator detected", "ok", r.stdout.strip().splitlines()[0])
+        return Check("gpu", "GPU / accelerator detected", "warn",
+                     f"nvidia-smi exit {r.returncode}: {r.stderr[:200]}")
+    except Exception as e:
+        return Check("gpu", "GPU / accelerator detected", "warn", str(e))
+
+
 def _check_gpu() -> Check:
     if sys.platform == "win32":
-        nv = shutil.which("nvidia-smi")
-        if not nv:
-            return Check("gpu", "GPU / accelerator detected", "warn", "nvidia-smi not found")
-        try:
-            r = subprocess.run(
-                [nv, "--query-gpu=name,memory.total", "--format=csv,noheader"],
-                capture_output=True, text=True, timeout=10,
-                creationflags=_no_window_flags(),
-            )
-            if r.returncode == 0 and r.stdout.strip():
-                return Check("gpu", "GPU / accelerator detected", "ok", r.stdout.strip().splitlines()[0])
-            return Check("gpu", "GPU / accelerator detected", "warn",
-                         f"nvidia-smi exit {r.returncode}: {r.stderr[:200]}")
-        except Exception as e:
-            return Check("gpu", "GPU / accelerator detected", "warn", str(e))
+        return _nvidia_smi_gpu_check()
     if sys.platform == "darwin":
         mach = platform.machine()
         if mach == "arm64":
             return Check("gpu", "Apple Silicon GPU (Metal)", "ok", f"arch={mach}")
         return Check("gpu", "GPU / accelerator detected", "warn",
                      f"darwin but arch={mach} — MLX / Metal expect arm64")
+    if sys.platform.startswith("linux"):
+        # The CUDA satellites (gaming, later openclaw) read their NVIDIA GPU
+        # exactly like the tower does.
+        return _nvidia_smi_gpu_check()
     return Check("gpu", "GPU / accelerator detected", "warn",
                  f"unknown platform {sys.platform}")
 
@@ -327,6 +338,47 @@ def _check_launchagent() -> Check:
     return Check("launchagent", "Boot-time LaunchAgent installed", "ok", str(plist_path))
 
 
+SYSTEMD_UNIT_NAME = "local-llm-hub.service"
+
+
+def _systemd_unit_path() -> Path:
+    return Path("/etc/systemd/system") / SYSTEMD_UNIT_NAME
+
+
+def _check_systemd_unit() -> Check:
+    """Is the boot-time systemd unit installed and active? (#341/#368, linux-only)
+
+    Boot autostart + crash respawn for a headless Linux satellite's otherwise
+    unsupervised hub — the systemd analogue of the Mac's LaunchAgent and the
+    Windows tray's spawn-on-launch. ``systemctl is-active``/``is-enabled`` are
+    read-only (no sudo); the fix renders + installs the unit (that half needs
+    passwordless sudo, see ``_fix_systemd_unit``).
+    """
+    unit_path = _systemd_unit_path()
+    if not unit_path.exists():
+        return Check(
+            "systemd_unit", "Boot-time systemd unit installed", "missing",
+            f"expected at {unit_path}",
+            fix_id="systemd_unit",
+            fix_label="renders linux/systemd/local-llm-hub.service + `systemctl enable --now` (boot autostart + crash respawn)",
+        )
+    active = subprocess.run(
+        ["systemctl", "is-active", SYSTEMD_UNIT_NAME], capture_output=True, text=True,
+    ).stdout.strip()
+    enabled = subprocess.run(
+        ["systemctl", "is-enabled", SYSTEMD_UNIT_NAME], capture_output=True, text=True,
+    ).stdout.strip()
+    if active != "active":
+        return Check(
+            "systemd_unit", "Boot-time systemd unit installed", "warn",
+            f"unit at {unit_path} but is-active={active or '?'} (is-enabled={enabled or '?'})",
+            fix_id="systemd_unit",
+            fix_label="`systemctl enable --now local-llm-hub` to (re)start it",
+        )
+    return Check("systemd_unit", "Boot-time systemd unit installed", "ok",
+                 f"{unit_path} (active, is-enabled={enabled or '?'})")
+
+
 def _tts_enabled() -> bool:
     return any(m.backend == "tts" or m.engine == "tts-server"
                for m in local_models())
@@ -435,6 +487,8 @@ def run_all_checks(*, use_cache: bool = False) -> Report:
     ]
     if sys.platform == "darwin":
         checks.append(_check_launchagent())
+    if sys.platform.startswith("linux"):
+        checks.append(_check_systemd_unit())
     if _whisper_enabled():
         checks.append(_check_whisper_cpp())
     if _tts_enabled():
@@ -524,6 +578,43 @@ def _fix_launchagent() -> None:
         raise RuntimeError(f"launchctl bootstrap failed after retries: {detail}")
 
 
+def _fix_systemd_unit() -> None:
+    """Render + install the boot-time systemd unit on a Linux satellite (#368).
+
+    The Linux counterpart to ``_fix_launchagent``. Substitutes the two
+    placeholders in ``linux/systemd/local-llm-hub.service`` with this box's
+    concrete values, writes it into the root-owned system unit dir via
+    ``sudo -n tee``, then ``daemon-reload`` + ``enable --now``. ``sudo -n`` so a
+    missing passwordless-sudo drop-in (see docs/machines.md) fails fast with a
+    clear message instead of hanging on a password prompt.
+    """
+    if not sys.platform.startswith("linux"):
+        raise RuntimeError("systemd unit install only applies on Linux")
+    template_path = PROJECT_ROOT / "linux" / "systemd" / SYSTEMD_UNIT_NAME
+    rendered = (
+        template_path.read_text(encoding="utf-8")
+        .replace("__PROJECT_ROOT__", str(PROJECT_ROOT))
+        .replace("__USER__", getpass.getuser())
+    )
+    unit_path = _systemd_unit_path()
+    tee = subprocess.run(
+        ["sudo", "-n", "tee", str(unit_path)],
+        input=rendered, capture_output=True, text=True,
+    )
+    if tee.returncode != 0:
+        raise RuntimeError(
+            f"failed to write {unit_path} via `sudo -n tee`: "
+            f"{tee.stderr.strip() or 'sudo -n denied — is passwordless sudo configured? (docs/machines.md)'}"
+        )
+    for args in (["daemon-reload"], ["enable", "--now", SYSTEMD_UNIT_NAME]):
+        p = subprocess.run(["sudo", "-n", "systemctl", *args], capture_output=True, text=True)
+        if p.returncode != 0:
+            raise RuntimeError(
+                f"`sudo -n systemctl {' '.join(args)}` failed: "
+                f"{p.stderr.strip() or 'sudo -n denied — passwordless sudo not configured?'}"
+            )
+
+
 def _fix_download(model_id: str) -> Callable[[], None]:
     def _fix() -> None:
         from scripts import download_models  # type: ignore
@@ -544,6 +635,8 @@ def fix_fn_for(check: Check) -> Optional[FixFn]:
         return _fix_parakeet_worker
     if check.fix_id == "launchagent":
         return _fix_launchagent
+    if check.fix_id == "systemd_unit":
+        return _fix_systemd_unit
     if check.fix_id and check.fix_id.startswith("download_"):
         return _fix_download(check.fix_id[len("download_"):])
     return None

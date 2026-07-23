@@ -122,6 +122,44 @@ def _delayed_darwin_bootout(label: str, delay: float = 0.4) -> None:
     threading.Thread(target=_runner, daemon=True).start()
 
 
+def _under_systemd() -> bool:
+    """Are we running as a systemd unit? (#341/#368)
+
+    systemd sets ``INVOCATION_ID`` in every unit's environment — the standard
+    "am I supervised by systemd" signal. Only then do the stop/restart
+    endpoints drive ``systemctl`` (below): a dev running the hub by hand on
+    Linux falls through to the plain self-signal path, which is correct there
+    (nothing would respawn it). Gated on Linux so it never fires elsewhere.
+    """
+    return sys.platform.startswith("linux") and bool(os.environ.get("INVOCATION_ID"))
+
+
+def _delayed_systemctl(verb: str, delay: float = 0.4) -> None:
+    """Run ``sudo -n systemctl <verb> local-llm-hub`` after a short delay so the
+    HTTP response flushes first (#368).
+
+    ``stop``/``restart`` SIGTERM this very process (it lives in the unit's
+    cgroup) — which is the point: unlike the plain self-SIGTERM path,
+    ``Restart=always`` would immediately respawn a bare signal, so a *deliberate*
+    stop must go through systemd itself. ``sudo -n`` never prompts; a missing
+    passwordless-sudo rule is logged rather than hanging.
+    """
+    from src.install import SYSTEMD_UNIT_NAME
+
+    def _runner() -> None:
+        time.sleep(delay)
+        r = subprocess.run(
+            ["sudo", "-n", "systemctl", verb, SYSTEMD_UNIT_NAME],
+            capture_output=True, text=True,
+        )
+        if r.returncode != 0:
+            logger.error("⚠️ `sudo -n systemctl %s %s` failed: %s",
+                         verb, SYSTEMD_UNIT_NAME, (r.stderr or "").strip())
+
+    import threading
+    threading.Thread(target=_runner, daemon=True).start()
+
+
 def _restart_log_path() -> Path:
     """File the detached watchdog redirects the relaunched server into.
 
@@ -186,6 +224,13 @@ async def hub_stop() -> Dict[str, Any]:
         _delayed_darwin_bootout(LAUNCHAGENT_LABEL)
         return {"ok": True, "detail": "hub will exit shortly (LaunchAgent unloaded)"}
 
+    if _under_systemd():
+        # Restart=always respawns a bare self-SIGTERM, so a deliberate stop must
+        # go through systemd itself (the systemd analogue of the Mac's bootout).
+        logger.info("🛑 /admin/api/hub/stop — systemctl stop (Restart=always respawns a bare signal)")
+        _delayed_systemctl("stop")
+        return {"ok": True, "detail": "hub will stop shortly (systemctl stop)"}
+
     logger.info("🛑 /admin/api/hub/stop — scheduling self-shutdown")
     _delayed_shutdown()
     return {"ok": True, "detail": "hub will exit shortly"}
@@ -215,6 +260,15 @@ async def hub_restart() -> Dict[str, Any]:
             capture_output=True,
         )
         return {"ok": True, "detail": "hub will restart shortly via launchd"}
+
+    if _under_systemd():
+        # systemd is the sole supervisor here — like launchd on the Mac, drive
+        # the restart through it rather than racing a self-spawned watchdog
+        # against Restart=always for the same port. restart_pending (set above)
+        # keeps model backends alive for the respawned hub to adopt.
+        logger.info("🔄 /admin/api/hub/restart — systemctl restart")
+        _delayed_systemctl("restart")
+        return {"ok": True, "detail": "hub will restart shortly via systemd"}
 
     logger.info("🔄 /admin/api/hub/restart — spawning respawn watchdog")
     _spawn_respawn_watchdog()

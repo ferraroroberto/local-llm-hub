@@ -24,7 +24,16 @@ cross-machine SSH/access details also live in the `life-os` `geek-out`
 
 All non-host machines carry a `sudoers.d/99-<user>-nopasswd` drop-in
 (passwordless sudo), so reboot/shutdown and read-only stat probes run over the
-hub user's own SSH with no key deploy.
+hub user's own SSH with no key deploy. On the systemd satellite (`gaming`) the
+same passwordless sudo also covers `systemctl` — the Linux hub-lifecycle
+dispatcher (`linux/bin/hub-remote-ctl.sh`, #368) and the
+`POST /admin/api/hub/{stop,restart}` endpoints run `sudo -n systemctl
+{start,stop,restart} local-llm-hub`, and `python -m src.install --fix` writes
+the unit via `sudo -n tee`. All use `sudo -n`, so a missing/incorrect drop-in
+fails fast with "a password is required" instead of hanging. The bootstrap/sync
+verbs themselves ride the dedicated **forced-command** SSH key (the
+`authorized_keys` line is documented in the README's "Linux satellite
+lifecycle" section), separate from this general-SSH sudo channel.
 
 ### GPU-VRAM capacity ceilings (issue #375)
 

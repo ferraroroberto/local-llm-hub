@@ -4,8 +4,10 @@
 # openclaw), filling the process-supervision role that tray.bat plays on
 # Windows and the LaunchAgent plays on macOS (#323).
 #
-# There is no install.py --fix automation for this yet (deferred until the
-# satellite actually serves models — see #323); install it by hand:
+# Since #368 `python -m src.install --fix` renders + installs this on a Linux
+# box for you (the systemd analogue of the Mac's `_fix_launchagent`): it
+# substitutes the placeholders, writes the unit via `sudo -n tee`, then
+# `daemon-reload` + `enable --now`. To install it by hand instead:
 #
 #   1. Substitute the two placeholders with this machine's concrete values,
 #      writing the result to the system unit dir. From the repo root
@@ -26,8 +28,10 @@
 # a commanded `systemctl stop` from a crash: `Restart=always` respawns
 # crashes but honours an explicit stop, so `sudo systemctl stop
 # local-llm-hub` keeps it down with no special dance. `systemctl restart`
-# bounces it. (Linux branches for /admin/api/hub/{stop,restart} to drive
-# these over systemctl are a deferred follow-up — see #323.)
+# bounces it. Since #368 /admin/api/hub/{stop,restart} drive these over
+# `sudo -n systemctl` when the hub detects it is running under systemd
+# (INVOCATION_ID) — a bare self-SIGTERM would be respawned by Restart=always,
+# so a deliberate stop must go through systemd.
 
 [Unit]
 Description=local-llm-hub (models hub on :8000)
