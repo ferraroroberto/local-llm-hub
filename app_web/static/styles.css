@@ -950,6 +950,18 @@ h2 { display: flex; align-items: center; gap: 8px; }
   min-width: 0;
 }
 
+/* ---------- Model decisions card — role/placement summary rows (#373) ----------
+ * Same .startup-row/.startup-list rhythm as the Startup + Fleet placement
+ * cards; only the right-hand value column is new (those two cards put a
+ * switch there instead of text). Right-aligned, allowed to wrap onto a
+ * second line for a long fallback/placed-models list rather than overflow. */
+.roles-row-value {
+  text-align: right;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- install panel rows ---------- */
 .install-row {
   display: grid;

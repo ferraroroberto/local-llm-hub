@@ -181,6 +181,13 @@ export const els = {
   fleetPlacementStaleNote: document.getElementById('fleetPlacementStaleNote'),
   fleetPlacementRefreshBtn: document.getElementById('fleetPlacementRefreshBtn'),
 
+  // Model decisions card (issue #373) — Hub tab, role → model + placement
+  rolesCard: document.getElementById('rolesCard'),
+  rolesStatus: document.getElementById('rolesStatus'),
+  rolesList: document.getElementById('rolesList'),
+  rolesPlacementList: document.getElementById('rolesPlacementList'),
+  rolesViewPlacementBtn: document.getElementById('rolesViewPlacementBtn'),
+
   // Playground
   playgroundModel: document.getElementById('playgroundModel'),
   playgroundSystem: document.getElementById('playgroundSystem'),

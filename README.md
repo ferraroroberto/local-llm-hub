@@ -718,7 +718,7 @@ local-llm-hub/
 │   ├── server.py             #   create_app() — middleware, routers, static mount
 │   ├── middleware.py         #   bearer-token gate (loopback bypasses)
 │   ├── routers/              #   misc / version / auth / webauthn / hub / models /
-│   │                         #   startup_profile / fleet_placement / playground /
+│   │                         #   startup_profile / fleet_placement / roles / playground /
 │   │                         #   services / telemetry / code_usage / glossary /
 │   │                         #   hosts / machines / diagnostics
 │   └── static/               #   index.html + main.js + state.js + tabs.js + api.js +
