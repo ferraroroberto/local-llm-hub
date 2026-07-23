@@ -23,6 +23,7 @@ an SSH round-trip per poll tick would be wasteful and noisy.
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import logging
 import socket
 import subprocess
@@ -39,6 +40,11 @@ _SSH_CONNECT_TIMEOUT_S = 6
 _CACHE_TTL_S = 30.0
 _LIVENESS_PORTS = (22, 3389)  # SSH, then RDP
 _WARMUP_RETRY_DELAY_S = 0.5   # pause before the one liveness warm-up retry (#333)
+# Under MACHINES_POLL_MS (10 s, app_web/static/state.js) so a poll tick always
+# sees a fresh-enough probe, while collapsing the Machines tab and the
+# fleet-placement grid's otherwise-independent full liveness fans for the
+# same host on the same page load (#369).
+_LIVENESS_CACHE_TTL_S = 5.0
 
 
 def _no_window_flags() -> int:
@@ -48,6 +54,9 @@ def _no_window_flags() -> int:
 
 # host_id -> (expiry_monotonic, stats_or_None)
 _cache: Dict[str, tuple[float, Optional[Dict[str, Any]]]] = {}
+
+# host_id -> (expiry_monotonic, reachable) — shared by is_reachable() below.
+_liveness_cache: Dict[str, tuple[float, bool]] = {}
 
 # Read-only one-liners, validated live against the real peers. Each emits
 # `key value` lines; unavailable metrics (e.g. no nvidia-smi) are simply
@@ -88,15 +97,24 @@ def _stats_command(platform: str) -> Optional[str]:
     return None
 
 
+def _probe_port(address: str, port: int) -> bool:
+    try:
+        with socket.create_connection((address, port), timeout=_TCP_TIMEOUT_S):
+            return True
+    except OSError:
+        return False
+
+
 def _probe_liveness_ports(address: str) -> bool:
-    """One pass over the liveness ports; True on the first that accepts."""
-    for port in _LIVENESS_PORTS:
-        try:
-            with socket.create_connection((address, port), timeout=_TCP_TIMEOUT_S):
-                return True
-        except OSError:
-            continue
-    return False
+    """One pass over the liveness ports, probed **concurrently**; True as soon
+    as any accepts. A fully-unreachable peer previously paid the sum of every
+    port's timeout (``len(_LIVENESS_PORTS) * _TCP_TIMEOUT_S`` = 4 s/pass) —
+    probing in parallel bounds one pass at the slowest single port (~2 s), so
+    the #333 two-pass warm-up costs ~4.5 s instead of ~8.5 s for a peer that's
+    genuinely off (#369)."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(_LIVENESS_PORTS)) as pool:
+        futures = [pool.submit(_probe_port, address, port) for port in _LIVENESS_PORTS]
+        return any(f.result() for f in concurrent.futures.as_completed(futures))
 
 
 def reachable(host: HostProfile) -> bool:
@@ -119,7 +137,22 @@ def reachable(host: HostProfile) -> bool:
 
 
 async def is_reachable(host: HostProfile) -> bool:
-    return await asyncio.to_thread(reachable, host)
+    """Cached wrapper around :func:`reachable`, keyed by host id.
+
+    The Machines tab (``machine_console``) and the fleet-placement grid
+    (``app_web/routers/fleet_placement.py``) both call this for the same
+    hosts on the same page load and again on every poll tick — each paying
+    an independent full TCP liveness fan without this cache. A short TTL
+    (under the 10 s Machines poll) collapses that duplication while staying
+    fresh enough that neither surface visibly lags a real state change
+    (#369)."""
+    now = time.monotonic()
+    cached = _liveness_cache.get(host.id)
+    if cached is not None and cached[0] > now:
+        return cached[1]
+    result = await asyncio.to_thread(reachable, host)
+    _liveness_cache[host.id] = (now + _LIVENESS_CACHE_TTL_S, result)
+    return result
 
 
 def _run_ssh(host: HostProfile, command: str) -> Optional[str]:

@@ -359,6 +359,70 @@ def test_reachable_false_when_both_passes_fail(monkeypatch):
     assert calls["n"] == 2  # one initial pass + one warm-up retry, then give up
 
 
+# ----------------------------------- liveness cache + concurrent port probe (#369)
+
+
+def test_is_reachable_caches_per_host_within_ttl(monkeypatch):
+    """The Machines tab and the fleet-placement grid both probe the same hosts
+    on the same page load — within the TTL the second call must be served from
+    the cache (no re-probe), and the cache is keyed per host id (#369)."""
+    from src import remote_stats
+
+    monkeypatch.setattr(remote_stats, "_liveness_cache", {})
+    calls = {"n": 0}
+
+    def fake_reachable(host):
+        calls["n"] += 1
+        return True
+
+    monkeypatch.setattr(remote_stats, "reachable", fake_reachable)
+    a = HostProfile(id="peer-a", platform="linux", address="10.0.0.9", enabled=[])
+    b = HostProfile(id="peer-b", platform="linux", address="10.0.0.10", enabled=[])
+    assert _run(remote_stats.is_reachable(a)) is True
+    assert _run(remote_stats.is_reachable(a)) is True  # cache hit — no re-probe
+    assert calls["n"] == 1
+    assert _run(remote_stats.is_reachable(b)) is True  # different id — own probe
+    assert calls["n"] == 2
+
+
+def test_is_reachable_reprobes_after_ttl_expiry(monkeypatch):
+    """After the TTL lapses the cached answer must not be trusted — the next
+    call re-probes and surfaces the new state (#369)."""
+    from src import remote_stats
+
+    monkeypatch.setattr(remote_stats, "_liveness_cache", {})
+    calls = {"n": 0}
+
+    def fake_reachable(host):
+        calls["n"] += 1
+        return calls["n"] == 1  # up on the first probe, down on the re-probe
+
+    monkeypatch.setattr(remote_stats, "reachable", fake_reachable)
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(remote_stats.time, "monotonic", lambda: clock["now"])
+    host = HostProfile(id="flappy", platform="linux", address="10.0.0.9", enabled=[])
+    assert _run(remote_stats.is_reachable(host)) is True
+    clock["now"] += remote_stats._LIVENESS_CACHE_TTL_S + 0.1
+    assert _run(remote_stats.is_reachable(host)) is False  # expired — re-probed
+    assert calls["n"] == 2
+
+
+def test_probe_liveness_ports_true_when_one_port_accepts(monkeypatch):
+    """The concurrent pass is still an OR over the liveness ports — one
+    accepting port (RDP here, SSH refused) reads as up (#369)."""
+    from src import remote_stats
+
+    monkeypatch.setattr(remote_stats, "_probe_port", lambda address, port: port == 3389)
+    assert remote_stats._probe_liveness_ports("10.0.0.9") is True
+
+
+def test_probe_liveness_ports_false_when_none_accept(monkeypatch):
+    from src import remote_stats
+
+    monkeypatch.setattr(remote_stats, "_probe_port", lambda address, port: False)
+    assert remote_stats._probe_liveness_ports("10.0.0.9") is False
+
+
 # --------------------------------------------------------------------- endpoints
 
 
