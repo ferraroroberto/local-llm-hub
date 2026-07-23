@@ -80,9 +80,9 @@ Mechanically, waking a host sends a standard 102-byte magic packet (6 bytes of `
 - **`tower`** (Windows 11, hub host) — wired MAC `34:5a:60:d3:59:53` (Realtek 2.5GbE, link up). Tailscale service is Running/Automatic, but reboot-with-no-login verification is still pending. BIOS WOL + AC-restore are **not yet verified** — manual checklist tracked in #357.
 - **`mac-mini-m4`** (macOS, Apple silicon) — ethernet MAC `1c:f6:4c:56:05:da`; `pmset womp=1` and `autorestart=1` both set 2026-07-22. **Ethernet is currently unplugged** (box is on Wi‑Fi), so WOL is armed but inert until it's wired back in. Apple-silicon caveat: WOL only wakes from sleep, never from a full power-off — full-off recovery instead relies on "start up after power failure" (already enabled via `autorestart`).
 - **`openclaw`** (Ubuntu laptop) — **no wired NIC exists** (Wi‑Fi only), so Wake-on-LAN isn't possible without a USB-ethernet adapter; no `mac:` is set in the registry. `tailscaled` is enabled.
-- **`gaming`** (Ubuntu 24.04) — wired NIC `enp4s0`, MAC `d4:5d:64:d6:7e:a0`, currently `NO-CARRIER` (box is on a Wi‑Fi USB adapter, see #340). WOL is persistently enabled on the interface (`nmcli 802-3-ethernet.wake-on-lan magic` + `ethtool wol g`, set 2026-07-22) but needs a physical cable plugged in before a wake packet can do anything. `tailscaled` is enabled. BIOS WOL / AC-restore are unverified.
+- **`gaming`** (Ubuntu 24.04) — **wired since 2026-07-23** (#383): `enp4s0`, MAC `d4:5d:64:d6:7e:a0`, 1 Gb/s full duplex, and the router's DHCP reservation hands it the same `192.168.0.16`. WOL is persistently enabled (`nmcli 802-3-ethernet.wake-on-lan magic` + `ethtool wol g`, set 2026-07-22) and now genuinely armed — a wake packet has a live NIC to land on. The USB Wi‑Fi dongle is parked (connection kept, `autoconnect no`) as a manual fallback only; `tailscaled` is enabled and rides whichever link is up. BIOS WOL / AC-restore are still unverified.
 
-**Pending manual items** — tracked in #357: BIOS-level WOL + AC-restore verification per box, plugging the wired ethernet cable into `mac-mini-m4` and `gaming`, and completing the reboot-with-no-login Tailscale proof on `tower`.
+**Pending manual items** — tracked in #357: BIOS-level WOL + AC-restore verification per box, plugging the wired ethernet cable into `mac-mini-m4` (`gaming` was wired 2026-07-23), and completing the reboot-with-no-login Tailscale proof on `tower`.
 
 ## Boot mode — Server (headless) default, Desktop (GUI) opt-in
 
@@ -114,13 +114,14 @@ boxes):
   D3 (`Runtime D3 status: Not supported`, even after setting
   `NVreg_DynamicPowerManagement=0x02`); its idle GPU draw is a hardware
   ceiling, not fixable via driver config.
-- **`gaming`'s WiFi flakiness — resolved.** The 10-20s SSH/Tailscale drops
-  (tracked as [#340](https://github.com/ferraroroberto/local-llm-hub/issues/340))
-  were fixed in a life-os geek-out session (2026-07-22): the USB dongle's
-  5 GHz-tuned external antenna was reseated and the box pinned to the 5 GHz
-  SSID — 0% loss over 400 sustained pings after. 2.4 GHz remains unusable on
-  this dongle by design (antenna + USB3 RF noise); wired ethernet stays the
-  real upgrade.
+- **`gaming`'s WiFi flakiness — superseded by the wire.** The 10-20s
+  SSH/Tailscale drops (#340) were fixed by an antenna reseat + 5 GHz pin
+  (2026-07-22, 0% loss over 400 pings), but #383 (2026-07-23) then showed the
+  dongle still **collapses under any sustained transfer** (throughput decays
+  3 MB/s → ~37 KB/s → link dead; box unaffected, auto-recovers). Wired
+  ethernet went live 2026-07-23 and is now the only routine link; the dongle
+  stays plugged as a parked manual fallback (`autoconnect no`). If it must
+  carry a bulk transfer again, use the burst+bounce pattern recorded in #383.
 - **`gaming` serves all four whisper voice backends since #323/#370** —
   `whisper` (STT, transcribe-role fallback; ~9.1 RTFx) and `orpheus` (TTS,
   explicit-model; ~2× real-time) moved in #323; `whisper_translate`
@@ -129,6 +130,13 @@ boxes):
   All four run under the systemd-supervised hub on `:8000`, CUDA-built for
   the GTX 1070 (`sm_61`) where applicable. The tower proxies all of them
   transparently and keeps its VRAM for the agentic lanes.
+- **`gaming`'s torch must come from the cu126 wheel index** (#385): PyTorch
+  dropped Pascal (`sm_61`) kernels from cu128+ builds, so a default
+  `pip install torch` silently yields a CUDA-blind torch and orpheus's SNAC
+  vocoder falls back to CPU. Install
+  `torch==<ver>+cu126 --index-url https://download.pytorch.org/whl/cu126`
+  (satisfies the `>=2.9` pin; verified 2026-07-23 — GPU SNAC took the orpheus
+  hub-e2e median from 4469 ms to 3753 ms).
 
 ## Tailscale identities
 
