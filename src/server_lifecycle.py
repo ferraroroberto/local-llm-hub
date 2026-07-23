@@ -226,15 +226,28 @@ async def _fleet_reconcile_loop() -> None:
 
 
 async def _resource_sampler() -> None:
-    """Background task that samples RAM + CPU + GPU usage every 2 s."""
+    """Background task that samples RAM + CPU + GPU usage every 2 s.
+
+    The sampling itself runs in a worker thread (#392): ``gpu_stats()``
+    shells out to nvidia-smi, which stalls for seconds when the GPU is
+    busy serving models — calling it inline here blocked the whole event
+    loop every 2 s, and any HTTP client with a 5 s timeout (the e2e
+    suite's httpx calls) would intermittently trip on an otherwise-idle
+    endpoint. Same off-the-loop treatment ``/api/hub/stats`` already has.
+    """
     from . import system_stats
     from .hub_observability import StatSample
 
+    def _sample_sync():
+        return (
+            system_stats.ram_stats(),
+            system_stats.cpu_stats(),
+            system_stats.gpu_stats(),
+        )
+
     while True:
         try:
-            ram = system_stats.ram_stats()
-            cpu = system_stats.cpu_stats()
-            gpus = system_stats.gpu_stats()
+            ram, cpu, gpus = await asyncio.to_thread(_sample_sync)
             gpu0_vram = None
             gpu0_util = None
             if gpus:

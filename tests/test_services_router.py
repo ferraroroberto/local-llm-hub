@@ -136,19 +136,12 @@ def test_langfuse_health_unreachable_returns_clean_payload(monkeypatch):
     well-formed dict, not raise — the SPA card depends on that."""
 
     class _BoomClient:
-        def __init__(self, *a, **kw):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *a):
-            return False
-
         async def get(self, *a, **kw):
             raise RuntimeError("synthetic network failure")
 
-    monkeypatch.setattr(svc.httpx, "AsyncClient", _BoomClient)
+    # langfuse_health uses the shared pooled client (#392), not a fresh
+    # per-call httpx.AsyncClient — patch the getter.
+    monkeypatch.setattr(svc, "get_async_client", lambda: _BoomClient())
     result = _run(svc.langfuse_health())
     assert result["reachable"] is False
     assert "synthetic network failure" in result["error"]
