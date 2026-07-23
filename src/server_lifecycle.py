@@ -107,11 +107,14 @@ async def wire_observatory_loop() -> None:
     # The hub owns configured backend autostart so every launch surface
     # (tray, run_hub.bat, python -m src.run_backend hub) behaves the same.
     loop.create_task(_autostart_configured_backends())
-    # Same idea for Docker/Langfuse/Mac-Mini-sync (issue #265) — the
-    # startup profile's non-model flags.
+    # Same idea for Docker/Langfuse/AgentsView (issue #265) — the startup
+    # profile's non-model service flags.
     loop.create_task(_autostart_services())
     # Fleet always-on control plane (issue #353): converge every host to its
-    # desired placement on boot + every few minutes.
+    # desired placement on boot + every few minutes. Since #374 this is also
+    # the *sole* peer wake/sync mechanism — the old per-service mac_mini_sync
+    # boot toggle folded into reconcile-on-boot (a peer with placed models is
+    # woken + synced + started here; one with no placement is left asleep).
     loop.create_task(_fleet_reconcile_loop())
     # Diagnostics (issue #315): close any capture orphaned by a previous hub
     # and arm the scheduled snapshot if it's enabled. No task is created when
@@ -161,15 +164,17 @@ async def _init_diagnostics() -> None:
 
 
 async def _autostart_services() -> None:
-    """Bring up Docker/Langfuse and sync the Mac Mini per the startup
-    profile (issue #265). Best-effort and soft-failing, same spirit as
-    ``services.launch_stack()`` itself — a slow/unreachable Docker Desktop
-    or SSH-unreachable Mac Mini must never block the hub from finishing
-    its own startup.
+    """Bring up Docker/Langfuse + AgentsView per the startup profile (#265).
+
+    Best-effort and soft-failing, same spirit as ``services.launch_stack()``
+    itself — a slow/unreachable Docker Desktop must never block the hub from
+    finishing its own startup. Peer wake/sync used to live here too (the legacy
+    ``mac_mini_sync`` branch); since #374 it is owned entirely by the fleet
+    reconcile loop (``_fleet_reconcile_loop`` → ``fleet_reconcile.reconcile_once``),
+    driven by ``config/fleet_placement.json`` as the sole cross-host source of
+    truth.
     """
     from . import services as svc
-    from .fleet_placement import load_fleet_placement
-    from .host_profile import MAC_MINI_HOST_ID, resolve as resolve_host
     from .startup_profile import load_startup_profile
 
     profile = load_startup_profile()
@@ -195,27 +200,6 @@ async def _autostart_services() -> None:
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("autostart: agentsview launch raised: %s", exc)
-
-    # The fleet reconcile loop (#353) owns wake/sync for any host it has models
-    # placed on, so defer the legacy mac-mini boot branch to it there — this is
-    # the generalization of the once-hardcoded MAC_MINI_HOST_ID path. The flag
-    # still drives the sync when the Mac Mini carries no fleet placement.
-    mac_mini_placed = bool(load_fleet_placement().get(MAC_MINI_HOST_ID))
-    if profile.mac_mini_sync and resolve_host().id != MAC_MINI_HOST_ID and not mac_mini_placed:
-        try:
-            from . import remote_bootstrap
-
-            health = await svc.mac_mini_health(MAC_MINI_HOST_ID)
-            if not health["reachable"]:
-                result = await remote_bootstrap.bootstrap_host(MAC_MINI_HOST_ID)
-                logger.info("autostart: Mac Mini bootstrap -> %s", result)
-            elif health.get("git_sha_match") is False:
-                result = await remote_bootstrap.sync_host(MAC_MINI_HOST_ID)
-                logger.info("autostart: Mac Mini sync -> %s", result)
-            else:
-                logger.info("autostart: Mac Mini already reachable and in sync")
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("autostart: Mac Mini sync raised: %s", exc)
 
 
 async def _fleet_reconcile_loop() -> None:

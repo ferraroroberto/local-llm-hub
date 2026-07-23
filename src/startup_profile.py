@@ -5,13 +5,19 @@ boot (tray, ``run_hub.bat``, or ``python -m src.run_backend hub``):
 
   * ``docker`` / ``langfuse`` — whether to run ``services.launch_stack()``
     (start Docker Desktop if down, then the Langfuse containers) at startup.
-  * ``mac_mini_sync`` — whether to wake/sync the Mac Mini host at startup.
   * ``agentsview`` — whether to run ``services.launch_agentsview()`` (the
     optional AgentsView server feeding the Code tab's AGY vendor, #280).
   * ``models`` — local backend ids to autostart, superseding the legacy
     ``config/models.yaml`` → ``tray.autostart_models`` list (still read as a
     fallback by ``model_registry.autostart_model_ids()`` when this file is
     missing, e.g. on a fresh clone before the admin UI has saved a profile).
+
+The former ``mac_mini_sync`` per-service toggle was retired in #374: peer
+wake/sync is now owned entirely by the fleet reconcile loop
+(``src/fleet_reconcile.py``), driven by ``config/fleet_placement.json`` as the
+sole cross-host source of truth for peer model placement. A stale
+``mac_mini_sync`` key left in an existing gitignored live file is simply ignored
+on load — no migration needed.
 
 The live ``config/startup_profile.json`` is **gitignored** (issue #304): the
 admin UI's Startup card rewrites it on every autostart toggle, so tracking it
@@ -47,7 +53,6 @@ EXAMPLE_PROFILE_PATH = PROJECT_ROOT / "config" / "startup_profile.example.json"
 class StartupProfile:
     docker: bool = True
     langfuse: bool = True
-    mac_mini_sync: bool = True
     # AgentsView server for the Code tab's AGY vendor (issue #280) — launch
     # soft-fails with a log line when the tool isn't installed.
     agentsview: bool = True
@@ -105,7 +110,6 @@ def load_startup_profile(path: Optional[str] = None) -> StartupProfile:
             result = StartupProfile(
                 docker=bool(data.get("docker", True)),
                 langfuse=bool(data.get("langfuse", True)),
-                mac_mini_sync=bool(data.get("mac_mini_sync", True)),
                 agentsview=bool(data.get("agentsview", True)),
                 models=[str(m) for m in models if m] if isinstance(models, list) else [],
             )
@@ -136,7 +140,6 @@ def normalize_profile(data: Dict[str, Any]) -> StartupProfile:
     return StartupProfile(
         docker=bool(data.get("docker", True)),
         langfuse=bool(data.get("langfuse", True)),
-        mac_mini_sync=bool(data.get("mac_mini_sync", True)),
         agentsview=bool(data.get("agentsview", True)),
         models=models,
     )
@@ -152,9 +155,7 @@ def save_startup_profile(data: Dict[str, Any], path: Optional[str] = None) -> St
     os.replace(tmp, target)
     _PROFILE_CACHE.pop(str(target), None)
     logger.info(
-        "💾 Saved startup profile (docker=%s langfuse=%s mac_mini_sync=%s "
-        "agentsview=%s models=%s)",
-        clean.docker, clean.langfuse, clean.mac_mini_sync,
-        clean.agentsview, clean.models,
+        "💾 Saved startup profile (docker=%s langfuse=%s agentsview=%s models=%s)",
+        clean.docker, clean.langfuse, clean.agentsview, clean.models,
     )
     return clean

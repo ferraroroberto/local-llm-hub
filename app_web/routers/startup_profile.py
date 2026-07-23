@@ -30,12 +30,13 @@ from src.remote_proxy import remote_auth_token, remote_base_url_for_host
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Fixed metadata for the three non-model startup toggles — labels the
-# admin SPA renders next to each switch.
+# Fixed metadata for the non-model startup toggles — labels the admin SPA
+# renders next to each switch. Peer wake/sync is *not* here: since #374 it is
+# owned by the fleet reconcile loop (config/fleet_placement.json), not a
+# per-service startup flag — the old "Mac Mini sync" toggle was retired.
 _SERVICE_ITEMS = [
     {"id": "docker", "label": "Docker"},
     {"id": "langfuse", "label": "Langfuse"},
-    {"id": "mac_mini_sync", "label": "Mac Mini sync"},
     {"id": "agentsview", "label": "AgentsView"},
 ]
 

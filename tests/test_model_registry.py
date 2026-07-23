@@ -103,7 +103,7 @@ def test_autostart_model_ids_filters_to_launchable_enabled_rows(tmp_path, monkey
 def test_autostart_model_ids_prefers_startup_profile_when_present(tmp_path, monkeypatch):
     profile_path = tmp_path / "startup_profile.json"
     profile_path.write_text(
-        json.dumps({"docker": True, "langfuse": True, "mac_mini_sync": True, "models": ["piper"]}),
+        json.dumps({"docker": True, "langfuse": True, "models": ["piper"]}),
         encoding="utf-8",
     )
     monkeypatch.setattr(startup_profile, "DEFAULT_PROFILE_PATH", profile_path)
