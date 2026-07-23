@@ -141,7 +141,7 @@ flowchart TB
 
   subgraph admin["app_web/ — admin SPA, sub-app mounted at /admin"]
     WSRV["server.py\ncreate_app() + versioned static"]
-    WROUT["routers/\nhub · models · startup_profile · fleet_placement ·\nplayground · services · telemetry · code_usage ·\nglossary · hosts · machines · diagnostics · auth ·\nwebauthn · version · misc"]
+    WROUT["routers/\nhub · models · startup_profile · fleet_placement · roles ·\nplayground · services · telemetry · code_usage ·\nglossary · hosts · machines · diagnostics · auth ·\nwebauthn · version · misc"]
     WSTATIC["static/\nindex.html SPA + per-tab JS/CSS"]
   end
   SRV -.mounts.-> WSRV

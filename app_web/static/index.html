@@ -148,6 +148,34 @@
         <p id="servicesHint" class="muted small" style="margin: 6px 0 0;" hidden></p>
       </section>
 
+      <!-- Model decisions (#373): role -> model assignments + a per-host
+           placement summary. Folded by default and fetched only when
+           expanded — mirrors app-launcher's System Map lazy-load discipline
+           (a folded, homepage-visible, low-noise card), adapted for small
+           live JSON instead of a static image. Links to the Models tab's
+           Fleet placement grid rather than duplicating its per-model
+           toggles. -->
+      <details class="card card--collapsible" id="rolesCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon" aria-hidden="true"><use href="#i-boxes"></use></svg>
+            <h3 class="collapse-title">Model decisions</h3>
+            <span class="collapse-count">roles &amp; placement</span>
+          </span>
+          <span class="collapse-chevron" aria-hidden="true">›</span>
+        </summary>
+        <div class="collapse-body">
+          <p id="rolesStatus" class="muted small" hidden></p>
+          <h4 class="opt-group-title">Roles</h4>
+          <ul id="rolesList" class="startup-list" aria-label="Role to model assignments"></ul>
+          <h4 class="opt-group-title">Placement</h4>
+          <ul id="rolesPlacementList" class="startup-list" aria-label="Per-host placement summary"></ul>
+          <div class="card-actions">
+            <button id="rolesViewPlacementBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg>View fleet placement</button>
+          </div>
+        </div>
+      </details>
+
       <!-- Health & install — vendored disclosure card (_vendored/disclosure) -->
       <details class="card card--collapsible" id="installCard">
         <summary class="collapse-summary">
