@@ -428,6 +428,21 @@ def test_piper_engine_voice_mapping_and_build():
     assert PiperEngine.VOICE_FILES["lessac"] == "en_US-lessac-medium.onnx"
 
 
+def test_piper_engine_device_hardcoded_cpu_regardless_of_arg():
+    """Piper is CPU-only by design (#371) — the standalone binary is light
+    enough it never needed GPU. `device_arg` is accepted for interface parity
+    with the other TTS engines (chatterbox/orpheus/kokoro) but never honored;
+    `.device` reads "cpu" no matter what config's `--device` arg says."""
+    from types import SimpleNamespace
+
+    from src.tts_engines import PiperEngine
+
+    model = SimpleNamespace(id="piper", tts_engine="piper", model_path="unused.onnx")
+    eng = PiperEngine(model, device="cuda")
+    assert eng.device == "cpu"
+    assert eng.device_arg == "cuda"  # recorded, but load() below never reads it
+
+
 # ---- Orpheus long-input chunking (#130) ----
 
 class _FakeResp:

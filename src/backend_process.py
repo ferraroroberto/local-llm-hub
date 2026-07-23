@@ -28,7 +28,7 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import httpx
 
@@ -219,6 +219,28 @@ def is_reachable(model: Model, timeout: float = 1.5) -> bool:
         return r.status_code == 200
     except Exception:
         return False
+
+
+def probe_health(model: Model, timeout: float = 1.5) -> Optional[Dict[str, Any]]:
+    """GET the backend's own ``/health`` and return the parsed JSON body, or
+    ``None`` if unreachable / non-JSON.
+
+    Unlike :func:`is_reachable` (a boolean liveness gate used everywhere),
+    this is for callers that need a field out of the body itself — e.g. the
+    admin Models tab reading ``tts_server.py``'s reported ``device``
+    (cuda/cpu/mps) off a running TTS backend's ``/health``.
+    """
+    if not model.url:
+        return None
+    base = model.url.removesuffix("/v1").rstrip("/")
+    try:
+        r = httpx.get(f"{base}/health", timeout=timeout)
+        if r.status_code == 200:
+            body = r.json()
+            return body if isinstance(body, dict) else None
+    except Exception:
+        pass
+    return None
 
 
 def log_lines(model_id: str, limit: int = LOG_TAIL_LINES) -> list[str]:

@@ -149,6 +149,11 @@ function fillItem(li, m) {
     (m.port ? ' · :' + m.port : '') +
     (remote ? ' on ' + m.host : '') +
     (m.pid && adopted ? ' · PID ' + m.pid : '') +
+    // Resolved TTS device (cpu/cuda/mps), reported once the backend has
+    // finished loading and answered its own /health — see
+    // app_web/routers/models.py's _probe_device (#371). Omitted (not
+    // guessed) for stopped/loading rows and backends with no device concept.
+    (m.device ? ' · ' + m.device : '') +
     (m.aliases && m.aliases.length ? ' · ' + m.aliases.join(', ') : '');
   main.appendChild(meta);
 
