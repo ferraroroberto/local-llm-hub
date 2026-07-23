@@ -26,6 +26,31 @@ All non-host machines carry a `sudoers.d/99-<user>-nopasswd` drop-in
 (passwordless sudo), so reboot/shutdown and read-only stat probes run over the
 hub user's own SSH with no key deploy.
 
+### GPU-VRAM capacity ceilings (issue #375)
+
+The GPU-VRAM facts in the Hardware column above are now also declared as
+**structured** data the placement system reads — `config/models.yaml` `hosts:`
+carries an optional `vram_mb` per host, and each GPU model row carries a rough
+`est_vram_mb` footprint. The fleet placement grid sums a host's placed models'
+`est_vram_mb` and shows an **advisory** warning (never a hard block) when the
+total exceeds that host's `vram_mb` ceiling — replacing the ad-hoc `nvidia-smi`
+glance that used to gate a placement change by hand.
+
+| Host id | `vram_mb` ceiling | Source |
+| --- | --- | --- |
+| `tower` | `16384` | RTX 5060 Ti 16 GB |
+| `gaming` | `8192` | GTX 1070 8 GB — the tightest ceiling; must hold whisper + orpheus (+ whisper_translate + whisper_vanilla per #370) |
+| `mac-mini-m4` | *(none)* | Apple-silicon **unified memory** has no fixed VRAM partition to check against — the grid skips the warning rather than inventing a misleading ceiling |
+| `openclaw` | *(none)* | Serves no models; not placeable, so no ceiling needed |
+
+The `est_vram_mb` estimates are engineering approximations (weights quant + KV
+cache + any CPU-offload), each documented inline in `config/models.yaml`; they
+are deliberately static, not live telemetry (exact live VRAM accounting was
+explicitly out of scope for #375). CPU-only backends (`whisper_translate`,
+`piper`), off-GPU paths (`parakeet` on the Mac ANE), and virtual aliases are
+`0`. Keep both the prose Hardware column and these fields in sync when a
+machine's GPU changes.
+
 `gaming`'s NVIDIA proprietary driver (`nvidia-driver-535`) was installed
 2026-07-21 (Secure Boot off, DKMS built against the running HWE kernel), so its
 Machines-tab card now renders a live GPU gauge alongside CPU/RAM/disk. Until

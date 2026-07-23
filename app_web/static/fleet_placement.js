@@ -67,6 +67,30 @@ function hostGlyph(host) {
   return host.icon || (host.local ? 'monitor' : 'server');
 }
 
+// MB → a compact "X.X GB" label for the capacity warning.
+function fmtGb(mb) {
+  return (Number(mb || 0) / 1024).toFixed(1) + ' GB';
+}
+
+/* An advisory VRAM-overcommit warning (issue #375). Shown only when the host
+ * declares a `vram_mb` ceiling and its placed/running models' estimated
+ * footprint exceeds it — a heads-up, never a hard block (the toggle still
+ * works). Hosts with no declared ceiling (Apple-silicon unified memory,
+ * managed-only boxes) never carry it. Mirrors the muted `.fleet-host-note`
+ * offline note, tinted as a warning. */
+function capacityWarnEl(host) {
+  if (!host.capacity_warning) return null;
+  const p = document.createElement('p');
+  p.className = 'fleet-host-note fleet-capacity-warn small';
+  p.title = 'Estimated GPU-VRAM footprint of this host’s placed models '
+    + 'exceeds its ' + fmtGb(host.vram_mb) + ' ceiling. Advisory only — '
+    + 'the placement is still applied.';
+  p.innerHTML = icon('triangle-alert')
+    + '<span>Over VRAM capacity — ~' + fmtGb(host.est_vram_mb)
+    + ' placed / ' + fmtGb(host.vram_mb) + ' GPU</span>';
+  return p;
+}
+
 function buildModelRow(host, model) {
   const li = document.createElement('li');
   li.className = 'startup-row';
@@ -128,6 +152,9 @@ function buildHostGroup(host) {
     + '<span class="hub-live-status ' + chip.cls + '"><span class="dot"></span><span>'
     + escapeHtml(chip.label) + '</span></span>';
   group.appendChild(head);
+
+  const warn = capacityWarnEl(host);
+  if (warn) group.appendChild(warn);
 
   const eligible = host.eligible || [];
 

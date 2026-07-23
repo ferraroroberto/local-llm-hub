@@ -13,6 +13,7 @@ os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app_web.routers import fleet_placement as fpr  # noqa: E402
 from src import backend_process as bp  # noqa: E402
 from src import fleet_placement as fp  # noqa: E402
 from src import fleet_reconcile, remote_stats, services as svc  # noqa: E402
@@ -98,6 +99,67 @@ def test_get_returns_placement_and_host_status(monkeypatch, tmp_path):
     assert hosts["mac-mini-m4"]["placed"] == ["parakeet"]
     # eligible carries display names for the grid to render
     assert all("display_name" in e for e in hosts["mac-mini-m4"]["eligible"])
+
+
+def _stub_gaming_online(monkeypatch):
+    """GET off the network with gaming powered on — the capacity tests drive the
+    warning off gaming's *placed* set, so its liveness just needs to be True."""
+    monkeypatch.setattr(bp, "running_backends", lambda: {})
+
+    async def is_reachable(host):
+        return True
+
+    async def remote_models(owner, **kw):
+        return []  # no live-running badges — placed set is what capacity sums
+
+    monkeypatch.setattr(remote_stats, "is_reachable", is_reachable)
+    monkeypatch.setattr(svc, "remote_models", remote_models)
+
+
+def test_capacity_warning_when_over_ceiling(monkeypatch, tmp_path):
+    """A host whose placed models' est_vram_mb sum exceeds its declared
+    ``vram_mb`` ceiling carries capacity_warning=True (advisory, #375). gaming
+    declares an 8192 MB ceiling; two stubbed 5000 MB models overcommit it."""
+    _isolate(monkeypatch, tmp_path, {"gaming": ["whisper", "orpheus"]})
+    _stub_gaming_online(monkeypatch)
+    monkeypatch.setattr(fpr, "_vram_estimates", lambda: {"whisper": 5000, "orpheus": 5000})
+
+    client = TestClient(server_mod.app)
+    hosts = {h["id"]: h for h in client.get("/admin/api/fleet-placement").json()["hosts"]}
+    g = hosts["gaming"]
+    assert g["vram_mb"] == 8192
+    assert g["est_vram_mb"] == 10000
+    assert g["capacity_warning"] is True
+
+
+def test_no_capacity_warning_when_under_ceiling(monkeypatch, tmp_path):
+    """gaming's real post-#323 voice pair (whisper 2000 + orpheus 2800 =
+    4800 MB from the committed config) sits under its 8192 MB ceiling — the
+    real config must not raise a false positive."""
+    _isolate(monkeypatch, tmp_path, {"gaming": ["whisper", "orpheus"]})
+    _stub_gaming_online(monkeypatch)
+
+    client = TestClient(server_mod.app)
+    hosts = {h["id"]: h for h in client.get("/admin/api/fleet-placement").json()["hosts"]}
+    g = hosts["gaming"]
+    assert g["vram_mb"] == 8192
+    assert g["est_vram_mb"] == 4800  # 2000 + 2800, from config/models.yaml
+    assert g["capacity_warning"] is False
+
+
+def test_host_without_ceiling_never_warns(monkeypatch, tmp_path):
+    """The Apple-silicon Mac Mini declares no ``vram_mb`` (unified memory), so
+    it never warns even with a huge placed footprint — ceiling is None."""
+    _isolate(monkeypatch, tmp_path, {"mac-mini-m4": ["parakeet"]})
+    _stub_gaming_online(monkeypatch)
+    monkeypatch.setattr(fpr, "_vram_estimates", lambda: {"parakeet": 99999})
+
+    client = TestClient(server_mod.app)
+    hosts = {h["id"]: h for h in client.get("/admin/api/fleet-placement").json()["hosts"]}
+    m = hosts["mac-mini-m4"]
+    assert m["vram_mb"] is None
+    assert m["est_vram_mb"] == 99999
+    assert m["capacity_warning"] is False
 
 
 def test_patch_merges_persists_and_applies(monkeypatch, tmp_path):
