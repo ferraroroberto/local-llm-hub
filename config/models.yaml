@@ -130,7 +130,7 @@ hosts:
     # ssh_user/address contract as the Mac Mini peer above; reboot/shutdown
     # run over the hub user's own general SSH (passwordless sudo), so they
     # work as soon as OpenClaw is reachable — no key deploy needed (#311).
-    address: 192.168.0.239
+    address: 192.168.0.11
     ssh_user: openclaw
     # No `mac:` — the laptop has no wired NIC, so Wake-on-LAN is impossible
     # (#356/#357 recon).
@@ -141,7 +141,7 @@ hosts:
     # (graphical.target/GNOME) is a one-boot GRUB override via `grub-reboot`
     # — done + verified 2026-07-21, see docs/machines.md.
     rdp:
-      address: 192.168.0.239
+      address: 192.168.0.11
       user: openclaw
 
   gaming:
