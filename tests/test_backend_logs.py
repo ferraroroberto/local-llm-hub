@@ -130,16 +130,17 @@ def _admin_client() -> TestClient:
 
 def test_log_endpoint_returns_tail(monkeypatch):
     # A TOWER-owned model id, deliberately: a remote-owned row (e.g. whisper,
-    # host: gaming since #323) makes this endpoint forward to the owning peer's
-    # live hub — a unit test must never leave the box.
+    # whisper_translate, whisper_vanilla, orpheus — all host: gaming since
+    # #323/#370) makes this endpoint forward to the owning peer's live hub —
+    # a unit test must never leave the box. piper stays tower-local.
     monkeypatch.setattr(bp, "log_lines", lambda mid, limit=400: ["line-a", "line-b"])
 
-    resp = _admin_client().get("/api/models/whisper_translate/log")
+    resp = _admin_client().get("/api/models/piper/log")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["id"] == "whisper_translate"
+    assert body["id"] == "piper"
     assert body["lines"] == ["line-a", "line-b"]
-    assert body["path"] == "data/logs/backend-whisper_translate.log"
+    assert body["path"] == "data/logs/backend-piper.log"
 
 
 def test_log_endpoint_unknown_model_404():

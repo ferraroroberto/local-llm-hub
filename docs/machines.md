@@ -39,7 +39,7 @@ glance that used to gate a placement change by hand.
 | Host id | `vram_mb` ceiling | Source |
 | --- | --- | --- |
 | `tower` | `16384` | RTX 5060 Ti 16 GB |
-| `gaming` | `8192` | GTX 1070 8 GB — the tightest ceiling; must hold whisper + orpheus (+ whisper_translate + whisper_vanilla per #370) |
+| `gaming` | `8192` | GTX 1070 8 GB — the tightest ceiling; holds whisper + orpheus + whisper_translate + whisper_vanilla (#370) — 2000 + 2800 + 0 + 2000 = 6800 MB, comfortably under |
 | `mac-mini-m4` | *(none)* | Apple-silicon **unified memory** has no fixed VRAM partition to check against — the grid skips the warning rather than inventing a misleading ceiling |
 | `openclaw` | *(none)* | Serves no models; not placeable, so no ceiling needed |
 
@@ -112,11 +112,14 @@ boxes):
   SSID — 0% loss over 400 sustained pings after. 2.4 GHz remains unusable on
   this dongle by design (antenna + USB3 RF noise); wired ethernet stays the
   real upgrade.
-- **`gaming` serves the GPU voice pair since #323** — `whisper` (STT,
-  transcribe-role fallback; ~9.1 RTFx) and `orpheus` (TTS, explicit-model;
-  ~2× real-time) run under the systemd-supervised hub on `:8000`, CUDA-built
-  for the GTX 1070 (`sm_61`). The tower proxies both transparently and keeps
-  its VRAM for the agentic lanes.
+- **`gaming` serves all four whisper voice backends since #323/#370** —
+  `whisper` (STT, transcribe-role fallback; ~9.1 RTFx) and `orpheus` (TTS,
+  explicit-model; ~2× real-time) moved in #323; `whisper_translate`
+  (translate-role, CPU-only) and `whisper_vanilla` (unbiased auto-detect,
+  GPU/lazy) joined in #370, so **tower carries no whisper backends at all**.
+  All four run under the systemd-supervised hub on `:8000`, CUDA-built for
+  the GTX 1070 (`sm_61`) where applicable. The tower proxies all of them
+  transparently and keeps its VRAM for the agentic lanes.
 
 ## Tailscale identities
 

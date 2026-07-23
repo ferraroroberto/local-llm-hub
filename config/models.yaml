@@ -163,13 +163,16 @@ hosts:
     address: 192.168.0.16
     ssh_user: gaming
     # Owns the GPU voice pair (#323): whisper STT + orpheus TTS moved here from
-    # the tower to free its VRAM for the agentic lanes. A non-empty list also
-    # makes this host placeable from the fleet grid (its hub runs under the
-    # #341 systemd unit; LOCAL_LLM_HUB_HOST=gaming pinned in its local .env).
-    enabled: [whisper, orpheus]
+    # the tower to free its VRAM for the agentic lanes. whisper_translate +
+    # whisper_vanilla joined in #370, moving the remaining whisper backends
+    # off tower entirely. A non-empty list also makes this host placeable
+    # from the fleet grid (its hub runs under the #341 systemd unit;
+    # LOCAL_LLM_HUB_HOST=gaming pinned in its local .env).
+    enabled: [whisper, orpheus, whisper_translate, whisper_vanilla]
     # GTX 1070 8 GB (docs/machines.md) — the tightest ceiling in the fleet and
-    # the reason #375 exists: it must carry whisper + orpheus (+ whisper_translate
-    # + whisper_vanilla per #370) without overcommitting. The grid sums their
+    # the reason #375 exists: it now carries whisper + orpheus + whisper_translate
+    # + whisper_vanilla (#370) without overcommitting — 2000 + 2800 + 0 + 2000 =
+    # 6800 MB, comfortably under the 8192 ceiling. The grid sums their
     # `est_vram_mb` against this and warns if the set exceeds 8 GB (#375).
     vram_mb: 8192
     # Wired-NIC MAC used for Wake-on-LAN (#356) — WiFi WOL is unsupported.
@@ -550,7 +553,10 @@ models:
   whisper_translate:
     display_name: whisper-medium-translate
     backend: whisper
-    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    # Owned by the gaming satellite since #370 (moved off tower alongside
+    # whisper_vanilla, mirroring whisper/orpheus's #323 move) — cross-enabled
+    # on tower + mac-mini-m4, which proxy to gaming's hub.
+    host: gaming
     engine: whisper-server
     port: 8091
     # CPU-only (`-ng`): medium runs in ~1.5 GB *system RAM*, zero discrete VRAM.
@@ -608,7 +614,10 @@ models:
   whisper_vanilla:
     display_name: whisper-vanilla
     backend: whisper
-    host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
+    # Owned by the gaming satellite since #370 (moved off tower alongside
+    # whisper_translate, mirroring whisper/orpheus's #323 move) — cross-enabled
+    # on tower + mac-mini-m4, which proxy to gaming's hub.
+    host: gaming
     engine: whisper-server-lazy
     port: 8094
     internal_port: 18094

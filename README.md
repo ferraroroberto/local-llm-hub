@@ -384,18 +384,27 @@ Today this powers the `mac-mini-m4` host (`192.168.0.14`, Apple M4):
   [docs/parakeet-asr-evaluation.md](docs/parakeet-asr-evaluation.md).
 
 The same pattern powers the **`gaming`** satellite (`192.168.0.16`, Ryzen 9
-5900X, GTX 1070 8 GB, headless Ubuntu — #323), which owns the GPU voice pair
-moved off the tower to free its VRAM for the agentic lanes:
+5900X, GTX 1070 8 GB, headless Ubuntu — #323), which now owns all four whisper
+voice backends moved off the tower, so tower carries no whisper backends at
+all:
 
 - **`whisper-large-v3-turbo`** — the transcribe role's *fallback* (parakeet on
   the Mac stays primary); CUDA-built whisper-server for `sm_61`, ~9.1 RTFx
   there vs ~33.6 on the tower's 5060 Ti — slower, but a failover path, not the
-  daily-dictation primary. The tower keeps `whisper_translate`/
-  `whisper_vanilla` (CPU/lazy) locally, and voice-transcriber retains its own
-  local `:8090` escape-hatch spawner for transport failures.
+  daily-dictation primary.
+- **`whisper-medium-translate`** and **`whisper-vanilla`** — moved to gaming
+  in #370, alongside `whisper`/`orpheus`'s earlier #323 move. `translate`
+  stays CPU-only (0 MB VRAM); `vanilla` is GPU/lazy (~2000 MB when resident).
+  voice-transcriber retains its own local `:8090` escape-hatch spawner for
+  transport failures.
 - **`orpheus-tts`** — llama-server CUDA-built for `sm_61`, ~2× real-time; the
   `audio_speech` role default stays `piper` (tower CPU), so orpheus serves
   explicit `model=orpheus` calls, proxied to gaming's hub.
+
+Gaming's estimated VRAM footprint with all four resident: whisper 2000 +
+orpheus 2800 + whisper_translate 0 + whisper_vanilla 2000 = 6800 MB, against
+an 8192 MB ceiling (`vram_mb` in `config/models.yaml`, #375) — comfortably
+under, no capacity warning expected.
 
 The Windows hub's admin UI Services card shows a live Mac Mini reachability
 pill alongside Docker/Langfuse. Cross-host auth reuses `extra_allowlist` in
@@ -527,7 +536,8 @@ the counterpart to `tray.bat` on Windows and the LaunchAgent on macOS. The
 template lives at `linux/systemd/local-llm-hub.service`: it runs the
 existing `run_hub.sh` under `Restart=always` and enables at boot with no
 login required (`WantedBy=multi-user.target`). It is installed and live on
-`gaming` (which serves whisper + orpheus since #323) but still has no
+`gaming` (which serves whisper + orpheus since #323, plus whisper_translate +
+whisper_vanilla since #370) but still has no
 `install.py --fix` path — the file's header carries the two-placeholder
 `sed`-and-`enable` install steps, and the Linux install/sync parity gap is
 tracked as a follow-up. Unlike launchd's respawn-on-any-signal

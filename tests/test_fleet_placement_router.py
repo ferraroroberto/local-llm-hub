@@ -52,7 +52,8 @@ def test_get_lists_every_fleet_host_with_manageability(monkeypatch, tmp_path):
     and an empty eligible list (the UI renders the "not placeable here" note),
     never silently dropped — using the box's own TCP liveness for its
     online/offline state, not a hub probe it doesn't answer. gaming graduated
-    to a placeable voice-pair host in #323."""
+    to a placeable voice-pair host in #323, then gained the remaining two
+    whisper backends in #370."""
     _isolate(monkeypatch, tmp_path, {})
     monkeypatch.setattr(bp, "running_backends", lambda: {})
 
@@ -75,9 +76,11 @@ def test_get_lists_every_fleet_host_with_manageability(monkeypatch, tmp_path):
     assert hosts["openclaw"]["runs_hub"] is False
     assert hosts["openclaw"]["eligible"] == []
     assert hosts["openclaw"]["reachable"] is False
-    # gaming is a placeable voice-pair host since #323.
+    # gaming is a placeable voice-quartet host since #323/#370.
     assert hosts["gaming"]["runs_hub"] is True
-    assert {e["id"] for e in hosts["gaming"]["eligible"]} == {"whisper", "orpheus"}
+    assert {e["id"] for e in hosts["gaming"]["eligible"]} == {
+        "whisper", "orpheus", "whisper_translate", "whisper_vanilla",
+    }
     assert hosts["gaming"]["reachable"] is True   # powered on (TCP liveness)
     # Manageable hosts still carry their launchable models.
     assert hosts["mac-mini-m4"]["runs_hub"] is True
@@ -144,6 +147,25 @@ def test_no_capacity_warning_when_under_ceiling(monkeypatch, tmp_path):
     g = hosts["gaming"]
     assert g["vram_mb"] == 8192
     assert g["est_vram_mb"] == 4800  # 2000 + 2800, from config/models.yaml
+    assert g["capacity_warning"] is False
+
+
+def test_no_capacity_warning_with_full_voice_quartet(monkeypatch, tmp_path):
+    """gaming's post-#370 full voice quartet (whisper 2000 + orpheus 2800 +
+    whisper_translate 0 + whisper_vanilla 2000 = 6800 MB from the committed
+    config) sits under its 8192 MB ceiling — the real config must not raise
+    a false positive once all four backends are placed together."""
+    _isolate(
+        monkeypatch, tmp_path,
+        {"gaming": ["whisper", "orpheus", "whisper_translate", "whisper_vanilla"]},
+    )
+    _stub_gaming_online(monkeypatch)
+
+    client = TestClient(server_mod.app)
+    hosts = {h["id"]: h for h in client.get("/admin/api/fleet-placement").json()["hosts"]}
+    g = hosts["gaming"]
+    assert g["vram_mb"] == 8192
+    assert g["est_vram_mb"] == 6800  # 2000 + 2800 + 0 + 2000, from config/models.yaml
     assert g["capacity_warning"] is False
 
 
