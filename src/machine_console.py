@@ -47,7 +47,9 @@ async def self_snapshot() -> Dict[str, Any]:
     }
 
 
-def _actions_for(host: HostProfile, *, is_host: bool) -> Dict[str, bool]:
+def _actions_for(
+    host: HostProfile, *, is_host: bool, reachable: Optional[bool] = None
+) -> Dict[str, bool]:
     """Which actions the SPA may offer for this machine.
 
     The active hub host offers none (reboot/shutdown are the excluded
@@ -56,19 +58,32 @@ def _actions_for(host: HostProfile, *, is_host: bool) -> Dict[str, bool]:
     + ssh_user) gets reboot/shutdown + an SSH terminal; RDP is offered
     wherever an ``rdp`` target is configured; wake (#356) is offered
     wherever a ``mac`` is configured, independent of SSH/reachability —
-    Wake-on-LAN's whole point is reaching a box that's down."""
+    Wake-on-LAN's whole point is reaching a box that's down.
+
+    ``reachable`` mirrors the card's own liveness signal (the Online/Offline
+    dot) — ``True`` only for a peer whose TCP probe just succeeded. Anything
+    else (dormant, an unreachable peer, no probe path, or a probe error —
+    all ``None``/``False``) disables every SSH/RDP-dependent action (#388):
+    they can only fail against a box nothing is listening on. Wake survives
+    unreachability by design, since that's the one action meant to reach a
+    box that's down."""
     if is_host:
         return {"reboot": False, "shutdown": False, "rdp": False, "ssh_terminal": False, "wake": False}
+    wake = bool(host.mac)
+    if reachable is not True:
+        return {"reboot": False, "shutdown": False, "ssh_terminal": False, "rdp": False, "wake": wake}
     return {
         "reboot": host.can_ssh,
         "shutdown": host.can_ssh,
         "ssh_terminal": host.can_ssh,
         "rdp": bool(host.rdp),
-        "wake": bool(host.mac) and not is_host,
+        "wake": wake,
     }
 
 
-def _card_base(host: HostProfile, *, is_host: bool) -> Dict[str, Any]:
+def _card_base(
+    host: HostProfile, *, is_host: bool, reachable: Optional[bool] = None
+) -> Dict[str, Any]:
     """The static (non-probe) fields of a machine card."""
     return {
         "id": host.id,
@@ -84,17 +99,17 @@ def _card_base(host: HostProfile, *, is_host: bool) -> Dict[str, Any]:
         # comment) — the SPA uses this to decide whether a peer card should
         # point the user at that machine's own /admin for Diagnostics.
         "runs_hub": bool(host.enabled),
-        "actions": _actions_for(host, is_host=is_host),
+        "actions": _actions_for(host, is_host=is_host, reachable=reachable),
     }
 
 
 async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
     """Build one machine's full card: static fields + live probe."""
     is_host = host.id == active_id
-    card = _card_base(host, is_host=is_host)
 
     # This machine — full local snapshot, always "up".
     if is_host:
+        card = _card_base(host, is_host=True)
         stats = await self_snapshot()
         card.update(
             state="self", reachable=None,
@@ -104,6 +119,7 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
 
     # Dormant node — shown but never live-probed (it is powered down).
     if host.dormant:
+        card = _card_base(host, is_host=False, reachable=None)
         card.update(
             state="dormant", reachable=None, uptime_seconds=None, stats=None,
             detail="Dormant — Remote Desktop only",
@@ -114,6 +130,7 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
     # then the same CPU/RAM/GPU/disk/uptime snapshot over general SSH.
     if host.address:
         reachable = await remote_stats.is_reachable(host)
+        card = _card_base(host, is_host=False, reachable=reachable)
         stats = await remote_stats.collect(host) if reachable else None
         card.update(
             state="up" if reachable else "down",
@@ -125,6 +142,7 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
         return card
 
     # No probe path (no address, not dormant) — show it, but honestly unknown.
+    card = _card_base(host, is_host=False, reachable=None)
     card.update(
         state="down", reachable=None, uptime_seconds=None, stats=None,
         detail="No probe path configured",
