@@ -122,6 +122,53 @@ def test_offline_host_shows_deferred_note_not_error(page, admin_url):
     assert switches.first.is_enabled()
 
 
+# A fleet where the tower overcommits its VRAM ceiling and the Mac Mini (no
+# declared ceiling) does not — pins the advisory capacity warning (#375).
+CAPACITY_PLACEMENT = {
+    "placement": {"tower": ["gemma4_26b", "whisper"], "mac-mini-m4": ["parakeet"]},
+    "hosts": [
+        {
+            "id": "tower", "display_name": "Tower", "icon": "monitor",
+            "local": True, "reachable": True, "can_ssh": False, "runs_hub": True,
+            "eligible": [
+                {"id": "gemma4_26b", "display_name": "Gemma4 26B"},
+                {"id": "whisper", "display_name": "Whisper Turbo"},
+            ],
+            "placed": ["gemma4_26b", "whisper"], "running": ["gemma4_26b", "whisper"],
+            "vram_mb": 8192, "est_vram_mb": 16000, "capacity_warning": True,
+        },
+        {
+            "id": "mac-mini-m4", "display_name": "Mac Mini M4", "icon": "server",
+            "local": False, "reachable": True, "can_ssh": True, "runs_hub": True,
+            "eligible": [{"id": "parakeet", "display_name": "Parakeet"}],
+            "placed": ["parakeet"], "running": [],
+            "vram_mb": None, "est_vram_mb": 99999, "capacity_warning": False,
+        },
+    ],
+}
+
+
+def test_capacity_warning_renders_only_on_overcommitted_host(page, admin_url):
+    """The overcommitted tower shows the advisory VRAM warning; the ceiling-less
+    Mac Mini never does, even with a large footprint (#375)."""
+    def handler(route):
+        route.fulfill(
+            status=200, content_type="application/json",
+            body=json.dumps(CAPACITY_PLACEMENT),
+        )
+    page.route("**/admin/api/fleet-placement", handler)
+    _open_fleet_card(page, admin_url)
+
+    tower = page.locator(".fleet-host", has_text="Tower")
+    warn = tower.locator(".fleet-capacity-warn")
+    assert warn.count() == 1, "overcommitted host should show the capacity warning"
+    assert "over vram capacity" in warn.inner_text().lower()
+
+    mac = page.locator(".fleet-host", has_text="Mac Mini M4")
+    assert mac.locator(".fleet-capacity-warn").count() == 0, \
+        "a host with no declared ceiling must never warn"
+
+
 def test_toggle_issues_patch(page, admin_url):
     _install_routes(page)
     _open_fleet_card(page, admin_url)

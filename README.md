@@ -481,8 +481,21 @@ SSH, no models registered) reads *online* honestly and is shown with a *"not
 placeable from here yet"* note instead of toggles that couldn't do anything. A
 host becomes placeable once it runs a hub and declares launchable models in
 `config/models.yaml` — `gaming` crossed exactly that line in #323 (systemd-run
-hub + the whisper/orpheus rows), so the grid now steers it like the Mac. Or
-drive the same API directly:
+hub + the whisper/orpheus rows), so the grid now steers it like the Mac.
+
+**Capacity awareness (#375):** each host row may declare a `vram_mb` GPU-VRAM
+ceiling and each GPU model a rough `est_vram_mb` footprint (both in
+`config/models.yaml`). The grid sums a host's placed models' `est_vram_mb` and
+shows an **advisory** *"Over VRAM capacity"* warning on that host's row when the
+total exceeds its ceiling — a heads-up that a placement change overcommits the
+box (e.g. `gaming`'s 8 GB GTX 1070), replacing the by-hand `nvidia-smi` glance.
+It never blocks the PATCH. Hosts with no `vram_mb` (Apple-silicon unified
+memory, managed-only boxes) never warn. Each per-host status object in the
+`GET` response below therefore also carries `vram_mb` (ceiling or `null`),
+`est_vram_mb` (the summed placed/running footprint), and `capacity_warning`
+(bool). Estimates are static engineering approximations, not live telemetry.
+
+Or drive the same API directly:
 
 ```bash
 # See desired placement + live per-host status (eligible / reachable / running)

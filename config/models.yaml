@@ -49,6 +49,15 @@ tray:
 # Human-readable fleet inventory + Tailscale identities: docs/machines.md
 # Reboot/shutdown are offered for any peer with both `address` + `ssh_user`
 # (never the active host — that's the hub, excluded as destructive).
+#
+# `vram_mb` (issue #375) is the host's discrete-GPU VRAM ceiling in MB —
+# promoted here from docs/machines.md's prose hardware facts so the fleet
+# placement grid can flag an *overcommit* (sum of a host's placed models'
+# `est_vram_mb` exceeding this ceiling). It is advisory only: the placement
+# PATCH is never blocked, the grid just warns. Omit it on a host with no
+# discrete-VRAM notion to check against — the Apple-silicon Mac Mini
+# (unified memory, no fixed VRAM partition) and any managed-only box that
+# serves no models. A host with no `vram_mb` never raises a capacity warning.
 # OpenClaw + gaming are enrolled here as managed machines even though they
 # serve no models yet (empty `enabled`); gaming is a live Linux satellite
 # (#323), no longer a dormant RDP-only node.
@@ -67,6 +76,9 @@ hosts:
     address: 192.168.0.13
     # Wired-NIC MAC used for Wake-on-LAN (#356) — WiFi WOL is unsupported.
     mac: 34:5a:60:d3:59:53
+    # RTX 5060 Ti 16 GB (docs/machines.md) — the placement grid's VRAM ceiling
+    # for overcommit warnings (#375).
+    vram_mb: 16384
     # glm is kept defined below as a candidate for ad-hoc bring-up, but is
     # out of the active rotation. To bring it up: add its id back to this
     # list and run `python -m src.install --fix`, or just launch
@@ -91,6 +103,9 @@ hosts:
     address: 192.168.0.14
     # Wired-NIC MAC used for Wake-on-LAN (#356) — WiFi WOL is unsupported.
     mac: 1c:f6:4c:56:05:da
+    # No `vram_mb` (#375): Apple-silicon unified memory has no fixed VRAM
+    # partition to check a model set against, so the placement grid skips the
+    # capacity warning for this host rather than inventing a misleading ceiling.
     # SSH login used for the remote-bootstrap/sync endpoints (#181) — not a
     # secret, just which account the forced-command key logs in as. The
     # private key itself lives outside git (LOCAL_LLM_HUB_SSH_KEY in .env).
@@ -152,6 +167,11 @@ hosts:
     # makes this host placeable from the fleet grid (its hub runs under the
     # #341 systemd unit; LOCAL_LLM_HUB_HOST=gaming pinned in its local .env).
     enabled: [whisper, orpheus]
+    # GTX 1070 8 GB (docs/machines.md) — the tightest ceiling in the fleet and
+    # the reason #375 exists: it must carry whisper + orpheus (+ whisper_translate
+    # + whisper_vanilla per #370) without overcommitting. The grid sums their
+    # `est_vram_mb` against this and warns if the set exceeds 8 GB (#375).
+    vram_mb: 8192
     # Wired-NIC MAC used for Wake-on-LAN (#356) — WiFi WOL is unsupported.
     mac: d4:5d:64:d6:7e:a0
     tailscale: gaming-linux.tail1121fd.ts.net
@@ -159,6 +179,14 @@ hosts:
       address: 192.168.0.16
       user: gaming
 
+# `est_vram_mb` (issue #375) is a rough, static per-model GPU-VRAM footprint
+# estimate in MB — enough for the placement grid to flag a host overcommit
+# (sum of a host's placed models vs its `vram_mb` ceiling), NOT live telemetry.
+# Each value carries a one-line rationale next to it (weights quant + KV + any
+# CPU-offload). CPU-only backends (whisper_translate, piper) and off-GPU paths
+# (parakeet on the Mac ANE, virtual aliases sharing another backend) are 0 —
+# they cost RAM/ANE, not discrete VRAM. Subscription rows (claude/gemini) have
+# no field at all. A row with no `est_vram_mb` contributes 0 to the sum.
 models:
   # --- Claude subscription path (`claude -p` CLI) ---
   # One row per Claude model the CLI exposes. The hub routes the
@@ -236,6 +264,8 @@ models:
     # it locally (127.0.0.1 wouldn't have a qwen process on Windows).
     host: mac-mini-m4
     port: 8081
+    # ~4.9 GB Q4_K_M weights + ~2.0 GB 64K KV (see the -c note below) ≈ 7500 MB.
+    est_vram_mb: 7500
     hf_repo: "unsloth/Qwen3.5-9B-GGUF"
     hf_pattern: "Qwen3.5-9B-Q4_K_M.gguf"
     model_path: "models/Qwen3.5-9B-Q4_K_M.gguf"
@@ -275,6 +305,10 @@ models:
     backend: openai
     engine: llama-server
     port: 8082
+    # MoE with `-ot .ffn_.*_exps.=CPU` (experts on CPU): only attention +
+    # shared layers sit on GPU, so the VRAM footprint is a fraction of the
+    # full Q4_K_M — ~4000 MB. Out of the active rotation; ad-hoc bring-up only.
+    est_vram_mb: 4000
     hf_repo: "unsloth/GLM-4.5-Air-GGUF"
     # Multi-part GGUF in a Q4_K_M/ subdir — llama-server follows the
     # shard chain when given part 1.
@@ -312,6 +346,9 @@ models:
     host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: llama-server
     port: 8088
+    # ~2.6 GB Q4_K_M weights (docs/whisper-turbo-vs-large-v3.md §Size) + small
+    # 64K KV (hybrid Gated-DeltaNet arch, low KV footprint) ≈ 2800 MB.
+    est_vram_mb: 2800
     hf_repo: "unsloth/Qwen3.5-4B-GGUF"
     hf_pattern: "Qwen3.5-4B-Q4_K_M.gguf"
     model_path: "models/Qwen3.5-4B-Q4_K_M.gguf"
@@ -363,6 +400,7 @@ models:
     backend: openai
     host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     port: 8088                       # shared with qwen35_4b (virtual alias)
+    est_vram_mb: 0                   # shares qwen35_4b's process — no extra VRAM
     virtual: true
     inject_extra:
       chat_template_kwargs:
@@ -377,6 +415,8 @@ models:
     host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: llama-server
     port: 8086
+    # 8B dense Q4_K_M, ~5 GB weights on disk, full GPU offload + 16K KV ≈ 5500 MB.
+    est_vram_mb: 5500
     hf_repo: "unsloth/gemma-4-E4B-it-GGUF"
     hf_pattern: "gemma-4-E4B-it-Q4_K_M.gguf"
     model_path: "models/gemma-4-E4B-it-Q4_K_M.gguf"
@@ -403,6 +443,9 @@ models:
     host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: llama-server
     port: 8087
+    # MoE IQ4_XS ~13.4 GB on GPU (see the row header) + 8K KV ≈ 14000 MB — the
+    # single heaviest local model; only fits the 16 GB tower.
+    est_vram_mb: 14000
     hf_repo: "unsloth/gemma-4-26B-A4B-it-GGUF"
     hf_pattern: "gemma-4-26B-A4B-it-UD-IQ4_XS.gguf"
     model_path: "models/gemma-4-26B-A4B-it-UD-IQ4_XS.gguf"
@@ -442,6 +485,8 @@ models:
     host: gaming
     engine: whisper-server
     port: 8090
+    # large-v3-turbo fp16 ≈ 2000 MB VRAM (docs/whisper-turbo-vs-large-v3.md §VRAM).
+    est_vram_mb: 2000
     hf_repo: "ggerganov/whisper.cpp"
     hf_pattern: "ggml-large-v3-turbo.bin"
     model_path: "models/ggml-large-v3-turbo.bin"
@@ -508,6 +553,8 @@ models:
     host: tower  # owning host (#178) — cross-enabled on mac-mini-m4 below
     engine: whisper-server
     port: 8091
+    # CPU-only (`-ng`): medium runs in ~1.5 GB *system RAM*, zero discrete VRAM.
+    est_vram_mb: 0
     hf_repo: "ggerganov/whisper.cpp"
     hf_pattern: "ggml-medium.bin"
     model_path: "models/ggml-medium.bin"
@@ -566,6 +613,11 @@ models:
     port: 8094
     internal_port: 18094
     idle_seconds: 300
+    # Same large-v3-turbo weights as `whisper`, GPU-accelerated, but a SEPARATE
+    # process (own port) → counts its own ~2000 MB when resident. Lazy/idle-
+    # unload means it's not always loaded, but the placement estimate is a
+    # worst-case footprint, so it's counted whenever placed.
+    est_vram_mb: 2000
     aliases: ["whisper-vanilla"]
     hf_repo: "ggerganov/whisper.cpp"
     hf_pattern: "ggml-large-v3-turbo.bin"
@@ -605,6 +657,8 @@ models:
     host: mac-mini-m4  # owning host (#178) — cross-enabled on tower below
     port: 8098
     aliases: ["parakeet"]
+    # Runs on the Mac's ANE via CoreML (unified memory), not discrete GPU VRAM.
+    est_vram_mb: 0
 
   # --- Local Chatterbox TTS (Resemble AI) — OpenAI /v1/audio/speech ---
   # The inverse of the whisper STT pair: text -> speech. Served by the
@@ -628,6 +682,8 @@ models:
     engine: tts-server
     tts_engine: chatterbox
     port: 8092
+    # ~0.5 B torch model on CUDA (`--device auto`) ≈ 2000 MB; on-demand only.
+    est_vram_mb: 2000
     args:
       - "--device"
       - "auto"
@@ -649,6 +705,7 @@ models:
     engine: tts-server
     tts_engine: piper
     port: 8096
+    est_vram_mb: 0                   # CPU-only VITS binary (#371) — no VRAM.
     model_path: "models/piper/en_US-amy-medium.onnx"
     # No `--device` arg: piper.py hardcodes CPU unconditionally (#371) — the
     # standalone binary is lightweight enough it never needed GPU, unlike
@@ -680,6 +737,9 @@ models:
     tts_engine: orpheus
     port: 8093
     internal_port: 18093          # llama-server child (loopback) for the GGUF
+    # 3B Llama Q4_K_M GGUF (~2.2 GB weights) on llama-server + the small SNAC
+    # audio codec decoded in-process ≈ 2800 MB. Shares gaming's GTX 1070.
+    est_vram_mb: 2800
     hf_repo: "isaiahbjork/orpheus-3b-0.1-ft-Q4_K_M-GGUF"
     hf_pattern: "*q4_k_m*.gguf"
     model_path: "models/orpheus-3b-0.1-ft-q4_k_m.gguf"
@@ -701,6 +761,8 @@ models:
     engine: tts-server
     tts_engine: kokoro
     port: 8095
+    # Kokoro-82M int8 ONNX — tiny; ~500 MB even on the GPU path.
+    est_vram_mb: 500
     model_path: "models/kokoro/kokoro-v1.0.int8.onnx"
     args:
       - "--device"

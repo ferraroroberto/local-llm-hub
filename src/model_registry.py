@@ -60,6 +60,12 @@ class Model:
     # never spawns/health-checks it locally and instead proxies requests to
     # the owning host's own hub. See src/remote_proxy.py.
     host: Optional[str] = None
+    # Rough static GPU-VRAM footprint in MB (#375) — enough for the fleet
+    # placement grid to flag a host overcommit (sum of a host's placed models
+    # vs its ``HostProfile.vram_mb`` ceiling), NOT live telemetry. CPU-only /
+    # off-GPU / virtual rows are 0; subscription rows leave it None. A None
+    # value contributes 0 to the sum. See config/models.yaml for the estimates.
+    est_vram_mb: Optional[int] = None
 
     @property
     def all_names(self) -> List[str]:
@@ -98,6 +104,7 @@ def _row_to_model(model_id: str, row: Dict) -> Model:
         virtual=bool(row.get("virtual", False)),
         inject_extra=row.get("inject_extra") or None,
         host=row.get("host"),
+        est_vram_mb=int(row["est_vram_mb"]) if row.get("est_vram_mb") is not None else None,
     )
 
 

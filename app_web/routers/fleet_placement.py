@@ -45,11 +45,44 @@ def _display_names() -> Dict[str, str]:
     return {m.id: m.display_name for m in all_models()}
 
 
-async def _host_status(
-    profile: HostProfile, active_id: str, placement: Dict[str, List[str]], names: Dict[str, str]
+def _vram_estimates() -> Dict[str, int]:
+    """``{model_id: est_vram_mb}`` for every model that declares a footprint
+    (#375). A row without ``est_vram_mb`` is absent — the capacity sum treats a
+    missing id as 0, so subscription/virtual/CPU rows contribute nothing."""
+    return {m.id: m.est_vram_mb for m in all_models() if m.est_vram_mb is not None}
+
+
+def _capacity(
+    profile: HostProfile, placed: List[str], running: List[str], vram: Dict[str, int]
 ) -> Dict[str, Any]:
-    """One host's grid row: its placeable models, live status, and whether the
-    control plane can manage it.
+    """The host's VRAM headroom against its declared ceiling (#375).
+
+    Sums ``est_vram_mb`` over the union of *placed* (desired) and *running*
+    (live) model ids — a model can be either without the other, and both draw
+    VRAM. The result is **advisory**: ``capacity_warning`` is True only when the
+    host declares a ``vram_mb`` ceiling AND the estimate exceeds it. A host with
+    no ceiling (Apple-silicon unified memory, managed-only boxes) never warns —
+    ``vram_mb`` is None and the sum is reported for context only.
+    """
+    considered = list(dict.fromkeys([*placed, *running]))
+    est = sum(vram.get(m, 0) for m in considered)
+    ceiling = profile.vram_mb
+    return {
+        "vram_mb": ceiling,
+        "est_vram_mb": est,
+        "capacity_warning": ceiling is not None and est > ceiling,
+    }
+
+
+async def _host_status(
+    profile: HostProfile,
+    active_id: str,
+    placement: Dict[str, List[str]],
+    names: Dict[str, str],
+    vram: Dict[str, int],
+) -> Dict[str, Any]:
+    """One host's grid row: its placeable models, live status, capacity
+    headroom, and whether the control plane can manage it.
 
     Reachability is the **hub-independent TCP liveness** the Machines tab uses
     (``remote_stats.is_reachable`` — *is the box powered on?*), not a hub
@@ -77,7 +110,10 @@ async def _host_status(
         # Only the placeable (eligible) models that are up — so a grid cell reads
         # "placed ✓ running / ✗ down". Excludes subscription + virtual rows.
         running = [m for m in bp.running_backends().keys() if m in eligible_set]
-        return {**base, "local": True, "reachable": True, "dormant": False, "running": running}
+        return {
+            **base, "local": True, "reachable": True, "dormant": False,
+            "running": running, **_capacity(profile, placed, running, vram),
+        }
 
     # A peer: liveness by TCP connect (is the box on?), independent of whether it
     # runs a hub. A dormant node is never live-probed (it's declared powered down).
@@ -93,6 +129,7 @@ async def _host_status(
     return {
         **base, "local": False, "reachable": reachable,
         "dormant": profile.dormant, "running": running,
+        **_capacity(profile, placed, running, vram),
     }
 
 
@@ -103,8 +140,9 @@ async def get_fleet_placement() -> Dict[str, Any]:
     placement = fp.load_fleet_placement()
     active_id = resolve_host().id
     names = _display_names()
+    vram = _vram_estimates()
     statuses = await asyncio.gather(
-        *(_host_status(h, active_id, placement, names) for h in all_hosts())
+        *(_host_status(h, active_id, placement, names, vram) for h in all_hosts())
     )
     return {"placement": placement, "hosts": list(statuses)}
 

@@ -940,6 +940,19 @@ h2 { display: flex; align-items: center; gap: 8px; }
 }
 .fleet-host-head .hub-live-status { flex-shrink: 0; }
 .fleet-host-note { margin: 6px 0 0; }
+/* Advisory VRAM-overcommit warning (#375) — a tinted host note with a leading
+ * glyph, matching the .badge.warn colour token. */
+.fleet-capacity-warn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--attention);
+}
+.fleet-capacity-warn .icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
 /* The .startup-list under a host group has no extra top margin — the head +
  * note already own the spacing above it. */
 .fleet-host .startup-list { margin-top: 2px; }

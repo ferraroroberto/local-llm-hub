@@ -66,6 +66,13 @@ class HostProfile:
     # WiFi WOL is unsupported — unset on hosts with no wired NIC (e.g. a
     # laptop) or that nothing ever wakes remotely.
     mac: Optional[str] = None
+    # Discrete-GPU VRAM ceiling in MB (#375), promoted from docs/machines.md's
+    # prose hardware facts. The fleet placement grid sums a host's placed
+    # models' ``est_vram_mb`` and warns (advisory only, never blocks) when the
+    # total exceeds this. Unset on hosts with no discrete-VRAM notion to check
+    # against — the Apple-silicon Mac Mini (unified memory) and managed-only
+    # boxes that serve no models; a host with no ceiling never warns.
+    vram_mb: Optional[int] = None
 
     @property
     def can_ssh(self) -> bool:
@@ -113,6 +120,7 @@ def _row_to_profile(host_id: str, row: Dict[str, Any], *, source: str) -> HostPr
         tailscale=row.get("tailscale"),
         rdp=row.get("rdp"),
         mac=row.get("mac"),
+        vram_mb=int(row["vram_mb"]) if row.get("vram_mb") is not None else None,
     )
 
 
