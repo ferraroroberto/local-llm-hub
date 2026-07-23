@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 from typing import Optional
 
+from . import remote_stats
 from .host_profile import get_host, hub_port
 from .host_profile import resolve as resolve_host
 from .model_registry import Model
@@ -23,10 +24,16 @@ def remote_base_url_for_host(host_id: Optional[str]) -> Optional[str]:
     """Hub base URL of ``host_id`` (e.g. ``http://192.168.0.14:8000``, no
     trailing slash, no ``/v1``) when it is remote relative to the active host —
     ``None`` when ``host_id`` is empty, names the active host, or names a host
-    with no ``address`` configured.
+    with no dialable address configured.
 
     Host-level analogue of :func:`remote_base_url` for admin calls addressed to
     a *host* rather than a single model (e.g. the startup-profile API, #352).
+
+    The address is resolved through ``remote_stats.dial_address`` (#396): the
+    LAN ``address:`` while it answers, the host's ``tailscale:`` MagicDNS name
+    when the LAN path is dead. Hosts with no ``tailscale:`` name never probe
+    and behave exactly as before; when both paths are down the LAN URL is
+    returned so connect errors surface unchanged.
     """
     if not host_id:
         return None
@@ -34,9 +41,12 @@ def remote_base_url_for_host(host_id: Optional[str]) -> Optional[str]:
     if host_id == active.id:
         return None
     owner = get_host(host_id)
-    if owner is None or not owner.address:
+    if owner is None:
         return None
-    return f"http://{owner.address}:{hub_port()}"
+    address = remote_stats.dial_address(owner)
+    if not address:
+        return None
+    return f"http://{address}:{hub_port()}"
 
 
 def remote_base_url(model: Model) -> Optional[str]:

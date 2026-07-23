@@ -31,6 +31,7 @@ from typing import Any, Dict
 
 import httpx
 
+from src import remote_stats
 from src.host_profile import HostProfile
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,9 @@ async def create_ssh_session(
     upstream detail."""
     if not host.can_ssh:
         return {"ok": False, "session_id": None, "error": "host has no SSH target configured"}
-    target = f"{host.ssh_user}@{host.address}"
+    # LAN address while it answers, tailnet name when it doesn't (#396).
+    address = await remote_stats.dial_address_async(host)
+    target = f"{host.ssh_user}@{address}"
     payload = {
         "kind": "pty",
         "agent": SSH_AGENT_ID,

@@ -215,7 +215,11 @@ function renderMachineCard(m, isStale) {
   const metaParts = [];
   if (m.role) metaParts.push('<span>' + escapeHtml(m.role) + '</span>');
   if (uptime) metaParts.push('<span>Uptime ' + uptime + '</span>');
-  if (m.has_tailscale) metaParts.push('<span>' + icon('signal') + ' Tailscale</span>');
+  // "via tailnet" (#396): the liveness probe found this peer on its Tailscale
+  // name, not its LAN address — the wired path is silently dead. Falls back to
+  // the plain capability chip when the LAN path is healthy (or the box is down).
+  if (m.via_tailscale) metaParts.push('<span class="machine-via-tailnet">' + icon('signal') + ' via tailnet</span>');
+  else if (m.has_tailscale) metaParts.push('<span>' + icon('signal') + ' Tailscale</span>');
   return '<section class="card machine-card' + (isStale ? ' is-stale' : '') + '" data-machine-id="' + escapeHtml(m.id) + '">'
     + '<div class="card-header"><div class="hub-title-block">'
     + '<h2>' + icon(m.icon || 'monitor') + escapeHtml(m.display_name || m.id) + '</h2>'

@@ -183,9 +183,9 @@ def test_probe_machine_offline_peer_grays_every_action_but_wake(monkeypatch):
     gets `state: "down"` and every SSH/RDP action disabled — only wake (mac
     is configured on gaming) survives."""
     async def _unreachable(host):
-        return False
+        return None  # located_address: no candidate address answered (#396)
 
-    monkeypatch.setattr(mc.remote_stats, "is_reachable", _unreachable)
+    monkeypatch.setattr(mc.remote_stats, "located_address", _unreachable)
     card = _run(mc._probe_machine(get_host("gaming"), "tower"))
     assert card["state"] == "down"
     assert card["actions"] == {
@@ -196,15 +196,16 @@ def test_probe_machine_offline_peer_grays_every_action_but_wake(monkeypatch):
 def test_probe_machine_online_peer_keeps_full_actions(monkeypatch):
     """An online peer is unaffected by the new gating — full action set."""
     async def _reachable(host):
-        return True
+        return host.address  # located_address: the LAN path answered (#396)
 
     async def _fake_collect(host):
         return {"uptime_seconds": 42}
 
-    monkeypatch.setattr(mc.remote_stats, "is_reachable", _reachable)
+    monkeypatch.setattr(mc.remote_stats, "located_address", _reachable)
     monkeypatch.setattr(mc.remote_stats, "collect", _fake_collect)
     card = _run(mc._probe_machine(get_host("gaming"), "tower"))
     assert card["state"] == "up"
+    assert card["via_tailscale"] is False  # reached on the LAN — no badge (#396)
     assert card["actions"] == {
         "reboot": True, "shutdown": True, "ssh_terminal": True, "rdp": True, "wake": True,
     }
@@ -371,11 +372,11 @@ def test_is_reachable_caches_per_host_within_ttl(monkeypatch):
     monkeypatch.setattr(remote_stats, "_liveness_cache", {})
     calls = {"n": 0}
 
-    def fake_reachable(host):
+    def fake_locate(host):
         calls["n"] += 1
-        return True
+        return host.address  # the probe seam is locate() since #396
 
-    monkeypatch.setattr(remote_stats, "reachable", fake_reachable)
+    monkeypatch.setattr(remote_stats, "locate", fake_locate)
     a = HostProfile(id="peer-a", platform="linux", address="10.0.0.9", enabled=[])
     b = HostProfile(id="peer-b", platform="linux", address="10.0.0.10", enabled=[])
     assert _run(remote_stats.is_reachable(a)) is True
@@ -393,11 +394,12 @@ def test_is_reachable_reprobes_after_ttl_expiry(monkeypatch):
     monkeypatch.setattr(remote_stats, "_liveness_cache", {})
     calls = {"n": 0}
 
-    def fake_reachable(host):
+    def fake_locate(host):
         calls["n"] += 1
-        return calls["n"] == 1  # up on the first probe, down on the re-probe
+        # up on the first probe, down on the re-probe (locate seam, #396)
+        return host.address if calls["n"] == 1 else None
 
-    monkeypatch.setattr(remote_stats, "reachable", fake_reachable)
+    monkeypatch.setattr(remote_stats, "locate", fake_locate)
     clock = {"now": 1000.0}
     monkeypatch.setattr(remote_stats.time, "monotonic", lambda: clock["now"])
     host = HostProfile(id="flappy", platform="linux", address="10.0.0.9", enabled=[])

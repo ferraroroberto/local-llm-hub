@@ -37,6 +37,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
+from . import remote_stats
 from .host_profile import get_host, hub_port
 
 logger = logging.getLogger(__name__)
@@ -56,14 +57,15 @@ def _run_remote_command(host_id: str, verb: str) -> Dict[str, Any]:
     if not key_path:
         return {"ok": False, "error": f"{_SSH_KEY_ENV} is not set in .env"}
     owner = get_host(host_id)
-    if owner is None or not owner.address or not owner.ssh_user:
+    address = remote_stats.dial_address(owner, wait=True) if owner is not None else None
+    if owner is None or not address or not owner.ssh_user:
         return {"ok": False, "error": f"host {host_id!r} has no address/ssh_user configured"}
     cmd = [
         "ssh", "-i", key_path,
         "-o", "BatchMode=yes",
         "-o", f"ConnectTimeout={_SSH_CONNECT_TIMEOUT_S}",
         "-o", "StrictHostKeyChecking=accept-new",
-        f"{owner.ssh_user}@{owner.address}",
+        f"{owner.ssh_user}@{address}",
         verb,
     ]
     try:
@@ -79,9 +81,10 @@ def _run_remote_command(host_id: str, verb: str) -> Dict[str, Any]:
 
 async def _poll_health(host_id: str) -> Dict[str, Any]:
     owner = get_host(host_id)
-    if owner is None or not owner.address:
+    address = await remote_stats.dial_address_async(owner) if owner is not None else None
+    if owner is None or not address:
         return {"reachable": False, "error": f"host {host_id!r} has no address configured"}
-    base = f"http://{owner.address}:{hub_port()}"
+    base = f"http://{address}:{hub_port()}"
     deadline = time.monotonic() + _HEALTH_POLL_TIMEOUT_S
     last_error = ""
     async with httpx.AsyncClient(timeout=3.0) as client:
@@ -137,7 +140,8 @@ def _run_power_command(host_id: str, flag: str) -> Dict[str, Any]:
     SSH channel) and let the remote command return cleanly; the box powers
     down/reboots ~2 s later."""
     owner = get_host(host_id)
-    if owner is None or not owner.address or not owner.ssh_user:
+    address = remote_stats.dial_address(owner, wait=True) if owner is not None else None
+    if owner is None or not address or not owner.ssh_user:
         return {"ok": False, "error": f"host {host_id!r} has no address/ssh_user configured"}
     remote = f"nohup sh -c 'sleep 2; sudo -n /sbin/shutdown {flag} now' >/dev/null 2>&1 &"
     cmd = [
@@ -145,7 +149,7 @@ def _run_power_command(host_id: str, flag: str) -> Dict[str, Any]:
         "-o", "BatchMode=yes",
         "-o", f"ConnectTimeout={_SSH_CONNECT_TIMEOUT_S}",
         "-o", "StrictHostKeyChecking=accept-new",
-        f"{owner.ssh_user}@{owner.address}",
+        f"{owner.ssh_user}@{address}",
         remote,
     ]
     try:

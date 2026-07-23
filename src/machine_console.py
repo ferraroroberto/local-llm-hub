@@ -127,14 +127,22 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
         return card
 
     # A peer with a network address — liveness by TCP (is the box on?),
-    # then the same CPU/RAM/GPU/disk/uptime snapshot over general SSH.
+    # then the same CPU/RAM/GPU/disk/uptime snapshot over general SSH. The
+    # probe reports WHICH address answered (LAN, or the tailscale name when
+    # only the tailnet does — #396) so a silent wired failure surfaces as a
+    # "via tailnet" badge on the card instead of being masked by the fallback.
     if host.address:
-        reachable = await remote_stats.is_reachable(host)
+        located = await remote_stats.located_address(host)
+        reachable = located is not None
         card = _card_base(host, is_host=False, reachable=reachable)
         stats = await remote_stats.collect(host) if reachable else None
         card.update(
             state="up" if reachable else "down",
             reachable=reachable,
+            via_tailscale=bool(
+                reachable and host.tailscale
+                and located == host.tailscale and host.tailscale != host.address
+            ),
             uptime_seconds=stats.get("uptime_seconds") if stats else None,
             stats=stats,
             detail="" if reachable else "Offline",

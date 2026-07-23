@@ -188,11 +188,13 @@ async def remote_models(
     and fall back to a locally-synthesized offline row instead of
     silently dropping the model from the list.
     """
-    if not owner.address:
-        return None
+    from src import remote_stats
     from src.remote_proxy import remote_auth_token
 
-    base = f"http://{owner.address}:{hub_port()}"
+    address = await remote_stats.dial_address_async(owner)
+    if not address:
+        return None
+    base = f"http://{address}:{hub_port()}"
     token = remote_auth_token(owner.id)
     headers = {"Authorization": f"Bearer {token}"} if token else None
     try:
@@ -218,20 +220,23 @@ async def peer_health(
     generalized from the Mac-Mini-only original in #372).
 
     Clone of ``langfuse_health()``'s try/timeout shape, but the address
-    comes from ``HostProfile.address`` (config/models.yaml) + ``hub_port()``
-    — the same single source of truth #178's remote proxy already resolves
-    against, not a new env var. When reachable, also compares build
+    comes from ``remote_stats.dial_address`` (the host's LAN ``address:``,
+    falling back to its ``tailscale:`` name when the LAN path is dead — #396)
+    + ``hub_port()`` — the same single source of truth #178's remote proxy
+    already resolves against, not a new env var. When reachable, also compares build
     identity against the peer's ``/admin/api/version`` (#181) — its own
     try/except so a reachable-but-erroring version fetch never flips
     ``reachable`` back to ``False``.
     """
+    from src import remote_stats
     from src.build_info import git_sha
     from src.host_profile import get_host
 
     owner = get_host(host_id)
-    if owner is None or not owner.address:
+    address = await remote_stats.dial_address_async(owner) if owner is not None else None
+    if owner is None or not address:
         return {"reachable": False, "error": f"host {host_id!r} has no address configured", "address": None}
-    base = f"http://{owner.address}:{hub_port()}"
+    base = f"http://{address}:{hub_port()}"
     try:
         async with httpx.AsyncClient(timeout=timeout_s) as client:
             r = await client.get(f"{base}/health")

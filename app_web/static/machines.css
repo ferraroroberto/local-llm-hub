@@ -28,6 +28,11 @@
 .hub-live-status.accent { color: var(--accent); }
 .hub-live-status.accent .dot { background: var(--accent); }
 
+/* "via tailnet" (#396) — the peer is only reachable through its Tailscale
+ * name, i.e. the wired LAN path is silently dead. Attention-toned so the
+ * degraded route reads as a warning, not just another capability chip. */
+.machine-via-tailnet { color: var(--attention); }
+
 /* Role / Tailscale-hint line under the header — same rhythm as the Hub
  * card's PID/Uptime row (.hub-meta-row is a generic, unscoped rule). */
 .machine-meta-row {
