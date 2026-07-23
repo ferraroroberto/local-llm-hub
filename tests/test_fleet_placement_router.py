@@ -102,6 +102,9 @@ def test_get_returns_placement_and_host_status(monkeypatch, tmp_path):
     assert hosts["mac-mini-m4"]["placed"] == ["parakeet"]
     # eligible carries display names for the grid to render
     assert all("display_name" in e for e in hosts["mac-mini-m4"]["eligible"])
+    # parakeet is 0-VRAM but runs on the Mac's ANE, not CPU — no device hint
+    by_id = {e["id"]: e for e in hosts["mac-mini-m4"]["eligible"]}
+    assert by_id["parakeet"]["device"] is None
 
 
 def _stub_gaming_online(monkeypatch):
@@ -182,6 +185,25 @@ def test_host_without_ceiling_never_warns(monkeypatch, tmp_path):
     assert m["vram_mb"] is None
     assert m["est_vram_mb"] == 99999
     assert m["capacity_warning"] is False
+
+
+def test_eligible_entries_mark_cpu_models(monkeypatch, tmp_path):
+    """CPU-resident models (piper, whisper_translate) carry
+    ``device: "cpu"`` in their eligible entry (#387); a GPU-backed model
+    (whisper) and the ANE-resident, also-0-VRAM parakeet do not."""
+    _isolate(monkeypatch, tmp_path, {})
+    _stub_gaming_online(monkeypatch)
+
+    client = TestClient(server_mod.app)
+    hosts = {h["id"]: h for h in client.get("/admin/api/fleet-placement").json()["hosts"]}
+
+    gaming = {e["id"]: e for e in hosts["gaming"]["eligible"]}
+    assert gaming["whisper_translate"]["device"] == "cpu"  # whisper-server -ng
+    assert gaming["whisper"]["device"] is None
+    assert gaming["orpheus"]["device"] is None
+
+    tower = {e["id"]: e for e in hosts["tower"]["eligible"]}
+    assert tower["piper"]["device"] == "cpu"  # tts_engine: piper hardcodes CPU
 
 
 def test_patch_merges_persists_and_applies(monkeypatch, tmp_path):

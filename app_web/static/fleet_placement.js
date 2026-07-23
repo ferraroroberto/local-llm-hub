@@ -57,6 +57,17 @@ function modelBadge(host, modelId) {
   return ' <span class="badge">deferred</span>';
 }
 
+/* A small, low-emphasis device hint for statically CPU-resident models
+ * (piper, whisper_translate — #387), so a row that contributes 0 to the
+ * VRAM sum reads as intentionally exempt rather than an omission. Reuses
+ * models.js's "· cpu" meta-text idiom (#371) — same visual language, no
+ * new CSS. Omitted (not guessed) for every other row, including other
+ * 0-VRAM rows that aren't actually CPU (e.g. parakeet on the Mac's ANE). */
+function deviceHint(model) {
+  if (!model.device) return '';
+  return ' <span class="muted small">· ' + escapeHtml(model.device) + '</span>';
+}
+
 function hostChip(host) {
   if (host.local) return { cls: 'good', label: 'This machine' };
   if (host.reachable) return { cls: 'good', label: 'Online' };
@@ -98,6 +109,7 @@ function buildModelRow(host, model) {
   const label = document.createElement('span');
   label.className = 'startup-row-label';
   label.innerHTML = '<span class="fleet-model-name">' + escapeHtml(model.display_name) + '</span>'
+    + deviceHint(model)
     + modelBadge(host, model.id);
   li.appendChild(label);
 

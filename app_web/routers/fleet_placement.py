@@ -52,6 +52,27 @@ def _vram_estimates() -> Dict[str, int]:
     return {m.id: m.est_vram_mb for m in all_models() if m.est_vram_mb is not None}
 
 
+def _device_hints() -> Dict[str, str]:
+    """``{model_id: "cpu"}`` for models that are statically CPU-resident, so
+    the grid can show a small 'cpu' hint per row (#387) — a model contributing
+    0 to the VRAM sum reads as *intentionally exempt*, not as an omission.
+
+    Config-derived, no live probe: piper's shim hardcodes CPU unconditionally
+    (``src/tts_engines/piper.py``, #371) and a ``whisper-server`` row carrying
+    ``-ng`` in its args never touches the GPU (see ``whisper_translate``).
+    Deliberately **not** ``est_vram_mb == 0`` alone — ``parakeet`` is also 0
+    but runs on the Mac's ANE via CoreML, a real (if non-discrete-VRAM)
+    device, not "cpu"; and the ``qwen35_4b_moe`` virtual alias shares its
+    host row's GPU process. Display only (#387) — this never feeds the
+    capacity sum, which already keys off ``est_vram_mb``.
+    """
+    hints: Dict[str, str] = {}
+    for m in all_models():
+        if m.tts_engine == "piper" or (m.engine == "whisper-server" and "-ng" in m.args):
+            hints[m.id] = "cpu"
+    return hints
+
+
 def _capacity(
     profile: HostProfile, placed: List[str], running: List[str], vram: Dict[str, int]
 ) -> Dict[str, Any]:
@@ -80,6 +101,7 @@ async def _host_status(
     placement: Dict[str, List[str]],
     names: Dict[str, str],
     vram: Dict[str, int],
+    devices: Dict[str, str],
 ) -> Dict[str, Any]:
     """One host's grid row: its placeable models, live status, capacity
     headroom, and whether the control plane can manage it.
@@ -95,7 +117,10 @@ async def _host_status(
     hid = profile.id
     eligible_ids = launchable_local_ids(profile)
     eligible_set = set(eligible_ids)
-    eligible = [{"id": m, "display_name": names.get(m, m)} for m in eligible_ids]
+    eligible = [
+        {"id": m, "display_name": names.get(m, m), "device": devices.get(m)}
+        for m in eligible_ids
+    ]
     placed = placement.get(hid, [])
     runs_hub = bool(eligible_ids)  # only a host with launchable models runs this hub
 
@@ -141,8 +166,9 @@ async def get_fleet_placement() -> Dict[str, Any]:
     active_id = resolve_host().id
     names = _display_names()
     vram = _vram_estimates()
+    devices = _device_hints()
     statuses = await asyncio.gather(
-        *(_host_status(h, active_id, placement, names, vram) for h in all_hosts())
+        *(_host_status(h, active_id, placement, names, vram, devices) for h in all_hosts())
     )
     return {"placement": placement, "hosts": list(statuses)}
 
