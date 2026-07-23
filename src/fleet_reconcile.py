@@ -58,8 +58,14 @@ _PEER_TIMEOUT_S = 30.0
 # Peer transport — raw httpx, soft-failing (no FastAPI HTTPException in a loop).
 # --------------------------------------------------------------------------- #
 def _peer_base(owner: Any) -> str:
+    """Peer hub base URL via the #396 dial resolver — LAN address while it
+    answers, tailnet name when it doesn't. The preceding ``peer_health`` call
+    in every converge path has already warmed the resolver's last-known-good
+    cache, so this is a dict lookup in practice, not a probe."""
+    from . import remote_stats
     from .host_profile import hub_port
-    return f"http://{owner.address}:{hub_port()}"
+    address = remote_stats.dial_address(owner) or owner.address
+    return f"http://{address}:{hub_port()}"
 
 
 def _peer_headers(host_id: str) -> Dict[str, str]:

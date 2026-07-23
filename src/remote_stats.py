@@ -28,8 +28,9 @@ import logging
 import socket
 import subprocess
 import sys
+import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from src.host_profile import HostProfile
 
@@ -45,6 +46,11 @@ _WARMUP_RETRY_DELAY_S = 0.5   # pause before the one liveness warm-up retry (#33
 # fleet-placement grid's otherwise-independent full liveness fans for the
 # same host on the same page load (#369).
 _LIVENESS_CACHE_TTL_S = 5.0
+# Last-known-good *dial address* TTL (#396) — long enough that the peer-connect
+# paths (model proxy, SSH ops) don't re-pay a probe per call, short enough that
+# recovery back to the LAN path (or over to the tailnet name) lands within half
+# a minute of the network changing underneath us.
+_DIAL_TTL_S = 30.0
 
 
 def _no_window_flags() -> int:
@@ -55,8 +61,23 @@ def _no_window_flags() -> int:
 # host_id -> (expiry_monotonic, stats_or_None)
 _cache: Dict[str, tuple[float, Optional[Dict[str, Any]]]] = {}
 
-# host_id -> (expiry_monotonic, reachable) — shared by is_reachable() below.
-_liveness_cache: Dict[str, tuple[float, bool]] = {}
+# host_id -> (expiry_monotonic, located_address_or_None) — shared by
+# is_reachable()/located_address() below. Since #396 it remembers WHICH
+# candidate address answered (LAN, or the tailscale name), not just a bool,
+# so the Machines card can badge a peer as reached "via tailnet".
+_liveness_cache: Dict[str, tuple[float, Optional[str]]] = {}
+
+# host_id -> (expiry_monotonic, address) — the last-known-good address the
+# peer-connect paths should dial (#396). Deliberately a separate cache from
+# ``_liveness_cache`` (#369) so the two never fight: liveness may expire and
+# re-probe on every poll tick while the dial route stays pinned to its
+# last-known-good for the longer ``_DIAL_TTL_S``.
+_dial_cache: Dict[str, tuple[float, str]] = {}
+
+# host_id -> address currently in use — transition logging only (#396), so the
+# LAN→tailnet failover (and the recovery back) is logged once per flip rather
+# than once per probe.
+_active_route: Dict[str, str] = {}
 
 # Read-only one-liners, validated live against the real peers. Each emits
 # `key value` lines; unavailable metrics (e.g. no nvidia-smi) are simply
@@ -117,53 +138,213 @@ def _probe_liveness_ports(address: str) -> bool:
         return any(f.result() for f in concurrent.futures.as_completed(futures))
 
 
-def reachable(host: HostProfile) -> bool:
-    """TCP-connect liveness probe — *is the machine on?* Independent of SSH
-    auth or the hub: succeeds as soon as any liveness port accepts.
+def _candidates(host: HostProfile) -> List[str]:
+    """Ordered addresses to try for ``host`` (#396): the wired LAN ``address:``
+    first (no WireGuard hop while the wire is healthy — an explicit
+    non-goal of the fallback), then the ``tailscale:`` MagicDNS name, which is
+    NIC-independent and survives a wired→Wi-Fi failover onto a DHCP pool
+    address."""
+    out: List[str] = []
+    if host.address:
+        out.append(host.address)
+    if host.tailscale and host.tailscale != host.address:
+        out.append(host.tailscale)
+    return out
+
+
+def _record_route(host: HostProfile, winner: str) -> None:
+    """Log the LAN→tailnet failover — and the recovery back — at info level,
+    once per transition (#396). A silent wired failure must be visible in the
+    logs, not masked by the fallback working."""
+    prev = _active_route.get(host.id)
+    if winner == prev:
+        return
+    _active_route[host.id] = winner
+    if host.tailscale and winner == host.tailscale and winner != host.address:
+        logger.info(
+            "🛰️ peer %s: LAN address %s unreachable — falling back to tailnet %s",
+            host.id, host.address, host.tailscale,
+        )
+    elif prev is not None and prev == host.tailscale:
+        logger.info(
+            "🔌 peer %s: LAN address %s answers again — dropping tailnet fallback %s",
+            host.id, winner, host.tailscale,
+        )
+
+
+def _locate_once(host: HostProfile) -> Optional[str]:
+    """One pass over the candidate addresses, LAN first — the first address
+    with an accepting liveness port wins; ``None`` when none answers."""
+    for addr in _candidates(host):
+        if _probe_liveness_ports(addr):
+            return addr
+    return None
+
+
+def locate(host: HostProfile) -> Optional[str]:
+    """TCP-connect liveness probe — *is the machine on, and at which address?*
+    Independent of SSH auth or the hub: returns the first candidate address
+    (LAN, then the tailscale name — #396) with an accepting liveness port, or
+    ``None`` when the box is genuinely unreachable everywhere.
 
     A peer whose NIC has idled into power-save (C-state / Wake-on-LAN sleep)
     routinely drops the *first* SYN and answers the next — so a single warm-up
     retry (the first attempt has already begun waking the NIC) keeps a live box
     from flickering to "down" between polls (#333; gaming did exactly this on
-    the first probe after idle). A genuinely-off box still returns False, just
+    the first probe after idle). A genuinely-off box still returns None, just
     after two passes; probes run concurrently per host, so the extra latency
     never blocks the rest of the fleet."""
-    if not host.address:
-        return False
-    if _probe_liveness_ports(host.address):
-        return True
-    time.sleep(_WARMUP_RETRY_DELAY_S)
-    return _probe_liveness_ports(host.address)
+    if not _candidates(host):
+        return None
+    addr = _locate_once(host)
+    if addr is None:
+        time.sleep(_WARMUP_RETRY_DELAY_S)
+        addr = _locate_once(host)
+    if addr is not None:
+        _record_route(host, addr)
+    return addr
 
 
-async def is_reachable(host: HostProfile) -> bool:
-    """Cached wrapper around :func:`reachable`, keyed by host id.
+def reachable(host: HostProfile) -> bool:
+    """Boolean face of :func:`locate` — kept because "is the box on?" is the
+    question most callers ask; the address that answered only matters to the
+    #396 dial/badge paths."""
+    return locate(host) is not None
+
+
+async def located_address(host: HostProfile) -> Optional[str]:
+    """Cached :func:`locate`, keyed by host id — the address the peer is
+    currently reachable at (its LAN ``address:``, or its ``tailscale:`` name
+    when only the tailnet answers), ``None`` when it's down.
 
     The Machines tab (``machine_console``) and the fleet-placement grid
-    (``app_web/routers/fleet_placement.py``) both call this for the same
-    hosts on the same page load and again on every poll tick — each paying
-    an independent full TCP liveness fan without this cache. A short TTL
-    (under the 10 s Machines poll) collapses that duplication while staying
-    fresh enough that neither surface visibly lags a real state change
-    (#369)."""
+    (``app_web/routers/fleet_placement.py``) both probe the same hosts on the
+    same page load and again on every poll tick — each paying an independent
+    full TCP liveness fan without this cache. A short TTL (under the 10 s
+    Machines poll) collapses that duplication while staying fresh enough that
+    neither surface visibly lags a real state change (#369). The Machines card
+    compares the winner against ``host.tailscale`` to badge "via tailnet"
+    (#396)."""
     now = time.monotonic()
     cached = _liveness_cache.get(host.id)
     if cached is not None and cached[0] > now:
         return cached[1]
-    result = await asyncio.to_thread(reachable, host)
+    result = await asyncio.to_thread(locate, host)
     _liveness_cache[host.id] = (now + _LIVENESS_CACHE_TTL_S, result)
     return result
 
 
+async def is_reachable(host: HostProfile) -> bool:
+    """Cached liveness, keyed by host id (#369) — see :func:`located_address`,
+    which this simply booleanizes."""
+    return await located_address(host) is not None
+
+
+# Host ids with a background dial-route refresh currently in flight (#396) —
+# dedup guard so a burst of cache-miss dials spawns one probe thread, not one
+# per call.
+_refresh_inflight: set = set()
+_refresh_lock = threading.Lock()
+
+
+def _refresh_route(host: HostProfile) -> str:
+    """Probe the candidate addresses now (blocking, one pass) and pin the
+    winner — or the LAN primary when everything is dead, so callers fail with
+    exactly the same connect errors as before the fallback existed — as the
+    dial route for ``_DIAL_TTL_S``."""
+    winner = _locate_once(host)
+    if winner is not None:
+        _record_route(host, winner)
+    addr = winner or _candidates(host)[0]
+    _dial_cache[host.id] = (time.monotonic() + _DIAL_TTL_S, addr)
+    return addr
+
+
+def _kick_refresh(host: HostProfile) -> None:
+    """Run :func:`_refresh_route` on a daemon thread, at most one per host at
+    a time. Fire-and-forget by design: the caller has already been handed the
+    stale/best-guess route and must not wait on the probe."""
+    with _refresh_lock:
+        if host.id in _refresh_inflight:
+            return
+        _refresh_inflight.add(host.id)
+
+    def _worker() -> None:
+        try:
+            _refresh_route(host)
+        except Exception:  # noqa: BLE001 — a failed probe must never kill the thread loudly
+            logger.debug("dial-route refresh for %s failed", host.id, exc_info=True)
+        finally:
+            with _refresh_lock:
+                _refresh_inflight.discard(host.id)
+
+    threading.Thread(target=_worker, daemon=True, name=f"dial-refresh-{host.id}").start()
+
+
+def dial_address(host: HostProfile, *, wait: bool = False) -> Optional[str]:
+    """The address the peer-connect paths (model-proxy upstream, SSH ops,
+    remote stats) should dial right now (#396): the LAN ``address:`` while it
+    answers, the ``tailscale:`` MagicDNS name when the LAN path is dead.
+
+    * A host with no ``tailscale:`` name (or no fallback distinct from its
+      address) short-circuits to today's behavior — its single address, zero
+      probing.
+    * With both configured, the winner of a liveness-port probe is cached as
+      last-known-good for ``_DIAL_TTL_S``; a fresh :func:`located_address`
+      result is reused rather than re-probing.
+    * When *both* paths are dead the LAN primary is pinned — callers then fail
+      with exactly the same connect errors as before the fallback existed.
+
+    ``wait=False`` (the default) **never blocks**: on a cache miss it returns
+    the current best guess (last route, else the LAN primary) immediately and
+    refreshes the route on a background thread — this is the only safe mode on
+    the event loop, where a probe of a dark address would stall every request
+    for seconds (a dead peer's connect probes time out, and that latency
+    landed on unrelated requests when this first shipped blocking). The
+    trade-off is one possibly-stale dial right after a route change, corrected
+    within the probe's own duration. ``wait=True`` probes inline and is for
+    code already off the loop (SSH worker threads,
+    :func:`dial_address_async`)."""
+    cands = _candidates(host)
+    if not cands:
+        return None
+    if len(cands) == 1:
+        return cands[0]
+    now = time.monotonic()
+    cached = _dial_cache.get(host.id)
+    if cached is not None and cached[0] > now:
+        return cached[1]
+    live = _liveness_cache.get(host.id)
+    if live is not None and live[0] > now and live[1] is not None:
+        _dial_cache[host.id] = (now + _DIAL_TTL_S, live[1])
+        return live[1]
+    if wait:
+        return _refresh_route(host)
+    _kick_refresh(host)
+    # Expired-but-known route first, then whatever transition tracking last
+    # saw, then the LAN primary — the same answer pre-#396 callers dialed.
+    if cached is not None:
+        return cached[1]
+    return _active_route.get(host.id) or cands[0]
+
+
+async def dial_address_async(host: HostProfile) -> Optional[str]:
+    """:func:`dial_address` with an inline probe, run off the event loop —
+    async callers get the *resolved* route (worth the probe's latency) without
+    stalling the loop."""
+    return await asyncio.to_thread(dial_address, host, wait=True)
+
+
 def _run_ssh(host: HostProfile, command: str) -> Optional[str]:
     """Run a read-only command over the hub user's own SSH (not the
-    forced-command key). Returns stdout, or None on any failure."""
+    forced-command key). Returns stdout, or None on any failure. Dials the
+    host's currently-live address (LAN, else tailnet — #396)."""
     cmd = [
         "ssh",
         "-o", "BatchMode=yes",
         "-o", f"ConnectTimeout={_SSH_CONNECT_TIMEOUT_S}",
         "-o", "StrictHostKeyChecking=accept-new",
-        f"{host.ssh_user}@{host.address}",
+        f"{host.ssh_user}@{dial_address(host, wait=True)}",
         command,
     ]
     try:

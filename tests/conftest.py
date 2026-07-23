@@ -56,6 +56,35 @@ def _isolate_claude_code_otel_store(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _hermetic_remote_probes(monkeypatch):
+    """Keep unit tests off the real network and remote-stats caches clean (#396).
+
+    ``remote_stats.dial_address`` now sits under every peer-connect path
+    (model proxy, SSH ops, peer health), and for a host with a ``tailscale:``
+    fallback a cache-miss resolve TCP-probes real addresses. Stubbing the
+    lowest-level ``_probe_port`` to "nothing answers" makes every unstubbed
+    resolve deterministically pick the LAN primary with zero sockets — tests
+    that exercise the fallback itself monkeypatch ``_probe_liveness_ports``
+    (or ``_probe_port``) on top of this. The per-host caches are cleared on
+    both sides so a cached liveness/dial route never leaks between tests.
+    """
+    from src import remote_stats
+
+    monkeypatch.setattr(remote_stats, "_probe_port", lambda address, port: False)
+    caches = (
+        remote_stats._cache,
+        remote_stats._liveness_cache,
+        remote_stats._dial_cache,
+        remote_stats._active_route,
+    )
+    for cache in caches:
+        cache.clear()
+    yield
+    for cache in caches:
+        cache.clear()
+
+
+@pytest.fixture(autouse=True)
 def _reset_shared_http_clients():
     """Reset the hub's shared httpx client singletons around every test.
 

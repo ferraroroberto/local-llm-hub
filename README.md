@@ -601,6 +601,18 @@ Every reachable machine shows the **same** snapshot — CPU / RAM / GPU / disk
   hub-lifecycle `bootstrap`/`sync` (#181/#368) on the model-serving peers
   (Mac Mini and `gaming`, each running its own dispatcher script).
 
+**Tailscale fallback (#396).** Every peer-connect path — the model-proxy
+upstream, SSH ops, and the remote stats/liveness probes — dials the peer's
+wired LAN `address:` first and falls back to its `tailscale:` magic-DNS name
+when the LAN path stops answering (`remote_stats.dial_address`, a short-TTL
+last-known-good resolver). The wired NICs carry fixed DHCP reservations while
+Wi-Fi is an *unreserved* fallback, so a wired failure moves a box to a pool
+address — only the NIC-independent tailnet name survives that. The failover is
+logged at info level (`falling back to tailnet …`) and the Machines card shows
+a **via tailnet** badge while a peer is reached that way; hosts with no
+`tailscale:` recorded behave exactly as before, and a healthy LAN path is
+always preferred (no WireGuard hop while the wire works).
+
 **Reboot / shutdown (destructive, peers only).** Any peer with an SSH channel
 (`address` + `ssh_user`) offers **Reboot** and **Shut down** actions; the
 active hub host is always excluded (powering it off would take the console

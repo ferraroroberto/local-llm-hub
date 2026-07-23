@@ -103,6 +103,14 @@ hosts:
     address: 192.168.0.14
     # Wired-NIC MAC used for Wake-on-LAN (#356) — WiFi WOL is unsupported.
     mac: 1c:f6:4c:56:05:da
+    # Tailscale magic-DNS name — the tailnet node is `mac-mini` (100.82.9.41,
+    # verified via `tailscale status` 2026-07-23). Besides reachability/RDP,
+    # every `tailscale:` name is now the peer-connect fallback (#396): the
+    # wired LAN `address:` above is primary, and when it stops answering
+    # (Wi-Fi failover moves the box to an unreserved DHCP pool address) the
+    # hub's proxy/SSH/stats paths dial this name instead — it is
+    # NIC-independent and survives any failover.
+    tailscale: mac-mini.tail1121fd.ts.net
     # No `vram_mb` (#375): Apple-silicon unified memory has no fixed VRAM
     # partition to check a model set against, so the placement grid skips the
     # capacity warning for this host rather than inventing a misleading ceiling.
