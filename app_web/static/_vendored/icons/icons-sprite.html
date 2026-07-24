@@ -6,7 +6,7 @@
      icons.js). Glyphs are the handful local-llm-hub actually uses — add/remove
      <symbol> children to match; do NOT bulk-import the whole Lucide library.
 
-     Glyphs vendored from lucide-static 0.544.0 (ISC), on the 24×24 / 2px-stroke
+     Glyphs vendored from lucide-static v1.21.0 (ISC), on the 24×24 / 2px-stroke
      grid the fleet identity is modelled on.
 
      LOAD-BEARING, do not "tidy":
@@ -120,10 +120,10 @@
     <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z" />
   </symbol>
   <symbol id="i-rocket" viewBox="0 0 24 24" fill="none">
-    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
-    <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
-    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
     <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09" />
+    <path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z" />
+    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05" />
   </symbol>
   <symbol id="i-container" viewBox="0 0 24 24" fill="none">
     <path d="M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.72 1.72 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.72 1.72 0 0 0 1.7 0l10.3-6c.5-.3.9-1 .9-1.5Z" />
@@ -240,8 +240,7 @@
     <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
   </symbol>
   <symbol id="i-paperclip" viewBox="0 0 24 24" fill="none">
-    <path d="M13.234 20.252 21 12.3" />
-    <path d="m16 6-8.414 8.586a2 2 0 0 0 0 2.828 2 2 0 0 0 2.828 0l8.414-8.586a4 4 0 0 0 0-5.656 4 4 0 0 0-5.656 0l-8.415 8.585a6 6 0 1 0 8.486 8.486" />
+    <path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551" />
   </symbol>
   <symbol id="i-layers" viewBox="0 0 24 24" fill="none">
     <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
@@ -250,12 +249,13 @@
   </symbol>
   <!-- Machines tab glyphs (issue #309) — monitor/laptop/server lifted verbatim
        from lucide-static via sibling fleet apps that already vendored them
-       (home-automation, app-launcher); "monitor" hand-verified against
-       lucide.dev's current icon (unchanged for several major versions). -->
+       (home-automation, app-launcher); "monitor" re-vendored from the current
+       project-scaffolding canonical (#384) — laptop/server/cpu/hard-drive/power/
+       monitor-smartphone below are app-only, not in the canonical sprite. -->
   <symbol id="i-monitor" viewBox="0 0 24 24" fill="none">
-    <path d="M12 17v4" />
-    <path d="M8 21h8" />
-    <rect x="2" y="3" width="20" height="14" rx="2" />
+    <rect width="20" height="14" x="2" y="3" rx="2" />
+    <line x1="8" x2="16" y1="21" y2="21" />
+    <line x1="12" x2="12" y1="17" y2="21" />
   </symbol>
   <symbol id="i-laptop" viewBox="0 0 24 24" fill="none">
     <path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z" />
