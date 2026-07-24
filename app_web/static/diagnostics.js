@@ -44,7 +44,10 @@ function fmtMb(mb) {
   return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : Math.round(mb) + ' MB';
 }
 
-function fmtNum(n, digits) {
+/* Fixed-decimal formatting, `digits` decimal places (default 0) — distinct
+ * contract from code_usage.js's fmtNum, which takes one arg and returns
+ * toLocaleString() comma-grouping instead (design-drift audit #384). */
+function fmtFixed(n, digits) {
   return Number.isFinite(n) ? n.toFixed(digits === undefined ? 0 : digits) : '—';
 }
 
@@ -189,8 +192,8 @@ function renderFindings(verdict) {
 }
 
 function statRow(label, entry, unit) {
-  const avg = entry && Number.isFinite(entry.avg) ? fmtNum(entry.avg, 0) + (unit || '') : '—';
-  const peak = entry && Number.isFinite(entry.peak) ? fmtNum(entry.peak, 0) + (unit || '') : '—';
+  const avg = entry && Number.isFinite(entry.avg) ? fmtFixed(entry.avg, 0) + (unit || '') : '—';
+  const peak = entry && Number.isFinite(entry.peak) ? fmtFixed(entry.peak, 0) + (unit || '') : '—';
   return '<tr><th scope="row">' + escapeHtml(label) + '</th><td>' + avg + '</td><td>' + peak + '</td></tr>';
 }
 
@@ -213,7 +216,7 @@ function renderSummary(summary, drift) {
     + statRow('Processes', res.process_count, '')
     + ((res.gpu_peak_vram || []).map(function (g) {
       return '<tr><th scope="row">VRAM · ' + escapeHtml(g.name) + '</th><td>—</td><td>'
-        + fmtNum(g.peak_percent, 0) + '%</td></tr>';
+        + fmtFixed(g.peak_percent, 0) + '%</td></tr>';
     }).join(''))
     + '</tbody></table></div>');
 
@@ -229,7 +232,7 @@ function renderSummary(summary, drift) {
         return '<tr><th scope="row">' + escapeHtml(a.app_id) + '</th>'
           + '<td>' + escapeHtml(String(a.peak_procs)) + '</td>'
           + '<td>' + escapeHtml(fmtMb(a.peak_rss_mb)) + '</td>'
-          + '<td>' + fmtNum(a.peak_cpu, 0) + '%</td></tr>';
+          + '<td>' + fmtFixed(a.peak_cpu, 0) + '%</td></tr>';
       }).join('')
       + '</tbody></table></div>');
   }

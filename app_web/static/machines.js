@@ -82,7 +82,10 @@ function fmtUptimeHuman(seconds) {
   return d + 'd' + (remH ? ' ' + remH + 'h' : '');
 }
 
-function fmtGb(n) { return Number.isFinite(n) ? n.toFixed(1) : '—'; }
+/* Bare "X.X" (no unit suffix) for a value already in GB — distinct contract
+ * from fleet_placement.js's fmtGb, which takes raw MB and returns "X.X GB"
+ * with the unit baked in (design-drift audit #384). */
+function fmtGbValue(n) { return Number.isFinite(n) ? n.toFixed(1) : '—'; }
 function fmtPct(n) { return Number.isFinite(n) ? Math.round(n) + '%' : '—'; }
 
 /* Wi-Fi RSSI (dBm) -> a plain-English band (#397). Conventional Wi-Fi
@@ -152,16 +155,16 @@ function renderStatsBlock(m) {
     gauges.push(gauge('CPU', s.cpu.percent, fmtPct(s.cpu.percent)));
   }
   if (s.ram) {
-    gauges.push(gauge('RAM', s.ram.percent, fmtGb(s.ram.used_gb) + ' / ' + fmtGb(s.ram.total_gb) + ' GB'));
+    gauges.push(gauge('RAM', s.ram.percent, fmtGbValue(s.ram.used_gb) + ' / ' + fmtGbValue(s.ram.total_gb) + ' GB'));
   }
   const gpus = s.gpus || [];
   gpus.forEach(function (g, i) {
     const label = 'GPU' + (gpus.length > 1 ? ' ' + (i + 1) : '') + (g.name ? ' · ' + shortGpu(g.name) : '');
-    const value = fmtGb((g.used_mb || 0) / 1024) + ' / ' + fmtGb((g.total_mb || 0) / 1024) + ' GB · ' + fmtPct(g.util_percent) + ' util';
+    const value = fmtGbValue((g.used_mb || 0) / 1024) + ' / ' + fmtGbValue((g.total_mb || 0) / 1024) + ' GB · ' + fmtPct(g.util_percent) + ' util';
     gauges.push(gauge(label, g.vram_percent, value));
   });
   if (s.disk) {
-    gauges.push(gauge('Disk', s.disk.percent, fmtGb(s.disk.used_gb) + ' / ' + fmtGb(s.disk.total_gb) + ' GB'));
+    gauges.push(gauge('Disk', s.disk.percent, fmtGbValue(s.disk.used_gb) + ' / ' + fmtGbValue(s.disk.total_gb) + ' GB'));
   }
   if (!gauges.length) return '';
   return '<div class="machine-stats">' + gauges.join('') + '</div>';
