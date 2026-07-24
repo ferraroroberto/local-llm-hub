@@ -210,7 +210,17 @@ def cpu_offload_args(engine: Optional[str], args: List[str]) -> List[str]:
     return out
 
 
-def all_models() -> List[Model]:
+def all_models(*, apply_cpu_offload: bool = True) -> List[Model]:
+    """Every configured row.
+
+    ``apply_cpu_offload`` (default True) bakes the active host's ``cpu: true``
+    arg rewrite in — what every *spawn/args* consumer wants. Pass False to get
+    the rows exactly as declared in YAML, for callers that must reason about
+    other hosts: the rewrite is active-host-only, so rewritten args describe
+    this box and must not be attributed fleet-wide (#405 — the placement grid
+    read ``-ng`` off the rewritten row and labelled whisper "cpu" on *every*
+    chain member, not just the flagged degraded tier).
+    """
     cfg = _load_config()
     rows: Dict = cfg.get("models") or {}
     models = [_row_to_model(mid, row) for mid, row in rows.items()]
@@ -223,7 +233,7 @@ def all_models() -> List[Model]:
         active_id: Optional[str] = resolve_host().id
     except Exception:  # noqa: BLE001
         active_id = None
-    if active_id:
+    if active_id and apply_cpu_offload:
         models = [
             dataclasses.replace(m, args=cpu_offload_args(m.engine, m.args))
             if active_id in m.cpu_hosts else m

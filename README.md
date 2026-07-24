@@ -580,10 +580,20 @@ the engine adds zero probes and zero background work.
 `enabled:` **and** pre-stage the weights (`python -m src.install --fix` on
 that host — the installer treats chain members as local candidates). The
 Models tab tags a model served off-preference with a
-`failover (prefers <host>)` note on its tile. No production row ships with
-a multi-host chain yet — the live cutover (chain on the whisper voice
-backends + a controlled failover drill) is tracked in the follow-up to
-#342.
+`failover (prefers <host>)` note on its tile.
+
+**The live chain (#405).** `whisper` is the first production row to use one:
+
+```yaml
+  hosts: [gaming, mac-mini-m4, {id: tower, cpu: true}]
+```
+
+It was chosen as the pilot because it is the transcribe role's *fallback*
+(`parakeet` on the Mac is primary, via the #348 role chain), so a wrong
+failover decision degrades a backup path rather than taking fleet STT down.
+`tower` is flagged `cpu: true` because its 16 GB is already ~97% committed to
+the agentic lanes — the degraded-but-up CPU tier is the honest last rung
+there, not a compromise. Every other row still carries a bare `host:`.
 
 ### Linux satellite lifecycle: systemd (#323, #368)
 

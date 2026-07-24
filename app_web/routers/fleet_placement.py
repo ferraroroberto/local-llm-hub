@@ -52,24 +52,40 @@ def _vram_estimates() -> Dict[str, int]:
     return {m.id: m.est_vram_mb for m in all_models() if m.est_vram_mb is not None}
 
 
-def _device_hints() -> Dict[str, str]:
-    """``{model_id: "cpu"}`` for models that are statically CPU-resident, so
-    the grid can show a small 'cpu' hint per row (#387) — a model contributing
-    0 to the VRAM sum reads as *intentionally exempt*, not as an omission.
+def _device_hints() -> Dict[str, Dict[str, str]]:
+    """``{host_id: {model_id: "cpu"}}`` — CPU residency is per *(model, host)*,
+    so the grid can show a small 'cpu' hint per row (#387) — a model
+    contributing 0 to the VRAM sum reads as *intentionally exempt*, not as an
+    omission.
 
-    Config-derived, no live probe: piper's shim hardcodes CPU unconditionally
-    (``src/tts_engines/piper.py``, #371) and a ``whisper-server`` row carrying
-    ``-ng`` in its args never touches the GPU (see ``whisper_translate``).
+    Config-derived, no live probe. Two independent ways a row lands on CPU:
+
+    * **Always, on every host** — piper's shim hardcodes CPU unconditionally
+      (``src/tts_engines/piper.py``, #371) and a ``whisper-server`` row that
+      *declares* ``-ng`` never touches the GPU (see ``whisper_translate``).
+    * **On one host only** — a failover chain's degraded last-resort tier
+      (``{id: tower, cpu: true}``, #342): GPU on the preferred members,
+      CPU-offloaded on the flagged one.
+
+    Reads ``all_models(apply_cpu_offload=False)`` deliberately: the registry
+    bakes the CPU rewrite in for the *active* host, so the default view would
+    show ``-ng`` on this box's row and smear that verdict across every other
+    chain member (#405).
+
     Deliberately **not** ``est_vram_mb == 0`` alone — ``parakeet`` is also 0
     but runs on the Mac's ANE via CoreML, a real (if non-discrete-VRAM)
     device, not "cpu"; and the ``qwen35_4b_moe`` virtual alias shares its
     host row's GPU process. Display only (#387) — this never feeds the
     capacity sum, which already keys off ``est_vram_mb``.
     """
-    hints: Dict[str, str] = {}
-    for m in all_models():
-        if m.tts_engine == "piper" or (m.engine == "whisper-server" and "-ng" in m.args):
-            hints[m.id] = "cpu"
+    hints: Dict[str, Dict[str, str]] = {h.id: {} for h in all_hosts()}
+    for m in all_models(apply_cpu_offload=False):
+        always_cpu = m.tts_engine == "piper" or (
+            m.engine == "whisper-server" and "-ng" in m.args
+        )
+        for host_id, per_host in hints.items():
+            if always_cpu or host_id in m.cpu_hosts:
+                per_host[m.id] = "cpu"
     return hints
 
 
@@ -168,7 +184,10 @@ async def get_fleet_placement() -> Dict[str, Any]:
     vram = _vram_estimates()
     devices = _device_hints()
     statuses = await asyncio.gather(
-        *(_host_status(h, active_id, placement, names, vram, devices) for h in all_hosts())
+        *(
+            _host_status(h, active_id, placement, names, vram, devices.get(h.id, {}))
+            for h in all_hosts()
+        )
     )
     return {"placement": placement, "hosts": list(statuses)}
 
