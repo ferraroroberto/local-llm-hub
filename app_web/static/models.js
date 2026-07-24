@@ -148,6 +148,9 @@ function fillItem(li, m) {
     m.backend +
     (m.port ? ' · :' + m.port : '') +
     (remote ? ' on ' + m.host : '') +
+    // Dynamic host-chain fallback (#342): flag a model currently served
+    // off its preferred host, naming where it normally lives.
+    (m.failover ? ' · failover (prefers ' + m.preferred_host + ')' : '') +
     (m.pid && adopted ? ' · PID ' + m.pid : '') +
     // Resolved TTS device (cpu/cuda/mps), reported once the backend has
     // finished loading and answered its own /health — see

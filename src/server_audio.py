@@ -22,7 +22,7 @@ from fastapi.responses import Response, StreamingResponse
 from .audio_proxy import build_whisper_upstream_request
 from .http_client import get_async_client
 from .model_registry import Model
-from .remote_proxy import remote_auth_token, remote_base_url
+from .remote_proxy import remote_auth_token_for_model, remote_base_url
 from .server_common import current_otel_span, safe_span, stash_trace_id_on_ctx
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ def _remote_audio_headers(model: Model) -> Optional[dict]:
     ``server._remote_headers`` — kept local to avoid a circular import
     (``server.py`` imports this module's router).
     """
-    token = remote_auth_token(model.host) if model.host else None
+    token = remote_auth_token_for_model(model)
     return {"Authorization": f"Bearer {token}"} if token else None
 
 
@@ -375,14 +375,24 @@ def audio_health() -> Response:
     import json as _json
 
     from .backend_process import is_reachable
+    from .host_profile import resolve as _resolve_host
+    from .model_failover import effective_owner
     from .model_registry import local_models
 
     backends = []
-    # Local backends only — a remote-owned row's liveness is the owning
-    # host's own /v1/audio/health concern, not something this loopback
-    # probe can answer correctly (see app_web/routers/models.py for the
-    # cross-host merge that *does* surface remote rows, in the admin UI).
-    audio = [m for m in local_models() if m.backend in ("whisper", "tts") and m.port]
+    # Backends this host *currently serves* only — a remote-owned row's
+    # liveness is the owning host's own /v1/audio/health concern, not
+    # something this loopback probe can answer correctly (see
+    # app_web/routers/models.py for the cross-host merge that *does* surface
+    # remote rows, in the admin UI). With #342 chains, ``local_models`` also
+    # contains rows this host merely *stands by for* — those are filtered by
+    # effective owner so a standby candidate is never reported "down" here.
+    active_id = _resolve_host().id
+    audio = [
+        m for m in local_models()
+        if m.backend in ("whisper", "tts") and m.port
+        and effective_owner(m) in (None, active_id)
+    ]
     for m in audio:
         reachable = is_reachable(m, timeout=1.0)
         backends.append({

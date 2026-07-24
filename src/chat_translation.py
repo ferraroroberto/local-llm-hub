@@ -37,7 +37,7 @@ from .openai_upstream import (
     call_openai_chat,
     openai_to_anthropic_envelope,
 )
-from .remote_proxy import remote_auth_token, remote_base_url
+from .remote_proxy import remote_auth_token_for_model, remote_base_url
 
 
 # ---- shared content-block helpers (unchanged shape) ----
@@ -276,7 +276,7 @@ def _remote_headers(model: Model) -> Optional[Dict[str, str]]:
     Most setups rely on the receiving hub's IP allowlist instead, so this
     is commonly ``None``.
     """
-    token = remote_auth_token(model.host) if model.host else None
+    token = remote_auth_token_for_model(model)
     return {"Authorization": f"Bearer {token}"} if token else None
 
 

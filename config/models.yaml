@@ -190,6 +190,29 @@ hosts:
       address: 192.168.0.16
       user: gaming
 
+# --- Dynamic model fallback (issue #342) ---
+# A models: row may replace its single `host:` with an ordered preference
+# chain `hosts: [a, b, c]` — entries are bare host ids or `{id: <host>,
+# cpu: true}` dicts (`cpu` marks a degraded last-resort tier: the hub
+# rewrites that host's launch args to CPU-only — llama-server `-ngl 0`,
+# whisper `-ng`, tts `--device cpu`). The model is owned by the first
+# candidate that is reachable and lists it in its `enabled:`; when the
+# owner dies the model fails over down the chain, and when a more-preferred
+# host returns the failback policy below decides whether ownership hands
+# back. A bare `host:` stays valid and equals a one-element chain — no
+# probing, no dynamics. Every chain member must cross-list the model in its
+# `enabled:` AND pre-stage its weights (`python -m src.install --fix` there).
+# Example:
+#   whisper:
+#     hosts: [gaming, mac-mini-m4, {id: tower, cpu: true}]
+#
+# The optional top-level `failover:` block tunes the engine (defaults shown):
+#   failover:
+#     probe_interval_s: 30     # peer-hub probe cadence
+#     fail_after_s: 90         # owner continuously down this long -> fail over
+#     failback_after_s: 600    # preferred host continuously up this long -> hand back
+#     policy: auto             # auto = hand back after the window; sticky = stay put
+
 # `est_vram_mb` (issue #375) is a rough, static per-model GPU-VRAM footprint
 # estimate in MB — enough for the placement grid to flag a host overcommit
 # (sum of a host's placed models vs its `vram_mb` ceiling), NOT live telemetry.

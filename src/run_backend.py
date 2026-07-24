@@ -60,11 +60,11 @@ def _run_backend(model_id: str) -> int:
     if model.backend not in ("openai", "whisper", "tts"):
         log.error("model %r is backend=%s; nothing to spawn", model_id, model.backend)
         return 2
-    if model.host and model.host != host.id:
+    if model.host_chain and host.id not in model.host_chain:
         log.error(
-            "model %r is owned by host %r, not %r — run it there "
+            "model %r is owned by host(s) %r, not %r — run it there "
             "(this host proxies to it instead of spawning it locally)",
-            model_id, model.host, host.id,
+            model_id, model.host_chain, host.id,
         )
         return 2
 

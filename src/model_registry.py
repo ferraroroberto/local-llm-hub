@@ -6,8 +6,9 @@ port they listen on, and how the hub should route by model-name alias.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .host_profile import HostProfile, _load_config, all_hosts, resolve as resolve_host
 
@@ -53,19 +54,46 @@ class Model:
     # false}`` to clients that can't send it themselves (e.g. Home Assistant's
     # extended_openai_conversation).
     inject_extra: Optional[Dict[str, Any]] = None
-    # Which host profile *owns* (spawns/manages) this model's process. Unset
+    # *Preferred* owning host — spawns/manages this model's process. Unset
     # means "whichever host resolves this row locally" (the pre-#178
     # behavior — every model was implicitly local). When set and it differs
     # from the active host, this row is a *remote* model: the active host
     # never spawns/health-checks it locally and instead proxies requests to
     # the owning host's own hub. See src/remote_proxy.py.
+    #
+    # Since #342 this is always ``hosts[0]`` — the first entry of the
+    # ordered preference chain below. Every pre-#342 consumer that read
+    # ``model.host`` as "the owner" keeps meaning "the *preferred* owner";
+    # the *effective* owner (which may differ when a preferred host is down
+    # and the model failed over down-chain) lives in
+    # ``src.model_failover.effective_owner``.
     host: Optional[str] = None
+    # Ordered host-preference chain (#342): a YAML row may declare either a
+    # bare ``host: <id>`` (parsed as a one-element chain — fully backward
+    # compatible) or ``hosts: [a, b, c]`` — the model's owner is the first
+    # candidate that is reachable and enabled there; when it dies the model
+    # fails over down the chain. Empty means "unowned / local everywhere"
+    # exactly as an unset ``host:`` always did.
+    hosts: List[str] = field(default_factory=list)
+    # Subset of ``hosts`` flagged ``cpu: true`` in the YAML chain (#342):
+    # on these hosts the model runs as a *degraded CPU offload* last resort
+    # (llama-server ``-ngl 0`` / whisper ``-ng`` / tts ``--device cpu``) —
+    # "up but slower" rather than "must match GPU perf". The arg rewrite is
+    # applied by ``all_models()`` for the active host only.
+    cpu_hosts: List[str] = field(default_factory=list)
     # Rough static GPU-VRAM footprint in MB (#375) — enough for the fleet
     # placement grid to flag a host overcommit (sum of a host's placed models
     # vs its ``HostProfile.vram_mb`` ceiling), NOT live telemetry. CPU-only /
     # off-GPU / virtual rows are 0; subscription rows leave it None. A None
     # value contributes 0 to the sum. See config/models.yaml for the estimates.
     est_vram_mb: Optional[int] = None
+
+    @property
+    def host_chain(self) -> List[str]:
+        """Ordered owning-host candidates — ``hosts`` (already normalized so a
+        bare ``host:`` row yields a one-element chain). Empty for unowned rows.
+        """
+        return list(self.hosts)
 
     @property
     def all_names(self) -> List[str]:
@@ -85,7 +113,48 @@ class Model:
 # cache rather than two kept in sync by convention.
 
 
+def _parse_host_chain(row: Dict) -> Tuple[List[str], List[str]]:
+    """Normalize a YAML row's host declaration into ``(hosts, cpu_hosts)`` (#342).
+
+    Accepted shapes, in precedence order:
+
+    * ``hosts: [a, b, {id: c, cpu: true}]`` — the ordered preference chain;
+      entries are bare host-id strings or ``{id: <host>, cpu: true}`` dicts
+      (``cpu`` flags a degraded CPU-offload tier, e.g. the tower last resort).
+    * ``host: a`` — the pre-#342 single owner, parsed as a one-element chain
+      so every existing row behaves exactly as before.
+    * neither — an unowned row: empty chain, local everywhere.
+
+    A row that declares both keeps ``hosts:`` (the superset) and ignores the
+    bare ``host:`` — they'd otherwise be two sources of truth for entry one.
+    """
+    raw = row.get("hosts")
+    if isinstance(raw, list) and raw:
+        hosts: List[str] = []
+        cpu_hosts: List[str] = []
+        for entry in raw:
+            if isinstance(entry, dict):
+                host_id = str(entry.get("id") or "").strip()
+                if not host_id:
+                    continue
+                hosts.append(host_id)
+                if entry.get("cpu"):
+                    cpu_hosts.append(host_id)
+            elif entry:
+                hosts.append(str(entry).strip())
+        # De-dup preserving order — a repeated host id can't make the
+        # failover engine "retry" the same dead host twice.
+        seen: set = set()
+        hosts = [h for h in hosts if not (h in seen or seen.add(h))]
+        return hosts, [h for h in cpu_hosts if h in set(hosts)]
+    single = row.get("host")
+    if single:
+        return [str(single)], []
+    return [], []
+
+
 def _row_to_model(model_id: str, row: Dict) -> Model:
+    hosts, cpu_hosts = _parse_host_chain(row)
     return Model(
         id=model_id,
         display_name=str(row.get("display_name") or model_id),
@@ -103,15 +172,64 @@ def _row_to_model(model_id: str, row: Dict) -> Model:
         idle_seconds=int(row["idle_seconds"]) if row.get("idle_seconds") is not None else None,
         virtual=bool(row.get("virtual", False)),
         inject_extra=row.get("inject_extra") or None,
-        host=row.get("host"),
+        host=hosts[0] if hosts else None,
+        hosts=hosts,
+        cpu_hosts=cpu_hosts,
         est_vram_mb=int(row["est_vram_mb"]) if row.get("est_vram_mb") is not None else None,
     )
+
+
+# Engine-aware CPU-offload arg rewrites (#342): a host flagged ``cpu: true``
+# in a model's chain runs it degraded-but-up. Kept as pure list-in/list-out
+# so it is directly unit-testable and shared by every spawn path (the
+# transform is baked into ``Model.args`` in ``all_models()``, so
+# ``backend_process.build_command``, the lazy whisper proxy's child command,
+# and ``run_backend`` all inherit it without knowing it exists).
+_LLAMA_GPU_LAYER_FLAGS = ("-ngl", "--n-gpu-layers", "--gpu-layers")
+
+
+def cpu_offload_args(engine: Optional[str], args: List[str]) -> List[str]:
+    """Rewrite launch ``args`` so the backend runs CPU-only (#342)."""
+    out = list(args or [])
+    if engine == "llama-server":
+        for i, a in enumerate(out):
+            if a in _LLAMA_GPU_LAYER_FLAGS and i + 1 < len(out):
+                out[i + 1] = "0"
+                return out
+        return [*out, "-ngl", "0"]
+    if engine in ("whisper-server", "whisper-server-lazy"):
+        if "-ng" in out or "--no-gpu" in out:
+            return out
+        return [*out, "-ng"]
+    if engine == "tts-server":
+        for i, a in enumerate(out):
+            if a == "--device" and i + 1 < len(out):
+                out[i + 1] = "cpu"
+                return out
+        return [*out, "--device", "cpu"]
+    return out
 
 
 def all_models() -> List[Model]:
     cfg = _load_config()
     rows: Dict = cfg.get("models") or {}
-    return [_row_to_model(mid, row) for mid, row in rows.items()]
+    models = [_row_to_model(mid, row) for mid, row in rows.items()]
+    # Bake the CPU-offload rewrite into rows whose chain flags the *active*
+    # host ``cpu: true`` (#342) — one choke point every args consumer shares.
+    # Host resolution can legitimately fail in hostless tooling contexts
+    # (e.g. enumerating rows on a machine with no matching profile); the
+    # rewrite is skipped there — args only matter on the host that spawns.
+    try:
+        active_id: Optional[str] = resolve_host().id
+    except Exception:  # noqa: BLE001
+        active_id = None
+    if active_id:
+        models = [
+            dataclasses.replace(m, args=cpu_offload_args(m.engine, m.args))
+            if active_id in m.cpu_hosts else m
+            for m in models
+        ]
+    return models
 
 
 def enabled_models(host: Optional[HostProfile] = None) -> List[Model]:
@@ -131,16 +249,24 @@ def enabled_models(host: Optional[HostProfile] = None) -> List[Model]:
 
 
 def local_models(host: Optional[HostProfile] = None) -> List[Model]:
-    """``enabled_models()`` filtered to rows this host actually runs —
-    excludes any row owned by a *different* host (``m.host`` set and not
-    this one). The generalization of "give me the models I might spawn,
-    manage, download weights for, or health-check" — every place a
-    remote-owned row (cross-enabled so it *resolves* here, but proxied
-    rather than run here) would otherwise be mistaken for a local one:
-    install checks, port-liveness checks, spawn/inherit loops, tray menus.
+    """``enabled_models()`` filtered to rows this host may actually run —
+    excludes any row whose owning chain doesn't include this host. The
+    generalization of "give me the models I might spawn, manage, download
+    weights for, or health-check" — every place a remote-owned row
+    (cross-enabled so it *resolves* here, but proxied rather than run here)
+    would otherwise be mistaken for a local one: install checks,
+    port-liveness checks, spawn/inherit loops, tray menus.
+
+    Since #342 membership is chain-based: a host anywhere in a model's
+    ``hosts:`` preference list is a *candidate* runner — it must pre-stage
+    the weights (install), may spawn the process (failover), and must be
+    able to inherit/stop it. For a bare single-``host:`` row the chain is
+    exactly ``[host]``, so this is byte-identical to the pre-#342 filter.
+    Whether the model is *currently served* here is a different, dynamic
+    question — ``src.model_failover.effective_owner``.
     """
     profile = host or resolve_host()
-    return [m for m in enabled_models(host) if not (m.host and m.host != profile.id)]
+    return [m for m in enabled_models(host) if not m.hosts or profile.id in m.hosts]
 
 
 # Backends that own a spawnable local process. `claude` / `gemini` are
