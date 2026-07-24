@@ -79,6 +79,14 @@ _dial_cache: Dict[str, tuple[float, str]] = {}
 # than once per probe.
 _active_route: Dict[str, str] = {}
 
+# host_id -> whether the most recent successful locate() only answered on its
+# #333 warm-up retry (the first liveness pass missed cleanly) — a proxy for a
+# flaky link, surfaced on the peer card (#397). Updated every time locate()
+# actually runs (i.e. on every liveness-cache miss), so it is at least as
+# fresh as the Online/Offline dot itself. Never cleared on a failed locate —
+# the last successful reading stands until the next one replaces it.
+_last_needed_retry: Dict[str, bool] = {}
+
 # Read-only one-liners, validated live against the real peers. Each emits
 # `key value` lines; unavailable metrics (e.g. no nvidia-smi) are simply
 # omitted and degrade to a missing gauge rather than an error.
@@ -95,7 +103,37 @@ _LINUX_STATS_CMD = (
     "if command -v nvidia-smi >/dev/null 2>&1; then nvidia-smi "
     "--query-gpu=name,memory.used,memory.total,utilization.gpu "
     "--format=csv,noheader,nounits | head -1 | awk -F', *' "
-    "'{printf \"gpu_name %s\\ngpu_used_mb %s\\ngpu_total_mb %s\\ngpu_util %s\\n\",$1,$2,$3,$4}'; fi"
+    "'{printf \"gpu_name %s\\ngpu_used_mb %s\\ngpu_total_mb %s\\ngpu_util %s\\n\",$1,$2,$3,$4}'; fi\n"
+    # Connection type / MAC / AP+signal (#397). The "active" interface is
+    # whichever one owns the outbound default route — a machine that's
+    # simultaneously wired *and* has a Wi-Fi fallback up (mac-mini's `en1`,
+    # gaming's parked dongle) reports the link the box is actually using
+    # right now, not every NIC it happens to have. `ip route get` only
+    # consults the routing table (no packet sent), so this is safe to run
+    # even against an address that never answers.
+    #
+    # `/sys/class/net/<iface>/wireless` existing is the standard, tool-free
+    # way to tell wired from wireless on Linux — no `iw`/`nmcli` dependency
+    # for that part. Wrapped so a missing `iw` (or no wireless dir) still
+    # exits 0, same "optional probe never poisons the exit code" contract as
+    # the GPU block above.
+    "NET_IFACE=$(ip -o route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) "
+    "if($i==\"dev\"){print $(i+1); exit}}')\n"
+    "if [ -n \"$NET_IFACE\" ]; then\n"
+    "  echo \"net_iface $NET_IFACE\"\n"
+    "  NET_MAC=$(cat /sys/class/net/$NET_IFACE/address 2>/dev/null)\n"
+    "  [ -n \"$NET_MAC\" ] && echo \"net_mac $NET_MAC\"\n"
+    "  if [ -d \"/sys/class/net/$NET_IFACE/wireless\" ]; then\n"
+    "    echo \"net_wireless 1\"\n"
+    "    if command -v iw >/dev/null 2>&1; then\n"
+    "      iw dev \"$NET_IFACE\" link 2>/dev/null | awk -F': ' "
+    "'/^\\tSSID:/{print \"net_ssid \"$2} /^\\tsignal:/{split($2,a,\" \");"
+    "print \"net_signal_dbm \"a[1]}'\n"
+    "    fi\n"
+    "  else\n"
+    "    echo \"net_wireless 0\"\n"
+    "  fi\n"
+    "fi"
 )
 
 _DARWIN_STATS_CMD = (
@@ -106,7 +144,37 @@ _DARWIN_STATS_CMD = (
     "/Pages occupied by compressor/{c=$5} "
     "END{gsub(/\\./,\"\",a);gsub(/\\./,\"\",w);gsub(/\\./,\"\",c); "
     "printf \"mem_used_mb %d\\n\",(a+w+c)*ps/1048576}'\n"
-    "df -k / | awk 'NR==2{printf \"disk_total_kb %d\\ndisk_used_kb %d\\n\",$2,$3}'"
+    "df -k / | awk 'NR==2{printf \"disk_total_kb %d\\ndisk_used_kb %d\\n\",$2,$3}'\n"
+    # Connection type / MAC / AP+signal (#397), same "active interface owns
+    # the default route" contract as the Linux block above — `route get
+    # default` never sends a packet, just reads the routing table. The
+    # Hardware Port lookup (`networksetup -listallhardwareports`) is how
+    # macOS itself labels an interface as Wi-Fi vs Ethernet/Thunderbolt;
+    # matching against it avoids hardcoding "en1 == Wi-Fi" (that mapping
+    # isn't guaranteed stable across Macs/OS updates).
+    #
+    # `sudo -n wdutil info` reads live SSID/RSSI — every peer already carries
+    # a passwordless-sudo drop-in for the existing reboot/shutdown/systemctl
+    # paths (docs/machines.md), so this rides the same channel rather than
+    # adding a new prerequisite. `-n` fails fast (no output, no hang) if the
+    # drop-in is ever missing, degrading to "Wi-Fi" with no SSID/signal.
+    "NET_IFACE=$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')\n"
+    "if [ -n \"$NET_IFACE\" ]; then\n"
+    "  echo \"net_iface $NET_IFACE\"\n"
+    "  NET_MAC=$(ifconfig \"$NET_IFACE\" 2>/dev/null | awk '/ether/{print $2; exit}')\n"
+    "  [ -n \"$NET_MAC\" ] && echo \"net_mac $NET_MAC\"\n"
+    "  NET_HWPORT=$(networksetup -listallhardwareports 2>/dev/null | "
+    "awk -v d=\"$NET_IFACE\" '/^Hardware Port:/{p=$0} $0 ~ \"Device: \"d\"$\" "
+    "{print p; exit}')\n"
+    "  if echo \"$NET_HWPORT\" | grep -qi 'Wi-Fi'; then\n"
+    "    echo \"net_wireless 1\"\n"
+    "    sudo -n wdutil info 2>/dev/null | awk -F': *' "
+    "'/^ *SSID/{print \"net_ssid \"$2} /^ *RSSI/{split($2,a,\" \");"
+    "print \"net_signal_dbm \"a[1]}'\n"
+    "  else\n"
+    "    echo \"net_wireless 0\"\n"
+    "  fi\n"
+    "fi"
 )
 
 
@@ -197,11 +265,14 @@ def locate(host: HostProfile) -> Optional[str]:
     if not _candidates(host):
         return None
     addr = _locate_once(host)
+    needed_retry = False
     if addr is None:
         time.sleep(_WARMUP_RETRY_DELAY_S)
         addr = _locate_once(host)
+        needed_retry = addr is not None
     if addr is not None:
         _record_route(host, addr)
+        _last_needed_retry[host.id] = needed_retry
     return addr
 
 
@@ -210,6 +281,15 @@ def reachable(host: HostProfile) -> bool:
     question most callers ask; the address that answered only matters to the
     #396 dial/badge paths."""
     return locate(host) is not None
+
+
+def connection_flaky(host: HostProfile) -> Optional[bool]:
+    """True when the most recent successful liveness probe for ``host`` only
+    answered on the #333 warm-up retry (the first pass missed cleanly) — a
+    simple proxy for a flaky link, surfaced as a card badge (#397). ``None``
+    when the peer has never been successfully located in this process's
+    lifetime (fresh start, or genuinely down since boot)."""
+    return _last_needed_retry.get(host.id)
 
 
 async def located_address(host: HostProfile) -> Optional[str]:
@@ -416,6 +496,21 @@ def _parse(raw: str) -> Dict[str, Any]:
             "util_percent": _num(kv, "gpu_util"),
         })
     stats["gpus"] = gpus
+
+    # Connection type / MAC / AP+signal (#397) — None when the peer's OS has
+    # no probe for this (or the SSH one-liner's network block failed), same
+    # graceful-degrade contract as every other field above.
+    network: Optional[Dict[str, Any]] = None
+    if "net_iface" in kv:
+        wireless_raw = kv.get("net_wireless")
+        network = {
+            "iface": kv.get("net_iface"),
+            "mac": kv.get("net_mac"),
+            "wireless": (wireless_raw == "1") if wireless_raw is not None else None,
+            "ssid": kv.get("net_ssid"),
+            "signal_dbm": _num(kv, "net_signal_dbm"),
+        }
+    stats["network"] = network
     return stats
 
 

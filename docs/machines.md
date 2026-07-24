@@ -84,6 +84,39 @@ Mechanically, waking a host sends a standard 102-byte magic packet (6 bytes of `
 
 **Pending manual items** — tracked in #357: BIOS-level WOL + AC-restore verification per box, and completing the reboot-with-no-login Tailscale proof on `tower`. (`gaming` and `mac-mini-m4` were both wired 2026-07-23.)
 
+## Live connection status — type, AP/signal, link health (#397)
+
+Beyond the static `mac:` field above (config, WOL-only), the Machines-tab peer
+card also shows **live** connection detail, read over the same general-SSH
+channel as the CPU/RAM/GPU/disk snapshot (`src/remote_stats.py`'s per-OS
+one-liner, folded into `stats.network` by `_parse()`) — no extra SSH
+round-trip. It reports whichever interface currently owns the peer's
+**outbound default route** (the link the box is actually using right now, not
+every NIC it happens to have), so a box that's simultaneously wired and has a
+Wi-Fi fallback up (`mac-mini-m4`'s `en1`, `gaming`'s parked dongle) reads as
+whichever one is live.
+
+| Signal | Linux (`openclaw`, `gaming`) | macOS (`mac-mini-m4`) | Windows (`tower`) |
+| --- | --- | --- | --- |
+| Wired vs Wi-Fi | Yes — `/sys/class/net/<iface>/wireless` existing | Yes — `networksetup -listallhardwareports`' Hardware Port label | Not probed (`tower` is the hub host; #397 scopes live probing to *peers*) |
+| Live interface MAC | Yes — `/sys/class/net/<iface>/address` | Yes — `ifconfig <iface>` | — |
+| SSID + signal (dBm) | Yes, if `iw` is installed — `iw dev <iface> link` | Yes, via passwordless `sudo -n wdutil info` (same sudoers drop-in the reboot/shutdown/systemctl paths already use) | — |
+
+Every field degrades independently and gracefully: no `iw` on a Linux peer
+still reports "Wired"/"Wi-Fi", just without SSID/signal; a peer that's down
+or unreachable shows no live network block at all (the card falls back to the
+static config `mac:`, which needs no probe). A signal reading of -70 dBm or
+weaker is flagged (Fair/Weak) on the card. `tower` gets no live probe since
+`src/remote_stats.py` only runs against SSH'd peers, not the host the hub
+itself is running on — see the Wake-on-LAN section above for the same
+active-host exclusion pattern.
+
+**Connection health.** The liveness probe (`remote_stats.locate()`) already
+retries once after a missed first SYN pass (#333, idle-NIC wake-up) before
+calling a box down. When a peer's *most recent* successful probe needed that
+retry, the card flags it "Flaky link" — a simple proxy for a marginal
+connection, not a diagnostic (`remote_stats.connection_flaky()`).
+
 ## Boot mode — Server (headless) default, Desktop (GUI) opt-in
 
 `openclaw` and `gaming` both dual-boot between two systemd targets — done and

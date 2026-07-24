@@ -33,6 +33,15 @@
  * degraded route reads as a warning, not just another capability chip. */
 .machine-via-tailnet { color: var(--attention); }
 
+/* Connection type / MAC / signal-health chips (#397) — same meta-row rhythm
+ * as the tailnet badge above. "Wired" and a healthy Wi-Fi reading are plain
+ * capability chips (default muted text, no color override); only a
+ * Fair/Weak signal or a flagged-flaky link earns the attention tone, so the
+ * row stays quiet until there's actually something to notice. */
+.machine-net-signal-weak { color: var(--attention); }
+.machine-net-flaky { color: var(--attention); }
+.machine-mac { font-variant-numeric: tabular-nums; }
+
 /* Role / Tailscale-hint line under the header — same rhythm as the Hub
  * card's PID/Uptime row (.hub-meta-row is a generic, unscoped rule). */
 .machine-meta-row {
