@@ -613,6 +613,17 @@ a **via tailnet** badge while a peer is reached that way; hosts with no
 `tailscale:` recorded behave exactly as before, and a healthy LAN path is
 always preferred (no WireGuard hop while the wire works).
 
+**Connection status (#397).** Beyond the config `mac:` field (now shown on
+every peer card, not just used to gate Wake), a reachable peer's card also
+shows *live* connection detail read over the same SSH round-trip as the
+CPU/RAM/GPU/disk snapshot — no extra probe: **Wired** vs **Wi-Fi · SSID ·
+signal (dBm)** for whichever interface currently owns the box's outbound
+default route, plus a **Flaky link** flag when the liveness probe that
+produced the card needed its #333 warm-up retry to answer. Every signal
+degrades independently (no `iw` on Linux still reports Wired/Wi-Fi, just
+without SSID/signal; a down peer shows none of it) — see `docs/machines.md`
+for the per-platform availability matrix.
+
 **Reboot / shutdown (destructive, peers only).** Any peer with an SSH channel
 (`address` + `ssh_user`) offers **Reboot** and **Shut down** actions; the
 active hub host is always excluded (powering it off would take the console

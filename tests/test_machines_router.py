@@ -175,6 +175,21 @@ def test_card_runs_hub_false_for_managed_only_machines():
     assert mc._card_base(get_host("gaming"), is_host=False)["runs_hub"] is True
 
 
+# ------------------------------------------------------------- card mac (#397)
+
+
+def test_card_base_surfaces_configured_mac():
+    """The static `mac:` config field is on the card itself now, not just
+    used internally to gate the Wake action (#397's acceptance criterion)."""
+    assert mc._card_base(get_host("gaming"), is_host=False)["mac"] == get_host("gaming").mac
+
+
+def test_card_base_mac_none_for_host_without_one():
+    """openclaw has no `mac:` row (no wired NIC) — the card field is None,
+    not a missing key, so the SPA can render conditionally without a KeyError."""
+    assert mc._card_base(get_host("openclaw"), is_host=False)["mac"] is None
+
+
 # --------------------------------------------------- _probe_machine card wiring (#388)
 
 
@@ -191,6 +206,7 @@ def test_probe_machine_offline_peer_grays_every_action_but_wake(monkeypatch):
     assert card["actions"] == {
         "reboot": False, "shutdown": False, "ssh_terminal": False, "rdp": False, "wake": True,
     }
+    assert card["network"] is None and card["flaky"] is None  # (#397) no probe on a down peer
 
 
 def test_probe_machine_online_peer_keeps_full_actions(monkeypatch):
@@ -199,7 +215,7 @@ def test_probe_machine_online_peer_keeps_full_actions(monkeypatch):
         return host.address  # located_address: the LAN path answered (#396)
 
     async def _fake_collect(host):
-        return {"uptime_seconds": 42}
+        return {"uptime_seconds": 42}  # no "network" key — an older/unsupported probe result
 
     monkeypatch.setattr(mc.remote_stats, "located_address", _reachable)
     monkeypatch.setattr(mc.remote_stats, "collect", _fake_collect)
@@ -209,6 +225,27 @@ def test_probe_machine_online_peer_keeps_full_actions(monkeypatch):
     assert card["actions"] == {
         "reboot": True, "shutdown": True, "ssh_terminal": True, "rdp": True, "wake": True,
     }
+    assert card["network"] is None  # (#397) stats.get("network") degrades cleanly when absent
+
+
+def test_probe_machine_online_peer_carries_network_and_flaky(monkeypatch):
+    """The reachable branch wires the live `network` block and the
+    connection-health flag straight through onto the card (#397)."""
+    async def _reachable(host):
+        return host.address
+
+    net = {"iface": "wlo1", "mac": "0c:7a:15:c0:0b:16", "wireless": True,
+           "ssid": "MOVISTAR_9CC0", "signal_dbm": -86.0}
+
+    async def _fake_collect(host):
+        return {"uptime_seconds": 42, "network": net}
+
+    monkeypatch.setattr(mc.remote_stats, "located_address", _reachable)
+    monkeypatch.setattr(mc.remote_stats, "collect", _fake_collect)
+    monkeypatch.setattr(mc.remote_stats, "connection_flaky", lambda host: True)
+    card = _run(mc._probe_machine(get_host("openclaw"), "tower"))
+    assert card["network"] == net
+    assert card["flaky"] is True
 
 
 def test_probe_machine_dormant_peer_grays_every_action_but_wake():
@@ -222,6 +259,7 @@ def test_probe_machine_dormant_peer_grays_every_action_but_wake():
     assert card["actions"] == {
         "reboot": False, "shutdown": False, "ssh_terminal": False, "rdp": False, "wake": True,
     }
+    assert card["network"] is None and card["flaky"] is None  # (#397) never probed while dormant
 
 
 def test_probe_machine_this_machine_unchanged(monkeypatch):
@@ -233,6 +271,7 @@ def test_probe_machine_this_machine_unchanged(monkeypatch):
     assert card["actions"] == {
         "reboot": False, "shutdown": False, "rdp": False, "ssh_terminal": False, "wake": False,
     }
+    assert card["network"] is None and card["flaky"] is None  # (#397) scoped to peers only
 
 
 # ------------------------------------------------------------------------ RDP
@@ -292,6 +331,68 @@ def test_remote_stats_parse_darwin_no_gpu():
     assert s["cpu"] == {"percent": 2.69}
     assert s["ram"]["percent"] == 54.8
     assert s["gpus"] == []  # macOS has no nvidia-smi — no GPU gauge
+
+
+def test_remote_stats_parse_network_wired():
+    """A wired peer (gaming) reports iface/mac and wireless=False, no
+    SSID/signal (#397)."""
+    from src import remote_stats
+
+    raw = "uptime 34782\ncpu 0\nnet_iface enp4s0\nnet_mac d4:5d:64:d6:7e:a0\nnet_wireless 0\n"
+    s = remote_stats._parse(raw)
+    assert s["network"] == {
+        "iface": "enp4s0", "mac": "d4:5d:64:d6:7e:a0",
+        "wireless": False, "ssid": None, "signal_dbm": None,
+    }
+
+
+def test_remote_stats_parse_network_wireless_with_ssid_and_signal():
+    """A Wi-Fi peer (openclaw) reports SSID + signal alongside wireless=True."""
+    from src import remote_stats
+
+    raw = (
+        "uptime 34787\ncpu 0\nnet_iface wlo1\nnet_mac 0c:7a:15:c0:0b:16\n"
+        "net_wireless 1\nnet_ssid MOVISTAR_9CC0\nnet_signal_dbm -86\n"
+    )
+    s = remote_stats._parse(raw)
+    assert s["network"] == {
+        "iface": "wlo1", "mac": "0c:7a:15:c0:0b:16",
+        "wireless": True, "ssid": "MOVISTAR_9CC0", "signal_dbm": -86.0,
+    }
+
+
+def test_remote_stats_parse_network_wireless_without_iw():
+    """A Wi-Fi peer with no `iw` installed still reports wireless=True — just
+    without SSID/signal (degrade gracefully, never a blank/broken chip)."""
+    from src import remote_stats
+
+    raw = "uptime 1\ncpu 0\nnet_iface wlan0\nnet_mac aa:bb:cc:dd:ee:ff\nnet_wireless 1\n"
+    s = remote_stats._parse(raw)
+    assert s["network"] == {
+        "iface": "wlan0", "mac": "aa:bb:cc:dd:ee:ff",
+        "wireless": True, "ssid": None, "signal_dbm": None,
+    }
+
+
+def test_remote_stats_parse_network_absent_when_probe_yields_nothing():
+    """No `net_iface` line at all (probe failed / platform unsupported) —
+    `network` is None, same degrade contract as `ram`/`disk`/`gpus`."""
+    from src import remote_stats
+
+    raw = "uptime 1636838\ncpu 2.69\nmem_total_mb 16384\nmem_used_mb 8983\n"
+    s = remote_stats._parse(raw)
+    assert s["network"] is None
+
+
+def test_darwin_stats_cmd_survives_missing_sudo():
+    """The macOS Wi-Fi/RSSI probe rides `sudo -n wdutil info`; the guarding
+    `if`/`else` structure must still exit clean when sudo has no drop-in
+    (matches the Linux `if … then … fi` exit-0 contract, #397)."""
+    from src import remote_stats
+
+    cmd = remote_stats._DARWIN_STATS_CMD
+    assert "sudo -n wdutil info" in cmd
+    assert cmd.rstrip().endswith("fi")
 
 
 def test_linux_stats_cmd_survives_missing_nvidia_smi():
@@ -358,6 +459,69 @@ def test_reachable_false_when_both_passes_fail(monkeypatch):
     host = HostProfile(id="off", platform="linux", address="10.0.0.9", enabled=[])
     assert remote_stats.reachable(host) is False
     assert calls["n"] == 2  # one initial pass + one warm-up retry, then give up
+
+
+# --------------------------------------------------- connection health (#397)
+
+
+def test_connection_flaky_none_before_any_successful_locate():
+    """A host that has never been located successfully in this process
+    reports flaky=None (not True/False) — genuinely unknown, not "clean"."""
+    from src import remote_stats
+
+    host = HostProfile(id="never-seen-397", platform="linux", address="10.0.0.9", enabled=[])
+    assert remote_stats.connection_flaky(host) is None
+
+
+def test_connection_flaky_true_when_first_pass_missed(monkeypatch):
+    """The #333 warm-up retry answering (first pass missed) marks the peer
+    flaky for its next card render — the whole point of the signal."""
+    from src import remote_stats
+
+    monkeypatch.setattr(remote_stats, "_liveness_cache", {})
+    monkeypatch.setattr(remote_stats, "_last_needed_retry", {})
+    calls = {"n": 0}
+
+    def fake_scan(address):
+        calls["n"] += 1
+        return calls["n"] >= 2  # first pass fails, retry succeeds
+
+    monkeypatch.setattr(remote_stats, "_probe_liveness_ports", fake_scan)
+    monkeypatch.setattr(remote_stats.time, "sleep", lambda *_: None)
+    host = HostProfile(id="flaky-397", platform="linux", address="10.0.0.9", enabled=[])
+    assert remote_stats.locate(host) == "10.0.0.9"
+    assert remote_stats.connection_flaky(host) is True
+
+
+def test_connection_flaky_false_when_first_pass_answers(monkeypatch):
+    """A clean first-pass answer marks the peer NOT flaky — no false alarm on
+    a rock-solid link."""
+    from src import remote_stats
+
+    monkeypatch.setattr(remote_stats, "_liveness_cache", {})
+    monkeypatch.setattr(remote_stats, "_last_needed_retry", {})
+    monkeypatch.setattr(remote_stats, "_probe_liveness_ports", lambda address: True)
+    host = HostProfile(id="solid-397", platform="linux", address="10.0.0.9", enabled=[])
+    assert remote_stats.locate(host) == "10.0.0.9"
+    assert remote_stats.connection_flaky(host) is False
+
+
+def test_connection_flaky_unchanged_on_a_failed_locate(monkeypatch):
+    """A subsequent failed locate() (box now genuinely down) must not erase
+    the last known health reading — flaky is a proxy computed only when a
+    probe actually succeeds."""
+    from src import remote_stats
+
+    monkeypatch.setattr(remote_stats, "_liveness_cache", {})
+    monkeypatch.setattr(remote_stats, "_last_needed_retry", {})
+    monkeypatch.setattr(remote_stats.time, "sleep", lambda *_: None)
+    host = HostProfile(id="was-solid-397", platform="linux", address="10.0.0.9", enabled=[])
+    monkeypatch.setattr(remote_stats, "_probe_liveness_ports", lambda address: True)
+    assert remote_stats.locate(host) == "10.0.0.9"
+    assert remote_stats.connection_flaky(host) is False
+    monkeypatch.setattr(remote_stats, "_probe_liveness_ports", lambda address: False)
+    assert remote_stats.locate(host) is None
+    assert remote_stats.connection_flaky(host) is False  # unchanged, not cleared
 
 
 # ----------------------------------- liveness cache + concurrent port probe (#369)

@@ -85,6 +85,40 @@ function fmtUptimeHuman(seconds) {
 function fmtGb(n) { return Number.isFinite(n) ? n.toFixed(1) : '—'; }
 function fmtPct(n) { return Number.isFinite(n) ? Math.round(n) + '%' : '—'; }
 
+/* Wi-Fi RSSI (dBm) -> a plain-English band (#397). Conventional Wi-Fi
+ * thresholds (Excellent/Good/Fair/Weak), used purely to color/label the
+ * signal badge — the raw dBm value is always shown alongside it. */
+function signalQuality(dbm) {
+  if (!Number.isFinite(dbm)) return null;
+  if (dbm >= -60) return 'Excellent';
+  if (dbm >= -70) return 'Good';
+  if (dbm >= -80) return 'Fair';
+  return 'Weak';
+}
+
+/* Connection-type meta chip (#397): "Wired" for a peer whose active NIC is
+ * wired, "Wi-Fi · SSID · -70 dBm (Good)" for a wireless one — as much of
+ * that as the platform's probe actually returned (degrades gracefully: a
+ * WiFi peer with no SSID/signal still reads as "Wi-Fi", never blank/broken).
+ * `null` (network unknown) and `false` (offline/self/dormant, no probe run)
+ * both render nothing — same "omit, don't blank" contract as the rest of
+ * the card. */
+function connectionMeta(net) {
+  if (!net || net.wireless == null) return '';
+  if (net.wireless === false) {
+    return '<span class="machine-net-wired">Wired</span>';
+  }
+  const bits = ['Wi-Fi'];
+  if (net.ssid) bits.push(net.ssid);
+  const q = signalQuality(net.signal_dbm);
+  if (Number.isFinite(net.signal_dbm)) {
+    bits.push(Math.round(net.signal_dbm) + ' dBm' + (q ? ' (' + q + ')' : ''));
+  }
+  const weak = q === 'Weak' || q === 'Fair';
+  return '<span class="machine-net-wifi' + (weak ? ' machine-net-signal-weak' : '') + '">'
+    + icon('signal') + ' ' + escapeHtml(bits.join(' · ')) + '</span>';
+}
+
 /* Resource-pressure level for a gauge fill — a genuine state signal
  * (design.md: status colors signal state), not decoration: accent while
  * healthy, attention past 75%, danger past 90%. */
@@ -215,11 +249,23 @@ function renderMachineCard(m, isStale) {
   const metaParts = [];
   if (m.role) metaParts.push('<span>' + escapeHtml(m.role) + '</span>');
   if (uptime) metaParts.push('<span>Uptime ' + uptime + '</span>');
+  // Connection type + AP/signal (#397) — live-probed alongside the rest of
+  // `stats`, so it only ever appears on a peer we just reached over SSH.
+  const netMeta = connectionMeta(m.network);
+  if (netMeta) metaParts.push(netMeta);
+  // Wired-NIC MAC (#397) — from config, so it shows even when the peer is
+  // down/dormant (unlike the live network chip above). Self excluded: you
+  // already know how the machine you're on is addressed.
+  if (!m.is_host && m.mac) metaParts.push('<span class="machine-mac">MAC ' + escapeHtml(m.mac) + '</span>');
   // "via tailnet" (#396): the liveness probe found this peer on its Tailscale
   // name, not its LAN address — the wired path is silently dead. Falls back to
   // the plain capability chip when the LAN path is healthy (or the box is down).
   if (m.via_tailscale) metaParts.push('<span class="machine-via-tailnet">' + icon('signal') + ' via tailnet</span>');
   else if (m.has_tailscale) metaParts.push('<span>' + icon('signal') + ' Tailscale</span>');
+  // Connection-health proxy (#397): the liveness probe that produced this
+  // card only answered on its #333 warm-up retry — flag it as a flaky link
+  // rather than silently rendering the same "Online" dot as a rock-solid one.
+  if (m.flaky) metaParts.push('<span class="machine-net-flaky">' + icon('triangle-alert') + ' Flaky link</span>');
   return '<section class="card machine-card' + (isStale ? ' is-stale' : '') + '" data-machine-id="' + escapeHtml(m.id) + '">'
     + '<div class="card-header"><div class="hub-title-block">'
     + '<h2>' + icon(m.icon || 'monitor') + escapeHtml(m.display_name || m.id) + '</h2>'

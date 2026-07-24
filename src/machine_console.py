@@ -99,6 +99,12 @@ def _card_base(
         # comment) — the SPA uses this to decide whether a peer card should
         # point the user at that machine's own /admin for Diagnostics.
         "runs_hub": bool(host.enabled),
+        # Wired-NIC MAC from config (#356's Wake-on-LAN field) — surfaced
+        # here too (#397) so it's visible on the card itself, not just used
+        # internally to gate the Wake button. Static, so it shows even on a
+        # down/dormant/unreachable peer, unlike the live-probed `network`
+        # block below (which needs a successful SSH round-trip).
+        "mac": host.mac,
         "actions": _actions_for(host, is_host=is_host, reachable=reachable),
     }
 
@@ -107,13 +113,16 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
     """Build one machine's full card: static fields + live probe."""
     is_host = host.id == active_id
 
-    # This machine — full local snapshot, always "up".
+    # This machine — full local snapshot, always "up". No live network probe
+    # here (#397 scopes connection type/AP/signal to *peers* — you already
+    # know how the box you're looking at is connected).
     if is_host:
         card = _card_base(host, is_host=True)
         stats = await self_snapshot()
         card.update(
             state="self", reachable=None,
             uptime_seconds=stats.get("uptime_seconds"), stats=stats, detail="",
+            network=None, flaky=None,
         )
         return card
 
@@ -123,6 +132,7 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
         card.update(
             state="dormant", reachable=None, uptime_seconds=None, stats=None,
             detail="Dormant — Remote Desktop only",
+            network=None, flaky=None,
         )
         return card
 
@@ -145,6 +155,14 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
             ),
             uptime_seconds=stats.get("uptime_seconds") if stats else None,
             stats=stats,
+            # Live connection type/MAC/AP/signal (#397) — riding the same SSH
+            # round-trip as the rest of `stats`, so no extra probe cost. None
+            # when the platform has no probe for it, or the box is down.
+            network=stats.get("network") if stats else None,
+            # Connection-health proxy (#397): did the liveness probe that
+            # produced this very card need its #333 warm-up retry? Only
+            # meaningful for a peer we're reporting reachable right now.
+            flaky=remote_stats.connection_flaky(host) if reachable else None,
             detail="" if reachable else "Offline",
         )
         return card
@@ -154,6 +172,7 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
     card.update(
         state="down", reachable=None, uptime_seconds=None, stats=None,
         detail="No probe path configured",
+        network=None, flaky=None,
     )
     return card
 
@@ -177,6 +196,7 @@ async def machines_status() -> Dict[str, Any]:
                 **_card_base(host, is_host=host.id == active_id),
                 "state": "down", "reachable": None, "uptime_seconds": None,
                 "stats": None, "detail": "Probe error",
+                "network": None, "flaky": None,
             })
         else:
             machines.append(card)
