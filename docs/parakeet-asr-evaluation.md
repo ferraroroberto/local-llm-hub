@@ -327,8 +327,11 @@ judged worth the additional Mac Mini Swift-engineering investment.
 
 ### When to revisit (Mac-ANE specific)
 
-1. Custom-vocabulary boosting gets wired into the worker and closes the
-   "Claude Code" / "YOLO" gaps above.
+1. ~~Custom-vocabulary boosting gets wired into the worker and closes the
+   "Claude Code" / "YOLO" gaps above.~~ **DISPROVEN 2026-07-24 (#401) — see
+   the update at the end of this doc.** The FluidAudio rescorer was wired in
+   and cannot close either gap without corrupting clean dictation; item
+   closed, not deferred.
 2. The Kokoro-on-Mac vs Kokoro-on-5060 TTS comparison actually runs.
 3. The Spanish code-switch finding gets re-tested in isolation (this run was
    inconclusive — both engines missed it, unlike #123's confident whisper-catches-it
@@ -373,3 +376,86 @@ Mac-native TTS (`say`-based `mac_say` model, also scoped in the original
 #138 plan) was **not** built in this pass — deferred, not attempted; the
 `say`/`AVSpeechSynthesizer` measurement above still stands as the reference
 number if it's picked up later.
+
+---
+
+## Update 2026-07-24: custom-vocabulary rescorer wired and DISPROVEN (#401)
+
+[When to revisit](#when-to-revisit-mac-ane-specific) item 1 above — "wire
+custom-vocabulary boosting into the worker and close the 'Claude Code' /
+'YOLO' gaps" — was built end-to-end and **does not work**. The FluidAudio
+rescorer flagged as a "plausible fix" in *Custom vocabulary / term-boosting*
+above cannot recover either failure without corrupting correctly-transcribed
+words. The spike was **not merged**; this section is the durable record.
+Parakeet stays a selectable, non-default `audio_transcribe` backend and
+whisper-turbo remains the default jargon-safe path — no role change.
+
+### What was wired
+
+FluidAudio 0.15.4's *only* vocabulary mechanism for the Parakeet TDT 0.6B v3
+model is a **post-hoc CTC rescorer** — there is no decode-time TDT biasing
+hook (`AsrManager.transcribe` takes no vocabulary argument, and
+`SlidingWindowAsrManager` applies the same rescorer *after* decode). The
+worker was extended to run FluidAudio's own `TranscribeCommand.swift`
+reference pipeline: `CustomVocabularyContext.loadWithCtcTokens` (which loads
+a separate ~97 MB CTC-110M encoder — the 0.6B TDT model has no built-in CTC
+head, so Approach 2 is mandatory) → `CtcKeywordSpotter.spotKeywordsWithLogProbs`
+→ `VocabularyRescorer.ctcTokenRescore`, seeded from the hub's existing
+`boost_terms` glossary via `src/parakeet_server.py`'s single loader. It
+builds clean (`swift build -c release`, Swift 6.3.3 / FluidAudio 0.15.4) —
+the `fluidaudiocli` build-timeout noted above never blocked the library
+target the worker depends on.
+
+### Before/after: threshold sweep over the #138/#343 jargon clips
+
+Ran the rescorer against the jargon clips (`jargon_01/02` open with the
+"Claude Code" wake phrase; `jargon_04/06` end with "issue YOLO") at four
+`(context-biasing-weight, min-similarity)` settings, plus an isolating
+two-term run:
+
+| Setting (cbw / minSim) | "Claude Code" drop recovered | "YOLO"→"yellow" recovered | Clean words corrupted |
+| --- | --- | --- | --- |
+| 4.5 / 0.55 (size-default, 28 terms) | ✗ | ✗ | ✗ `mention`→`Notion`, `left, right`→`Playwright`, `tab`→`Tailscale`, `model`→`Codex` |
+| 3.0 / 0.65 | ✗ | ✗ | some remain |
+| 2.0 / 0.72 | ✗ | ✗ | none (general clips clean) |
+| 1.5 / 0.80 | ✗ | ✗ | none |
+| 4.5 / 0.50, vocab = {Claude Code, YOLO} only | ✓ | ✓ | ✗ `so they both mention`→`the YOLO both YOLO`, `side of`→`Claude Code`, `feature to`→`YOLO` |
+
+The result is a hard precision/recall wall: **every false-positive-free
+setting is a no-op on both target failures, and every setting that recovers a
+target simultaneously corrupts correct words.** There is no usable threshold
+in between.
+
+### Root cause
+
+The rescorer only **swaps an existing transcript word** for a vocabulary term
+when that term has both stronger CTC acoustic evidence *and* enough string
+similarity to the word it would replace. It cannot **insert** a token the TDT
+decoder never emitted. That breaks both target cases:
+
+- **"Claude Code" is dropped, not mis-spelled** — the decoder emits an
+  unrelated word ("Yes" / "Yeah") where the phrase was spoken.
+  `similarity("Yes", "Claude Code") ≈ 0`, so no false-positive-safe threshold
+  swaps it in; only recklessly-low thresholds do, and those rewrite unrelated
+  words elsewhere. A dropped phrase is structurally unreachable for a
+  swap-only rescorer.
+- **"YOLO" (4 chars) is gated by the short-word guard** — terms ≤4 chars need
+  ≥0.80 similarity, and `similarity("yellow", "YOLO")` is below that, so
+  FP-safe settings never fire it; permissive settings fire "YOLO" onto
+  unrelated short fragments ("so they", "feature to").
+
+For daily-driver dictation, silently rewriting a correctly-transcribed word
+(`mention`→`Notion`) is worse than a known-absent wake phrase, so no
+permissive setting is shippable — and the FP-safe settings change nothing
+while adding a ~97 MB model load plus per-request CTC inference. Hence
+**not planned**.
+
+### Consequence
+
+- [When to revisit](#when-to-revisit-mac-ane-specific) item 1 is **closed as
+  disproven**, not deferred. Items 2 (Kokoro-on-Mac TTS) and 3 (Spanish
+  code-switch isolation) remain open and untouched by this pass.
+- No change to the `audio_transcribe` role or its glossary: whisper-turbo
+  already recognizes both "Claude Code" and "YOLO" correctly (see the
+  survival table above), so it stays the default and the jargon-safe path;
+  parakeet stays selectable non-default for latency-sensitive callers.
