@@ -14,8 +14,9 @@ from fastapi import APIRouter, HTTPException
 from src import backend_process as bp
 from src import services as svc
 from src.host_profile import get_host, resolve as resolve_host
+from src.model_failover import effective_owner
 from src.model_registry import Model, enabled_models, resolve as resolve_model
-from src.remote_proxy import remote_auth_token, remote_base_url
+from src.remote_proxy import remote_auth_token_for_model, remote_base_url
 from app_web.admin_forward import forward_admin_request
 from src.server_process import (
     OWNERSHIP_EXTERNAL,
@@ -29,7 +30,7 @@ router = APIRouter()
 
 
 def _remote_admin_headers(model: Model) -> Dict[str, str]:
-    token = remote_auth_token(model.host) if model.host else None
+    token = remote_auth_token_for_model(model)
     return {"Authorization": f"Bearer {token}"} if token else {}
 
 
@@ -57,6 +58,19 @@ def _offline_remote_row(m: Model, host_id: str) -> Dict[str, Any]:
     }
 
 
+def _add_failover_fields(row: Dict[str, Any], m: Model, owner_id: str) -> None:
+    """Annotate a tile row with #342 chain state — only for multi-host rows.
+
+    ``preferred_host`` is the chain's first candidate; ``failover: true``
+    flags that the model is currently served off-preference (failed over),
+    which the SPA renders as an amber hint on the tile's meta line.
+    """
+    if len(m.host_chain) <= 1:
+        return
+    row["preferred_host"] = m.host_chain[0]
+    row["failover"] = owner_id != m.host_chain[0]
+
+
 def _require_model(model_id: str) -> Model:
     """Resolve ``model_id`` via ``bp.resolve_model_by_id`` or raise the same
     404 every start/stop/force-stop/log handler needs — the identical
@@ -79,12 +93,13 @@ async def _forward_admin_call(
     """
     remote = remote_base_url(target)
     assert remote is not None
+    owner = effective_owner(target) or target.host
     return await forward_admin_request(
         remote,
         f"/admin/api/models/{target.id}{suffix}",
         method=method,
         headers=_remote_admin_headers(target),
-        unreachable_detail=f"host {target.host!r} (owns {target.id!r}) unreachable",
+        unreachable_detail=f"host {owner!r} (owns {target.id!r}) unreachable",
         **kwargs,
     )
 
@@ -130,8 +145,14 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
     """
     active = resolve_host()
     all_enabled = list(enabled_models())
-    local_models = [m for m in all_enabled if not (m.host and m.host != active.id)]
-    remote_owned = [m for m in all_enabled if m.host and m.host != active.id]
+    # Split by *effective* owner (#342): a multi-host-chain model counts as
+    # local while this host currently serves it (failover), and as remote
+    # while another candidate does — so the tiles always describe the host
+    # actually running the process. Single-host rows resolve statically to
+    # their ``host:`` exactly as before.
+    owner_by_id = {m.id: effective_owner(m) for m in all_enabled}
+    local_models = [m for m in all_enabled if owner_by_id[m.id] in (None, active.id)]
+    remote_owned = [m for m in all_enabled if owner_by_id[m.id] not in (None, active.id)]
 
     # psutil gives us every listening port in ~2 ms — use it both for
     # ownership *and* as a cheap reachability gate so we never fire an
@@ -194,6 +215,7 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
             "model_path": m.model_path,
             "host": active.id,
         }
+        _add_failover_fields(row, m, active.id)
         if device:
             row["device"] = device
         rows.append(row)
@@ -206,7 +228,7 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
     # no local visibility into another machine's ports.
     owners: Dict[str, List[Model]] = {}
     for m in remote_owned:
-        owners.setdefault(m.host, []).append(m)
+        owners.setdefault(owner_by_id[m.id], []).append(m)
 
     for host_id, models_for_host in owners.items():
         owner_profile = get_host(host_id)
@@ -217,9 +239,10 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
             if remote_row is not None:
                 row = dict(remote_row)
                 row.setdefault("host", host_id)
-                rows.append(row)
             else:
-                rows.append(_offline_remote_row(m, host_id))
+                row = _offline_remote_row(m, host_id)
+            _add_failover_fields(row, m, host_id)
+            rows.append(row)
 
     return {"models": rows}
 

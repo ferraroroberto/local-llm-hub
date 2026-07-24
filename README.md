@@ -532,6 +532,59 @@ is no longer a per-peer boot toggle to keep in sync with reality. `startup_profi
 write-through keeps a peer's copy in step with the tower's intent so it self-boots
 correctly even when the tower is down.
 
+### Dynamic model fallback: ordered host chains (#342)
+
+Fleet placement above answers *"what should run where"*; **dynamic
+fallback** answers *"and what if that host is down?"*. A `models:` row may
+replace its single `host:` with an ordered preference chain:
+
+```yaml
+whisper:
+  hosts: [gaming, mac-mini-m4, {id: tower, cpu: true}]
+```
+
+A bare `host:` stays valid and is exactly a one-element chain — every
+existing row behaves as before, and with no multi-host chain configured
+the engine adds zero probes and zero background work.
+
+- **Ownership resolution.** The model's *effective owner* is the first
+  chain candidate whose hub is reachable and that lists the model in its
+  `enabled:`. Every dispatch path (chat, audio, admin start/stop/log)
+  resolves against the effective owner and proxies there over the existing
+  #178 cross-host path — chain order is the deterministic tie-break, so
+  two live candidates always agree on who owns routing.
+- **Failover.** A background loop in each hub probes the chain hosts
+  (reusing the Machines-tab `peer_health` prober — no second prober,
+  #396 tailnet fallback included) every `probe_interval_s` (30 s). When
+  the owner stays *continuously* unreachable past `fail_after_s` (90 s),
+  ownership moves to the next reachable candidate — and that candidate's
+  own hub starts the model locally (each host acts only on itself; no
+  master required, so failover works even when the control node is the
+  host that died).
+- **Degraded CPU tier.** A chain entry flagged `cpu: true` runs the model
+  CPU-offloaded on that host — the hub rewrites its launch args
+  (llama-server `-ngl 0`, whisper `-ng`, tts `--device cpu`) so the last
+  resort is "up but slower," not "must match GPU perf."
+- **Failback with hysteresis (anti-flap).** When a more-preferred host
+  returns it must stay up *continuously* for `failback_after_s` (10 min)
+  before ownership hands back; a repeatedly-rebooting host never
+  accumulates the window, so ownership cannot bounce. The fallback host
+  then stops only the instance the engine itself started (hand-started
+  processes are never touched — same additive contract as the reconcile
+  loop). `policy: sticky` disables automatic hand-back entirely.
+- **Tunables.** Top-level `failover:` block in `config/models.yaml`
+  (`probe_interval_s` / `fail_after_s` / `failback_after_s` / `policy`);
+  defaults documented inline there.
+
+**Enabling a chain:** every chain member must cross-list the model in its
+`enabled:` **and** pre-stage the weights (`python -m src.install --fix` on
+that host — the installer treats chain members as local candidates). The
+Models tab tags a model served off-preference with a
+`failover (prefers <host>)` note on its tile. No production row ships with
+a multi-host chain yet — the live cutover (chain on the whisper voice
+backends + a controlled failover drill) is tracked in the follow-up to
+#342.
+
 ### Linux satellite lifecycle: systemd (#323, #368)
 
 A headless Linux satellite (`gaming`, later `openclaw`) has no

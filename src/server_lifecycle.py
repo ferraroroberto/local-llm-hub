@@ -116,6 +116,11 @@ async def wire_observatory_loop() -> None:
     # boot toggle folded into reconcile-on-boot (a peer with placed models is
     # woken + synced + started here; one with no placement is left asleep).
     loop.create_task(_fleet_reconcile_loop())
+    # Dynamic model fallback (issue #342): probe the hosts of every
+    # multi-host ``hosts:`` chain and move ownership down/up the chain with
+    # hysteresis. The task exits immediately when no enabled model declares
+    # a multi-host chain, so pre-#342 configs pay nothing.
+    loop.create_task(_model_failover_loop())
     # Diagnostics (issue #315): close any capture orphaned by a previous hub
     # and arm the scheduled snapshot if it's enabled. No task is created when
     # it's off — the feature costs nothing until asked for.
@@ -223,6 +228,23 @@ async def _fleet_reconcile_loop() -> None:
         except Exception as exc:  # noqa: BLE001 — loop must not die
             logger.warning("fleet reconcile pass raised: %s", exc)
         await asyncio.sleep(fleet_reconcile.FLEET_RECONCILE_INTERVAL_S)
+
+
+async def _model_failover_loop() -> None:
+    """Dynamic model fallback across ordered host chains (issue #342).
+
+    Thin lifecycle shim — the probe/decide/act cycle, the hysteresis rules,
+    and the no-chains early exit all live in ``src.model_failover``
+    (``failover_loop``), keeping the engine unit-testable with no FastAPI
+    app in the loop. The same boot delay as the fleet reconcile loop lets
+    autostart + backend inheritance settle before the first probe pass.
+    """
+    from . import model_failover
+
+    try:
+        await model_failover.failover_loop(boot_delay_s=20.0)
+    except Exception as exc:  # noqa: BLE001 — the shim must not crash startup
+        logger.warning("model failover loop exited abnormally: %s", exc)
 
 
 async def _resource_sampler() -> None:

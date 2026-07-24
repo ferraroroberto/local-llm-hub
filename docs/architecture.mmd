@@ -64,10 +64,15 @@ flowchart TB
     PARAKEETSRV["parakeet_server.py\nOpenAI-shape ASR shim ->\nFluidAudio Parakeet CoreML worker"]
     FLEETREC["fleet_reconcile.py (issue #353)\nadditive convergence: wake offline can-ssh\nsatellite -> write-through its startup_profile\n-> start placed-but-not-running models\n(fleet_placement.py = desired-state file)"]
     WOL["wake_on_lan.py (issue #356)\nmagic-packet builder + UDP broadcast\n(true power-on beneath the SSH bootstrap)"]
+    FAILOVER["model_failover.py (issue #342)\nordered hosts: chain -> live effective owner;\nfailover after fail_after_s, failback with\nfailback_after_s hysteresis (anti-flap);\ndecentralized: each host starts/stops only itself"]
   end
   CHATT --> REMOTEPROXY
   SRV --> REMOTEPROXY
   AUDIOR --> REMOTEPROXY
+  REMOTEPROXY -->|effective owner of a hosts: chain| FAILOVER
+  LIFECYCLE -->|probe/decide/act loop| FAILOVER
+  FAILOVER -->|peer reachability via services.peer_health| SVC
+  FAILOVER -->|start/stop local failover instance| BACKPROC
   LIFECYCLE -->|periodic reconcile| FLEETREC
   FLEETREC -->|wake unreachable satellite| REMOTEBOOT
   FLEETREC -->|WOL cold satellite first (#364)| WOL

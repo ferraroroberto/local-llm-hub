@@ -373,11 +373,16 @@ def start(model_id: str) -> tuple[bool, str]:
     model = resolve_model_by_id(model_id)
     if model is None:
         return False, f"model {model_id!r} not enabled on this host"
-    model_host = getattr(model, "host", None)
+    # Chain-aware ownership guard (#342): any host in the model's ordered
+    # ``hosts:`` chain may spawn it locally (the failover engine relies on
+    # this to bring a model up on a fallback candidate); a host *outside*
+    # the chain never does. A bare single-``host:`` row has a one-element
+    # chain, so the pre-#342 refusal is byte-identical.
+    chain = list(getattr(model, "hosts", None) or [])
     active = resolve_host()
-    if model_host and model_host != active.id:
+    if chain and active.id not in chain:
         return False, (
-            f"model {model_id!r} is owned by host {model_host!r} — "
+            f"model {model_id!r} is owned by host(s) {chain!r} — "
             "start it there, or via the admin API which proxies this "
             "call automatically"
         )

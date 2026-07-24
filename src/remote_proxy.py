@@ -52,10 +52,17 @@ def remote_base_url_for_host(host_id: Optional[str]) -> Optional[str]:
 def remote_base_url(model: Model) -> Optional[str]:
     """Owning host's hub base URL (e.g. ``http://192.168.0.14:8000``, no
     trailing slash, no ``/v1``) when ``model`` is remote relative to the
-    active host — ``None`` when it's local (no ``host`` set, or it matches
+    active host — ``None`` when it's local (no owning host, or it matches
     the active host) or when the owning host has no ``address`` configured.
+
+    Ownership is the *effective* owner (#342): for a single-host row that is
+    statically ``model.host`` exactly as before; for a multi-host chain it is
+    whichever candidate the failover tracker currently holds, so requests
+    follow the model when it fails over/back.
     """
-    return remote_base_url_for_host(getattr(model, "host", None))
+    from .model_failover import effective_owner
+
+    return remote_base_url_for_host(effective_owner(model))
 
 
 def remote_auth_token(owning_host_id: str) -> Optional[str]:
@@ -69,3 +76,15 @@ def remote_auth_token(owning_host_id: str) -> Optional[str]:
     """
     env_name = "LOCAL_LLM_HUB_TOKEN_" + owning_host_id.upper().replace("-", "_")
     return os.environ.get(env_name) or None
+
+
+def remote_auth_token_for_model(model: Model) -> Optional[str]:
+    """Bearer token for the host that *currently* owns ``model`` (#342) — the
+    per-model companion to :func:`remote_auth_token`, so every dispatch path
+    sends the token matching the hub the request is actually proxied to.
+    ``None`` for locally-served models and token-less setups.
+    """
+    from .model_failover import effective_owner
+
+    owner = effective_owner(model)
+    return remote_auth_token(owner) if owner else None
