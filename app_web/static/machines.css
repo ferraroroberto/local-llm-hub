@@ -21,6 +21,19 @@
  * state) but read as slightly inert while a background refresh is failing. */
 .machine-card.is-stale { opacity: 0.72; }
 
+/* Card title (#408): truncate to one line on narrow/mobile viewports
+ * instead of wrapping into the status badge. .hub-title-block is already
+ * `min-width: 0` (styles.css); the h2 itself also needs it since it's a
+ * flex item, and the status badge needs flex-shrink: 0 so it's never the
+ * thing that gets squeezed. */
+.machine-card .hub-title-block h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.machine-card .hub-title-block .hub-live-status { flex-shrink: 0; }
+
 /* "self" status — the host you're looking at right now: an accent tint
  * reads as "home base", distinct from the good/warn/danger status trio
  * (.hub-live-status is the generic hub.js component; this is its one new
@@ -40,10 +53,13 @@
  * row stays quiet until there's actually something to notice. */
 .machine-net-signal-weak { color: var(--attention); }
 .machine-net-flaky { color: var(--attention); }
-.machine-mac { font-variant-numeric: tabular-nums; }
+.machine-mac, .machine-ip { font-variant-numeric: tabular-nums; }
 
-/* Role / Tailscale-hint line under the header — same rhythm as the Hub
- * card's PID/Uptime row (.hub-meta-row is a generic, unscoped rule). */
+/* Role / Uptime / IP·MAC lines under the header — same rhythm as the Hub
+ * card's PID/Uptime row (.hub-meta-row is a generic, unscoped rule). Each
+ * meta line uses this class on its own now (#408 split the old single
+ * wrapping bag into fixed, separate rows), so it still reads as one quiet
+ * caption block even though it's several `<p>`s. */
 .machine-meta-row {
   display: flex;
   flex-wrap: wrap;
@@ -52,6 +68,26 @@
   font-size: var(--font-caption);
   margin: 0 0 8px;
 }
+
+/* Connection row (#408): wired/Wi-Fi on the left, Tailscale/flaky-link
+ * status right-aligned on the same line — a dedicated space-between row
+ * (not the wrapping .machine-meta-row bag) so the right side never
+ * wrap-folds onto its own line regardless of content length. */
+.machine-conn-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: var(--font-caption);
+  margin: 0 0 8px;
+}
+.machine-conn-left, .machine-conn-right {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.machine-conn-right { flex-shrink: 0; }
 
 /* Stats — a uniform column of horizontal gauges (CPU / RAM / GPU / disk),
  * every gauge the same size, one per line so it reads identically on the

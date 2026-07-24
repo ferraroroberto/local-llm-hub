@@ -11,6 +11,7 @@ Network/SSH-touching probes are monkeypatched so the suite stays hermetic.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 
 from fastapi.testclient import TestClient
 
@@ -188,6 +189,40 @@ def test_card_base_mac_none_for_host_without_one():
     """openclaw has no `mac:` row (no wired NIC) — the card field is None,
     not a missing key, so the SPA can render conditionally without a KeyError."""
     assert mc._card_base(get_host("openclaw"), is_host=False)["mac"] is None
+
+
+# -------------------------------------------------------------- card ip (#408)
+
+
+def test_card_base_surfaces_configured_ip():
+    """The static `address:` config field is surfaced on the card as `ip`."""
+    assert mc._card_base(get_host("gaming"), is_host=False)["ip"] == get_host("gaming").address
+
+
+def test_probe_machine_self_ip_uses_configured_address(monkeypatch):
+    """When the active host's own config row has an `address:` (as every row
+    does today), the self card's `ip` is that value — no lan_ip() lookup
+    needed."""
+    monkeypatch.setattr(mc.system_stats, "gpu_stats", lambda: [])
+
+    def _boom():
+        raise AssertionError("lan_ip() should not be called when host.address is set")
+
+    monkeypatch.setattr(mc, "lan_ip", _boom)
+    host = get_host("gaming")
+    card = _run(mc._probe_machine(host, host.id))
+    assert card["ip"] == host.address
+
+
+def test_probe_machine_self_ip_falls_back_to_lan_ip(monkeypatch):
+    """A host row with no configured `address:` (host_profile.py's documented
+    case — nothing dials it) still gets an IP on its own card, via the same
+    lan_ip() UDP-connect trick the Hub tab's LAN URL already uses."""
+    monkeypatch.setattr(mc.system_stats, "gpu_stats", lambda: [])
+    monkeypatch.setattr(mc, "lan_ip", lambda: "10.20.30.40")
+    host = dataclasses.replace(get_host("gaming"), address=None)
+    card = _run(mc._probe_machine(host, host.id))
+    assert card["ip"] == "10.20.30.40"
 
 
 # --------------------------------------------------- _probe_machine card wiring (#388)

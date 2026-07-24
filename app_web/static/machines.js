@@ -122,6 +122,52 @@ function connectionMeta(net) {
     + icon('signal') + ' ' + escapeHtml(bits.join(' · ')) + '</span>';
 }
 
+/* Tailscale + connection-health badges (#408) — the right-hand half of the
+ * connection row. Split out of connectionMeta() (the left half) so the two
+ * can sit in a dedicated space-between row instead of the same wrapping
+ * bag as everything else, which is what made Tailscale land on its own
+ * line inconsistently (wrap-overflow, not a deliberate row). */
+function tailscaleMeta(m) {
+  const bits = [];
+  // "via tailnet" (#396): the liveness probe found this peer on its
+  // Tailscale name, not its LAN address — the wired path is silently dead.
+  // Falls back to the plain capability chip when the LAN path is healthy
+  // (or the box is down).
+  if (m.via_tailscale) bits.push('<span class="machine-via-tailnet">' + icon('signal') + ' via tailnet</span>');
+  else if (m.has_tailscale) bits.push('<span>' + icon('signal') + ' Tailscale</span>');
+  // Connection-health proxy (#397): the liveness probe that produced this
+  // card only answered on its #333 warm-up retry — flag it as a flaky link
+  // rather than silently rendering the same "Online" dot as a rock-solid one.
+  if (m.flaky) bits.push('<span class="machine-net-flaky">' + icon('triangle-alert') + ' Flaky link</span>');
+  return bits.join('');
+}
+
+/* IP · MAC row (#408) — both static/config-sourced, so they show even on a
+ * down/dormant/unreachable peer (unlike the live-probed connection row
+ * below). MAC now shows for every machine, including the host itself. */
+function addressMeta(m) {
+  const bits = [];
+  if (m.ip) bits.push('<span class="machine-ip">IP ' + escapeHtml(m.ip) + '</span>');
+  if (m.mac) bits.push('<span class="machine-mac">MAC ' + escapeHtml(m.mac) + '</span>');
+  return bits.join('');
+}
+
+/* Connection row (#408): wired/Wi-Fi(+SSID/signal) on the left, Tailscale/
+ * flaky-link status right-aligned on the *same* line — a dedicated
+ * space-between row (not the wrapping meta bag) so it renders identically
+ * across every card regardless of content length. Two explicit wrapper
+ * spans keep the right side pinned to the end even when the left side is
+ * empty (e.g. the host card, which has no live network probe of itself). */
+function connectionRow(m) {
+  const left = connectionMeta(m.network);
+  const right = tailscaleMeta(m);
+  if (!left && !right) return '';
+  return '<p class="machine-conn-row muted small">'
+    + '<span class="machine-conn-left">' + left + '</span>'
+    + '<span class="machine-conn-right">' + right + '</span>'
+    + '</p>';
+}
+
 /* Resource-pressure level for a gauge fill — a genuine state signal
  * (design.md: status colors signal state), not decoration: accent while
  * healthy, attention past 75%, danger past 90%. */
@@ -246,35 +292,25 @@ function renderDiagnosticsRow(m) {
   return '';
 }
 
+/* Every card's meta block follows the same fixed structure, regardless of
+ * which fields a given machine actually has (#408): role line, Uptime, IP ·
+ * MAC, then the connection row. Each line only renders when it has content
+ * — "omit, don't blank" — but the *order* never varies card to card, which
+ * is what makes a phone-width stack of cards read as one consistent format
+ * instead of drifting per machine. */
 function renderMachineCard(m, isStale) {
   const st = stateMeta(m.state);
   const uptime = fmtUptimeHuman(m.uptime_seconds);
-  const metaParts = [];
-  if (m.role) metaParts.push('<span>' + escapeHtml(m.role) + '</span>');
-  if (uptime) metaParts.push('<span>Uptime ' + uptime + '</span>');
-  // Connection type + AP/signal (#397) — live-probed alongside the rest of
-  // `stats`, so it only ever appears on a peer we just reached over SSH.
-  const netMeta = connectionMeta(m.network);
-  if (netMeta) metaParts.push(netMeta);
-  // Wired-NIC MAC (#397) — from config, so it shows even when the peer is
-  // down/dormant (unlike the live network chip above). Self excluded: you
-  // already know how the machine you're on is addressed.
-  if (!m.is_host && m.mac) metaParts.push('<span class="machine-mac">MAC ' + escapeHtml(m.mac) + '</span>');
-  // "via tailnet" (#396): the liveness probe found this peer on its Tailscale
-  // name, not its LAN address — the wired path is silently dead. Falls back to
-  // the plain capability chip when the LAN path is healthy (or the box is down).
-  if (m.via_tailscale) metaParts.push('<span class="machine-via-tailnet">' + icon('signal') + ' via tailnet</span>');
-  else if (m.has_tailscale) metaParts.push('<span>' + icon('signal') + ' Tailscale</span>');
-  // Connection-health proxy (#397): the liveness probe that produced this
-  // card only answered on its #333 warm-up retry — flag it as a flaky link
-  // rather than silently rendering the same "Online" dot as a rock-solid one.
-  if (m.flaky) metaParts.push('<span class="machine-net-flaky">' + icon('triangle-alert') + ' Flaky link</span>');
+  const addrRow = addressMeta(m);
   return '<section class="card machine-card' + (isStale ? ' is-stale' : '') + '" data-machine-id="' + escapeHtml(m.id) + '">'
     + '<div class="card-header"><div class="hub-title-block">'
     + '<h2>' + icon(m.icon || 'monitor') + escapeHtml(m.display_name || m.id) + '</h2>'
     + '<span class="hub-live-status ' + st.cls + '"><span class="dot"></span><span>' + escapeHtml(st.label) + '</span></span>'
     + '</div></div>'
-    + (metaParts.length ? '<p class="machine-meta-row muted small">' + metaParts.join('') + '</p>' : '')
+    + (m.role ? '<p class="muted small">' + escapeHtml(m.role) + '</p>' : '')
+    + (uptime ? '<p class="machine-meta-row muted small"><span>Uptime ' + escapeHtml(uptime) + '</span></p>' : '')
+    + (addrRow ? '<p class="machine-meta-row muted small">' + addrRow + '</p>' : '')
+    + connectionRow(m)
     + (m.detail ? '<p class="muted small">' + escapeHtml(m.detail) + '</p>' : '')
     + renderStatsBlock(m)
     + renderDiagnosticsRow(m)

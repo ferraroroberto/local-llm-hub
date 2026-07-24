@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional
 
 from src import remote_stats, system_stats
 from src.host_profile import HostProfile, all_hosts, resolve
+from src.server_process import lan_ip
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,12 @@ def _card_base(
         # down/dormant/unreachable peer, unlike the live-probed `network`
         # block below (which needs a successful SSH round-trip).
         "mac": host.mac,
+        # LAN address (#408) — same static config value used to dial this
+        # peer, so it shows even when the peer is down/dormant. `None` here
+        # on the active host's own row; `_probe_machine`'s `is_host` branch
+        # fills that in with a live `lan_ip()` lookup, since a machine that
+        # nothing dials may have no `address` configured for itself.
+        "ip": host.address,
         "actions": _actions_for(host, is_host=is_host, reachable=reachable),
     }
 
@@ -124,6 +131,8 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
             uptime_seconds=stats.get("uptime_seconds"), stats=stats, detail="",
             network=None, flaky=None,
         )
+        if not card["ip"]:
+            card["ip"] = lan_ip()
         return card
 
     # Dormant node — shown but never live-probed (it is powered down).
