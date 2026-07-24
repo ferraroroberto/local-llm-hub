@@ -206,6 +206,35 @@ def test_eligible_entries_mark_cpu_models(monkeypatch, tmp_path):
     assert tower["piper"]["device"] == "cpu"  # tts_engine: piper hardcodes CPU
 
 
+def test_cpu_chain_tier_marks_only_the_flagged_host(monkeypatch, tmp_path):
+    """A failover chain's ``cpu: true`` tier is CPU on *that host only* (#405).
+
+    Regression guard: the hint used to be a single ``{model_id: "cpu"}`` dict
+    built from ``all_models()``, whose args carry the active host's CPU-offload
+    rewrite baked in — so flagging tower as whisper's degraded last resort
+    labelled whisper "cpu" on gaming and mac-mini-m4 too, i.e. the grid claimed
+    the GPU-preferred members ran it on CPU.
+    """
+    _isolate(monkeypatch, tmp_path, {})
+    _stub_gaming_online(monkeypatch)
+
+    client = TestClient(server_mod.app)
+    hosts = {h["id"]: h for h in client.get("/admin/api/fleet-placement").json()["hosts"]}
+
+    def device(host_id: str, model_id: str):
+        entry = {e["id"]: e for e in hosts[host_id]["eligible"]}.get(model_id)
+        return entry["device"] if entry else None
+
+    # whisper's production chain is [gaming, mac-mini-m4, {id: tower, cpu: true}]
+    assert device("tower", "whisper") == "cpu"          # the flagged degraded tier
+    assert device("gaming", "whisper") is None          # GPU-preferred member
+    assert device("mac-mini-m4", "whisper") is None     # GPU-preferred member
+
+    # An always-CPU row stays CPU everywhere it is eligible — the per-host
+    # split must not regress the #387 static case.
+    assert device("gaming", "whisper_translate") == "cpu"
+
+
 def test_patch_merges_persists_and_applies(monkeypatch, tmp_path):
     target = _isolate(monkeypatch, tmp_path, {"tower": ["piper"], "mac-mini-m4": ["parakeet"]})
     applied_calls = []

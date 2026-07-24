@@ -512,12 +512,24 @@ models:
   whisper:
     display_name: whisper-large-v3-turbo
     backend: whisper
-    # Owned by the gaming satellite since #323 (GTX 1070, CUDA-built
-    # whisper-server) — cross-enabled on tower + mac-mini-m4, which proxy to
-    # gaming's hub. ~9.1 RTFx there vs ~33.6 on the tower's 5060 Ti: slower,
-    # but whisper is only the transcribe role's FALLBACK (parakeet@mac is
-    # primary) and the move frees tower VRAM for the agentic lanes.
-    host: gaming
+    # Preferred owner is the gaming satellite since #323 (GTX 1070, CUDA-built
+    # whisper-server) — ~9.1 RTFx there vs ~33.6 on the tower's 5060 Ti:
+    # slower, but whisper is only the transcribe role's FALLBACK (parakeet@mac
+    # is primary) and keeping it off the tower frees VRAM for the agentic lanes.
+    #
+    # First production failover chain (#405, engine from #342). Chosen as the
+    # pilot precisely because it is the transcribe *fallback*: a wrong failover
+    # decision here degrades a backup path, it does not take fleet STT down.
+    # mac-mini-m4 is the warm middle link (Metal whisper-server, GPU-class
+    # latency); tower is the last resort and is flagged `cpu: true` because its
+    # 16 GB is already ~97% committed to the agentic lanes — a GPU whisper
+    # there would fight gemma4_26b for VRAM, so the degraded-but-up CPU tier is
+    # the honest last rung, not a compromise.
+    #
+    # Every member cross-lists whisper in its `enabled:` (required — see
+    # model_failover.eligible_chain) and must pre-stage weights + a built
+    # whisper-server via `python -m src.install --fix`.
+    hosts: [gaming, mac-mini-m4, {id: tower, cpu: true}]
     engine: whisper-server
     port: 8090
     # large-v3-turbo fp16 ≈ 2000 MB VRAM (docs/whisper-turbo-vs-large-v3.md §VRAM).
