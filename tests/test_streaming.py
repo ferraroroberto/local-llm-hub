@@ -1012,3 +1012,57 @@ def test_nothink_alias_caller_chat_template_kwargs_wins(monkeypatch):
     )
     assert r.status_code == 200, r.text
     assert captured["extra"] == {"chat_template_kwargs": {"enable_thinking": True}}
+
+
+# ---- stream span telemetry (first/last token) ----
+
+class _FakeSpan:
+    def __init__(self):
+        self.attrs: dict = {}
+        self.events: list = []
+
+    def set_attribute(self, k, v):
+        self.attrs[k] = v
+
+    def add_event(self, name, attributes=None):
+        self.events.append((name, dict(attributes or {})))
+
+
+@pytest.mark.parametrize("route", ["/v1/messages", "/v1/chat/completions"])
+def test_openai_stream_records_first_and_last_token_on_span(monkeypatch, route):
+    """Both streaming routes stamp TTFT on the first content delta and the
+    decode rate on a clean finish — the span contract the Telemetry tab and
+    Langfuse read, pinned across the shared-helper refactor (#556)."""
+
+    def fake_stream(base_url, model, messages, *, max_tokens=None, temperature=None,
+                    timeout=600.0, extra=None, headers=None) -> Iterator[str]:
+        usage = {
+            "id": "x", "object": "chat.completion.chunk", "model": model,
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 3},
+        }
+        yield from _sse_lines(_delta("Hello "), _delta("local"), usage)
+
+    span = _FakeSpan()
+    monkeypatch.setattr(server_mod, "_current_otel_span", lambda: span)
+    monkeypatch.setattr(server_mod, "_ensure_backend_ready", lambda model: None)
+    monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
+    client = TestClient(server_mod.app)
+    with client.stream(
+        "POST",
+        route,
+        json={
+            "model": "qwen3.5-4b",
+            "stream": True,
+            "messages": [{"role": "user", "content": "hi"}],
+        },
+    ) as response:
+        assert response.status_code == 200
+        _ = "".join(response.iter_text())
+
+    assert [name for name, _ in span.events] == ["first_token", "last_token"]
+    first, last = span.events[0][1], span.events[1][1]
+    assert 0 <= first["latency_ms"] <= last["latency_ms"]
+    assert span.attrs["gen_ai.response.time_to_first_token_ms"] == first["latency_ms"]
+    assert span.attrs["gen_ai.response.tokens_per_second"] > 0
+    assert span.attrs["gen_ai.usage.output_tokens"] == 3

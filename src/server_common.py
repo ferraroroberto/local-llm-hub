@@ -11,8 +11,9 @@ into ``server.py``.
 from __future__ import annotations
 
 import logging
+import time
 from contextlib import contextmanager, nullcontext
-from typing import Any, Iterator
+from typing import Any, Iterator, Optional
 
 from fastapi import HTTPException, Request
 
@@ -120,6 +121,41 @@ def safe_span(label: str = "span") -> Iterator[None]:
         yield
     except Exception as exc:  # noqa: BLE001 — telemetry is best-effort
         logger.warning("⚠️ span telemetry (%s) failed: %s", label, exc)
+
+
+def record_first_token(span: Any, start_ns: int) -> int:
+    """Mark a stream's first content token on ``span``: a ``first_token``
+    event plus the time-to-first-token attribute, both measured from
+    ``start_ns``. Returns the first-token timestamp (monotonic ns) for the
+    caller to hand back to :func:`record_last_token`.
+    """
+    first_token_ns = time.monotonic_ns()
+    if span is not None and hasattr(span, "add_event"):
+        with safe_span("first_token"):
+            ttft_ms = (first_token_ns - start_ns) / 1e6
+            span.add_event("first_token", attributes={"latency_ms": ttft_ms})
+            span.set_attribute("gen_ai.response.time_to_first_token_ms", ttft_ms)
+    return first_token_ns
+
+
+def record_last_token(
+    span: Any, start_ns: int, first_token_ns: Optional[int], output_tokens: int
+) -> None:
+    """Mark a cleanly-finished stream on ``span``: a ``last_token`` event
+    and, when a first token was seen and usage was reported, the decode
+    rate (``output_tokens`` over the first-to-last-token window).
+    """
+    last_ns = time.monotonic_ns()
+    if span is not None and hasattr(span, "add_event"):
+        with safe_span("last_token"):
+            span.add_event(
+                "last_token", attributes={"latency_ms": (last_ns - start_ns) / 1e6}
+            )
+            if first_token_ns is not None and output_tokens > 0:
+                seconds = max(1e-6, (last_ns - first_token_ns) / 1e9)
+                span.set_attribute(
+                    "gen_ai.response.tokens_per_second", output_tokens / seconds
+                )
 
 
 def stash_trace_id_on_ctx(ctx, span) -> None:

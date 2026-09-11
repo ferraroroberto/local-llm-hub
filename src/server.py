@@ -108,8 +108,9 @@ from .server_common import (
     client_id_from as _client_id_from,
     current_otel_span as _current_otel_span,
     ensure_backend_ready_or_503 as _ensure_backend_ready,
+    record_first_token as _record_first_token,
+    record_last_token as _record_last_token,
     resolve_model_or_400 as _resolve,
-    safe_span as _safe_span,
     stash_trace_id_on_ctx as _stash_trace_id_on_ctx,
 )
 from . import on_demand as _on_demand
@@ -457,16 +458,7 @@ def _stream_anthropic_response(
                         streams.callback(_close_if_supported, events)
                         for event in events:
                             if first_token_ns is None and state.text_parts:
-                                first_token_ns = time.monotonic_ns()
-                                if span is not None and hasattr(span, "add_event"):
-                                    with _safe_span("first_token"):
-                                        ttft_ms = (first_token_ns - start_ns) / 1e6
-                                        span.add_event(
-                                            "first_token", attributes={"latency_ms": ttft_ms}
-                                        )
-                                        span.set_attribute(
-                                            "gen_ai.response.time_to_first_token_ms", ttft_ms
-                                        )
+                                first_token_ns = _record_first_token(span, start_ns)
                             yield event
             elif model.backend == "openai":
                 track = _on_demand.tracking(model, remote).start()
@@ -490,34 +482,13 @@ def _stream_anthropic_response(
                     streams.callback(_close_if_supported, events)
                     for event in events:
                         if first_token_ns is None and state.text_parts:
-                            first_token_ns = time.monotonic_ns()
-                            if span is not None and hasattr(span, "add_event"):
-                                with _safe_span("first_token"):
-                                    ttft_ms = (first_token_ns - start_ns) / 1e6
-                                    span.add_event(
-                                        "first_token", attributes={"latency_ms": ttft_ms}
-                                    )
-                                    span.set_attribute(
-                                        "gen_ai.response.time_to_first_token_ms", ttft_ms
-                                    )
+                            first_token_ns = _record_first_token(span, start_ns)
                         yield event
             else:
                 envelope = _run_gemini_backend(model, req)
                 yield from iter_buffered_anthropic_sse(envelope, state)
 
-            last_ns = time.monotonic_ns()
-            if span is not None and hasattr(span, "add_event"):
-                with _safe_span("last_token"):
-                    span.add_event(
-                        "last_token",
-                        attributes={"latency_ms": (last_ns - start_ns) / 1e6},
-                    )
-                    if first_token_ns is not None and state.output_tokens > 0:
-                        seconds = max(1e-6, (last_ns - first_token_ns) / 1e9)
-                        span.set_attribute(
-                            "gen_ai.response.tokens_per_second",
-                            state.output_tokens / seconds,
-                        )
+            _record_last_token(span, start_ns, first_token_ns, state.output_tokens)
         except HTTPException as exc:
             error_type = f"http_{exc.status_code}"
             logger.error("Anthropic stream error: %s", exc.detail)
@@ -831,18 +802,7 @@ def _stream_openai_passthrough(
                             if first_token_ns is None:
                                 delta = (obj.get("choices") or [{}])[0].get("delta") or {}
                                 if delta.get("content"):
-                                    first_token_ns = time.monotonic_ns()
-                                    if span is not None and hasattr(span, "add_event"):
-                                        with _safe_span("first_token"):
-                                            ttft_ms = (first_token_ns - start_ns) / 1e6
-                                            span.add_event(
-                                                "first_token",
-                                                attributes={"latency_ms": ttft_ms},
-                                            )
-                                            span.set_attribute(
-                                                "gen_ai.response.time_to_first_token_ms",
-                                                ttft_ms,
-                                            )
+                                    first_token_ns = _record_first_token(span, start_ns)
                             # Parse usage on every frame — llama-server emits the
                             # usage chunk after content, so it arrives after
                             # first_token_ns is already set.
@@ -859,22 +819,10 @@ def _stream_openai_passthrough(
             yield "\n"
 
             # Stream finished cleanly — close out telemetry.
-            last_ns = time.monotonic_ns()
-            if span is not None and hasattr(span, "add_event"):
-                with _safe_span("last_token"):
-                    span.add_event(
-                        "last_token",
-                        attributes={"latency_ms": (last_ns - start_ns) / 1e6},
-                    )
-                    if first_token_ns is not None and usage_out > 0:
-                        seconds = max(1e-6, (last_ns - first_token_ns) / 1e9)
-                        span.set_attribute(
-                            "gen_ai.response.tokens_per_second",
-                            usage_out / seconds,
-                        )
-                    set_genai_response_attrs(
-                        span, input_tokens=usage_in, output_tokens=usage_out,
-                    )
+            _record_last_token(span, start_ns, first_token_ns, usage_out)
+            set_genai_response_attrs(
+                span, input_tokens=usage_in, output_tokens=usage_out,
+            )
         except UpstreamError as e:
             error_type = "upstream_http_error"
             logger.error("upstream stream error: %s", e)
