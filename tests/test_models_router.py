@@ -135,10 +135,12 @@ def test_placement_absent_on_subscription_rows(monkeypatch):
     assert "placement" not in _row(body, "gemini_flash")
 
 
-def test_placement_chain_marks_cpu_tier_on_remote_row(monkeypatch):
+def test_placement_chain_marks_cpu_tier_on_remote_row(monkeypatch, pinned_whisper_chain):
     """The whisper chain's degraded last-resort tier ({id: tower, cpu: true})
     surfaces as cpu=True — stamped from the local registry even when the
-    owning hub is unreachable (offline fallback row)."""
+    owning hub is unreachable (offline fallback row). The chain is the
+    pinned ``conftest.WHISPER_FIXTURE_CHAIN``, not the admin-editable
+    production row (#561)."""
     monkeypatch.setattr(models_router, "snapshot_listening_pids", lambda: {})
 
     async def _offline(profile, **kwargs):
