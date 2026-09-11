@@ -1047,7 +1047,8 @@ local-llm-hub/
 │   └── skills/
 │       └── frontier-refresh/     # bi-weekly frontier research skill
 │           ├── SKILL.md          #   brief + output contract + ledger (single owner)
-│           └── run-weekly.bat    #   headless runner (app-launcher job, self-skips alternate weeks)
+│           ├── run-weekly.bat    #   headless runner (app-launcher job, self-skips alternate weeks)
+│           └── week_parity.ps1   #   on/off-week gate, answered as an exit code (#558)
 ├── requirements.txt
 ├── requirements-dev.txt      # e2e + passkey deps (Playwright, pytest-playwright, webauthn)
 ├── requirements-tts.txt      # TTS deps (chatterbox-tts, snac, kokoro-onnx, soundfile — torch); Piper is a downloaded binary

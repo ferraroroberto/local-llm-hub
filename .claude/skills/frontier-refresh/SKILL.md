@@ -15,8 +15,11 @@ contract, scheduling) — there is no separate research-prompt document.
 **Bi-weekly** (every two weeks), stated here and nowhere else.
 
 - Unattended: `run-weekly.bat` (next to this file) is registered as a weekly
-  job in app-launcher's Jobs tab and **self-skips odd ISO weeks**, so the
-  skill effectively fires on even ISO weeks only.
+  job in app-launcher's Jobs tab and **self-skips alternate weeks** by a
+  fixed-epoch counter (`week_parity.ps1`: whole weeks since Monday
+  2026-01-05, mod 2) — not ISO week numbers, so a 53-week ISO year never
+  flips the cadence. If the parity can't be established the job exits 2
+  and fails visibly in the Jobs tab instead of running.
 - On demand: run `/frontier-refresh` any time — it is read-only and
   re-runnable; a notable model launch is a good reason not to wait.
 
