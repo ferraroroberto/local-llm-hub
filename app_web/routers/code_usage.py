@@ -10,6 +10,7 @@ Mounts under ``/admin/api/code``.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Query
@@ -41,7 +42,9 @@ async def code_usage_summary(
     if not is_valid_vendor(vendor):
         vendor = "all"
     try:
-        body = get_summary(period, vendor)
+        # Off the loop: a cold/changed-file parse would otherwise stall every
+        # /v1/* request this process serves (#559).
+        body = await asyncio.to_thread(get_summary, period, vendor)
         body["agentsview"] = agentsview_usage.status()
         return body
     except Exception as exc:
