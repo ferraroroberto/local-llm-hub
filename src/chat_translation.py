@@ -30,7 +30,7 @@ import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, Union
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -806,7 +806,14 @@ def _openai_file_to_document(
 
 # ---- routing ----
 
-def _run_claude_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
+def _run_cli_backend(
+    model: Model,
+    req: MessagesRequest,
+    call_fn: Callable[..., Dict[str, Any]],
+    error_cls: Type[Exception],
+) -> Dict[str, Any]:
+    """Dispatch a non-streaming ``/v1/messages`` request to a subscription
+    CLI (``call_claude`` / ``call_gemini``); ``error_cls`` maps to a 502."""
     if not req.messages:
         raise HTTPException(status_code=400, detail="messages must not be empty")
     reject_tools_on_cli_backend(model, req)
@@ -814,30 +821,25 @@ def _run_claude_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     with _extract_media_blocks(req.messages) as (msgs, attachments):
         prompt = _flatten_messages(msgs)
         try:
-            return call_claude(
+            return call_fn(
                 # Use resolved display_name so version-free aliases
                 # (e.g. `claude_haiku`) hit the right CLI model.
                 prompt, model=model.display_name, system=system,
                 attachments=attachments or None,
             )
-        except ClaudeCLIError as e:
+        except error_cls as e:
             raise HTTPException(status_code=502, detail=str(e))
+
+
+# Thin wrappers rather than ``partial`` bindings: the CLI function is looked
+# up at call time, so tests that monkeypatch ``call_claude`` / ``call_gemini``
+# on this module still intercept the dispatch.
+def _run_claude_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
+    return _run_cli_backend(model, req, call_claude, ClaudeCLIError)
 
 
 def _run_gemini_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
-    if not req.messages:
-        raise HTTPException(status_code=400, detail="messages must not be empty")
-    reject_tools_on_cli_backend(model, req)
-    system = _system_to_text(req.system)
-    with _extract_media_blocks(req.messages) as (msgs, attachments):
-        prompt = _flatten_messages(msgs)
-        try:
-            return call_gemini(
-                prompt, model=model.display_name, system=system,
-                attachments=attachments or None,
-            )
-        except GeminiCLIError as e:
-            raise HTTPException(status_code=502, detail=str(e))
+    return _run_cli_backend(model, req, call_gemini, GeminiCLIError)
 
 
 def _remote_headers(model: Model) -> Optional[Dict[str, str]]:
