@@ -264,8 +264,10 @@ in-app editor + miner, and the companion recognition-boosting mechanism.
 NVIDIA Parakeet on Windows+CUDA (`parakeet.cpp`) was evaluated as a
 *replacement* for this role and rejected — ~4× worse WER and no boosting
 lever on this jargon-heavy workload. Parakeet running on the **Mac Mini's
-Apple Neural Engine** (via FluidAudio/CoreML) is a different story: it's
-enrolled as a selectable, non-default alternative — see
+Apple Neural Engine** (via FluidAudio/CoreML) is a different story: since
+#350 it is the `audio_transcribe` role's primary, with this whisper-turbo
+row as its automatic fallback (callers that need whisper's jargon accuracy
+send `model=whisper` explicitly) — see
 [Multi-host: the Mac Mini](#multi-host-the-mac-mini) below and
 [docs/parakeet-asr-evaluation.md](docs/parakeet-asr-evaluation.md) for the
 full trade-off writeup.
@@ -297,13 +299,14 @@ by `qwen3.5-4b` on 2026-05-10 via `/swap-model`. It is **kept in
 
 ## Roles & bi-weekly refresh
 
-The four active local roles live in `config/models.yaml` → `roles:`:
+The active local roles live in `config/models.yaml` → `roles:` — that file
+is the authority; this table is a snapshot of it:
 
 | Role | Model | Why |
 |---|---|---|
 | `agentic_light` | `qwen35_4b_nothink` | OpenClaw fast lane / classify / edge — no-think by default (#489); reasoning via `agentic_light_think` |
 | `agentic_heavy` | `gemma4_26b` | Deep agentic, transcripts, docs, ES↔EN↔CA |
-| `audio_transcribe` | `whisper` | EN/ES audio → text |
+| `audio_transcribe` | `parakeet` (fallback: `whisper`) | EN/ES audio → text — parakeet on the Mac ANE primary since #350; whisper-turbo takes over if it is down (#348) |
 | `audio_translate` | `whisper_translate` | ES audio → English (eager CPU sibling) |
 | `audio_speech` | `piper` | text → speech (Piper fast default; Orpheus/Kokoro/Chatterbox on demand) |
 
@@ -498,12 +501,14 @@ Today this powers the `mac-mini-m4` host (Apple M4; address in
 - **`parakeet-tdt-0.6b-v3`** — NVIDIA Parakeet TDT 0.6B v3 on the Apple
   Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio)
   (CoreML), served by the vendored Swift worker in `mac/parakeet-worker/`
-  + `src/parakeet_server.py`. A **selectable, non-default**
-  `audio_transcribe` alternative (`model="parakeet"`) — faster than
-  whisper-turbo but drops the "Claude Code" wake phrase and mangles
-  "YOLO", so it's opt-in for latency-sensitive callers (e.g. Home
-  Assistant voice commands) rather than the role default. Full
-  measurement + trade-off writeup:
+  + `src/parakeet_server.py`. The **`audio_transcribe` role primary** since
+  #350 (a latency/placement call, not an accuracy one): a plain
+  `/v1/audio/transcriptions` call with no `model` lands here, and fails over
+  to whisper-turbo when parakeet is down (#348). It is faster than
+  whisper-turbo but drops the "Claude Code" wake phrase and mangles "YOLO"
+  (a vocabulary-rescorer fix was disproven, #401), so callers that need that
+  jargon send `model=whisper` explicitly. Full measurement + trade-off
+  writeup:
   [docs/parakeet-asr-evaluation.md](docs/parakeet-asr-evaluation.md).
 
 The same pattern powers the **`gaming`** satellite (Ryzen 9 5900X, GTX 1070
