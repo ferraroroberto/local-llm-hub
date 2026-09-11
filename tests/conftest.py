@@ -150,6 +150,38 @@ def config_with_example_identity(tmp_path, monkeypatch):
     host_profile._CONFIG_CACHE.clear()
 
 
+# The whisper failover chain the placement tests reason about (#561). Pinned
+# rather than read from config/models.yaml: that row's order is editable from
+# the admin UI (#424), whose write-through commits straight to main without
+# running the suite — 4aefa09 reordered it and turned five tests red on an
+# untouched main. This is the shape those tests were written against: a
+# GPU-preferred head (gaming), a warm middle link (mac-mini-m4) and a degraded
+# CPU last resort (tower).
+WHISPER_FIXTURE_CHAIN = ["gaming", "mac-mini-m4", {"id": "tower", "cpu": True}]
+
+
+@pytest.fixture
+def pinned_whisper_chain(config_with_example_identity):
+    """The real config (plus the example identity overlay) with whisper's
+    ``hosts:`` chain replaced by ``WHISPER_FIXTURE_CHAIN``.
+
+    Everything else stays the committed config — host inventory, ``enabled:``
+    lists, VRAM estimates and ceilings — so the tests still drive the real
+    chain parser and placement derivations; only the one admin-editable
+    ordering is held still. A placement edit in the UI is a routing decision,
+    not a test failure.
+    """
+    from src import host_profile
+
+    cfg = config_with_example_identity
+    data = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    data["models"]["whisper"]["hosts"] = WHISPER_FIXTURE_CHAIN
+    # sort_keys=False: row order is placement-list order, and the tests pin it.
+    cfg.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    host_profile._CONFIG_CACHE.clear()
+    return cfg
+
+
 @pytest.fixture(autouse=True)
 def _isolate_code_usage_history(tmp_path):
     """Point the Code-tab history snapshot at a per-test temp file (#280).

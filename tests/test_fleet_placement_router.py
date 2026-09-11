@@ -12,12 +12,20 @@ import os
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
+import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app_web.routers import fleet_placement as fpr  # noqa: E402
 from src import backend_process as bp  # noqa: E402
 from src import fleet_reconcile, remote_stats, system_stats  # noqa: E402
 from src import server as server_mod  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _pin_whisper_chain(pinned_whisper_chain):
+    """Almost every assertion here reads placement derived from whisper's
+    failover chain — pin it to ``conftest.WHISPER_FIXTURE_CHAIN`` so an
+    admin-UI reorder of the production row can't redden this module (#561)."""
 
 
 def _stub_collect(monkeypatch, stats=None):
@@ -90,7 +98,8 @@ def test_get_lists_every_fleet_host_with_manageability(monkeypatch):
 
 def test_get_returns_registry_derived_placement(monkeypatch):
     """The placement map is derived from the committed config/models.yaml
-    (#430): eager rows on their preferred chain host; on_demand rows
+    (#430), whisper's chain pinned by the module fixture: eager rows on their
+    preferred chain host; on_demand rows
     (gemma4_26b, gemma4_e4b, chatterbox, kokoro, and — since #530 flipped it
     off the retired ``whisper-server-lazy`` engine onto the generic
     ``startup: on_demand`` lifecycle — whisper_vanilla) never appear."""
@@ -165,7 +174,8 @@ def test_capacity_warning_when_over_ceiling(monkeypatch):
 
 def test_no_capacity_warning_from_committed_config(monkeypatch):
     """gaming's derived desired set (the two *eager* whisper rows: whisper
-    2000 + whisper_translate 0 = 2000 MB from the committed config) sits
+    2000 + whisper_translate 0 = 2000 MB from the committed config's
+    estimates, with whisper's chain pinned to a gaming head) sits
     under its 8192 MB ceiling — the real config must not raise a false
     positive. whisper_vanilla (on_demand since #530) only joins this sum
     while actually running, same as any other on-demand row (gemma4_26b
@@ -230,7 +240,7 @@ def test_cpu_chain_tier_marks_only_the_flagged_host(monkeypatch):
         entry = {e["id"]: e for e in hosts[host_id]["eligible"]}.get(model_id)
         return entry["device"] if entry else None
 
-    # whisper's production chain is [gaming, mac-mini-m4, {id: tower, cpu: true}]
+    # whisper's pinned chain is [gaming, mac-mini-m4, {id: tower, cpu: true}]
     assert device("tower", "whisper") == "cpu"          # the flagged degraded tier
     assert device("gaming", "whisper") is None          # GPU-preferred member
     assert device("mac-mini-m4", "whisper") is None     # GPU-preferred member
