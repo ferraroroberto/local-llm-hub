@@ -74,8 +74,8 @@ from .chat_translation import (
     MessagesRequest,
     _extract_media_blocks,
     _flatten_messages,
+    OpenAIUpstream,
     _openai_messages_to_anthropic,
-    _remote_headers,
     _run_claude_backend,
     _run_gemini_backend,
     _run_openai_backend,
@@ -86,6 +86,7 @@ from .chat_translation import (
     iter_openai_anthropic_sse,
     openai_tool_params,
     reject_tools_on_cli_backend,
+    resolve_openai_upstream,
 )
 from .claude_cli import ClaudeCLIError, call_claude, call_claude_stream
 from .cors_policy import install_cors
@@ -94,7 +95,6 @@ from .host_profile import hub_bind_host, hub_port
 from .hub_log import install_root_handler
 from .hub_observability import ObservatoryMiddleware
 from .model_registry import Model, enabled_models
-from .remote_proxy import remote_base_url
 from .observability import (
     genai_meters,
     init_otel,
@@ -401,8 +401,7 @@ def _stream_anthropic_response(
     # request fails as a real 400 rather than an in-band SSE error event.
     reject_tools_on_cli_backend(model, req)
 
-    remote: Optional[str] = None
-    base_url: Optional[str] = None
+    upstream: Optional[OpenAIUpstream] = None
     openai_messages: List[Dict[str, Any]] = []
     openai_extra: Dict[str, Any] = {}
     if model.backend == "openai":
@@ -420,10 +419,7 @@ def _stream_anthropic_response(
                 ),
             )
         _ensure_backend_ready(model)
-        remote = remote_base_url(model)
-        base_url = f"{remote}/v1" if remote else model.url
-        if not base_url:
-            raise HTTPException(status_code=500, detail=f"model {model.id} has no url")
+        upstream = resolve_openai_upstream(model)
         openai_messages = anthropic_to_openai_messages(
             [message.model_dump() for message in req.messages],
             _system_to_text(req.system),
@@ -469,19 +465,20 @@ def _stream_anthropic_response(
                                         )
                             yield event
             elif model.backend == "openai":
-                track = _on_demand.tracking(model, remote).start()
+                assert upstream is not None  # resolved above for this backend
+                track = _on_demand.tracking(model, upstream.remote).start()
                 extra = dict(model.inject_extra or {})
                 extra["stream_options"] = {"include_usage": True}
                 extra.update(openai_extra)
                 with ExitStack() as streams:
                     raw = call_openai_chat_stream(
-                        str(base_url),
-                        model=model.id if remote else model.display_name,
+                        upstream.base_url,
+                        model=upstream.model_name,
                         messages=openai_messages,
                         max_tokens=req.max_tokens,
                         temperature=req.temperature,
                         extra=extra,
-                        headers=_remote_headers(model) if remote else None,
+                        headers=upstream.headers,
                     )
                     streams.callback(_close_if_supported, raw)
                     cleaned = iter_cleaned_sse(raw)
@@ -789,16 +786,13 @@ def _stream_openai_passthrough(
     span events to expose time-to-first-token and tokens-per-second on
     the active span, and updates the GenAI metrics on stream close.
     """
-    remote = remote_base_url(model)
-    base_url = f"{remote}/v1" if remote else model.url
-    if not base_url:
-        raise HTTPException(status_code=500, detail="model has no url")
+    upstream = resolve_openai_upstream(model)
     extra = _build_openai_extra(model, req)
     # On-demand idle tracking (#422): a locally-served on_demand model must
     # not be idle-unloaded while a stream is in flight — pair the start here
     # with the finish in the generator's ``finally`` (which also runs on a
     # client disconnect, via GeneratorExit).
-    track = _on_demand.tracking(model, remote).start()
+    track = _on_demand.tracking(model, upstream.remote).start()
 
     if start_ns is None:
         start_ns = time.monotonic_ns()
@@ -813,13 +807,13 @@ def _stream_openai_passthrough(
         error_type = ""
         try:
             raw = call_openai_chat_stream(
-                base_url,
-                model=model.id if remote else model.display_name,
+                upstream.base_url,
+                model=upstream.model_name,
                 messages=req.messages,
                 max_tokens=req.max_tokens,
                 temperature=req.temperature,
                 extra=extra or None,
-                headers=_remote_headers(model) if remote else None,
+                headers=upstream.headers,
             )
             for cleaned in iter_cleaned_sse(raw):
                 if cleaned.startswith("data:"):
@@ -1017,23 +1011,23 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
             raise reject
 
         if model.backend == "openai":
-            remote = remote_base_url(model)
-            base_url = f"{remote}/v1" if remote else model.url
-            if not base_url:
+            try:
+                upstream = resolve_openai_upstream(model)
+            except HTTPException:
                 error_type = "config_error"
-                raise HTTPException(status_code=500, detail="model has no url")
+                raise
             extra = _build_openai_extra(model, req)
             # On-demand idle tracking (#422) — see _stream_openai_passthrough.
             try:
-                with _on_demand.tracking(model, remote):
+                with _on_demand.tracking(model, upstream.remote):
                     raw = call_openai_chat(
-                        base_url,
-                        model=model.id if remote else model.display_name,
+                        upstream.base_url,
+                        model=upstream.model_name,
                         messages=req.messages,
                         max_tokens=req.max_tokens,
                         temperature=req.temperature,
                         extra=extra or None,
-                        headers=_remote_headers(model) if remote else None,
+                        headers=upstream.headers,
                     )
             except UpstreamError as e:
                 error_type = "upstream_http_error"

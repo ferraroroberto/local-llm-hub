@@ -850,6 +850,39 @@ def _remote_headers(model: Model) -> Optional[Dict[str, str]]:
     return {"Authorization": f"Bearer {token}"} if token else None
 
 
+@dataclass(frozen=True)
+class OpenAIUpstream:
+    """Where an ``openai``-backend chat call is sent (see
+    :func:`resolve_openai_upstream`)."""
+
+    remote: Optional[str]
+    base_url: str
+    model_name: str
+    headers: Optional[Dict[str, str]]
+
+
+def resolve_openai_upstream(model: Model) -> OpenAIUpstream:
+    """Resolve the upstream for an ``openai``-backend chat call.
+
+    A model owned by a peer host goes to that hub's ``/v1``, addressed by
+    registry id (the peer resolves it again) and carrying its bearer token if
+    one is configured; a locally-served one goes straight to its llama-server
+    ``url``, addressed by display name. Shared by all four dispatch paths
+    (``/v1/messages`` and ``/v1/chat/completions``, buffered and streaming)
+    so the remote-vs-local rule has one home. 500 when neither resolves.
+    """
+    remote = remote_base_url(model)
+    base_url = f"{remote}/v1" if remote else model.url
+    if not base_url:
+        raise HTTPException(status_code=500, detail=f"model {model.id} has no url")
+    return OpenAIUpstream(
+        remote=remote,
+        base_url=base_url,
+        model_name=model.id if remote else model.display_name,
+        headers=_remote_headers(model) if remote else None,
+    )
+
+
 def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     # Validated before the on-demand spin-up below: a malformed tool
     # definition is a 400 and shouldn't cold-start a model to discover it.
@@ -859,10 +892,7 @@ def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     # failure) — same hook the OpenAI-shape route applies in server.py.
     from .server_common import ensure_backend_ready_or_503
     ensure_backend_ready_or_503(model)
-    remote = remote_base_url(model)
-    base_url = f"{remote}/v1" if remote else model.url
-    if not base_url:
-        raise HTTPException(status_code=500, detail=f"model {model.id} has no url")
+    upstream = resolve_openai_upstream(model)
     if any(
         isinstance(m.content, list)
         and any(b.type in ("image", "document") for b in m.content)
@@ -882,15 +912,15 @@ def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     )
     from . import on_demand as _on_demand
     try:
-        with _on_demand.tracking(model, remote):
+        with _on_demand.tracking(model, upstream.remote):
             raw = call_openai_chat(
-                base_url,
-                model=model.id if remote else model.display_name,
+                upstream.base_url,
+                model=upstream.model_name,
                 messages=messages,
                 max_tokens=req.max_tokens,
                 temperature=req.temperature,
                 extra=extra or None,
-                headers=_remote_headers(model) if remote else None,
+                headers=upstream.headers,
             )
     except UpstreamError as e:
         raise HTTPException(status_code=502, detail=str(e))
