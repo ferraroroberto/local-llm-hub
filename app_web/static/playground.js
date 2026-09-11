@@ -478,11 +478,7 @@ function wireImage() {
   // aria-checked, not a checkbox.
   if (els.imageRefine) {
     els.imageRefine.addEventListener('click', function () {
-      const on = els.imageRefine.getAttribute('aria-checked') !== 'true';
-      els.imageRefine.setAttribute('aria-checked', on ? 'true' : 'false');
-      els.imageRefine.classList.toggle('on', on);
-      const label = els.imageRefine.querySelector('.toggle-label');
-      if (label) label.textContent = on ? 'ON' : 'OFF';
+      setSwitch(els.imageRefine, els.imageRefine.getAttribute('aria-checked') !== 'true');
     });
   }
   if (els.imageClearBtn) {
