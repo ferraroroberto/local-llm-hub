@@ -135,3 +135,53 @@ def test_chat_ping_probes_messages_endpoint(monkeypatch):
     assert len(calls) == 1
     assert calls[0]["url"].endswith("/v1/messages")
     assert calls[0]["kwargs"]["json"]["max_tokens"] == 1
+
+
+def _tts_model() -> Model:
+    return Model(id="piper_test", display_name="piper-test", backend="tts")
+
+
+def test_tts_ping_probes_speech_endpoint_and_counts_audio_bytes(monkeypatch):
+    """A tts row synthesizes through /v1/audio/speech; the audio body is
+    reported as a byte count, never parsed as JSON."""
+    calls: list = []
+    _patch_async_client(monkeypatch, calls)
+    monkeypatch.setattr(_FakePingResp, "content", b"RIFF" + b"\x00" * 60, raising=False)
+    monkeypatch.setattr(bp, "resolve_model_by_id", lambda model_id: _tts_model())
+
+    resp = _admin_client().post("/api/models/piper_test/ping")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["usage"] == {"audio_bytes": 64}
+
+    assert len(calls) == 1
+    assert calls[0]["url"].endswith("/v1/audio/speech")
+    assert calls[0]["kwargs"]["json"]["model"] == "piper-test"
+
+
+def test_ping_transport_error_is_a_status_zero_envelope(monkeypatch):
+    """A probe that never gets an HTTP response reports status 0 + the error."""
+
+    class _RaisingClient:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, **kwargs):
+            raise httpx.ConnectError("hub unreachable")
+
+    monkeypatch.setattr(httpx, "AsyncClient", _RaisingClient)
+
+    resp = _admin_client().post("/api/models/qwen35_4b/ping")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["status"] == 0
+    assert body["error"] == "hub unreachable"
+    assert body["latency_ms"] >= 0

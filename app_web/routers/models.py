@@ -7,7 +7,7 @@ import io
 import logging
 import time
 import wave
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 
@@ -483,6 +483,47 @@ def _ping_result(r: Any, latency_ms: float) -> Dict[str, Any]:
     }
 
 
+def _audio_ping_result(r: Any, latency_ms: float) -> Dict[str, Any]:
+    """Shape a TTS probe response — audio bytes aren't JSON, so
+    :func:`_ping_result` would mis-parse them (ok = 2xx, no usage payload)."""
+    return {
+        "ok": r.is_success,
+        "status": r.status_code,
+        "latency_ms": round(latency_ms, 1),
+        "usage": {"audio_bytes": len(r.content)} if r.is_success else {},
+        "error": "" if r.is_success else r.text[:300],
+    }
+
+
+async def _timed_probe(
+    url: str,
+    *,
+    timeout: float,
+    shape: Callable[[Any, float], Dict[str, Any]] = _ping_result,
+    **post_kwargs: Any,
+) -> Dict[str, Any]:
+    """POST one probe through the hub and time it.
+
+    A transport failure (hub unreachable, timeout) becomes the tile's
+    ``status: 0`` envelope; any HTTP response is handed to ``shape`` with
+    the measured latency.
+    """
+    import httpx
+
+    t0 = time.monotonic_ns()
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.post(url, **post_kwargs)
+    except httpx.HTTPError as exc:
+        return {
+            "ok": False,
+            "status": 0,
+            "latency_ms": (time.monotonic_ns() - t0) / 1e6,
+            "error": str(exc),
+        }
+    return shape(r, (time.monotonic_ns() - t0) / 1e6)
+
+
 @router.post("/api/models/{model_id}/ping")
 async def model_ping(model_id: str) -> Dict[str, Any]:
     """Probe the backend through the hub and report latency.
@@ -502,75 +543,39 @@ async def model_ping(model_id: str) -> Dict[str, Any]:
     if target is None:
         raise HTTPException(status_code=404, detail=f"unknown model {model_id!r}")
 
-    import httpx
     from src.host_profile import hub_port
 
-    port = hub_port()
+    base = f"http://127.0.0.1:{hub_port()}"
+    # Every probe goes through the hub with model=display_name, which routes
+    # it to this exact backend and keeps the hit in the observability ring.
     if target.backend == "whisper":
         # Whisper speaks the OpenAI audio API, not chat — send a tiny silent
-        # clip to the hub's transcription proxy (model=display_name routes it
-        # to this exact backend and keeps the hit in the observability ring).
-        url = f"http://127.0.0.1:{port}/v1/audio/transcriptions"
-        files = {"file": ("ping.wav", _silent_wav(), "audio/wav")}
-        data = {"model": target.display_name}
-        t0 = time.monotonic_ns()
-        try:
-            # Generous timeout: a lazy/CPU whisper backend may cold-load.
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                r = await client.post(url, files=files, data=data)
-        except httpx.HTTPError as exc:
-            return {
-                "ok": False,
-                "status": 0,
-                "latency_ms": (time.monotonic_ns() - t0) / 1e6,
-                "error": str(exc),
-            }
-        return _ping_result(r, (time.monotonic_ns() - t0) / 1e6)
+        # clip to the transcription proxy. Generous timeout: a lazy/CPU
+        # whisper backend may cold-load.
+        return await _timed_probe(
+            f"{base}/v1/audio/transcriptions",
+            timeout=60.0,
+            files={"file": ("ping.wav", _silent_wav(), "audio/wav")},
+            data={"model": target.display_name},
+        )
 
     if target.backend == "tts":
         # TTS speaks the OpenAI /v1/audio/speech shape, not chat — synthesize
-        # a short phrase through the hub's proxy (model=display_name routes it
-        # to this exact backend and keeps the hit in the observability ring).
-        url = f"http://127.0.0.1:{port}/v1/audio/speech"
-        payload = {"model": target.display_name, "input": "ping", "response_format": "wav"}
-        t0 = time.monotonic_ns()
-        try:
-            # Generous timeout: a cold TTS backend may still be warming weights.
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                r = await client.post(url, json=payload)
-        except httpx.HTTPError as exc:
-            return {
-                "ok": False,
-                "status": 0,
-                "latency_ms": (time.monotonic_ns() - t0) / 1e6,
-                "error": str(exc),
-            }
-        # Audio bytes aren't JSON — _ping_result would mis-parse them, so
-        # shape the result directly (ok = 2xx, no usage payload for audio).
-        latency_ms = (time.monotonic_ns() - t0) / 1e6
-        return {
-            "ok": r.is_success,
-            "status": r.status_code,
-            "latency_ms": round(latency_ms, 1),
-            "usage": {"audio_bytes": len(r.content)} if r.is_success else {},
-            "error": "" if r.is_success else r.text[:300],
-        }
+        # a short phrase. Generous timeout: a cold TTS backend may still be
+        # warming weights.
+        return await _timed_probe(
+            f"{base}/v1/audio/speech",
+            timeout=120.0,
+            shape=_audio_ping_result,
+            json={"model": target.display_name, "input": "ping", "response_format": "wav"},
+        )
 
-    url = f"http://127.0.0.1:{port}/v1/messages"
-    payload = {
-        "model": target.display_name,
-        "max_tokens": 1,
-        "messages": [{"role": "user", "content": "ping"}],
-    }
-    t0 = time.monotonic_ns()
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            r = await client.post(url, json=payload)
-    except httpx.HTTPError as exc:
-        return {
-            "ok": False,
-            "status": 0,
-            "latency_ms": (time.monotonic_ns() - t0) / 1e6,
-            "error": str(exc),
-        }
-    return _ping_result(r, (time.monotonic_ns() - t0) / 1e6)
+    return await _timed_probe(
+        f"{base}/v1/messages",
+        timeout=20.0,
+        json={
+            "model": target.display_name,
+            "max_tokens": 1,
+            "messages": [{"role": "user", "content": "ping"}],
+        },
+    )
