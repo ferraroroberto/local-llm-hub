@@ -8,8 +8,8 @@ debugging something and wants the gotchas in one place.
 
 The admin webapp is a FastAPI **sub-app** mounted at `/admin` on the
 hub's own `:8000` — there is no second port, no second Python process,
-no bundler. Five tabs (Hub / Models / Play / OTel / Code) cover every
-operational concern.
+no bundler. Six tabs (Hub / Models / Play / OTel / Code / Machines) cover
+every operational concern.
 
 ```
 src/server.py            ── parent FastAPI hub (:8000)
@@ -18,10 +18,16 @@ src/server.py            ── parent FastAPI hub (:8000)
 app_web/server.py        ── sub-app, owns its own middleware + routers
   ├── middleware.py      ── BearerTokenMiddleware (sub-app, /admin only)
   ├── routers/           ── misc / version / auth / webauthn / hub /
-  │                        models / playground / services /
-  │                        telemetry / code_usage / glossary / hosts
+  │                        install / models / startup_profile /
+  │                        fleet_placement / fleet_maintenance / roles /
+  │                        glossary / playground / services / hosts /
+  │                        machines / diagnostics / telemetry / code_usage
   └── static/            ── HTML + ES-module JS + CSS, no build step
 ```
+
+The authoritative router list is the `include_router` block in
+`app_web/server.py`'s `create_app()`; the tabs are the `data-tab` buttons in
+`app_web/static/index.html`.
 
 The tray (`tray/tray.py`) drives the hub via the admin HTTP API — it
 does **not** spawn model backends as its own children. The hub owns
