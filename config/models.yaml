@@ -672,7 +672,7 @@ models:
     # Every member cross-lists whisper in its `enabled:` (required — see
     # model_failover.eligible_chain) and must pre-stage weights + a built
     # whisper-server via `python -m src.install --fix`.
-    hosts: [{id: tower, cpu: true}, gaming, mac-mini-m4]
+    hosts: [gaming, mac-mini-m4, {id: tower, cpu: true}]
     engine: whisper-server
     port: 8090
     # large-v3-turbo fp16 ≈ 2000 MB VRAM (docs/whisper-turbo-vs-large-v3.md §VRAM).
@@ -836,13 +836,13 @@ models:
       - "/v1/audio/transcriptions"
 
   # --- Parakeet TDT v3 on the Mac Mini's ANE (CoreML, FluidAudio) ---
-  # Selectable alternative to whisper-turbo, NOT the audio_transcribe
-  # default (#138). Faster end-to-end than whisper-turbo's own loopback
-  # latency, but drops the "Claude Code" wake phrase and mangles
-  # "YOLO"→"yellow" — accepted trade-off for use cases that value speed
-  # over perfect jargon recognition (e.g. Home Assistant voice commands).
-  # Call it explicitly with model=parakeet. See docs/parakeet-asr-evaluation.md
-  # for the full spike write-up and the accepted-trade-offs decision.
+  # The audio_transcribe role's PRIMARY (#350; roles.audio.transcribe below,
+  # whisper is its fallback). Faster end-to-end than whisper-turbo's own
+  # loopback latency, but drops the "Claude Code" wake phrase and mangles
+  # "YOLO"→"yellow" — accepted trade-off for speed (#138 introduced it as an
+  # opt-in alternative). Callers needing whisper's jargon recognition send
+  # model=whisper explicitly. See docs/parakeet-asr-evaluation.md for the
+  # full spike write-up and the accepted-trade-offs decision.
   #
   # engine: parakeet-server (not whisper-server) — src/parakeet_server.py
   # owns a persistent mac/parakeet-worker Swift subprocess (FluidAudio),
