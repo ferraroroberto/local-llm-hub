@@ -54,6 +54,26 @@ async function fetchVersion() {
   } catch (_) { /* ignore */ }
 }
 
+// Every authed data fetch behind the tabs — one list shared by boot() and
+// resumeAfterLogin(), so a fetch added for a new card reaches both. The
+// version readout isn't here: /admin/api/version is auth-exempt, so boot()
+// already has it and a login doesn't change it.
+function fetchAllData() {
+  return Promise.allSettled([
+    fetchHubStatus(),
+    fetchCounters(),
+    fetchModels(),
+    fetchStartupProfile(),
+    fetchFleetPlacement(),
+    fetchInstallStatus(),
+    fetchServicesStatus(),
+    fetchTelemetryHealth(),
+    fetchPlaygroundModels(),
+    fetchTtsModels(),
+    fetchImageModels(),
+  ]);
+}
+
 async function boot() {
   const fromUrl = tokenFromUrl();
   if (fromUrl) writeToken(fromUrl);
@@ -99,20 +119,7 @@ async function boot() {
   });
   wireTabs();
 
-  await Promise.allSettled([
-    fetchVersion(),
-    fetchHubStatus(),
-    fetchCounters(),
-    fetchModels(),
-    fetchStartupProfile(),
-    fetchFleetPlacement(),
-    fetchInstallStatus(),
-    fetchServicesStatus(),
-    fetchTelemetryHealth(),
-    fetchPlaygroundModels(),
-    fetchTtsModels(),
-    fetchImageModels(),
-  ]);
+  await Promise.allSettled([fetchVersion(), fetchAllData()]);
 
   // The vendored nav already restored the persisted tab (and its streams)
   // in wireTabs(); only (re)start the hub streams if that's where we are.
@@ -128,19 +135,7 @@ async function boot() {
 
 async function resumeAfterLogin() {
   toast('Signed in.', 'good');
-  await Promise.allSettled([
-    fetchHubStatus(),
-    fetchCounters(),
-    fetchModels(),
-    fetchStartupProfile(),
-    fetchFleetPlacement(),
-    fetchInstallStatus(),
-    fetchServicesStatus(),
-    fetchTelemetryHealth(),
-    fetchPlaygroundModels(),
-    fetchTtsModels(),
-    fetchImageModels(),
-  ]);
+  await fetchAllData();
   if (state.tab === 'hub') startHubStreams();
 }
 
