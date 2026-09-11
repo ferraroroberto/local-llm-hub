@@ -126,7 +126,6 @@ export const els = {
   hubSparklines: document.getElementById('hubSparklines'),
 
   // Services card — Docker + Langfuse (issue #27)
-  servicesCard: document.getElementById('servicesCard'),
   servicesOverall: document.getElementById('servicesOverall'),
   servicesOverallText: document.getElementById('servicesOverallText'),
   dockerStatus: document.getElementById('dockerStatus'),
@@ -150,7 +149,6 @@ export const els = {
   servicesHint: document.getElementById('servicesHint'),
 
   // Health & install
-  installCard: document.getElementById('installCard'),
   installSummary: document.getElementById('installSummary'),
   installRows: document.getElementById('installRows'),
   installFixAllBtn: document.getElementById('installFixAllBtn'),
@@ -191,7 +189,6 @@ export const els = {
   playgroundModel: document.getElementById('playgroundModel'),
   playgroundSystem: document.getElementById('playgroundSystem'),
   playgroundPrompt: document.getElementById('playgroundPrompt'),
-  playgroundMore: document.getElementById('playgroundMore'),
   playgroundAttachment: document.getElementById('playgroundAttachment'),
   playgroundAttachmentBtn: document.getElementById('playgroundAttachmentBtn'),
   playgroundAttachmentName: document.getElementById('playgroundAttachmentName'),
