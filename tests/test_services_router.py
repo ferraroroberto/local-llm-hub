@@ -18,39 +18,11 @@ from fastapi.testclient import TestClient
 from src import remote_stats
 from src import server as server_mod
 from src import services as svc
+from tests._worker_loop import run_on_worker_thread as _run
 
 
 def _client() -> TestClient:
     return TestClient(server_mod.app)
-
-
-def _run(coro):
-    """Run a coroutine on a fresh thread+loop.
-
-    ``asyncio.run()`` (and ``loop.run_until_complete()`` on the main
-    thread) raise when an outer loop is already running — which happens
-    in this suite after the Playwright e2e tests have started one.
-    Running on a worker thread guarantees a clean asyncio context.
-    """
-    import threading
-
-    bucket: dict = {}
-
-    def _worker() -> None:
-        loop = asyncio.new_event_loop()
-        try:
-            bucket["value"] = loop.run_until_complete(coro)
-        except BaseException as exc:  # noqa: BLE001 — re-raised in caller
-            bucket["error"] = exc
-        finally:
-            loop.close()
-
-    t = threading.Thread(target=_worker)
-    t.start()
-    t.join()
-    if "error" in bucket:
-        raise bucket["error"]
-    return bucket.get("value")
 
 
 # ----------------------------------------------------------------- helpers
@@ -76,7 +48,7 @@ def test_docker_status_missing_binary(monkeypatch):
 
 
 def _run_on_selector_loop(coro):
-    """Like ``_run`` but pins the worker thread's loop to ``SelectorEventLoop``.
+    """Like ``_run`` but pins the loop to ``SelectorEventLoop``.
 
     Regression pin for #225: the hub's uvicorn servers run under
     ``asyncio.SelectorEventLoop`` on Windows since #223, and
@@ -86,29 +58,12 @@ def _run_on_selector_loop(coro):
     use a thread-executor path that doesn't depend on the loop's
     subprocess transport, so this must pass on any platform + loop combo.
     """
-    import threading
-
-    bucket: dict = {}
-
-    def _worker() -> None:
-        loop = (
-            asyncio.SelectorEventLoop()
-            if sys.platform == "win32"
-            else asyncio.new_event_loop()
-        )
-        try:
-            bucket["value"] = loop.run_until_complete(coro)
-        except BaseException as exc:  # noqa: BLE001 — re-raised in caller
-            bucket["error"] = exc
-        finally:
-            loop.close()
-
-    t = threading.Thread(target=_worker)
-    t.start()
-    t.join()
-    if "error" in bucket:
-        raise bucket["error"]
-    return bucket.get("value")
+    return _run(
+        coro,
+        loop_factory=(
+            asyncio.SelectorEventLoop if sys.platform == "win32" else asyncio.new_event_loop
+        ),
+    )
 
 
 def test_docker_status_does_not_raise_under_selector_event_loop():
