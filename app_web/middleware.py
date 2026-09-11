@@ -192,8 +192,14 @@ def _caller_is_trusted(
     Exempt *paths* are deliberately not part of this: they're an HTTP-only
     concern (login/static must load before a token exists), and a websocket
     route is never exempt.
+
+    ``get_token()`` returning ``None`` means the token could not be
+    established (the config failed to load) — distinct from ``""``, "no
+    token configured". Unknown never takes the no-token rule: loopback and
+    ``extra_allowlist`` still apply, every other caller is refused (#558).
     """
-    token = (get_token() or "").strip()
+    raw_token = get_token()
+    token = (raw_token or "").strip()
     presented = _presented_credential(headers, query_params)
 
     # The three trust rules below (no token configured, loopback, allowlisted
@@ -206,7 +212,7 @@ def _caller_is_trusted(
     if _is_foreign_origin_request(headers, method):
         return bool(token and presented and hmac.compare_digest(presented, token))
 
-    if not token:
+    if not token and raw_token is not None:
         return True
     if client_host in LOOPBACK_HOSTS and not _is_proxied(headers):
         return True
