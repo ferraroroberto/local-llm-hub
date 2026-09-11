@@ -10,32 +10,14 @@ of this behavior before the extraction.
 from __future__ import annotations
 
 import asyncio
-import threading
 
 from src.async_fanout import AsyncFanout
+from tests._worker_loop import run_on_worker_thread
 
 
-def _run(coro):
-    """Run a coroutine on a fresh thread+loop — mirrors the pattern already
-    used in tests/test_services_router.py, so this suite doesn't fight an
-    already-running loop from elsewhere in the session."""
-    bucket: dict = {}
-
-    def _worker() -> None:
-        loop = asyncio.new_event_loop()
-        try:
-            bucket["value"] = loop.run_until_complete(coro)
-        except BaseException as exc:  # noqa: BLE001
-            bucket["error"] = exc
-        finally:
-            loop.close()
-
-    t = threading.Thread(target=_worker)
-    t.start()
-    t.join(timeout=10)
-    if "error" in bucket:
-        raise bucket["error"]
-    return bucket.get("value")
+def _run(coro, timeout: float = 10.0):
+    # 10 s cap: a hung scenario fails the test instead of wedging the suite.
+    return run_on_worker_thread(coro, timeout)
 
 
 def test_push_delivers_to_all_subscribers():

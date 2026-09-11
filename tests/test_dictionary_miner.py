@@ -6,7 +6,6 @@ corpus fetch + LLM pass mocked out — no network, no live voice-transcriber.
 
 from __future__ import annotations
 
-import asyncio
 import os
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
@@ -14,29 +13,7 @@ os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 import pytest  # noqa: E402
 
 from src import dictionary_miner as dm  # noqa: E402
-
-
-def _run(coro):
-    """Drive a coroutine on a fresh loop/thread (matches the suite pattern)."""
-    import threading
-
-    bucket: dict = {}
-
-    def _worker() -> None:
-        loop = asyncio.new_event_loop()
-        try:
-            bucket["value"] = loop.run_until_complete(coro)
-        except BaseException as exc:  # noqa: BLE001
-            bucket["error"] = exc
-        finally:
-            loop.close()
-
-    t = threading.Thread(target=_worker)
-    t.start()
-    t.join()
-    if "error" in bucket:
-        raise bucket["error"]
-    return bucket["value"]
+from tests._worker_loop import run_on_worker_thread as _run  # noqa: E402
 
 
 # --------------------------------------------------------------- heuristics

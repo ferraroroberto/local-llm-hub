@@ -14,36 +14,17 @@ from __future__ import annotations
 
 import asyncio
 import os
-import threading
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 from app_web.routers._helpers import sse_pack, sse_stream
 from src.async_fanout import AsyncFanout
+from tests._worker_loop import run_on_worker_thread
 
 
 def _run(coro, timeout: float = 10.0):
-    """Run a coroutine on a fresh thread+loop (same pattern as
-    tests/test_async_fanout.py / tests/test_services_router.py)."""
-    bucket: dict = {}
-
-    def _worker() -> None:
-        loop = asyncio.new_event_loop()
-        try:
-            bucket["value"] = loop.run_until_complete(coro)
-        except BaseException as exc:  # noqa: BLE001
-            bucket["error"] = exc
-        finally:
-            loop.close()
-
-    t = threading.Thread(target=_worker, daemon=True)
-    t.start()
-    t.join(timeout=timeout)
-    if t.is_alive():
-        raise AssertionError("test scenario did not complete — sse_stream likely hung")
-    if "error" in bucket:
-        raise bucket["error"]
-    return bucket.get("value")
+    # 10 s cap: a hung scenario fails the test instead of wedging the suite.
+    return run_on_worker_thread(coro, timeout)
 
 
 class _FakeRequest:

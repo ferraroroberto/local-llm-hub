@@ -10,7 +10,6 @@ then adopts the survivors.
 
 from __future__ import annotations
 
-import asyncio
 import os
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
@@ -19,37 +18,7 @@ import pytest
 
 from src import backend_process as bp
 from src import server as server_mod
-
-
-def _run(coro):
-    """Run a coroutine on a fresh thread+loop.
-
-    ``asyncio.run()`` (and ``loop.run_until_complete()`` on the main
-    thread) raise ``RuntimeError`` when an outer loop is already running —
-    which happens in the full suite after other tests have started one,
-    making these tests flaky in isolation-vs-suite ordering. Running on a
-    worker thread guarantees a clean asyncio context. Mirrors the helper
-    in ``tests/test_services_router.py``.
-    """
-    import threading
-
-    bucket: dict = {}
-
-    def _worker() -> None:
-        loop = asyncio.new_event_loop()
-        try:
-            bucket["value"] = loop.run_until_complete(coro)
-        except BaseException as exc:  # noqa: BLE001 — re-raised in caller
-            bucket["error"] = exc
-        finally:
-            loop.close()
-
-    t = threading.Thread(target=_worker)
-    t.start()
-    t.join()
-    if "error" in bucket:
-        raise bucket["error"]
-    return bucket.get("value")
+from tests._worker_loop import run_on_worker_thread as _run
 
 
 @pytest.fixture(autouse=True)

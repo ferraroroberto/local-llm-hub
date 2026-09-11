@@ -10,7 +10,6 @@ Network/SSH-touching probes are monkeypatched so the suite stays hermetic.
 
 from __future__ import annotations
 
-import asyncio
 import dataclasses
 
 import pytest
@@ -20,6 +19,7 @@ from src import machine_console as mc
 from src import server as server_mod
 from src import ssh_exec
 from src.host_profile import HostProfile, all_hosts, get_host, resolve
+from tests._worker_loop import run_on_worker_thread as _run
 
 
 @pytest.fixture(autouse=True)
@@ -34,29 +34,6 @@ def _peer_identity(config_with_example_identity):
 
 def _client() -> TestClient:
     return TestClient(server_mod.app)
-
-
-def _run(coro):
-    """Run a coroutine on a fresh worker-thread loop (see test_services_router)."""
-    import threading
-
-    bucket: dict = {}
-
-    def _worker() -> None:
-        loop = asyncio.new_event_loop()
-        try:
-            bucket["value"] = loop.run_until_complete(coro)
-        except BaseException as exc:  # noqa: BLE001 — re-raised in caller
-            bucket["error"] = exc
-        finally:
-            loop.close()
-
-    t = threading.Thread(target=_worker)
-    t.start()
-    t.join()
-    if "error" in bucket:
-        raise bucket["error"]
-    return bucket.get("value")
 
 
 # ------------------------------------------------------------ inventory / config

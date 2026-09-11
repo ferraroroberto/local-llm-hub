@@ -16,7 +16,6 @@ test touches a real socket.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 import pytest
@@ -24,6 +23,7 @@ import pytest
 from src import machine_console as mc
 from src import remote_stats, ssh_exec
 from src.host_profile import HostProfile, get_host
+from tests._worker_loop import run_on_worker_thread as _run
 
 
 @pytest.fixture(autouse=True)
@@ -34,29 +34,6 @@ def _peer_identity(config_with_example_identity):
     whole module -- hermetic, and it can never read the developer's real
     machines.local.yaml by accident."""
     yield
-
-
-def _run(coro):
-    """Run a coroutine on a fresh worker-thread loop (see test_machines_router)."""
-    import threading
-
-    bucket: dict = {}
-
-    def _worker() -> None:
-        loop = asyncio.new_event_loop()
-        try:
-            bucket["value"] = loop.run_until_complete(coro)
-        except BaseException as exc:  # noqa: BLE001 — re-raised in caller
-            bucket["error"] = exc
-        finally:
-            loop.close()
-
-    t = threading.Thread(target=_worker)
-    t.start()
-    t.join()
-    if "error" in bucket:
-        raise bucket["error"]
-    return bucket.get("value")
 
 
 _LAN = "192.168.0.99"
