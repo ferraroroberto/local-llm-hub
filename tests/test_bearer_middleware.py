@@ -126,3 +126,40 @@ def test_parent_exempt_path_bypasses_even_without_token(monkeypatch):
     client = TestClient(server_mod.app)
     r = client.get("/health", headers=_PROXY_HEADERS)
     assert r.status_code == 200
+
+
+def _break_parent_config(monkeypatch, tmp_path) -> None:
+    # Valid JSON that isn't an object — load_webapp_config() only absorbs
+    # OSError/JSONDecodeError, so this raises out of it (as would a
+    # non-list ``extra_allowlist``) and reaches _hub_get_token's except.
+    broken = tmp_path / "webapp_config.json"
+    broken.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(webapp_config_mod, "DEFAULT_CONFIG_PATH", broken)
+
+
+def test_parent_unloadable_config_logs_and_refuses_non_loopback(monkeypatch, tmp_path, caplog):
+    """A config that fails to load leaves the token *unknown* (#558). That
+    used to come back as "" — indistinguishable from "no token configured" —
+    so the gate silently opened to every non-loopback caller, with no log."""
+    _break_parent_config(monkeypatch, tmp_path)
+    client = TestClient(server_mod.app)
+    with caplog.at_level("WARNING", logger=server_mod.logger.name):
+        r = client.get("/v1/models", headers=_PROXY_HEADERS)
+    assert r.status_code == 401
+    assert "could not load webapp_config for the bearer gate" in caplog.text
+
+
+def test_parent_unloadable_config_still_admits_loopback(monkeypatch, tmp_path):
+    _break_parent_config(monkeypatch, tmp_path)
+    client = TestClient(server_mod.app)
+    r = client.get("/v1/models")  # no proxy headers -> loopback
+    assert r.status_code == 200
+
+
+def test_parent_no_token_configured_still_admits_non_loopback(monkeypatch):
+    """The contrast case: an empty ``auth_token`` is an explicit "enforcement
+    off" (WebappConfig docs) and must keep admitting non-loopback callers."""
+    _patch_parent_token(monkeypatch, "")
+    client = TestClient(server_mod.app)
+    r = client.get("/v1/models", headers=_PROXY_HEADERS)
+    assert r.status_code == 200

@@ -197,14 +197,21 @@ app.add_middleware(ObservatoryMiddleware)
 # extra_allowlist). The /admin sub-app has its own copy of this
 # middleware — its prefix is exempted here so a single auth boundary
 # governs the whole process.
-def _hub_get_token() -> str:
+def _hub_get_token() -> Optional[str]:
     """Resolve the bearer token from config/webapp_config.json on every
-    check so the user can edit it without restarting the hub."""
+    check so the user can edit it without restarting the hub.
+
+    ``""`` means no token is configured (enforcement off by design);
+    ``None`` means the config could not be loaded, so the token is
+    *unknown* — the middleware must not read that as "no token" and open
+    the gate (#558).
+    """
     try:
         from .webapp_config import load_webapp_config
         return getattr(load_webapp_config(), "auth_token", "") or ""
-    except Exception:  # noqa: BLE001
-        return ""
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️ could not load webapp_config for the bearer gate: %s", exc)
+        return None
 
 
 from app_web.middleware import ParentBearerTokenMiddleware  # noqa: E402
