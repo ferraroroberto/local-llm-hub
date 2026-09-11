@@ -27,6 +27,14 @@ integrated in this pass. See the
 [2026-07-02 update](#update-2026-07-02-mac-mini-ane-coreml--spike-for-138)
 below.
 
+**Current status (since 2026-07-22, #350): Parakeet is the `audio_transcribe`
+role primary, with whisper-turbo as its automatic fallback** — a
+latency/placement decision taken with the accuracy findings above unchanged;
+callers that need the jargon-safe path send `model=whisper` explicitly. See
+[Update 2026-07-22](#update-2026-07-22-promoted-to-the-role-primary-350).
+The live assignment is `config/models.yaml` → `roles.audio.transcribe`; this
+doc records why, not what is deployed.
+
 ---
 
 ## What Parakeet is, and which port actually fits
@@ -379,6 +387,28 @@ number if it's picked up later.
 
 ---
 
+## Update 2026-07-22: promoted to the role primary (#350)
+
+The part-2 call above — Parakeet opt-in only, whisper-turbo the role
+default — was reversed for the **role default**, not for the accuracy
+findings. [#350](https://github.com/ferraroroberto/local-llm-hub/issues/350)
+set `roles.audio.transcribe` to `{model_id: parakeet, fallback: [whisper]}`,
+activating the audio-role failover chain built in
+[#348](https://github.com/ferraroroberto/local-llm-hub/issues/348): a
+`/v1/audio/transcriptions` call with no `model` (or a role alias, or an
+OpenAI placeholder like `whisper-1`) is served by Parakeet on the Mac ANE,
+and transparently by whisper-turbo when Parakeet is down.
+
+The driver was latency and fleet placement — #343's cross-host benchmark
+measured ~65.8× RTFx on the Mac ANE vs whisper's ~40× on the tower — not a
+change in jargon accuracy: the dropped "Claude Code" wake phrase and
+"YOLO"→"yellow" still hold. Callers that cannot tolerate them address
+whisper explicitly (`model=whisper`), which the hub honours exactly and never
+substitutes. voice-transcriber's dictation client moved onto the hub's role
+the same day (voice-transcriber#149).
+
+---
+
 ## Update 2026-07-24: custom-vocabulary rescorer wired and DISPROVEN (#401)
 
 [When to revisit](#when-to-revisit-mac-ane-specific) item 1 above — "wire
@@ -387,8 +417,9 @@ custom-vocabulary boosting into the worker and close the 'Claude Code' /
 rescorer flagged as a "plausible fix" in *Custom vocabulary / term-boosting*
 above cannot recover either failure without corrupting correctly-transcribed
 words. The spike was **not merged**; this section is the durable record.
-Parakeet stays a selectable, non-default `audio_transcribe` backend and
-whisper-turbo remains the default jargon-safe path — no role change.
+No role change: Parakeet stays the `audio_transcribe` primary (#350) with
+whisper-turbo as its fallback, and `model=whisper` remains the explicit
+jargon-safe path.
 
 ### What was wired
 
@@ -455,7 +486,8 @@ while adding a ~97 MB model load plus per-request CTC inference. Hence
 - [When to revisit](#when-to-revisit-mac-ane-specific) item 1 is **closed as
   disproven**, not deferred. Items 2 (Kokoro-on-Mac TTS) and 3 (Spanish
   code-switch isolation) remain open and untouched by this pass.
-- No change to the `audio_transcribe` role or its glossary: whisper-turbo
+- No change to the `audio_transcribe` role or its glossary: Parakeet stays
+  the primary (#350) with whisper-turbo as its fallback. Whisper-turbo
   already recognizes both "Claude Code" and "YOLO" correctly (see the
-  survival table above), so it stays the default and the jargon-safe path;
-  parakeet stays selectable non-default for latency-sensitive callers.
+  survival table above), so it remains the jargon-safe path for callers that
+  address it explicitly (`model=whisper`).
