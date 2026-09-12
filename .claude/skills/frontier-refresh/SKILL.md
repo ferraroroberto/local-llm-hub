@@ -3,8 +3,7 @@ name: frontier-refresh
 description: Recurring (bi-weekly) local-AI efficient-frontier research run — regenerate report.md + frontier.html + frontier.json under docs/frontier/runs/<today>/, repoint LATEST, post the verdict to the frontier ledger issue (#272). Read-only on config/models.yaml — to act on the new run, use /swap-model.
 ---
 
-You are running the **local-AI frontier refresh** for this repo. You produce
-artifacts and a ledger comment only — never modify `config/models.yaml`,
+Produce artifacts and a ledger comment only — never modify `config/models.yaml`,
 `launchers/`, `models/`, or `tray/`. Acting on the result is a separate,
 human-in-the-loop step driven by `/swap-model`. This file is the **single
 owner** of the whole process (research brief, cadence, quality weights, output
@@ -12,7 +11,7 @@ contract, scheduling) — there is no separate research-prompt document.
 
 ## Cadence & scheduling
 
-**Bi-weekly** (every two weeks), stated here and nowhere else.
+**Bi-weekly**, stated here and nowhere else.
 
 - Unattended: `run-weekly.bat` (next to this file) is registered as a weekly
   job in app-launcher's Jobs tab and **self-skips alternate weeks** by a
