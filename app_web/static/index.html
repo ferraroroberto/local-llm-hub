@@ -634,6 +634,15 @@
              agents the hub has no native parser for. -->
         <p id="cldAgentsviewHint" class="muted small" hidden style="margin: -4px 0 8px;">AgentsView offline — extra coding agents show last-fetched data.</p>
 
+        <!-- Load-failure banner (issue #580): a summary that could not be
+             built is its own state, never a zero-usage day. Shown only when
+             the server actually reports a failure — a real zero-usage period
+             leaves this hidden and renders its zeroes as usual. -->
+        <p id="cldError" class="cld-error" hidden role="status">
+          <svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>
+          <span id="cldErrorMsg">Usage data could not be loaded.</span>
+        </p>
+
         <!-- Period toggle -->
         <div id="cldPeriodSeg" class="segmented stretch" role="tablist" aria-label="Usage period" style="margin-bottom: 12px;">
           <button type="button" data-period="today" class="active">Day</button>

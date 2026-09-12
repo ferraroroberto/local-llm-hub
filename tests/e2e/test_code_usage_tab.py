@@ -68,7 +68,13 @@ def _warm_code_usage_cache(admin_url):
 
 
 @pytest.fixture(autouse=True)
-def _no_console_errors(page):
+def _no_console_errors(page, request):
+    # A test that deliberately stubs a failing response opts out by marker —
+    # the browser logs the non-2xx itself, and that noise is the point of the
+    # test rather than a regression (#580).
+    if request.node.get_closest_marker("expect_console_errors"):
+        yield
+        return
     errs = []
 
     def _on_console(msg):
@@ -217,3 +223,76 @@ def test_code_usage_tab_phone_screenshot(page, admin_url, browser_name):
     out = SNAPSHOT_DIR / f"code-usage-390x844-{browser_name}.png"
     page.screenshot(path=str(out), full_page=True)
     assert out.exists() and out.stat().st_size > 0
+
+
+# The shape render() needs for a genuinely idle period: a *successful* summary
+# whose numbers happen to be zero. Kept next to the failure case below because
+# the whole point of #580 is that these two must not look alike.
+_ZERO_USAGE_BODY = {
+    "period": "week", "vendor": "all",
+    "totals": {
+        "requests": 0, "input_tokens": 0, "output_tokens": 0,
+        "cache_read_tokens": 0, "cache_creation_tokens": 0,
+        "input_cost": 0, "output_cost": 0, "cache_read_cost": 0,
+    },
+    "daily": [], "by_model": [], "by_project": [], "by_vendor": [],
+    "recent_sessions": [], "time_series": [],
+    "agentsview": {"enabled": False, "reachable": False, "vendors": []},
+}
+
+
+@pytest.mark.expect_console_errors
+def test_failed_summary_renders_as_error_not_zero_usage(page, admin_url):
+    """#580: a failed summary load must be visibly distinct from an idle day.
+
+    Drives the real client against a stubbed route so both halves are proven
+    in one pass — first the 503 the router now returns on a failed build, then
+    a genuinely zero-usage 200 — asserting the UI tells them apart.
+    """
+    page.set_viewport_size({"width": 800, "height": 900})
+
+    state = {"fail": True}
+
+    def handler(route):
+        if state["fail"]:
+            route.fulfill(
+                status=503, content_type="application/json",
+                body='{"period":"today","vendor":"all",'
+                     '"error":"transcript store unreadable",'
+                     '"detail":"Could not build the code-usage summary: '
+                     'transcript store unreadable"}',
+            )
+        else:
+            import json as _json
+            route.fulfill(
+                status=200, content_type="application/json",
+                body=_json.dumps(_ZERO_USAGE_BODY),
+            )
+
+    page.route("**/api/code/usage/summary*", handler)
+    page.goto(admin_url, wait_until="domcontentloaded")
+    page.click("#tabCodeUsage")
+    page.wait_for_selector("#paneCodeUsage", state="visible", timeout=PANE_TIMEOUT)
+
+    # --- failure: an error state, and no zero-shaped numbers anywhere ---
+    page.wait_for_selector("#cldError", state="visible", timeout=PANE_TIMEOUT)
+    assert "transcript store unreadable" in page.inner_text("#cldErrorMsg")
+    for sel in ("#cldRequests", "#cldInputTok", "#cldOutputTok", "#cldCacheRead"):
+        assert page.inner_text(sel) == "—", f"{sel} is not the unknown dash"
+    # The session count is unknown, not known to be none.
+    assert page.inner_text("#cldSessionsBadge") == "—"
+    page.wait_for_selector("#cldChartsCard", state="hidden", timeout=PANE_TIMEOUT)
+
+    # --- recovery into a real zero-usage period: zeroes, no error ---
+    state["fail"] = False
+    page.evaluate(
+        "document.querySelector('#cldPeriodSeg button[data-period=\"week\"]').click()"
+    )
+    page.wait_for_selector("#cldError", state="hidden", timeout=PANE_TIMEOUT)
+    # A real zero day keeps its honest zero — the error state is driven by what
+    # the server reported, never inferred from the totals being empty.
+    page.wait_for_function(
+        "document.getElementById('cldRequests').textContent === '0'",
+        timeout=PANE_TIMEOUT,
+    )
+    assert page.inner_text("#cldSessionsBadge") == "0"

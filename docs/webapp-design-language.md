@@ -151,6 +151,24 @@ headers (it replaced the old always-on status strip). It tints by state via
 the status tokens — `--success` up, `--attention` degraded, `--danger`
 unreachable — which signal state only, never decoration.
 
+## Load-failure banner (`.cld-error`)
+
+An inline `--danger` banner (soft fill, danger border, caption type, leading
+`triangle-alert` glyph) that a view shows when the data behind it **could not
+be fetched**. Same tone as `.login-card .error`; the tokens are `color-mix`
+derivations of `--danger`, so light and dark follow the palette with no
+second rule.
+
+The rule it exists to enforce (global `CLAUDE.md`; issue #580): **a lookup
+that failed is its own state, never the zero-valued version of a successful
+one.** While the banner is up, the view's numbers go to the unknown dash
+`—` rather than `0`, charts are torn down rather than drawn flat, and each
+empty-state swaps its copy to "could not load". The state is driven only by
+the server reporting failure — never inferred from totals being zero, so a
+genuinely idle period still renders its honest zeroes. Endpoints backing such
+a view should answer non-2xx on failure rather than a 200 carrying empty
+data, so a client cannot mistake failure for data by omission.
+
 ## Icons
 
 The SPA's UI glyphs are **Lucide**, the canonical fleet icon set (`~/.claude/design.md` → "Icons"), adopted via the **vendored** component at `app_web/static/_vendored/icons/` (sprite + `icons.js` helper, copied verbatim from `project-scaffolding`; issue #139).
