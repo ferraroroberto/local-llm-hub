@@ -62,8 +62,22 @@ class WebappConfig:
     cors_allow_origins: list = field(default_factory=list)
 
 
+class WebappConfigError(Exception):
+    """The config file exists but could not be read or parsed.
+
+    Deliberately not folded into ``WebappConfig()``: defaults are what an
+    *unset* field means (``auth_token=""`` is "enforcement off"), so a caller
+    handed defaults for a broken file acts on settings nobody chose (#585).
+    Each caller decides what "unknown" means for it.
+    """
+
+
 def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
-    """Load the webapp config, falling back to defaults if missing."""
+    """Load the webapp config; defaults only when the file is absent.
+
+    Raises :class:`WebappConfigError` when the file exists but is unreadable,
+    not JSON, not a JSON object, or carries a field of an unusable type.
+    """
     target = Path(path) if path is not None else DEFAULT_CONFIG_PATH
     if not target.exists():
         logger.info(
@@ -74,22 +88,21 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
 
     try:
         raw = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning(
-            f"⚠️  Could not read {target} ({exc}); falling back to defaults"
+        if not isinstance(raw, dict):
+            raise TypeError(f"top level is {type(raw).__name__}, not an object")
+        return WebappConfig(
+            auth_token=str(raw.get("auth_token", "")),
+            auth_password=str(raw.get("auth_password", "")),
+            webauthn_rp_id=str(raw.get("webauthn_rp_id", "")),
+            webauthn_rp_name=str(raw.get("webauthn_rp_name", "Local LLM Hub")),
+            webauthn_origin=str(raw.get("webauthn_origin", "")),
+            extra_allowlist=list(raw.get("extra_allowlist") or []),
+            cors_allow_origins=list(raw.get("cors_allow_origins") or []),
         )
-        return WebappConfig()
-
-    cfg = WebappConfig(
-        auth_token=str(raw.get("auth_token", "")),
-        auth_password=str(raw.get("auth_password", "")),
-        webauthn_rp_id=str(raw.get("webauthn_rp_id", "")),
-        webauthn_rp_name=str(raw.get("webauthn_rp_name", "Local LLM Hub")),
-        webauthn_origin=str(raw.get("webauthn_origin", "")),
-        extra_allowlist=list(raw.get("extra_allowlist") or []),
-        cors_allow_origins=list(raw.get("cors_allow_origins") or []),
-    )
-    return cfg
+    except (OSError, ValueError, TypeError) as exc:
+        # ValueError covers json.JSONDecodeError. The message names the file
+        # and the parser's position, never the file's contents.
+        raise WebappConfigError(f"could not read {target}: {exc}") from exc
 
 
 def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
@@ -115,7 +128,11 @@ def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
 
 
 def update_webapp_config(**fields) -> WebappConfig:
-    """Read, patch, save — convenience for the API endpoint."""
+    """Read, patch, save — convenience for the API endpoint.
+
+    Lets :class:`WebappConfigError` propagate: saving a patch over defaults
+    would replace an unreadable file and discard every setting it held.
+    """
     current = load_webapp_config()
     patched = replace(current, **fields)
     save_webapp_config(patched)
@@ -126,6 +143,10 @@ def ensure_auth_token(cfg: Optional[WebappConfig] = None) -> WebappConfig:
     """Mint a random bearer token if the config has none. Returns the
     (possibly updated) config. Called by the tray on boot so the user
     never has an unprotected non-loopback hub by accident.
+
+    Lets :class:`WebappConfigError` propagate: minting a token over an
+    unreadable file would overwrite it, losing its password, allowlist and
+    CORS origins (#585).
     """
     cfg = cfg if cfg is not None else load_webapp_config()
     if cfg.auth_token:

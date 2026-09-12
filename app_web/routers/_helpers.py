@@ -9,8 +9,10 @@ import json
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional, TypeVar
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
+
+from src.webapp_config import WebappConfig
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -30,6 +32,22 @@ async def maybe_json(request: Request) -> Dict[str, Any]:
 
 def client_ip(request: Request) -> str:
     return request.client.host if request.client else "?"
+
+
+WEBAPP_CONFIG_UNREADABLE = "webapp config could not be loaded"
+
+
+def loaded_webapp_config(request: Request) -> WebappConfig:
+    """The sub-app's ``WebappConfig``, or a 503 when it could not be loaded.
+
+    ``create_app`` stores ``None`` for an unreadable config (#585). Handing a
+    router defaults instead would answer "not configured" for settings that
+    are merely unknown, so the failure reaches the client as its own state.
+    """
+    cfg = getattr(request.app.state, "webapp_config", None)
+    if cfg is None:
+        raise HTTPException(status_code=503, detail=WEBAPP_CONFIG_UNREADABLE)
+    return cfg
 
 
 def sse_pack(data: Any, event: str = "") -> str:

@@ -1455,6 +1455,16 @@ persisted to `config/webapp_config.json`. Loopback callers bypass it;
 anyone reaching the hub over the tunnel must present
 `Authorization: Bearer <token>` or `?token=…` on the URL.
 
+A missing `config/webapp_config.json` means "nothing configured yet"
+(defaults). An **unreadable or malformed** one is a different state and
+is never treated as defaults (#585): the hub and `/admin` admit loopback
+callers only — no token and no `extra_allowlist`, so Tailscale peers are
+refused too — `/admin/api/login` and the passkey endpoints answer 503
+`webapp config could not be loaded`, and the tray leaves the file
+untouched instead of minting a token over it. Each surface logs a
+`could not load webapp_config` warning. Fix the file, then restart the
+tray/hub.
+
 ### Passkey (WebAuthn) gate — parked, server-side only (not planned)
 
 `src/webauthn_gate.py` and `app_web/routers/webauthn.py` implement a

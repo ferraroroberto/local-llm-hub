@@ -19,7 +19,7 @@ import mimetypes
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -31,10 +31,10 @@ from src.static_versioning import (
     fleet_hash_of,
     rewrite_js_imports,
 )
-from src.webapp_config import load_webapp_config
+from src.webapp_config import WebappConfig, WebappConfigError, load_webapp_config
 from src.webauthn_gate import WebAuthnGate
 
-from .middleware import BearerTokenMiddleware
+from .middleware import BearerTokenMiddleware, admin_token_from_state
 from .routers import auth, code_usage, diagnostics, fleet_maintenance, fleet_placement, glossary, hosts, hub, install, machines, misc, models, playground, roles, services, startup_profile, telemetry, version, webauthn
 from .routers._helpers import STATIC_DIR
 
@@ -101,8 +101,27 @@ async def _lifespan(app: FastAPI):
     yield
 
 
+def _load_admin_webapp_config() -> Optional[WebappConfig]:
+    """The sub-app's config, or ``None`` when it can't be loaded.
+
+    The sub-app still mounts so loopback keeps its admin UI, but ``None`` is
+    unknown, not defaults (#585): the bearer gate admits loopback callers
+    only (no token, no ``extra_allowlist`` to match), and the routers that
+    read the config answer 503 ``webapp config could not be loaded``.
+    """
+    try:
+        return load_webapp_config()
+    except WebappConfigError as exc:
+        _log.warning(
+            "⚠️ could not load webapp_config for /admin (%s); non-loopback "
+            "callers are refused and login/passkey report it until a restart",
+            exc,
+        )
+        return None
+
+
 def create_app() -> FastAPI:
-    webapp_cfg = load_webapp_config()
+    webapp_cfg = _load_admin_webapp_config()
 
     auth.ensure_log_handler()
 
@@ -119,7 +138,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         BearerTokenMiddleware,
-        get_token=lambda: getattr(app.state.webapp_config, "auth_token", ""),
+        get_token=lambda: admin_token_from_state(app.state),
     )
 
     app.state.webapp_config = webapp_cfg

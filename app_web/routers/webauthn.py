@@ -26,14 +26,14 @@ from src.webapp_config import WebappConfig
 from src.webauthn_gate import WebAuthnGate
 
 from ..middleware import LOOPBACK_HOSTS, _is_proxied
-from ._helpers import client_ip, maybe_json
+from ._helpers import client_ip, loaded_webapp_config, maybe_json
 
 router = APIRouter()
 
 
 @router.get("/api/webauthn/status")
 async def webauthn_status(request: Request) -> Dict[str, Any]:
-    cfg: WebappConfig = request.app.state.webapp_config
+    cfg: WebappConfig = loaded_webapp_config(request)
     gate: WebAuthnGate = request.app.state.webauthn_gate
     return {
         "available": WebAuthnGate.available(),
@@ -74,7 +74,7 @@ async def webauthn_open_window(request: Request) -> Dict[str, Any]:
 
 @router.post("/api/webauthn/enroll/begin")
 async def webauthn_enroll_begin(request: Request) -> Dict[str, Any]:
-    cfg: WebappConfig = request.app.state.webapp_config
+    cfg: WebappConfig = loaded_webapp_config(request)
     gate: WebAuthnGate = request.app.state.webauthn_gate
     if not WebAuthnGate.configured(cfg):
         raise HTTPException(status_code=503, detail="webauthn not configured")
@@ -88,7 +88,7 @@ async def webauthn_enroll_begin(request: Request) -> Dict[str, Any]:
 
 @router.post("/api/webauthn/enroll/finish")
 async def webauthn_enroll_finish(request: Request) -> Dict[str, Any]:
-    cfg: WebappConfig = request.app.state.webapp_config
+    cfg: WebappConfig = loaded_webapp_config(request)
     gate: WebAuthnGate = request.app.state.webauthn_gate
     credential = await maybe_json(request)
     try:
@@ -103,7 +103,7 @@ async def webauthn_enroll_finish(request: Request) -> Dict[str, Any]:
 
 @router.post("/api/webauthn/auth/begin")
 async def webauthn_auth_begin(request: Request) -> Dict[str, Any]:
-    cfg: WebappConfig = request.app.state.webapp_config
+    cfg: WebappConfig = loaded_webapp_config(request)
     gate: WebAuthnGate = request.app.state.webauthn_gate
     if not WebAuthnGate.configured(cfg):
         raise HTTPException(status_code=503, detail="webauthn not configured")
@@ -115,7 +115,7 @@ async def webauthn_auth_begin(request: Request) -> Dict[str, Any]:
 
 @router.post("/api/webauthn/auth/finish")
 async def webauthn_auth_finish(request: Request) -> Dict[str, Any]:
-    cfg: WebappConfig = request.app.state.webapp_config
+    cfg: WebappConfig = loaded_webapp_config(request)
     gate: WebAuthnGate = request.app.state.webauthn_gate
     credential = await maybe_json(request)
     try:
