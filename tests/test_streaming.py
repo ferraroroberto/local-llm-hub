@@ -31,6 +31,7 @@ from fastapi.testclient import TestClient
 
 from src import openai_upstream as upstream_mod
 from src import claude_cli as claude_cli_mod
+from src import chat_translation as chat_translation_mod
 from src import server as server_mod
 from src.chat_translation import AnthropicStreamState, iter_claude_anthropic_sse
 from src.hub_observability import OBS
@@ -658,7 +659,7 @@ def test_chat_completions_strips_think_non_stream(monkeypatch):
             "usage": {"prompt_tokens": 5, "completion_tokens": 4, "total_tokens": 9},
         }
 
-    monkeypatch.setattr(server_mod, "call_openai_chat", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_openai_chat", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -816,7 +817,7 @@ def test_chat_completions_forwards_structured_params_non_stream(monkeypatch):
             "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
         }
 
-    monkeypatch.setattr(server_mod, "call_openai_chat", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_openai_chat", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -885,7 +886,7 @@ def test_chat_completions_omits_structured_params_when_absent(monkeypatch):
             "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
         }
 
-    monkeypatch.setattr(server_mod, "call_openai_chat", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_openai_chat", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -932,7 +933,7 @@ def test_nothink_alias_injects_chat_template_kwargs(monkeypatch, model):
     name, so a regression here breaks a live consumer silently.
     """
     captured: dict = {}
-    monkeypatch.setattr(server_mod, "call_openai_chat", _capture_call(captured))
+    monkeypatch.setattr(chat_translation_mod, "call_openai_chat", _capture_call(captured))
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -957,7 +958,7 @@ def test_agentic_light_defaults_to_nothink(monkeypatch):
     disappear; it moved one alias away (see the test below).
     """
     captured: dict = {}
-    monkeypatch.setattr(server_mod, "call_openai_chat", _capture_call(captured))
+    monkeypatch.setattr(chat_translation_mod, "call_openai_chat", _capture_call(captured))
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -979,7 +980,7 @@ def test_agentic_light_think_stays_thinking_capable(monkeypatch):
     else — same backend, same port, no overlay.
     """
     captured: dict = {}
-    monkeypatch.setattr(server_mod, "call_openai_chat", _capture_call(captured))
+    monkeypatch.setattr(chat_translation_mod, "call_openai_chat", _capture_call(captured))
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -999,7 +1000,7 @@ def test_nothink_alias_caller_chat_template_kwargs_wins(monkeypatch):
     """A caller that sends its own chat_template_kwargs overrides the injected
     default (caller wins)."""
     captured: dict = {}
-    monkeypatch.setattr(server_mod, "call_openai_chat", _capture_call(captured))
+    monkeypatch.setattr(chat_translation_mod, "call_openai_chat", _capture_call(captured))
 
     client = TestClient(server_mod.app)
     r = client.post(

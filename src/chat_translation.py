@@ -885,6 +885,43 @@ def resolve_openai_upstream(model: Model) -> OpenAIUpstream:
     )
 
 
+def call_openai_upstream(
+    model: Model,
+    upstream: OpenAIUpstream,
+    messages: List[Dict[str, Any]],
+    *,
+    max_tokens: Optional[int] = None,
+    temperature: Optional[float] = None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Send one *buffered* chat call to an already-resolved OpenAI upstream.
+
+    Owns the pair both buffered dispatch paths need identically: the
+    on-demand idle-tracking context (#422, so a locally-served ``on_demand``
+    row isn't unloaded mid-request) and the ``UpstreamError`` -> 502 mapping.
+    Used by ``_run_openai_backend`` (``/v1/messages``) and ``chat_completions``
+    (``/v1/chat/completions``).
+
+    The two *streaming* paths deliberately keep their own handling: by the
+    time an upstream failure surfaces there the response headers are already
+    sent, so it becomes an in-stream SSE error event rather than a 502.
+    """
+    from . import on_demand as _on_demand
+    try:
+        with _on_demand.tracking(model, upstream.remote):
+            return call_openai_chat(
+                upstream.base_url,
+                model=upstream.model_name,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                extra=extra or None,
+                headers=upstream.headers,
+            )
+    except UpstreamError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
 def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     # Validated before the on-demand spin-up below: a malformed tool
     # definition is a 400 and shouldn't cold-start a model to discover it.
@@ -912,18 +949,12 @@ def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
         [m.model_dump() for m in req.messages],
         _system_to_text(req.system),
     )
-    from . import on_demand as _on_demand
-    try:
-        with _on_demand.tracking(model, upstream.remote):
-            raw = call_openai_chat(
-                upstream.base_url,
-                model=upstream.model_name,
-                messages=messages,
-                max_tokens=req.max_tokens,
-                temperature=req.temperature,
-                extra=extra or None,
-                headers=upstream.headers,
-            )
-    except UpstreamError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    raw = call_openai_upstream(
+        model,
+        upstream,
+        messages,
+        max_tokens=req.max_tokens,
+        temperature=req.temperature,
+        extra=extra,
+    )
     return openai_to_anthropic_envelope(raw)

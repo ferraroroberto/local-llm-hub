@@ -88,7 +88,7 @@ def test_chat_completions_passthrough_openai(monkeypatch):
     def fake_call(base_url, model, messages, *, max_tokens=None, temperature=None, timeout=600.0, extra=None, headers=None):
         return _fake_openai_response("hi")
 
-    monkeypatch.setattr(server_mod, "call_openai_chat", fake_call)
+    monkeypatch.setattr(chat_translation_mod, "call_openai_chat", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(

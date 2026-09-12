@@ -81,6 +81,7 @@ from .chat_translation import (
     _run_openai_backend,
     _system_to_text,
     anthropic_stream_error,
+    call_openai_upstream,
     iter_buffered_anthropic_sse,
     iter_claude_anthropic_sse,
     iter_openai_anthropic_sse,
@@ -121,7 +122,6 @@ from .server_otel_receiver import router as _otel_receiver_router
 from .openai_upstream import (
     UpstreamError,
     anthropic_to_openai_messages,
-    call_openai_chat,
     call_openai_chat_stream,
     clean_openai_response,
     iter_cleaned_sse,
@@ -972,21 +972,22 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
                 error_type = "config_error"
                 raise
             extra = _build_openai_extra(model, req)
-            # On-demand idle tracking (#422) — see _stream_openai_passthrough.
+            # On-demand idle tracking (#422) and the UpstreamError -> 502
+            # mapping both live in call_openai_upstream, shared with the
+            # /v1/messages buffered path. It raises only that 502, so the
+            # catch below labels exactly the upstream failure for the ring.
             try:
-                with _on_demand.tracking(model, upstream.remote):
-                    raw = call_openai_chat(
-                        upstream.base_url,
-                        model=upstream.model_name,
-                        messages=req.messages,
-                        max_tokens=req.max_tokens,
-                        temperature=req.temperature,
-                        extra=extra or None,
-                        headers=upstream.headers,
-                    )
-            except UpstreamError as e:
+                raw = call_openai_upstream(
+                    model,
+                    upstream,
+                    req.messages,
+                    max_tokens=req.max_tokens,
+                    temperature=req.temperature,
+                    extra=extra,
+                )
+            except HTTPException:
                 error_type = "upstream_http_error"
-                raise HTTPException(status_code=502, detail=str(e))
+                raise
             cleaned = clean_openai_response(raw)
             usage = cleaned.get("usage") or {}
             in_t = int(usage.get("prompt_tokens", 0) or 0)
