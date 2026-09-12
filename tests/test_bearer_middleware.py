@@ -129,9 +129,9 @@ def test_parent_exempt_path_bypasses_even_without_token(monkeypatch):
 
 
 def _break_parent_config(monkeypatch, tmp_path) -> None:
-    # Valid JSON that isn't an object — load_webapp_config() only absorbs
-    # OSError/JSONDecodeError, so this raises out of it (as would a
-    # non-list ``extra_allowlist``) and reaches _hub_get_token's except.
+    # Valid JSON that isn't an object — load_webapp_config() raises
+    # WebappConfigError for it (as for malformed JSON, #585), which reaches
+    # _hub_get_token's except.
     broken = tmp_path / "webapp_config.json"
     broken.write_text("[]", encoding="utf-8")
     monkeypatch.setattr(webapp_config_mod, "DEFAULT_CONFIG_PATH", broken)

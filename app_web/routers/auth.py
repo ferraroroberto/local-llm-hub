@@ -17,7 +17,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from src.webapp_config import WebappConfig
 
-from ._helpers import PROJECT_ROOT, client_ip, maybe_json
+from ._helpers import PROJECT_ROOT, client_ip, loaded_webapp_config, maybe_json
 
 logger = logging.getLogger(__name__)
 auth_logger = logging.getLogger("llmhub.auth")
@@ -50,8 +50,12 @@ router = APIRouter()
 
 @router.post("/api/login")
 async def login(request: Request) -> Dict[str, Any]:
-    cfg: WebappConfig = request.app.state.webapp_config
     who = client_ip(request)
+    if request.app.state.webapp_config is None:
+        auth_logger.warning(
+            f"⚠️  Login attempt from {who} but webapp config could not be loaded"
+        )
+    cfg: WebappConfig = loaded_webapp_config(request)
     if not cfg.auth_password:
         auth_logger.info(
             f"⚠️  Login attempt from {who} but no auth_password configured"

@@ -224,6 +224,21 @@ def _caller_is_trusted(
     return bool(presented and hmac.compare_digest(presented, token))
 
 
+def admin_token_from_state(app_state) -> Optional[str]:
+    """The /admin sub-app's token, read off its state at call time.
+
+    ``create_app`` leaves ``webapp_config`` as ``None`` when the config could
+    not be loaded, and that maps to ``None`` — *unknown*, which
+    :func:`_caller_is_trusted` never reads as "no token configured" (#585).
+    Shared by :class:`BearerTokenMiddleware`'s getter and the terminal
+    websocket's, so HTTP and websocket can't disagree about it.
+    """
+    cfg = getattr(app_state, "webapp_config", None)
+    if cfg is None:
+        return None
+    return cfg.auth_token or ""
+
+
 async def authorize_websocket(websocket, get_token) -> bool:
     """Bearer gate for a websocket handshake — call before ``accept()``.
 

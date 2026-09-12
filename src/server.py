@@ -128,6 +128,7 @@ from .openai_upstream import (
 )
 from .token_counting import count_tokens as _count_tokens
 from .trace_id_middleware import TraceIdHeaderMiddleware
+from .webapp_config import WebappConfig
 
 logging.basicConfig(
     level=logging.INFO,
@@ -202,9 +203,10 @@ def _hub_get_token() -> Optional[str]:
     check so the user can edit it without restarting the hub.
 
     ``""`` means no token is configured (enforcement off by design);
-    ``None`` means the config could not be loaded, so the token is
-    *unknown* — the middleware must not read that as "no token" and open
-    the gate (#558).
+    ``None`` means the config could not be loaded — including a malformed
+    file, which the loader reports as ``WebappConfigError`` rather than
+    defaults (#585) — so the token is *unknown*, and the middleware must
+    not read that as "no token" and open the gate (#558).
     """
     try:
         from .webapp_config import load_webapp_config
@@ -233,11 +235,28 @@ app.add_middleware(TraceIdHeaderMiddleware)
 # read ``extra_allowlist`` without re-loading on every request. Note the
 # token itself is *not* cached — we always re-read so the user can
 # rotate without restarting.
-try:
-    from .webapp_config import load_webapp_config as _load_wcfg
-    app.state.webapp_config = _load_wcfg()
-except Exception as _exc:  # noqa: BLE001
-    logger.warning("⚠️ could not load webapp_config: %s", _exc)
+def _load_startup_webapp_config() -> Optional[WebappConfig]:
+    """The startup snapshot, or ``None`` when the config can't be loaded.
+
+    ``None`` is the restrictive side for both readers, so startup carries
+    on: the middleware applies no ``extra_allowlist`` entries and
+    ``install_cors`` allows loopback origins only. Logged, because the
+    configured extras are silently absent until a restart otherwise (#585).
+    """
+    from .webapp_config import load_webapp_config
+
+    try:
+        return load_webapp_config()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "⚠️ could not load webapp_config at startup (%s); "
+            "extra_allowlist and cors_allow_origins are off until a restart",
+            exc,
+        )
+        return None
+
+
+app.state.webapp_config = _load_startup_webapp_config()
 
 # CORS for browser-based clients (#462) — added LAST so it sits outside
 # every layer above, including the bearer gate. A preflight OPTIONS

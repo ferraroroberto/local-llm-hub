@@ -46,7 +46,12 @@ from src.model_registry import SPAWNABLE_BACKENDS, Model, local_models
 from src.no_window import NO_WINDOW
 from src.process_supervisor import ProcessSupervisor, SpawnSpec
 from src.server_process import WIN_NEW_GROUP, lan_ip
-from src.webapp_config import append_auth_token, ensure_auth_token, load_webapp_config
+from src.webapp_config import (
+    WebappConfig,
+    WebappConfigError,
+    append_auth_token,
+    ensure_auth_token,
+)
 
 from .icon import COLOR_RUNNING, COLOR_STARTING, COLOR_STOPPED, make_icon_image
 from .single_instance import cross_process_lock
@@ -228,8 +233,17 @@ class TrayApp:
         ]
         # The webapp config holds the bearer token we append to copied URLs.
         # Generate one on first boot so we never have an unprotected non-
-        # loopback hub by accident.
-        self.webapp_cfg = ensure_auth_token()
+        # loopback hub by accident. ``None`` = the config exists but can't
+        # be read: leave the file alone rather than mint over it (#585), and
+        # treat the token as unknown in every URL helper below.
+        self.webapp_cfg: Optional[WebappConfig] = None
+        try:
+            self.webapp_cfg = ensure_auth_token()
+        except WebappConfigError as exc:
+            logger.warning(
+                "⚠️ could not load webapp_config (%s); leaving it untouched, "
+                "tokened URLs are unavailable until it is fixed", exc,
+            )
 
     # --------------------------------------------------------------- run
 
@@ -367,6 +381,11 @@ class TrayApp:
             host = _read_tunnel_hostname(TUNNEL_CONFIG_PATH)
             if not host:
                 self._notify("Cloudflare", "⚠️ cloudflared.yml not configured")
+                return
+            if self.webapp_cfg is None:
+                self._notify(
+                    "Cloudflare", "⚠️ webapp_config.json could not be loaded — no token for the URL"
+                )
                 return
             url = f"https://{host}/admin/"
             self._copy_url(append_auth_token(url, self.webapp_cfg.auth_token))
@@ -511,7 +530,9 @@ class TrayApp:
 
     def _open_admin(self) -> None:
         url = self.hub.base_url() + "/admin/"
-        token = (self.webapp_cfg.auth_token or "").strip()
+        # Unknown token (unreadable config) skips the LAN URL below, as no
+        # token does; the failure was logged at boot.
+        token = (self.webapp_cfg.auth_token or "").strip() if self.webapp_cfg else ""
         # On the PC itself we go via loopback so the bearer-token middleware
         # exempts us — no need to include the token in the URL.
         try:

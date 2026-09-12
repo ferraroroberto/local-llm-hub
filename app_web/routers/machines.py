@@ -43,7 +43,7 @@ from src import machine_console, remote_bootstrap, ssh_terminal
 from src.host_profile import get_host, resolve
 from src.wake_on_lan import WakeOnLanError, send_wake
 
-from ..middleware import authorize_websocket
+from ..middleware import admin_token_from_state, authorize_websocket
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -145,13 +145,11 @@ async def terminal_status() -> Dict[str, Any]:
 
 
 def _admin_token_getter(websocket: WebSocket):
-    """Read the admin token off the sub-app's state, matching the accessor
+    """Read the admin token off the sub-app's state via the same accessor
     ``app_web/server.py`` hands :class:`BearerTokenMiddleware`. Deferred to
     call time (not handshake time) because ``webapp_config`` is reloaded on
     the app's state, so a cached value would go stale."""
-    return lambda: getattr(
-        getattr(websocket.app.state, "webapp_config", None), "auth_token", ""
-    )
+    return lambda: admin_token_from_state(websocket.app.state)
 
 
 @router.websocket("/api/machines/{host_id}/terminal")
