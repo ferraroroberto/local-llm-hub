@@ -14,6 +14,7 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, Query
+from fastapi.responses import JSONResponse
 
 from src.code_usage import _VALID_PERIODS, get_summary, is_valid_vendor
 
@@ -21,19 +22,30 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/usage/summary")
+# ``response_model=None``: the annotation is a union with a Response subclass,
+# which FastAPI cannot infer a response model from — the explicit opt-out keeps
+# the hint (repo convention: type hints on every public function) without
+# asking FastAPI to validate one branch of it.
+@router.get("/usage/summary", response_model=None)
 async def code_usage_summary(
     period: str = Query("today", description="today | week | month | all"),
     vendor: str = Query(
         "all", description="claude | codex | copilot | all | <agentsview agent>"
     ),
-) -> dict:
+) -> dict | JSONResponse:
     """Return totals, per-model / per-project / per-vendor breakdowns, and
     recent sessions for the requested period and vendor.  Safe to call
     frequently — the underlying parsers cache by file mtime so unchanged files
     are not re-read.  The ``agentsview`` block carries the optional external
     AgentsView service's reachability + discovered gap-fill vendors (#280) —
     the Code-tab mirror of the Telemetry tab's ``langfuse_reachable``.
+
+    A failure to build the summary is **not** a summary: it answers with HTTP
+    503 rather than a 200 carrying empty totals (#580).  The old shape let a
+    caller that never read the ``error`` field render "could not load" as a
+    zero-usage day — the fleet's recurring defect, an unresolved lookup folded
+    into the passing state.  A non-2xx makes that mistake impossible to make
+    by omission: every JSON client already raises on it.
     """
     from src import agentsview_usage
 
@@ -49,18 +61,18 @@ async def code_usage_summary(
         return body
     except Exception as exc:
         logger.warning("⚠️ code_usage_summary error: %s", exc, exc_info=True)
-        return {
-            "period": period,
-            "vendor": vendor,
-            "totals": {},
-            "daily": [],
-            "by_model": [],
-            "by_project": [],
-            "by_vendor": [],
-            "recent_sessions": [],
-            "agentsview": {"enabled": False, "reachable": False, "vendors": []},
-            "error": str(exc),
-        }
+        # No `totals`/`by_*` keys at all — an empty breakdown is a *value*, and
+        # emitting one here is what let the tab draw a flat zero chart over a
+        # failed load. `detail` is what api.js's jsonApi surfaces to the user.
+        return JSONResponse(
+            status_code=503,
+            content={
+                "period": period,
+                "vendor": vendor,
+                "error": str(exc),
+                "detail": f"Could not build the code-usage summary: {exc}",
+            },
+        )
 
 
 @router.get("/copilot/billing")

@@ -49,6 +49,14 @@ let _chartCache  = null;
 const POLL_MS = 30_000;
 let _pollHandle = null;
 
+// Empty-state blocks whose copy swaps to a "could not load" line while the
+// summary is failing (#580), and the pristine markup to restore on recovery.
+const EMPTY_STATE_KEYS = [
+  'cldVendorEmpty', 'cldModelEmpty', 'cldProjectEmpty', 'cldSessionsEmpty',
+];
+const _pristineEmptyMsg = {};
+let _loadFailed = false;
+
 // ---------------------------------------------------------------------------
 // Public lifecycle — called from main.js
 // ---------------------------------------------------------------------------
@@ -110,6 +118,11 @@ async function fetchSummary() {
       '/admin/api/code/usage/summary?period=' + state.cldPeriod +
       '&vendor=' + state.cldVendor
     );
+    // Belt and braces (#580): the route now answers 503 on a failed build, so
+    // jsonApi throws and the catch below owns the error state. A 200 that
+    // still carries `error` (an older hub on a peer machine) is a failure too
+    // — read the field rather than trusting the status alone.
+    if (body && body.error) throw new Error(String(body.error));
     state.cldSummary = body;
     syncAgentsviewVendors(body.agentsview);
     // If the server coerced an unknown vendor back to "all" (e.g. the hub
@@ -123,6 +136,7 @@ async function fetchSummary() {
         });
       }
     }
+    setLoadError(null);
     render(body);
     // Copilot billing card is a separate authoritative source (issue #231,
     // part B) — only fetched while that vendor tab is actually selected, so
@@ -134,8 +148,69 @@ async function fetchSummary() {
     }
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
-    setFreshness('error fetching data');
+    setLoadError(exc && exc.message ? String(exc.message) : 'unknown error');
   }
+}
+
+/* Render "the summary could not be built" as its own state (#580).
+ *
+ * The whole point is that this is NOT a zero-usage day: every counter goes to
+ * the unknown dash rather than 0, the trend charts are torn down instead of
+ * drawing a flat zero line, and each table's empty-state says the load failed
+ * rather than "no data for this period". Driven purely by the server
+ * reporting failure — never inferred from totals being zero, so a genuinely
+ * idle day still renders its honest zeroes.
+ *
+ * Passing null clears the state and restores the normal empty-state copy. */
+function setLoadError(reason) {
+  const failed = reason !== null && reason !== undefined;
+  // Clearing is only work on the transition back — the success path calls this
+  // on every 30s poll and must not rewrite the DOM each time.
+  if (!failed && !_loadFailed) return;
+  _loadFailed = failed;
+
+  if (els.cldError) els.cldError.hidden = !failed;
+  if (els.cldErrorMsg && failed) {
+    els.cldErrorMsg.textContent = 'Usage data could not be loaded — ' + reason +
+      '. Retrying every 30s. This is not a zero-usage period.';
+  }
+  EMPTY_STATE_KEYS.forEach(function (key) {
+    const el = els[key];
+    if (!el) return;
+    const msg = el.querySelector('.empty-state-message');
+    if (!msg) return;
+    // Capture the pristine copy once — one of these carries markup (a <code>
+    // path), so restoring it needs the original HTML, not a text snapshot.
+    if (_pristineEmptyMsg[key] === undefined) _pristineEmptyMsg[key] = msg.innerHTML;
+    if (failed) msg.textContent = 'Could not load — see the error above.';
+    else msg.innerHTML = _pristineEmptyMsg[key];
+  });
+  if (!failed) return;
+
+  // Unknown, not zero: blank every counter and cost line, drop the deltas
+  // (there is nothing to compare), tear the charts down and empty the tables.
+  [els.cldRequests, els.cldInputTok, els.cldOutputTok, els.cldCacheRead]
+    .forEach(function (el) { set(el, '—'); });
+  [els.cldTotalCost, els.cldInputCost, els.cldOutputCost, els.cldCacheCost,
+   els.cldOutputReasoning].forEach(function (el) { set(el, ''); });
+  [els.cldDeltaRequests, els.cldDeltaInputTok, els.cldDeltaOutputTok,
+   els.cldDeltaCacheRead].forEach(function (el) { if (el) el.hidden = true; });
+
+  if (els.cldChartsCard) els.cldChartsCard.hidden = true;
+  _destroyCharts();
+
+  const noRows = function () { return ''; };
+  // Same visibility rule as the success path: the per-vendor card is an
+  // "All" -mode card, and it says "could not load" like every other table.
+  if (els.cldVendorCard) els.cldVendorCard.hidden = state.cldVendor !== 'all';
+  renderTable(els.cldVendorTable, els.cldVendorEmpty, [], noRows);
+  renderTable(els.cldModelTable, els.cldModelEmpty, [], noRows);
+  renderTable(els.cldProjectTable, els.cldProjectEmpty, [], noRows);
+  if (els.cldSessionsList) els.cldSessionsList.innerHTML = '';
+  if (els.cldSessionsEmpty) els.cldSessionsEmpty.hidden = false;
+  // "—", not "0": the session count is unknown, not known to be none.
+  set(els.cldSessionsBadge, '—');
+  setFreshness('load failed ' + new Date().toLocaleTimeString());
 }
 
 // ---------------------------------------------------------------------------

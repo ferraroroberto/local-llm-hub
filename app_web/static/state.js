@@ -246,6 +246,8 @@ export const els = {
   cldFreshness: document.getElementById('cldFreshness'),
   cldVendorSeg: document.getElementById('cldVendorSeg'),
   cldAgentsviewHint: document.getElementById('cldAgentsviewHint'),
+  cldError: document.getElementById('cldError'),
+  cldErrorMsg: document.getElementById('cldErrorMsg'),
   cldPeriodSeg: document.getElementById('cldPeriodSeg'),
   cldRequests: document.getElementById('cldRequests'),
   cldTotalCost: document.getElementById('cldTotalCost'),
