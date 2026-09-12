@@ -85,7 +85,7 @@ from .chat_translation import (
     iter_buffered_anthropic_sse,
     iter_claude_anthropic_sse,
     iter_openai_anthropic_sse,
-    openai_tool_params,
+    openai_backend_extra,
     reject_tools_on_cli_backend,
     resolve_openai_upstream,
 )
@@ -451,9 +451,9 @@ def _stream_anthropic_response(
             [message.model_dump() for message in req.messages],
             _system_to_text(req.system),
         )
-        # Translated up here too: a malformed tool definition must 400 before
+        # Built up here too: a malformed tool definition must 400 before
         # the response starts, not mid-stream.
-        openai_extra = openai_tool_params(req)
+        openai_extra = openai_backend_extra(model, req)
     elif model.backend not in ("claude", "gemini"):
         raise HTTPException(status_code=500, detail=f"unknown backend {model.backend!r}")
 
@@ -485,9 +485,7 @@ def _stream_anthropic_response(
             elif model.backend == "openai":
                 assert upstream is not None  # resolved above for this backend
                 track = _on_demand.tracking(model, upstream.remote).start()
-                extra = dict(model.inject_extra or {})
-                extra["stream_options"] = {"include_usage": True}
-                extra.update(openai_extra)
+                extra = {**openai_extra, "stream_options": {"include_usage": True}}
                 with ExitStack() as streams:
                     raw = call_openai_chat_stream(
                         upstream.base_url,

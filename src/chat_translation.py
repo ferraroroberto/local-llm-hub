@@ -474,6 +474,20 @@ def openai_tool_params(req: MessagesRequest) -> Dict[str, Any]:
     return extra
 
 
+def openai_backend_extra(model: Model, req: MessagesRequest) -> Dict[str, Any]:
+    """Upstream payload overlay for a ``/v1/messages`` call to an ``openai`` backend.
+
+    Seeds from the row's server-side ``inject_extra`` (e.g. the no-think
+    alias's ``chat_template_kwargs``), then layers this request's tool params
+    on top so the caller wins on a key collision. The single place both the
+    buffered and streaming paths build it (#567 — the buffered path used to
+    drop the overlay).
+    """
+    extra: Dict[str, Any] = dict(model.inject_extra or {})
+    extra.update(openai_tool_params(req))
+    return extra
+
+
 def reject_tools_on_cli_backend(model: Model, req: MessagesRequest) -> None:
     """400 when tool use is asked of a backend that cannot serve it.
 
@@ -925,7 +939,7 @@ def call_openai_upstream(
 def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     # Validated before the on-demand spin-up below: a malformed tool
     # definition is a 400 and shouldn't cold-start a model to discover it.
-    extra = openai_tool_params(req)
+    extra = openai_backend_extra(model, req)
     # On-demand lifecycle (#422): a cold ``startup: on_demand`` local backend
     # is spawned here and the request blocks until it answers (503 on load
     # failure) — same hook the OpenAI-shape route applies in server.py.
