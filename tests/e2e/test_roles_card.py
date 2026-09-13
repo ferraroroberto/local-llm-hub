@@ -98,4 +98,11 @@ def test_view_placement_button_jumps_to_models_tab(page, admin_url):
 
     page.click("#rolesViewPlacementBtn")
     page.wait_for_selector("#paneModels", state="visible", timeout=5000)
-    assert page.eval_on_selector("#fleetPlacementCard", "el => el.open") is True
+    # The card is opened one animation frame *after* the pane flips visible
+    # (goToFleetPlacement defers it via requestAnimationFrame), so a single
+    # read right after the visibility wait races that frame (#588). Wait on
+    # the card's own open flag instead.
+    page.wait_for_function(
+        "document.getElementById('fleetPlacementCard').open === true",
+        timeout=5000,
+    )
