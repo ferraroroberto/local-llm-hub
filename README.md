@@ -628,7 +628,11 @@ powered off during the push; it also catches up on next boot). The Models
 card header shows the config version (`cfg <sha>` — the models.yaml HEAD
 sha, also on `/admin/api/version` as `config_sha`), so drift between hubs is
 visible by comparing their `/admin` pages. Non-write hosts render the cards
-read-only and 403 the write endpoint.
+read-only and 403 the write endpoint. The write runs no test suite, so the
+suite cannot depend on what it edits: every unit test reads `models.yaml`
+with the four placement keys (`host`/`hosts`/`startup`/`idle_unload_minutes`)
+replaced by the table in `tests/_placement_fixture.py` (#564, #565). A
+placement edit is a routing decision, never a red `main`.
 
 ### Fleet placement: registry-derived desired state
 

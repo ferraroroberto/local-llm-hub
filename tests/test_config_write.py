@@ -5,8 +5,8 @@ Three legs, each a hard safety property of the write-through-to-git design:
 * **Validation** — schema + the #375 VRAM budget as a config-time hard
   gate, all computed before any file/git side effect.
 * **Comment-preserving YAML editing** — ruamel round-trip on a copy of the
-  real config/models.yaml: only the intended lines change, every comment
-  survives (the file's comments are load-bearing; a lossy rewrite is a
+  real config/models.yaml (placement pinned by tests/_placement_fixture.py,
+  #565): only the intended lines change, every comment survives (the file's comments are load-bearing; a lossy rewrite is a
   regression even if semantically equal).
 * **Git transaction** — on throwaway temp repos: commits exactly the one
   file with the config-bot message and pushes; refuses a dirty tree or a
@@ -27,7 +27,7 @@ import yaml as pyyaml
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 from src import config_write as cw  # noqa: E402
-from src.host_profile import CONFIG_PATH  # noqa: E402
+from src import host_profile  # noqa: E402
 
 
 def _chain(*ids, cpu=()):
@@ -37,7 +37,7 @@ def _chain(*ids, cpu=()):
 # --------------------------------------------------------------- validation
 
 def test_validate_ok_for_status_quo_orpheus():
-    """The live config's own orpheus placement must validate clean — the
+    """The config's own (pinned) orpheus placement must validate clean — the
     gate can never reject the state the fleet already runs."""
     assert cw.validate_placement("orpheus", _chain("tower", "gaming"), "eager", None) == []
 
@@ -127,11 +127,11 @@ def test_normalize_chain_accepts_strings_and_dicts():
 
 @pytest.fixture()
 def yaml_copy(tmp_path: Path) -> Path:
-    """A byte-exact copy of the real config/models.yaml — the strongest
-    possible round-trip fixture: whatever ruamel mangles here it would
-    mangle live."""
+    """A byte-exact copy of the real config/models.yaml, placement keys
+    pinned (#565) — the strongest possible round-trip fixture: whatever
+    ruamel mangles here it would mangle live."""
     dst = tmp_path / "models.yaml"
-    shutil.copyfile(CONFIG_PATH, dst)
+    shutil.copyfile(host_profile.CONFIG_PATH, dst)
     return dst
 
 
@@ -272,6 +272,18 @@ def git_pair(tmp_path: Path):
 
 def _log_origin(origin: Path) -> str:
     return _run_git(origin, "log", "--format=%s|%an", "main").stdout
+
+
+@pytest.mark.parametrize("leg", ["git_preflight", "commit_and_push"])
+def test_git_legs_refuse_the_real_checkout(leg):
+    """conftest's guard wraps both git legs for every test (#565), so no test
+    can commit or push this repo. Checked on the attribute before calling:
+    an unguarded ``commit_and_push`` here would be a real push."""
+    fn = getattr(cw, leg)
+    assert getattr(fn, "real_repo_guarded", False), f"{leg} is not guarded"
+    args = (cw.CONFIG_RELPATH,) if leg == "git_preflight" else (cw.CONFIG_RELPATH, "never")
+    with pytest.raises(AssertionError, match="real repo"):
+        fn(cw.PROJECT_ROOT, *args)
 
 
 def test_commit_and_push_happy_path(git_pair):

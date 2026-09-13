@@ -23,18 +23,19 @@ from src import config_write  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _pin_placement(pinned_placement):
-    """Which rows are local to the tower, and every chain asserted below, come
-    from the rows' host declarations — pin them to
+def _example_identity(config_with_example_identity):
+    """Which rows are local to the tower, and every chain and startup mode
+    asserted below, come from the rows' placement keys — pinned to
     ``tests/_placement_fixture.py`` so an admin-UI placement edit to a
-    production row can't redden this module (#564)."""
+    production row can't redden this module (#564, #565)."""
 
 
 @pytest.fixture(autouse=True)
 def _no_real_config_push(monkeypatch):
     """The PUT tests drive the real ``apply_placement`` up to its validator.
-    One that got past it would edit the real ``config/models.yaml`` and push
-    to ``origin/main`` (#424), so both git legs fail the test instead."""
+    One that got past it would commit and push to ``origin/main`` (#424), so
+    here both git legs fail the test instead — stricter than conftest's
+    suite-wide guard, which only refuses this checkout."""
     def refuse(*args, **kwargs):
         raise AssertionError("a unit test reached the real config git write path")
 

@@ -20,8 +20,75 @@ os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 # box that has a real AgentsView serving on :8080.
 os.environ.setdefault("AGENTSVIEW_BASE_URL", "")
 
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+
 import pytest  # noqa: E402
 import yaml  # noqa: E402
+
+_PINNED_CONFIG_DIR: Path | None = None
+
+
+def pytest_configure(config) -> None:
+    """Point every test at the committed config with its placement pinned (#565).
+
+    The admin UI's placement card commits ``host:`` / ``hosts:`` /
+    ``startup:`` / ``idle_unload_minutes:`` edits straight to ``main`` (#424),
+    so a test reading the committed config directly can turn red on an
+    untouched tree. This runs before collection imports any test module, so
+    modules that bind ``CONFIG_PATH`` at import (``src.config_write``) bind the
+    pinned copy too — which also means ``apply_placement`` can never write the
+    real ``config/models.yaml`` from a test.
+
+    The copy sits alone in a temp dir: no ``machines.local.yaml`` beside it,
+    so the default is the clean clone CI runs, never this machine's overlay.
+    """
+    global _PINNED_CONFIG_DIR
+    from src import host_profile
+    from tests._placement_fixture import committed_config_path, pin_placement_text
+
+    _PINNED_CONFIG_DIR = Path(tempfile.mkdtemp(prefix="llm-hub-pinned-config-"))
+    pinned = _PINNED_CONFIG_DIR / "models.yaml"
+    pinned.write_text(
+        pin_placement_text(committed_config_path().read_text(encoding="utf-8")),
+        encoding="utf-8",
+    )
+    host_profile.CONFIG_PATH = pinned
+    host_profile._CONFIG_CACHE.clear()
+
+
+def pytest_unconfigure(config) -> None:
+    if _PINNED_CONFIG_DIR is not None and _PINNED_CONFIG_DIR.name.startswith(
+        "llm-hub-pinned-config-"
+    ):
+        shutil.rmtree(_PINNED_CONFIG_DIR, ignore_errors=True)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_config_git_write(monkeypatch):
+    """No test may run the config write's git legs against this repo (#565).
+
+    ``apply_placement`` commits and pushes to ``origin/main``. The git
+    transaction tests drive ``git_preflight`` / ``commit_and_push`` against
+    throwaway repos, so only a call aimed at the real checkout is refused.
+    """
+    from src import config_write
+
+    real_root = Path(config_write.PROJECT_ROOT).resolve()
+
+    def guard(fn):
+        def refuse_real_repo(repo=config_write.PROJECT_ROOT, *args, **kwargs):
+            if Path(repo).resolve() == real_root:
+                raise AssertionError(
+                    f"a unit test reached config_write.{fn.__name__} on the real repo"
+                )
+            return fn(repo, *args, **kwargs)
+
+        refuse_real_repo.real_repo_guarded = True
+        return refuse_real_repo
+
+    monkeypatch.setattr(config_write, "git_preflight", guard(config_write.git_preflight))
+    monkeypatch.setattr(config_write, "commit_and_push", guard(config_write.commit_and_push))
 
 
 @pytest.fixture(autouse=True)
@@ -120,8 +187,8 @@ def write_config(tmp_path, monkeypatch):
 
 @pytest.fixture
 def config_with_example_identity(tmp_path, monkeypatch):
-    """The real ``config/models.yaml`` paired with the *committed example*
-    identity overlay, both in a temp dir (#525).
+    """The pinned config (see ``pytest_configure``) paired with the *committed
+    example* identity overlay, both in a temp dir (#525).
 
     Machine identity left the public config, so any test asserting on an
     address / magic-DNS name / SSH user has nothing to read from
@@ -138,7 +205,7 @@ def config_with_example_identity(tmp_path, monkeypatch):
 
     src_dir = Path(host_profile.PROJECT_ROOT) / "config"
     cfg = tmp_path / "models.yaml"
-    cfg.write_text((src_dir / "models.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    shutil.copyfile(_PINNED_CONFIG_DIR / "models.yaml", cfg)
     (tmp_path / "machines.local.yaml").write_text(
         (src_dir / "machines.local.example.yaml").read_text(encoding="utf-8"),
         encoding="utf-8",
@@ -148,27 +215,6 @@ def config_with_example_identity(tmp_path, monkeypatch):
     host_profile._CONFIG_CACHE.clear()
     yield cfg
     host_profile._CONFIG_CACHE.clear()
-
-
-@pytest.fixture
-def pinned_placement(config_with_example_identity):
-    """The real config (plus the example identity overlay) with every row's
-    host declaration replaced by ``tests/_placement_fixture.py``'s table (#564).
-
-    Everything else stays the committed config, so the tests still drive the
-    real chain parser and placement derivations; only the admin-editable
-    placement is held still. A placement edit in the UI is a routing decision,
-    not a test failure.
-    """
-    from src import host_profile
-    from tests._placement_fixture import pin_placement
-
-    cfg = config_with_example_identity
-    data = pin_placement(yaml.safe_load(cfg.read_text(encoding="utf-8")))
-    # sort_keys=False: row order is placement-list order, and the tests pin it.
-    cfg.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
-    host_profile._CONFIG_CACHE.clear()
-    return cfg
 
 
 @pytest.fixture(autouse=True)
