@@ -9,13 +9,44 @@ vendored component.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
+from src import server as server_mod
 from src.static_versioning import (
     compute_asset_hashes,
     rewrite_index_html,
     rewrite_js_imports,
 )
+
+
+def test_served_index_stamps_every_static_asset() -> None:
+    """Moved from the e2e suite (#599): the index.html that comes off the wire
+    stamps ``?v=<hash>`` onto the root CSS, the main module and a vendored
+    subdir asset — anything left outside the scheme rides iOS Safari's
+    heuristic cache across deploys (#211)."""
+    r = TestClient(server_mod.app).get("/admin/")
+    assert r.status_code == 200, r.text
+    body = r.text
+    assert re.search(r"/admin/static/styles\.css\?v=[0-9a-f]{4,}", body), body[:1000]
+    assert re.search(r"/admin/static/main\.js\?v=[0-9a-f]{4,}", body), body[:1000]
+    assert re.search(
+        r"/admin/static/_vendored/nav/nav-tabs\.css\?v=[0-9a-f]{4,}", body
+    ), body[:1200]
+
+
+def test_version_endpoint_reports_build_identity() -> None:
+    """Moved from the e2e suite (#599): ``/admin/api/version`` carries a
+    non-empty build identity — the field the tray's restart poll and a peer's
+    ``peer_health()`` compare."""
+    r = TestClient(server_mod.app).get("/admin/api/version")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["git_sha"]
+    assert body["built_at"]
+    assert body["asset_hash"]
 
 
 def _make_static_tree(tmp_path: Path) -> Path:

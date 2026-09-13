@@ -5,11 +5,14 @@ What the gate proves:
   * Each tab pane (Hub / Models / Playground) loads without throwing a
     JavaScript console error.
   * The hub-control round-trip works: a /v1/messages request to a known-
-    bad model lands as a row in the live-request ring (SSE arrives).
-  * Static assets carry the ?v=<hash> stamp (cache-busting wired up).
-  * GET /admin/api/version returns a non-empty git_sha + asset_hash.
+    bad model reaches the live-request pane over SSE, without duplicating
+    rows on reconnect.
   * Phone-viewport (390 x 844) screenshot of each tab is captured for
     visual review — files land in ``tests/e2e/snapshots/`` (gitignored).
+
+The browser-free checks — the ``?v=<hash>`` asset stamps, ``/admin/api/version``
+and the request ring's API — are unit tests since #599
+(tests/test_static_versioning.py, tests/test_request_ring.py).
 
 Runs under Chromium only. WebKit was dropped from the matrix in issue
 #24 — the SPA has no Safari-specific code and WebKit on windows-latest
@@ -18,9 +21,6 @@ CI was chronically flaky.
 
 from __future__ import annotations
 
-import re
-import time
-import uuid
 from pathlib import Path
 
 import httpx
@@ -176,30 +176,6 @@ def test_playground_tts_capability_selectors(page, admin_url):
     assert page.locator("#ttsVoice option").all_text_contents() == ["Dora · female", "Alex · male"]
 
 
-def test_static_assets_versioned(admin_url: str):
-    """The index.html that comes off the wire stamps ``?v=<hash>`` onto
-    every /admin/static/<file>.(css|js) URL."""
-    r = httpx.get(admin_url, timeout=5.0)
-    assert r.status_code == 200, r.text
-    body = r.text
-    # styles.css must carry a version stamp
-    assert re.search(r"/admin/static/styles\.css\?v=[0-9a-f]{4,}", body), body[:1000]
-    # main.js module
-    assert re.search(r"/admin/static/main\.js\?v=[0-9a-f]{4,}", body), body[:1000]
-    # subdir (vendored) assets must be stamped too — anything outside the
-    # ?v= scheme rides iOS Safari's heuristic cache across deploys (#211).
-    assert re.search(r"/admin/static/_vendored/nav/nav-tabs\.css\?v=[0-9a-f]{4,}", body), body[:1200]
-
-
-def test_version_endpoint(admin_url: str):
-    r = httpx.get(admin_url.rstrip("/") + "/api/version", timeout=5.0)
-    assert r.status_code == 200
-    body = r.json()
-    assert body["git_sha"]
-    assert body["built_at"]
-    assert body["asset_hash"]
-
-
 def _snapshot(page, name: str, browser_name: str) -> None:
     """Save a phone-viewport screenshot of the current page to a
     deterministic path under ``tests/e2e/snapshots/``. The sparklines
@@ -248,50 +224,6 @@ def test_playground_tab_phone_screenshot(page, admin_url, browser_name):
         timeout=10000,
     )
     _snapshot(page, "playground-390x844", browser_name)
-
-
-def test_live_request_ring(admin_url: str):
-    """A bad /v1/messages call must land in the live ring.
-
-    Hardened for #392 (same flake class as #361): the old shape was a
-    fixed ``time.sleep(0.2)`` followed by asserting ``requests[0]`` was
-    our row — a fixed wait racing ring ingestion, plus an ordering
-    assumption. Under host contention (parallel e2e suites + live hub)
-    the autobooted hub's event loop can also be starved past the 5s
-    fast-path timeout this file uses elsewhere, so the POST and the
-    poll both get the 10s-class headroom already established for
-    slower-CI operations (#192).
-    """
-    base = admin_url.rsplit("/admin/", 1)[0]
-    # Unique marker model so we match *our* row in the ring — never an
-    # ordering assumption on requests[0], never a stale row from an
-    # earlier run against the same session hub.
-    marker = f"e2e-live-ring-{uuid.uuid4().hex[:8]}"
-    r = httpx.post(
-        f"{base}/v1/messages",
-        json={"model": marker, "messages": [{"role": "user", "content": "hi"}]},
-        timeout=10.0,
-    )
-    assert r.status_code == 400, r.text
-    # Condition-wait, not a fixed sleep: poll the ring until the marker
-    # row lands. A transient GET timeout under load retries within the
-    # same deadline instead of failing the test outright.
-    deadline = time.monotonic() + 10.0
-    row = None
-    last_body = None
-    while time.monotonic() < deadline:
-        try:
-            r2 = httpx.get(admin_url.rstrip("/") + "/api/hub/requests/recent", timeout=5.0)
-        except httpx.TimeoutException:
-            continue
-        last_body = r2.json()
-        row = next((q for q in last_body["requests"] if q["model"] == marker), None)
-        if row is not None:
-            break
-        time.sleep(0.2)
-    assert row is not None, f"marker {marker} never landed in the ring; last snapshot: {last_body}"
-    assert row["status"] == 400
-    assert row["latency_ms"] >= 0  # monotonic-clock duration is non-negative but can read 0.0 below clock resolution (coarse QPC ticks on CI Windows runners)
 
 
 def test_live_requests_stream_rolls_forward(page, admin_url):

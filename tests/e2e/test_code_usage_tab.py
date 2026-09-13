@@ -11,7 +11,8 @@ Checks:
   - Tab button is visible and clickable.
   - Switching to the tab hides the other panes.
   - The four counter elements are rendered (may show "—" when empty).
-  - The summary API returns a well-formed JSON response.
+  - Period and vendor toggles switch the active selector.
+  - A failed summary renders as an error, not a zero-usage day (#580).
   - Phone-size screenshot is saved.
 """
 
@@ -32,14 +33,11 @@ PHONE_VIEWPORT = {"width": 390, "height": 844}
 PANE_TIMEOUT = 10000
 # The summary endpoint cold-scans every vendor's full session history on the
 # hub's first call (no mtime cache yet — each e2e session boots a fresh hub
-# subprocess, so every run pays this once). Measured ~19.7s for period=all,
-# vendor=all on this box's ~300k-record Claude history (#491) — right at the
-# old 20s budget, so it tipped over under host contention. The
-# ``_warm_code_usage_cache`` fixture below now pays that cost once, up front,
-# before any assertion races it; every call below runs against a warm mtime
-# cache, so 20s stays a comfortable margin rather than a bet against the
-# cold-scan clock.
-API_TIMEOUT = 20.0
+# subprocess, so every run pays this once): ~19.7s for period=all, vendor=all
+# on this box's ~300k-record Claude history (#491). The
+# ``_warm_code_usage_cache`` fixture below pays that cost once, up front, so
+# the SPA's own polling never races it. The response shape and vendor filter
+# are unit-tested in tests/test_code_usage_router.py (#599).
 # Generous ceiling for the one-off cold scan itself — not a race, just a
 # backstop against a genuinely hung hub.
 _WARMUP_TIMEOUT = 90.0
@@ -108,54 +106,6 @@ def test_code_usage_tab_loads(page, admin_url):
     assert page.locator("#cldInputTok").count() == 1
     assert page.locator("#cldOutputTok").count() == 1
     assert page.locator("#cldCacheRead").count() == 1
-
-
-def test_code_usage_api_returns_valid_json(admin_url):
-    """The /admin/api/code/usage/summary endpoint must return a 200 with
-    the expected keys, for every valid period value."""
-    base = admin_url.rstrip("/") + "/api/code/usage/summary"
-    for period in ("today", "week", "month", "all"):
-        r = httpx.get(base, params={"period": period}, timeout=API_TIMEOUT)
-        assert r.status_code == 200, f"period={period}: {r.text}"
-        body = r.json()
-        for key in ("period", "vendor", "totals", "daily", "by_model", "by_project", "by_vendor", "recent_sessions"):
-            assert key in body, f"period={period}: missing key {key!r}"
-        assert body["period"] == period
-        assert isinstance(body["totals"], dict)
-        # Equivalent-API-cost fields (issue #52) — present and numeric.
-        for cost_key in ("input_cost", "output_cost", "cache_read_cost"):
-            assert cost_key in body["totals"], f"period={period}: missing {cost_key!r}"
-            assert isinstance(body["totals"][cost_key], (int, float))
-        assert isinstance(body["daily"], list)
-        assert isinstance(body["by_model"], list)
-        assert isinstance(body["by_project"], list)
-        assert isinstance(body["by_vendor"], list)
-        assert isinstance(body["recent_sessions"], list)
-
-
-def test_code_usage_api_vendor_param(admin_url):
-    """The vendor query param (claude | codex | copilot | all) is accepted and
-    echoed, and by_vendor rows only ever carry the requested vendor(s)
-    (issues #71, #231)."""
-    base = admin_url.rstrip("/") + "/api/code/usage/summary"
-    for vendor in ("all", "claude", "codex", "copilot"):
-        r = httpx.get(base, params={"period": "all", "vendor": vendor}, timeout=API_TIMEOUT)
-        assert r.status_code == 200, f"vendor={vendor}: {r.text}"
-        body = r.json()
-        assert body["vendor"] == vendor
-        seen = {row["vendor"] for row in body["by_vendor"]}
-        if vendor == "all":
-            # agy is a first-class curated vendor (issue #280); any other
-            # AgentsView-discovered vendor is a legitimate extra when a live
-            # AgentsView is serving on this machine.
-            extra = set((body.get("agentsview") or {}).get("vendors") or [])
-            assert seen <= {"claude", "codex", "copilot", "agy"} | extra
-        else:
-            assert seen <= {vendor}
-    # Unknown vendor falls back to "all".
-    r = httpx.get(base, params={"period": "all", "vendor": "bogus"}, timeout=API_TIMEOUT)
-    assert r.status_code == 200
-    assert r.json()["vendor"] == "all"
 
 
 def test_period_toggle_changes_counters(page, admin_url):
