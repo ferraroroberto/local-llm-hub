@@ -56,7 +56,8 @@ class Model:
     # ``qwen35_4b_nothink`` row in config/models.yaml.
     virtual: bool = False
     # Server-side defaults folded into the upstream OpenAI ``extra`` payload on
-    # every /v1/chat/completions for this id (caller-sent fields win). Used by
+    # every chat request for this id, both /v1/chat/completions and
+    # /v1/messages, buffered or streamed (caller-sent fields win). Used by
     # the no-think alias to deliver ``chat_template_kwargs={enable_thinking:
     # false}`` to clients that can't send it themselves (e.g. Home Assistant's
     # extended_openai_conversation).

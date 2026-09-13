@@ -18,6 +18,7 @@ llama-server's OpenAI function-calling shape, buffered and streaming:
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 from typing import Iterator, List
@@ -674,3 +675,86 @@ def test_messages_stream_tool_call_end_to_end(monkeypatch):
     assert captured["extra"]["tool_choice"] == "required"
     assert captured["extra"]["stream_options"] == {"include_usage": True}
     assert captured["extra"]["tools"][0]["function"]["name"] == "get_weather"
+
+
+# ---- server-side inject_extra overlay (#567) ----
+
+NOTHINK_MODEL = "qwen3.5-4b-nothink"
+NOTHINK_EXTRA = {"chat_template_kwargs": {"enable_thinking": False}}
+
+
+def _messages_upstream_extra(monkeypatch, body: dict) -> dict:
+    """POST ``body`` to /v1/messages against stubbed upstreams — buffered or
+    streaming per its ``stream`` flag — and return the ``extra`` sent upstream."""
+    captured: dict = {}
+
+    def fake_call(base_url, model, messages, *, max_tokens=None, temperature=None,
+                  timeout=600.0, extra=None, headers=None):
+        captured["extra"] = extra
+        return {
+            "choices": [{"index": 0, "message": {"content": "hi"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+        }
+
+    def fake_stream(base_url, model, messages, *, max_tokens=None, temperature=None,
+                    timeout=600.0, extra=None, headers=None) -> Iterator[str]:
+        captured["extra"] = extra
+        yield from _sse({
+            "id": "x",
+            "object": "chat.completion.chunk",
+            "model": model,
+            "choices": [{"index": 0, "delta": {"content": "hi"}, "finish_reason": "stop"}],
+        })
+
+    monkeypatch.setattr(chat_mod, "call_openai_chat", fake_call)
+    monkeypatch.setattr(server_common_mod, "ensure_backend_ready_or_503", lambda model: None)
+    monkeypatch.setattr(server_mod, "_ensure_backend_ready", lambda model: None)
+    monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
+    client = TestClient(server_mod.app)
+    if body.get("stream"):
+        with client.stream("POST", "/v1/messages", json=body) as response:
+            assert response.status_code == 200
+            response.read()  # drain: the generator only calls upstream when consumed
+    else:
+        response = client.post("/v1/messages", json=body)
+        assert response.status_code == 200, response.text
+    return captured["extra"]
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["buffered", "streaming"])
+def test_messages_sends_inject_extra_upstream(monkeypatch, stream):
+    """The no-think alias's overlay reaches llama-server on both /v1/messages
+    paths. Before #567 the buffered path dropped it, so the model thought."""
+    extra = _messages_upstream_extra(monkeypatch, {
+        "model": NOTHINK_MODEL,
+        "stream": stream,
+        "messages": [{"role": "user", "content": "hi"}],
+    })
+    if stream:
+        assert extra.pop("stream_options") == {"include_usage": True}
+    assert extra == NOTHINK_EXTRA
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["buffered", "streaming"])
+def test_messages_tool_params_win_over_inject_extra(monkeypatch, stream):
+    """On a key collision the caller's translated tool params beat the row's
+    server-side overlay; non-colliding overlay keys still ride along."""
+    real_resolve = server_mod._resolve
+
+    def resolve_with_colliding_overlay(name):
+        model = real_resolve(name)
+        return dataclasses.replace(
+            model, inject_extra={**NOTHINK_EXTRA, "tool_choice": "none"}
+        )
+
+    monkeypatch.setattr(server_mod, "_resolve", resolve_with_colliding_overlay)
+    extra = _messages_upstream_extra(monkeypatch, {
+        "model": NOTHINK_MODEL,
+        "stream": stream,
+        "tools": [WEATHER_TOOL],
+        "tool_choice": {"type": "any"},
+        "messages": [{"role": "user", "content": "weather in Brussels?"}],
+    })
+    assert extra["tool_choice"] == "required"
+    assert extra["tools"][0]["function"]["name"] == "get_weather"
+    assert extra["chat_template_kwargs"] == {"enable_thinking": False}
