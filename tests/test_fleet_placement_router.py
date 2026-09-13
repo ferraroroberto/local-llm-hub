@@ -23,10 +23,11 @@ from tests._placement_fixture import FIXTURE_DESIRED_PLACEMENT  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _pin_placement(pinned_placement):
+def _example_identity(config_with_example_identity):
     """Almost every assertion here reads placement derived from the rows' host
-    chains — pin them to ``tests/_placement_fixture.py`` so an admin-UI
-    placement edit to a production row can't redden this module (#561, #564)."""
+    chains and startup modes, both pinned to ``tests/_placement_fixture.py`` so
+    an admin-UI placement edit to a production row can't redden this module
+    (#561, #564, #565); the peers need the example identity overlay."""
 
 
 def _stub_collect(monkeypatch, stats=None):
