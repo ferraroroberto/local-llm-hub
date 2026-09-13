@@ -14,10 +14,32 @@ import os
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
+import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app_web.routers import models as models_router  # noqa: E402
 from src import backend_process as bp  # noqa: E402
+from src import config_write  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _pin_placement(pinned_placement):
+    """Which rows are local to the tower, and every chain asserted below, come
+    from the rows' host declarations — pin them to
+    ``tests/_placement_fixture.py`` so an admin-UI placement edit to a
+    production row can't redden this module (#564)."""
+
+
+@pytest.fixture(autouse=True)
+def _no_real_config_push(monkeypatch):
+    """The PUT tests drive the real ``apply_placement`` up to its validator.
+    One that got past it would edit the real ``config/models.yaml`` and push
+    to ``origin/main`` (#424), so both git legs fail the test instead."""
+    def refuse(*args, **kwargs):
+        raise AssertionError("a unit test reached the real config git write path")
+
+    monkeypatch.setattr(config_write, "git_preflight", refuse)
+    monkeypatch.setattr(config_write, "commit_and_push", refuse)
 
 
 def _admin_client() -> TestClient:
@@ -105,7 +127,7 @@ def test_device_probe_not_fired_for_non_tts_backend(monkeypatch):
 
 def test_placement_fields_on_local_rows(monkeypatch):
     """A local process row carries its declared chain, startup policy, and
-    VRAM estimate — orpheus pins the #422 tower-primary/gaming-fallback
+    VRAM estimate — orpheus carries the fixture's tower-primary/gaming-fallback
     chain, gemma4_26b pins on_demand + idle_unload_minutes."""
     monkeypatch.setattr(models_router, "snapshot_listening_pids", lambda: {})
 
@@ -135,12 +157,12 @@ def test_placement_absent_on_subscription_rows(monkeypatch):
     assert "placement" not in _row(body, "gemini_flash")
 
 
-def test_placement_chain_marks_cpu_tier_on_remote_row(monkeypatch, pinned_whisper_chain):
+def test_placement_chain_marks_cpu_tier_on_remote_row(monkeypatch):
     """The whisper chain's degraded last-resort tier ({id: tower, cpu: true})
     surfaces as cpu=True — stamped from the local registry even when the
     owning hub is unreachable (offline fallback row). The chain is the
-    pinned ``conftest.WHISPER_FIXTURE_CHAIN``, not the admin-editable
-    production row (#561)."""
+    pinned ``WHISPER_FIXTURE_CHAIN``, not the admin-editable production
+    row (#561)."""
     monkeypatch.setattr(models_router, "snapshot_listening_pids", lambda: {})
 
     async def _offline(profile, **kwargs):
@@ -294,6 +316,17 @@ def test_placement_put_noop_skips_peer_sync(monkeypatch):
     )
     assert resp.status_code == 200
     assert resp.json()["changed"] is False
+
+
+def test_valid_placement_put_cannot_reach_real_git_write():
+    """A PUT that passes validation runs into ``_no_real_config_push``'s stub,
+    not the real ``git_preflight`` → ``commit_and_push`` against this checkout
+    (#564). If the stub ever stops applying, this test is what notices."""
+    with pytest.raises(AssertionError, match="real config git write path"):
+        _admin_client().put(
+            "/api/models/orpheus/placement",
+            json={"hosts": ["tower", "gaming"], "startup": "eager"},
+        )
 
 
 def test_piper_config_carries_no_device_arg():
