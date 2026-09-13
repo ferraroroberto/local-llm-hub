@@ -1,6 +1,6 @@
 """End-to-end tests for the SPA Telemetry tab (issue #4).
 
-Boots the hub with OTel disabled (set in tests/e2e/conftest.py) so the
+Boots the hub with OTel disabled (set in tests/e2e/_isolated_hub.py) so the
 tab renders against the no-OTel codepath — same path the user sees
 before they start the Langfuse stack the first time.
 

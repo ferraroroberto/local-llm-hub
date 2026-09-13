@@ -1,25 +1,32 @@
 """Boot a hub instance on a free port and expose its URL as a fixture.
 
-Each e2e session spawns one ``uvicorn src.server:app`` on a random free
-port and tears it down at the end. The hub is a single ASGI process —
-the /admin SPA, the routers, and the /v1 surface all share one
-event loop, so a single boot covers every endpoint.
+Each e2e session spawns one ``src.server:app`` on a random free port and
+tears it down at the end. The hub is a single ASGI process — the /admin
+SPA, the routers, and the /v1 surface all share one event loop, so a
+single boot covers every endpoint.
+
+It boots through ``tests/e2e/_isolated_hub.py`` (#592): cut off from the
+live hub, whisper, the local model backends and the LAN peers, with an
+egress guard that refuses anything else. ``_hub_made_no_egress`` fails a
+test when the guard refused something during (or just before) it.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, List
 
 import httpx
 import pytest
 
 from src import win_job
+from tests.e2e._isolated_hub import VIOLATIONS_FILE
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -46,19 +53,74 @@ def _free_tcp_port() -> int:
         s.close()
 
 
+class EgressLog:
+    """The guard's refusal records, read incrementally so each is reported
+    exactly once — at the first check after it was written."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._offset = 0
+
+    def unreported(self) -> List[dict]:
+        if not self.path.exists():
+            return []
+        with self.path.open("rb") as fp:
+            fp.seek(self._offset)
+            data = fp.read()
+        # A record still being written has no newline yet; leave it for later.
+        complete = data[: data.rfind(b"\n") + 1]
+        self._offset += len(complete)
+        return [json.loads(line) for line in complete.splitlines() if line.strip()]
+
+
 @pytest.fixture(scope="session")
-def hub_url() -> Iterator[str]:
+def hub_state_dir(tmp_path_factory) -> Path:
+    return tmp_path_factory.mktemp("e2e-hub")
+
+
+@pytest.fixture(scope="session")
+def hub_egress_log(hub_state_dir: Path) -> EgressLog:
+    return EgressLog(hub_state_dir / VIOLATIONS_FILE)
+
+
+def _format_refusals(refusals: List[dict]) -> str:
+    lines = []
+    for r in refusals:
+        where = " <- ".join(reversed(r["stack"])) or "(no repo frame)"
+        lines.append(f"  {r['kind']} {r['target']}  at {where}")
+    return "\n".join(lines)
+
+
+def _fail_on_refusals(egress_log: EgressLog) -> None:
+    refusals = egress_log.unreported()
+    if refusals:
+        pytest.fail(
+            "the e2e test hub tried to reach outside itself — isolate the "
+            "code path in tests/e2e/_isolated_hub.py (#592):\n"
+            + _format_refusals(refusals)
+        )
+
+
+@pytest.fixture(autouse=True)
+def _hub_made_no_egress(hub_url: str, hub_egress_log: EgressLog) -> Iterator[None]:
+    """Fail the test if the test hub tried to reach anything outside itself.
+
+    The guard already refused the attempt, so nothing live was touched; this
+    turns the refusal into a red run instead of a quietly degraded payload.
+    A refusal between tests lands on the next one; one after the last test is
+    reported by ``hub_url``'s teardown.
+    """
+    yield
+    _fail_on_refusals(hub_egress_log)
+
+
+@pytest.fixture(scope="session")
+def hub_url(hub_state_dir: Path, hub_egress_log: EgressLog) -> Iterator[str]:
     port = _free_tcp_port()
     url = f"http://127.0.0.1:{port}"
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
-    # Disable OTel for the autobooted hub — otherwise it tries to push
-    # spans to a non-existent localhost:4317 OTLP collector and logs
-    # connect-refused noise into the test log on every routed request.
-    env.setdefault("OTEL_SDK_DISABLED", "true")
-    # The autostart sampler hits nvidia-smi every 2s. On a CI runner
-    # without an NVIDIA GPU that's noisy but harmless.
     creationflags = 0
     if sys.platform == "win32":
         creationflags = subprocess.CREATE_NO_WINDOW
@@ -66,8 +128,8 @@ def hub_url() -> Iterator[str]:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_fp = log_path.open("w", encoding="utf-8")
     proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "src.server:app",
-         "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning"],
+        [sys.executable, "-m", "tests.e2e._isolated_hub",
+         "--port", str(port), "--state-dir", str(hub_state_dir)],
         cwd=str(PROJECT_ROOT),
         stdout=log_fp,
         stderr=subprocess.STDOUT,
@@ -128,6 +190,7 @@ def hub_url() -> Iterator[str]:
             proc.kill()
             proc.wait(timeout=5)
         log_fp.close()
+    _fail_on_refusals(hub_egress_log)
 
 
 @pytest.fixture(scope="session")
