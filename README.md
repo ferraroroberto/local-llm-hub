@@ -1232,7 +1232,9 @@ local-llm-hub/
 │   │                         #   per router/service (test_server, test_router,
 │   │                         #   test_model_registry, test_install, test_streaming, …)
 │   └── e2e/                  # Playwright smoke tests (Chromium): tab-level coverage
-│                             #   for Code Usage, Fleet Placement, Machines, Roles, Telemetry
+│                             #   for Code Usage, Fleet Placement, Machines, Roles, Telemetry;
+│                             #   the test hub boots via _isolated_hub.py — cut off from live
+│                             #   services and LAN peers, egress-guarded (#592)
 ├── .github/workflows/
 │   └── e2e.yml               # CI: unit tests + e2e gate on windows-latest
 ├── vendor/

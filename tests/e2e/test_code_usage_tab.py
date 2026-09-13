@@ -1,6 +1,6 @@
 """End-to-end tests for the SPA Claude Code usage tab (issue #20).
 
-Boots the hub with OTel disabled (set in tests/e2e/conftest.py).
+Boots the hub with OTel disabled (set in tests/e2e/_isolated_hub.py).
 
 The JSONL parser reads from ~/.claude/projects/ — on a CI runner or a
 dev machine those files exist (Claude Code writes them automatically).
