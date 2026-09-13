@@ -386,6 +386,70 @@ def validate_placement(
 
 
 # ---------------------------------------------------------------- yaml edit
+def _trailing_comment_slot(node: Any, key: Any) -> Tuple[Dict[Any, list], Any, int]:
+    """Where ruamel stores the comment that follows ``node[key]``'s value.
+
+    A scalar or flow value keeps it on the key itself (``ca.items[key][2]``);
+    a block collection hands it down to its own last entry, so recurse there.
+    Returns ``(ca_items, slot_key, index)``.
+    """
+    from ruamel.yaml.comments import CommentedMap, CommentedSeq
+
+    value = node[key]
+    if isinstance(value, CommentedMap) and len(value) and not value.fa.flow_style():
+        return _trailing_comment_slot(value, list(value.keys())[-1])
+    if isinstance(value, CommentedSeq) and len(value) and not value.fa.flow_style():
+        last = len(value) - 1
+        if isinstance(value[last], (CommentedMap, CommentedSeq)) \
+                and len(value[last]) and not value[last].fa.flow_style():
+            return _trailing_comment_slot(value, last)
+        return value.ca.items, last, 0
+    return node.ca.items, key, 2
+
+
+def _delete_key_keeping_comments(row: Any, key: str) -> None:
+    """``del row[key]`` without losing the comment block written below it (#595).
+
+    ruamel attaches the comment lines that follow a key's line to that key,
+    so a bare ``del`` drops them. Re-home them onto the previous key's
+    trailing slot first. The deleted line's own end-of-line comment (the
+    token's first line when it starts with ``#``) annotates a value that no
+    longer exists and goes with the line.
+    """
+    from ruamel.yaml.tokens import CommentToken
+
+    entry = row.ca.items.pop(key, None)
+    keys = list(row.keys())
+    idx = keys.index(key)
+    del row[key]
+    if entry and len(entry) > 1 and entry[1]:
+        # Lines above the key that follow a flow collection live here; the
+        # editor never places the idle key after one, so log, don't guess.
+        logger.warning("⚠️ config write: comment above %r dropped with the key", key)
+    token = entry[2] if entry and len(entry) > 2 else None
+    if token is None:
+        return
+    block = token.value
+    if not block.startswith("\n"):
+        block = block[block.find("\n"):] if "\n" in block else ""
+    if block in ("", "\n"):
+        return
+    if idx == 0:
+        # No key above to carry it — rows always open with display_name, so
+        # this is unreachable on the real file; say so rather than lose it.
+        logger.warning("⚠️ config write: comment below %r dropped (first key of its row)", key)
+        return
+    items, slot_key, pos = _trailing_comment_slot(row, keys[idx - 1])
+    slot = items.setdefault(slot_key, [None, None, None, None])
+    existing = slot[pos]
+    if existing is None:
+        slot[pos] = CommentToken(block, token.start_mark, None)
+    else:
+        # The existing value already ends with its own line break; drop the
+        # block's leading one so no blank line is invented.
+        existing.value = existing.value + block[1:]
+
+
 def edit_models_yaml(
     path: Path,
     model_id: str,
@@ -439,8 +503,13 @@ def edit_models_yaml(
         if anchor_key == "host":
             keys = list(row.keys())
             pos = keys.index("host")
+            # `hosts:` takes `host:`'s line, so it inherits the whole comment
+            # entry — inline note and the block below it (#595).
+            comments = row.ca.items.pop("host", None)
             del row["host"]
             row.insert(pos, "hosts", seq)
+            if comments is not None:
+                row.ca.items["hosts"] = comments
         elif anchor_key == "hosts":
             row["hosts"] = seq
         else:
@@ -469,7 +538,7 @@ def edit_models_yaml(
     if current_idle != idle_unload_minutes:
         if idle_unload_minutes is None:
             if "idle_unload_minutes" in row:
-                del row["idle_unload_minutes"]
+                _delete_key_keeping_comments(row, "idle_unload_minutes")
         elif "idle_unload_minutes" in row:
             row["idle_unload_minutes"] = idle_unload_minutes
         else:

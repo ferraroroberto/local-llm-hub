@@ -233,6 +233,133 @@ def test_yaml_edit_removes_idle_key_when_cleared(yaml_copy: Path):
     assert "idle_unload_minutes" not in data["models"]["gemma4_26b"]
 
 
+def _comments(text: str):
+    """(full-line comment lines, inline comment texts) as multisets — a
+    Counter, not a set, so losing one of two identical `  #` lines counts."""
+    import re
+    from collections import Counter
+
+    full, inline = Counter(), Counter()
+    for line in text.splitlines():
+        if line.lstrip().startswith("#"):
+            full[line] += 1
+        else:
+            m = re.search(r"\s(#.*)$", line)
+            if m:
+                inline[m.group(1)] += 1
+    return full, inline
+
+
+def _assert_edit_is_local(yaml_copy: Path) -> None:
+    """The editor tests touch a temp copy only; the git legs stay guarded."""
+    assert yaml_copy.resolve() != cw.CONFIG_PATH.resolve()
+    assert getattr(cw.commit_and_push, "real_repo_guarded", False)
+
+
+@pytest.mark.parametrize(
+    "model_id, startup, idle, removed, added",
+    [
+        # The issue's table (#595): flux1_local's 7-line "MEASURED" block,
+        # gemma4_26b's 3 lines and chatterbox's 1 line all follow the idle key.
+        ("flux1_local", "eager", None,
+         ["    startup: on_demand", "    idle_unload_minutes: 15"], ["    startup: eager"]),
+        ("gemma4_26b", "on_demand", None,
+         ["    idle_unload_minutes: 30"], []),
+        ("chatterbox", "eager", None,
+         ["    startup: on_demand", "    idle_unload_minutes: 30"], ["    startup: eager"]),
+        ("kokoro", "on_demand", 45,
+         ["    idle_unload_minutes: 30"], ["    idle_unload_minutes: 45"]),
+    ],
+)
+def test_yaml_edit_idle_removal_keeps_comment_block_below(
+    yaml_copy: Path, model_id, startup, idle, removed, added
+):
+    """Clearing `idle_unload_minutes:` keeps the comment block written under
+    it, in place: only the placement lines change, every comment survives."""
+    _assert_edit_is_local(yaml_copy)
+    before = yaml_copy.read_text(encoding="utf-8")
+    assert cw.edit_models_yaml(yaml_copy, model_id, _chain("tower"), startup, idle) is True
+    after = yaml_copy.read_text(encoding="utf-8")
+    assert _changed_lines(before, after) == (removed, added)
+    assert _comments(after) == _comments(before)
+
+
+def _row_line(text: str, model_id: str, key: str) -> str:
+    """The ``    <key>:`` line of ``model_id``'s row, as the file spells it —
+    the tests also run against an edited-then-pinned copy
+    (tests/test_placement_fixture.py), so never hard-code a line's comment."""
+    lines = text.splitlines()
+    start = lines.index(f"  {model_id}:")
+    for line in lines[start + 1:]:
+        if line.startswith(f"    {key}:"):
+            return line
+        if line.startswith("  ") and not line.startswith("   ") and not line.lstrip().startswith("#"):
+            break
+    raise AssertionError(f"{model_id} has no {key}: line")
+
+
+def test_yaml_edit_idle_removal_drops_only_its_own_inline_comment(yaml_copy: Path):
+    """whisper_vanilla's idle line carries an inline note about that value
+    (in the committed file); it leaves with the line, while the block below
+    the line stays."""
+    _assert_edit_is_local(yaml_copy)
+    before = yaml_copy.read_text(encoding="utf-8")
+    idle_line = _row_line(before, "whisper_vanilla", "idle_unload_minutes")
+    assert cw.edit_models_yaml(
+        yaml_copy, "whisper_vanilla", _chain("gaming"), "on_demand", None
+    ) is True
+    after = yaml_copy.read_text(encoding="utf-8")
+    assert _changed_lines(before, after) == ([idle_line], [])
+    (full_b, inline_b), (full_a, inline_a) = _comments(before), _comments(after)
+    assert full_a == full_b
+    assert inline_b - inline_a == _comments(idle_line)[1]
+
+
+def test_yaml_edit_host_to_hosts_keeps_its_comments(yaml_copy: Path):
+    """`host:` → `hosts:` moves the key's comment entry to the new line, so
+    an inline note on `host:` (the committed `# owning host (#178)`) is kept."""
+    _assert_edit_is_local(yaml_copy)
+    before = yaml_copy.read_text(encoding="utf-8")
+    host_line = _row_line(before, "chatterbox", "host")
+    assert cw.edit_models_yaml(
+        yaml_copy, "chatterbox", _chain("tower", "gaming"), "on_demand", 30
+    ) is True
+    after = yaml_copy.read_text(encoding="utf-8")
+    removed, added = _changed_lines(before, after)
+    assert removed == [host_line]
+    assert len(added) == 1 and added[0].startswith("    hosts: [tower, gaming]")
+    assert _comments(added[0])[1] == _comments(host_line)[1]
+    assert _comments(after) == _comments(before)
+
+
+def test_delete_key_rehomes_comments_below_a_block_collection(tmp_path: Path):
+    """A key after a block sequence: ruamel keeps the trailing comment on the
+    sequence's last item, so the re-homed block must land there to render."""
+    from io import StringIO
+
+    from ruamel.yaml import YAML
+
+    yaml = YAML()
+    yaml.indent(mapping=2, sequence=4, offset=2)
+    src = (
+        "r:\n"
+        "  startup: on_demand  # eol\n"
+        "  args:\n"
+        "    - a\n"
+        "  # about args\n"
+        "  idle_unload_minutes: 5\n"
+        "  # keep me\n"
+        "\n"
+        "  # and me\n"
+        "  port: 1\n"
+    )
+    data = yaml.load(src)
+    cw._delete_key_keeping_comments(data["r"], "idle_unload_minutes")
+    buf = StringIO()
+    yaml.dump(data, buf)
+    assert buf.getvalue() == src.replace("  idle_unload_minutes: 5\n", "")
+
+
 # ----------------------------------------------------------- git transaction
 
 def _run_git(repo: Path, *args: str) -> subprocess.CompletedProcess:

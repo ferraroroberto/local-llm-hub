@@ -117,8 +117,7 @@ def test_bad_edit_never_reaches_the_pinned_config(pinned_copy, model_id):
 
 
 def test_pinned_text_keeps_every_comment(pinned_copy):
-    """Pinning drops no comment the edited file still carries. (The editor
-    itself can drop the comment block trailing a key it deletes.)"""
+    """Pinning drops no comment the edited file still carries."""
     after = _edit(pinned_copy, sorted(BAD_EDITS)).read_text(encoding="utf-8")
     comments = [line for line in after.splitlines() if line.lstrip().startswith("#")]
     pinned_lines = set(pin_placement_text(after).splitlines())
