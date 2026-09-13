@@ -19,13 +19,14 @@ from app_web.routers import fleet_placement as fpr  # noqa: E402
 from src import backend_process as bp  # noqa: E402
 from src import fleet_reconcile, remote_stats, system_stats  # noqa: E402
 from src import server as server_mod  # noqa: E402
+from tests._placement_fixture import FIXTURE_DESIRED_PLACEMENT  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _pin_whisper_chain(pinned_whisper_chain):
-    """Almost every assertion here reads placement derived from whisper's
-    failover chain — pin it to ``conftest.WHISPER_FIXTURE_CHAIN`` so an
-    admin-UI reorder of the production row can't redden this module (#561)."""
+def _pin_placement(pinned_placement):
+    """Almost every assertion here reads placement derived from the rows' host
+    chains — pin them to ``tests/_placement_fixture.py`` so an admin-UI
+    placement edit to a production row can't redden this module (#561, #564)."""
 
 
 def _stub_collect(monkeypatch, stats=None):
@@ -97,8 +98,8 @@ def test_get_lists_every_fleet_host_with_manageability(monkeypatch):
 
 
 def test_get_returns_registry_derived_placement(monkeypatch):
-    """The placement map is derived from the committed config/models.yaml
-    (#430), whisper's chain pinned by the module fixture: eager rows on their
+    """The placement map is derived from config/models.yaml (#430), every
+    row's host chain pinned by the module fixture: eager rows on their
     preferred chain host; on_demand rows
     (gemma4_26b, gemma4_e4b, chatterbox, kokoro, and — since #530 flipped it
     off the retired ``whisper-server-lazy`` engine onto the generic
@@ -108,17 +109,13 @@ def test_get_returns_registry_derived_placement(monkeypatch):
     r = client.get("/admin/api/fleet-placement")
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["placement"] == {
-        "tower": ["qwen35_4b", "piper", "orpheus"],
-        "mac-mini-m4": ["qwen", "parakeet"],
-        "gaming": ["whisper", "whisper_translate"],
-    }
+    assert body["placement"] == FIXTURE_DESIRED_PLACEMENT
     hosts = {h["id"]: h for h in body["hosts"]}
     assert hosts["tower"]["local"] is True
     assert hosts["tower"]["running"] == ["piper"]
-    assert hosts["tower"]["placed"] == ["qwen35_4b", "piper", "orpheus"]
+    assert hosts["tower"]["placed"] == FIXTURE_DESIRED_PLACEMENT["tower"]
     assert hosts["mac-mini-m4"]["reachable"] is True
-    assert hosts["mac-mini-m4"]["placed"] == ["qwen", "parakeet"]
+    assert hosts["mac-mini-m4"]["placed"] == FIXTURE_DESIRED_PLACEMENT["mac-mini-m4"]
     # eligible carries display names for the grid to render
     assert all("display_name" in e for e in hosts["mac-mini-m4"]["eligible"])
     # parakeet is 0-VRAM but runs on the Mac's ANE, not CPU — no device hint
@@ -175,7 +172,7 @@ def test_capacity_warning_when_over_ceiling(monkeypatch):
 def test_no_capacity_warning_from_committed_config(monkeypatch):
     """gaming's derived desired set (the two *eager* whisper rows: whisper
     2000 + whisper_translate 0 = 2000 MB from the committed config's
-    estimates, with whisper's chain pinned to a gaming head) sits
+    estimates, under the fixture placement's gaming-headed chains) sits
     under its 8192 MB ceiling — the real config must not raise a false
     positive. whisper_vanilla (on_demand since #530) only joins this sum
     while actually running, same as any other on-demand row (gemma4_26b
