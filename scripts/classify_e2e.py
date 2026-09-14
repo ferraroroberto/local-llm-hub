@@ -29,6 +29,16 @@ Tiers:
                 ``full_pytest_target`` (the whole e2e suite by default). This
                 is the fail-safe default: uncertainty always escalates to
                 full coverage, never narrows it.
+  * ``surface`` a narrowing of ``full`` (project-scaffolding#258): the diff
+                would route ``full``, but every ``full`` path belongs to ONE
+                declared ``[[e2e.surface]]`` -> only that surface's
+                ``pytest_targets`` run (plus ``static_pytest_target`` when a
+                static path rides along, which must sit in the same
+                surface). Any unclassified path, a ``full``/``static``
+                path outside every surface, a path in two surfaces, a diff
+                spanning two surfaces, or an unusable surface declaration
+                keeps the whole-suite ``full``. Without ``[[e2e.surface]]``
+                routing is exactly the three tiers above.
 
 CLI: prints ``E2E_*=`` key/value lines (parsed by the PowerShell gate) plus a
 human summary on stderr. Run standalone to see how the current branch would
@@ -40,6 +50,7 @@ route:
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import tomllib
@@ -85,6 +96,19 @@ class Rule:
 
 
 @dataclass
+class Surface:
+    """One declared `[[e2e.surface]]`: the paths one slice of the suite covers."""
+
+    name: str
+    pytest_targets: tuple[str, ...]
+    prefixes: tuple[str, ...] = ()
+    paths: tuple[str, ...] = ()
+
+    def matches(self, path: str) -> bool:
+        return path in self.paths or any(path.startswith(p) for p in self.prefixes)
+
+
+@dataclass
 class E2EConfig:
     rules: list[Rule]
     static_pytest_target: str = "tests/e2e"
@@ -93,6 +117,81 @@ class E2EConfig:
     # "declared" = usable [e2e] table found; anything else is a fail-safe
     # reason string surfaced in the routing output.
     source: str = "missing"
+    surfaces: list[Surface] = field(default_factory=list)
+    # Why declared surfaces were disabled ("" when none declared or all usable).
+    surfaces_note: str = ""
+
+
+def _str_list(raw: object) -> tuple[str, ...] | None:
+    """A list of non-empty, whitespace-free strings, or None for anything else."""
+    if not isinstance(raw, list):
+        return None
+    if not all(isinstance(x, str) and x and not any(c.isspace() for c in x) for x in raw):
+        return None
+    return tuple(raw)
+
+
+_SURFACE_NAME = re.compile(r"[A-Za-z0-9_.-]+")
+# The files that define routing itself; a diff touching either never narrows.
+_ROUTING_SOURCES = frozenset({".fleet.toml", "scripts/classify_e2e.py"})
+
+
+def _target_problem(target: str, repo_root: Path, suite_dir: str) -> str | None:
+    """Why *target* can't be a surface target, or None if it can.
+
+    A target must be a relative path inside the e2e suite that exists on disk:
+    an absolute path, a `..` hop, or `tests` (swapping the browser suite for
+    the unit suite) would each run something other than a slice of the suite.
+    """
+    if Path(target).is_absolute() or ".." in Path(target).parts:
+        return "is not a relative path inside the suite"
+    suite_root = (repo_root / suite_dir).resolve()
+    resolved = (repo_root / target).resolve()
+    if resolved != suite_root and not resolved.is_relative_to(suite_root):
+        return f"is outside {suite_dir}"
+    if not resolved.exists():
+        return "does not exist"
+    return None
+
+
+def load_surfaces(
+    raw: object, repo_root: Path, suite_dir: str = "tests/e2e"
+) -> tuple[list[Surface], str]:
+    """Parse `[[e2e.surface]]` into `(surfaces, note)`.
+
+    All-or-nothing: one malformed entry, a duplicate name, or an unusable
+    target disables every surface (the note says why), so a stale or
+    half-edited map can only ever widen routing back to the whole suite.
+    Names are restricted to `[A-Za-z0-9_.-]` because they are echoed into the
+    `E2E_*` lines the gate parses -- a newline in one could forge a later
+    `E2E_TIER=` line. Prefixes must end in `/`, so `app/board` can never claim
+    `app/boardroom/`.
+    """
+    if raw is None:
+        return [], ""
+    if not isinstance(raw, list) or not raw:
+        return [], "[[e2e.surface]] is not a non-empty list -- surfaces disabled"
+    surfaces: list[Surface] = []
+    for i, entry in enumerate(raw, start=1):
+        bad = f"[[e2e.surface]] entry {i} is malformed -- surfaces disabled"
+        if not isinstance(entry, dict):
+            return [], bad
+        name = entry.get("name")
+        targets = _str_list(entry.get("pytest_targets"))
+        prefixes = _str_list(entry.get("prefixes", []))
+        paths = _str_list(entry.get("paths", []))
+        if (not isinstance(name, str) or not _SURFACE_NAME.fullmatch(name) or not targets
+                or prefixes is None or paths is None or not (prefixes or paths)
+                or not all(p.endswith("/") for p in prefixes)):
+            return [], bad
+        if any(s.name == name for s in surfaces):
+            return [], f"[[e2e.surface]] name {name!r} declared twice -- surfaces disabled"
+        for target in targets:
+            problem = _target_problem(target, repo_root, suite_dir)
+            if problem:
+                return [], f"surface {name!r} target {target} {problem} -- surfaces disabled"
+        surfaces.append(Surface(name=name, pytest_targets=targets, prefixes=prefixes, paths=paths))
+    return surfaces, ""
 
 
 def load_config(fleet_toml: Path = FLEET_TOML) -> E2EConfig:
@@ -134,12 +233,18 @@ def load_config(fleet_toml: Path = FLEET_TOML) -> E2EConfig:
     if not rules:
         return E2EConfig(rules=[], source="empty")
 
+    full_pytest_target = str(e2e.get("full_pytest_target", "tests/e2e"))
+    surfaces, surfaces_note = load_surfaces(
+        e2e.get("surface"), fleet_toml.parent, full_pytest_target
+    )
     return E2EConfig(
         rules=rules,
         static_pytest_target=str(e2e.get("static_pytest_target", "tests/e2e")),
         static_browsers=tuple(e2e.get("static_browsers", ["chromium"])),
-        full_pytest_target=str(e2e.get("full_pytest_target", "tests/e2e")),
+        full_pytest_target=full_pytest_target,
         source="declared",
+        surfaces=surfaces,
+        surfaces_note=surfaces_note,
     )
 
 
@@ -159,10 +264,49 @@ def _classify_one(path: str, rules: list[Rule]) -> tuple[Category, str]:
 
 @dataclass
 class Routing:
-    tier: str                       # "skip" | "static" | "full"
+    tier: str                       # "skip" | "static" | "full" | "surface"
     browsers: list[str]
-    pytest_target: str              # "" when tier == skip
+    pytest_target: str              # "" when skip; space-separated when surface
     reasons: list[str] = field(default_factory=list)
+    surface: str = ""               # the surface name when tier == "surface"
+
+
+def _narrow_to_surface(
+    classified: list[tuple[str, Category, str]], config: E2EConfig,
+) -> Routing | None:
+    """The `surface` routing for a would-be-full diff, or None to keep whole `full`.
+
+    Narrows only a confidently-classified single-surface diff; every `return
+    None` below is a fail-safe back to the whole suite. Static paths must sit
+    in the winning surface too: "inert" markup can still be the page another
+    harness drives (this repo's component gallery), so a static path no
+    surface owns keeps the whole suite rather than riding along on a smoke run.
+    """
+    if any(label == "unclassified" for _, _, label in classified):
+        return None
+    # A diff that edits the surface map (or the mechanism reading it) must not
+    # be judged by its own unreviewed map; a `..` hop defeats prefix matching.
+    if any(path in _ROUTING_SOURCES or ".." in path.split("/") for path, _, _ in classified):
+        return None
+    hit: Surface | None = None
+    example = ""
+    for path, cat, _label in classified:
+        if cat == Category.NONE:
+            continue
+        owners = [s for s in config.surfaces if s.matches(path)]
+        if len(owners) != 1:
+            return None  # outside every surface (incl. no surfaces declared), or inside two
+        if hit is not None and owners[0].name != hit.name:
+            return None  # the diff spans two surfaces
+        if hit is None:
+            hit, example = owners[0], path
+    if hit is None:  # unreachable when the diff's top tier is FULL; narrows the type
+        return None
+    targets = list(hit.pytest_targets)
+    has_static = any(cat == Category.STATIC for _, cat, _ in classified)
+    if has_static and config.static_pytest_target and config.static_pytest_target not in targets:
+        targets.append(config.static_pytest_target)
+    return Routing("surface", [], " ".join(targets), [f"surface {hit.name}: {example}"], hit.name)
 
 
 def classify(paths: list[str], config: E2EConfig) -> Routing:
@@ -182,6 +326,7 @@ def classify(paths: list[str], config: E2EConfig) -> Routing:
                         [f"{reason} -- fail-safe full suite"])
 
     examples: dict[str, str] = {}
+    classified: list[tuple[str, Category, str]] = []
     top = Category.NONE
     for raw in paths:
         path = raw.strip().replace("\\", "/")
@@ -190,6 +335,7 @@ def classify(paths: list[str], config: E2EConfig) -> Routing:
         cat, label = _classify_one(path, config.rules)
         top = max(top, cat)
         examples.setdefault(f"{cat.name}:{label}", path)
+        classified.append((path, cat, label))
 
     def reasons_for(cat: Category) -> list[str]:
         return [
@@ -203,7 +349,13 @@ def classify(paths: list[str], config: E2EConfig) -> Routing:
         return Routing("full", [], config.full_pytest_target, ["empty-diff: no changed files"])
 
     if top == Category.FULL:
-        return Routing("full", [], config.full_pytest_target, reasons_for(Category.FULL))
+        narrowed = _narrow_to_surface(classified, config)
+        if narrowed is not None:
+            return narrowed
+        reasons = reasons_for(Category.FULL)
+        if config.surfaces_note:
+            reasons.append(config.surfaces_note)
+        return Routing("full", [], config.full_pytest_target, reasons)
     if top == Category.STATIC:
         return Routing(
             "static", list(config.static_browsers), config.static_pytest_target,
@@ -274,6 +426,8 @@ def main(argv: list[str]) -> int:
     print(f"E2E_BROWSERS={','.join(routing.browsers)}")
     print(f"E2E_PYTEST_TARGET={routing.pytest_target}")
     print(f"E2E_REASON={' | '.join(routing.reasons) if routing.reasons else '(none)'}")
+    if routing.tier == "surface":
+        print(f"E2E_SURFACE={routing.surface}")
 
     # Human summary (ignored by the gate parser).
     print("", file=sys.stderr)
