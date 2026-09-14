@@ -2,6 +2,14 @@
 
 Shells out to the Claude Code CLI in headless JSON mode and returns the
 parsed envelope. Uses the user's local Claude auth — no API key required.
+
+Every invocation runs *isolated* from the operator's own Claude Code setup
+(#603): no user/project/local settings (hooks, MCP servers, plugins), no
+CLAUDE.md auto-discovery, no auto-memory, no skills, and no built-in agent
+tools beyond ``Read`` when attachments need it. Without this, each hub call
+carried ~26k tokens of the operator's agent context and ~1.2 s of extra
+startup. ``--bare`` would be simpler but refuses OAuth, i.e. the
+subscription auth this backend exists for.
 """
 
 from __future__ import annotations
@@ -9,15 +17,32 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import subprocess
 import threading
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Sequence
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from .no_window import NO_WINDOW
 from .server_common import safe_span, start_span
 
 logger = logging.getLogger(__name__)
+
+# `--setting-sources ""` loads no settings.json at all. Side effect: the
+# operator's settings.json `env` block (Claude Code OTel exporter) no longer
+# reaches the child, so hub-driven calls reach the Code Usage tab only via
+# their session transcripts — which is why session persistence stays on.
+_ISOLATION_FLAGS: Tuple[str, ...] = (
+    "--strict-mcp-config",
+    "--setting-sources",
+    "",
+    "--disable-slash-commands",
+)
+# Auto-memory is keyed by cwd and ignores --setting-sources; disable it on the
+# child only, never in the hub's own environment.
+_ISOLATION_ENV: Dict[str, str] = {"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
+# Attachments are handed over as file paths the model must read itself.
+_ATTACHMENT_TOOLS = "Read"
 
 
 def _argv_hash(args: List[str]) -> str:
@@ -31,23 +56,23 @@ class ClaudeCLIError(RuntimeError):
     pass
 
 
-def call_claude(
+def _build_invocation(
     prompt: str,
+    output_args: Sequence[str],
     *,
-    model: Optional[str] = None,
-    system: Optional[str] = None,
-    attachments: Optional[Sequence[Path]] = None,
-    timeout: float = 600.0,
-) -> Dict[str, Any]:
-    """Invoke `claude -p --output-format json` and return the parsed envelope.
+    model: Optional[str],
+    system: Optional[str],
+    attachments: Optional[Sequence[Path]],
+) -> Tuple[List[str], str, Dict[str, str]]:
+    """Return ``(argv, prompt, env)`` for one isolated ``claude -p`` run.
 
-    Prompt is fed via stdin to avoid command-line length limits.
     ``attachments`` (images and/or PDF documents) are passed via
     ``--add-dir`` (the temp dir holding them is added to Claude's allowed
     filesystem set) and their absolute paths are prepended to the prompt so
-    Claude knows to read them.
+    Claude knows to read them — the only case that enables a tool.
     """
-    args: List[str] = ["claude", "-p", "--output-format", "json"]
+    tools = _ATTACHMENT_TOOLS if attachments else ""
+    args: List[str] = ["claude", "-p", *output_args, *_ISOLATION_FLAGS, "--tools", tools]
     if model:
         args += ["--model", model]
     if system:
@@ -58,10 +83,40 @@ def call_claude(
         # pass that one parent dir via --add-dir and reference each file by
         # absolute path in the prompt.
         parents = {Path(p).resolve().parent for p in attachments}
-        for d in parents:
-            args += ["--add-dir", str(d)]
+        for directory in parents:
+            args += ["--add-dir", str(directory)]
         refs = "\n".join(f"- {Path(p).resolve()}" for p in attachments)
         prompt = f"Attached files:\n{refs}\n\n{prompt}"
+
+    logger.info(
+        "ℹ️ claude -p isolated launch: tools=%s attachments=%d model=%s",
+        tools or "none",
+        len(attachments or []),
+        model or "default",
+    )
+    return args, prompt, {**os.environ, **_ISOLATION_ENV}
+
+
+def call_claude(
+    prompt: str,
+    *,
+    model: Optional[str] = None,
+    system: Optional[str] = None,
+    attachments: Optional[Sequence[Path]] = None,
+    timeout: float = 600.0,
+) -> Dict[str, Any]:
+    """Invoke `claude -p --output-format json` and return the parsed envelope.
+
+    Prompt is fed via stdin to avoid command-line length limits. See
+    :func:`_build_invocation` for isolation and attachment handling.
+    """
+    args, prompt, env = _build_invocation(
+        prompt,
+        ("--output-format", "json"),
+        model=model,
+        system=system,
+        attachments=attachments,
+    )
 
     with start_span("local_llm_hub.claude_cli", "claude_cli.invoke") as span:
         if span is not None and hasattr(span, "set_attribute"):
@@ -85,6 +140,7 @@ def call_claude(
                 timeout=timeout,
                 check=False,
                 shell=False,
+                env=env,
                 creationflags=creationflags,
             )
         except FileNotFoundError as e:
@@ -139,25 +195,13 @@ def call_claude_stream(
     daemon reader drains stderr to prevent a full pipe from deadlocking a
     long response.
     """
-    args: List[str] = [
-        "claude",
-        "-p",
-        "--output-format",
-        "stream-json",
-        "--include-partial-messages",
-        "--verbose",
-    ]
-    if model:
-        args += ["--model", model]
-    if system:
-        args += ["--system-prompt", system]
-
-    if attachments:
-        parents = {Path(p).resolve().parent for p in attachments}
-        for directory in parents:
-            args += ["--add-dir", str(directory)]
-        refs = "\n".join(f"- {Path(p).resolve()}" for p in attachments)
-        prompt = f"Attached files:\n{refs}\n\n{prompt}"
+    args, prompt, env = _build_invocation(
+        prompt,
+        ("--output-format", "stream-json", "--include-partial-messages", "--verbose"),
+        model=model,
+        system=system,
+        attachments=attachments,
+    )
 
     # A tracing context manager cannot span generator yields: Starlette may
     # consume successive chunks in different worker contexts, and detaching an
@@ -181,6 +225,7 @@ def call_claude_stream(
                 encoding="utf-8",
                 errors="replace",
                 shell=False,
+                env=env,
                 creationflags=NO_WINDOW,
             )
         except FileNotFoundError as exc:
