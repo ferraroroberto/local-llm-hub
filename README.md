@@ -1766,9 +1766,13 @@ avoid.
 `input_tokens: 8`; the identical body through `/v1/messages` reported
 `input_tokens: 10` with `cache_creation_input_tokens: 33590`. So the
 heuristic is within ~20% of the caller's *own* content — but the call's
-real input was ~33.6 k tokens, because `claude -p` prepends Claude Code's
-own system prompt and tool definitions and they land in the cache-write
-bucket. Budget against `input_tokens` from this endpoint as "how big is my
+real input was ~33.6 k tokens, because `claude -p` prepended Claude Code's
+own system prompt, tool definitions and the operator's `CLAUDE.md` /
+memory. Since the CLI runs isolated (#603, see Limitations) that overhead
+is gone: re-measured 2026-09-14 on CLI 2.1.270, a one-word text call's
+total input (input + cache) fell from 27,078 to ~440 tokens and its wall
+time from ~3.7 s to ~2.4 s. A small Claude Code base prompt remains, so
+budget against `input_tokens` from this endpoint as "how big is my
 prompt", never as "what will this call cost".
 
 **On-demand models.** Counting against a `startup: on_demand` row
@@ -2187,6 +2191,19 @@ whose port isn't reachable, and reports per-model pass/fail.
   but their answer arrives as one buffered text delta.
 - Multi-turn chats are flattened into a single prompt for `claude -p`.
   (The local backends handle multi-turn natively through llama-server.)
+- **`claude -p` runs isolated from your own Claude Code setup** (#603).
+  Each call passes `--strict-mcp-config --setting-sources ""
+  --disable-slash-commands` and sets `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`
+  on the child only, so a hub caller never sees your `CLAUDE.md` files,
+  auto-memory, hooks, MCP servers, plugins or skills. Built-in tools are
+  off (`--tools ""`) except `Read` when the request carries image or
+  document blocks, which the model reads from the per-request `--add-dir`.
+  Your own interactive sessions and `~/.claude/settings.json` are
+  untouched. `--bare` is not used because it refuses subscription (OAuth)
+  auth. Tradeoff: with no settings sources, the `settings.json` OTel
+  exporter env doesn't reach the child, so hub-driven calls reach the Code
+  Usage tab through their session transcripts only (session persistence
+  stays on), not live OTel deltas.
 - **Tool use works on both shapes for the local backends** (issue #552).
   OpenAI-shape callers get native tool calls from llama-server's
   `--jinja` templates; Anthropic-shape callers send `tools` /
