@@ -55,6 +55,9 @@ REM  in the reclaim list below.
 REM ============================================================================
 
 setlocal EnableDelayedExpansion
+REM  Clear an APP_NAME the caller already carries: the usual restart route is an
+REM  agent in a session that inherited the old leaked value (app-launcher#963).
+set "APP_NAME="
 set "SCRIPT_DIR=%~dp0"
 REM  `%~dp0` always ends in a trailing backslash, which is what the path joins
 REM  below want -- but NOT what a quoted argument can carry. Windows argv parsing
@@ -69,7 +72,11 @@ set "SCRIPT_DIR_ARG=%SCRIPT_DIR:~0,-1%"
 cd /d "%SCRIPT_DIR%" || exit /b 1
 
 REM === ADAPT (1/4): short app name, used in messages + the start window title ===
-set "APP_NAME=Local LLM Hub"
+REM  Namespaced, never a bare APP_NAME: setlocal hides a variable from the
+REM  calling console but NOT from children, so the whole tray -> service chain
+REM  inherits it, and so does every session and app it spawns -- where APP_NAME
+REM  is another project's own config key (app-launcher#963).
+set "TRAY_APP_NAME=Local LLM Hub"
 REM === ADAPT (2/4): the args python is started with to launch the tray ===
 set "TRAY_LAUNCH=-m tray"
 
@@ -101,5 +108,5 @@ set "VERSION_URL=http://127.0.0.1:8000/admin/api/version"
 set "RESTART_ARG="
 if defined WANT_RESTART set "RESTART_ARG=-Restart"
 
-%PS% -NoProfile -NonInteractive -File "%TRAY_PS%" launch -AppName "%APP_NAME%" -ScriptDir "%SCRIPT_DIR_ARG%" -VenvDir "%TRAY_VENV%" -TrayMatch "-m\s+tray" -Ports "%OWNED_PORTS%" -TrayLaunch "%TRAY_LAUNCH%" -VersionUrl "%VERSION_URL%" !RESTART_ARG!
+%PS% -NoProfile -NonInteractive -File "%TRAY_PS%" launch -AppName "%TRAY_APP_NAME%" -ScriptDir "%SCRIPT_DIR_ARG%" -VenvDir "%TRAY_VENV%" -TrayMatch "-m\s+tray" -Ports "%OWNED_PORTS%" -TrayLaunch "%TRAY_LAUNCH%" -VersionUrl "%VERSION_URL%" !RESTART_ARG!
 exit /b %ERRORLEVEL%
