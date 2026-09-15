@@ -21,6 +21,11 @@ extra_junctions = ["vendor/comfyui"]
 static_pytest_target = "tests/e2e/test_smoke.py"
 static_browsers       = ["chromium"]
 full_pytest_target    = "tests/e2e"
+# Suite-size ratchet in collected pytest nodes, read by fleet-config's /e2e
+# budget step (not classify_e2e.py). The overage vs the scaffold's 15 is
+# structural — one admin SPA, one file per tab, no redundancy found (#604).
+# Lower this as the suite trims; /e2e-audit re-fires when the count exceeds it.
+test_budget           = 47
 
 [[e2e.rule]]              # inert assets under the admin SPA's static tree -> static
 tier       = "static"
