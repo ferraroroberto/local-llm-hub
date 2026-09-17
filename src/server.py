@@ -86,7 +86,7 @@ from .chat_translation import (
     iter_claude_anthropic_sse,
     iter_openai_anthropic_sse,
     openai_backend_extra,
-    reject_tools_on_cli_backend,
+    reject_unservable_request,
     resolve_openai_upstream,
 )
 from .claude_cli import ClaudeCLIError, call_claude, call_claude_stream
@@ -426,7 +426,7 @@ def _stream_anthropic_response(
         raise reject
     # Raised here, before the StreamingResponse begins, so an unsupported
     # request fails as a real 400 rather than an in-band SSE error event.
-    reject_tools_on_cli_backend(model, req)
+    reject_unservable_request(model, req)
 
     upstream: Optional[OpenAIUpstream] = None
     openai_messages: List[Dict[str, Any]] = []

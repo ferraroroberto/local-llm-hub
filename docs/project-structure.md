@@ -280,6 +280,7 @@ use this path; it stays on the gemini backend.
   function calling (#552, refused with a 400 on the CLI backends, which
   flatten to one text prompt). Image and document content blocks
   (PDF plus text/data files) land on the `claude-*` / `gemini-*` paths;
-  extended-thinking blocks are still dropped at the shape boundary. See
-  [issue #453](https://github.com/ferraroroberto/local-llm-hub/issues/453)
-  for the ordered backlog.
+  a `thinking: {"type": "enabled"}` request is refused with a 400 since
+  the hub emits no thinking blocks (#607). `stop_sequences` / `top_p` /
+  `top_k` reach llama-server; `stop_sequences` is refused on the CLI
+  backends, which have no stop control.
