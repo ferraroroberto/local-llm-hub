@@ -448,6 +448,15 @@ class MessagesRequest(BaseModel):
     # by the local `openai` backends; refused on the CLI backends (#552).
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+    # Sampling / stop controls (#607). Forwarded to the local `openai`
+    # backends; on the CLI backends `top_p` / `top_k` are accepted no-ops
+    # (like `temperature`) and `stop_sequences` is refused.
+    stop_sequences: Optional[List[str]] = None
+    top_p: Optional[float] = None
+    top_k: Optional[int] = None
+    # Extended thinking ({"type": "enabled", "budget_tokens": N}). The hub
+    # emits no thinking blocks, so only {"type": "disabled"} is accepted.
+    thinking: Optional[Dict[str, Any]] = None
 
 
 # Content-block types that only mean anything on a tool-capable backend.
@@ -485,10 +494,63 @@ def openai_backend_extra(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     """
     extra: Dict[str, Any] = dict(model.inject_extra or {})
     extra.update(openai_tool_params(req))
+    extra.update(openai_sampling_params(req))
     return extra
 
 
-def reject_tools_on_cli_backend(model: Model, req: MessagesRequest) -> None:
+def openai_sampling_params(req: MessagesRequest) -> Dict[str, Any]:
+    """Extra upstream parameters carrying this request's stop/sampling controls.
+
+    ``stop_sequences`` maps to OpenAI's ``stop``; llama-server honors ``stop``,
+    ``top_p`` and ``top_k`` on ``/v1/chat/completions``. Unset fields are left
+    out so a request without them reaches the backend unchanged.
+    """
+    extra: Dict[str, Any] = {}
+    if req.stop_sequences:
+        extra["stop"] = list(req.stop_sequences)
+    if req.top_p is not None:
+        extra["top_p"] = float(req.top_p)
+    if req.top_k is not None:
+        extra["top_k"] = int(req.top_k)
+    return extra
+
+
+def reject_unservable_request(model: Model, req: MessagesRequest) -> None:
+    """400 when a request asks for something its backend cannot honor.
+
+    Called before dispatch on every ``/v1/messages`` path (buffered and before
+    a stream begins), so the refusal is a real 400, never a dropped parameter
+    that yields a well-formed wrong answer (#474, #552, #607).
+    """
+    if req.thinking is not None and req.thinking.get("type") != "disabled":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "extended thinking is not supported: the hub returns no "
+                "thinking blocks on any backend. Omit 'thinking' or send "
+                "{\"type\": \"disabled\"}."
+            ),
+        )
+    if model.backend not in ("claude", "gemini"):
+        return
+    _reject_tools_on_cli_backend(model, req)
+    if req.stop_sequences:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"backend {model.id!r} ({model.display_name}) cannot honor "
+                "'stop_sequences': the CLI backends expose no stop control. "
+                "Route the request to a local openai-backend model instead."
+            ),
+        )
+    if req.top_p is not None or req.top_k is not None:
+        logger.info(
+            "ℹ️ /v1/messages backend=%s ignores top_p/top_k (no CLI sampling control)",
+            model.backend,
+        )
+
+
+def _reject_tools_on_cli_backend(model: Model, req: MessagesRequest) -> None:
     """400 when tool use is asked of a backend that cannot serve it.
 
     The ``claude`` / ``gemini`` dispatch flattens a conversation into one text
@@ -497,8 +559,6 @@ def reject_tools_on_cli_backend(model: Model, req: MessagesRequest) -> None:
     answer in prose a caller that asked for a tool call — the well-formed
     wrong answer #474 refused for non-text parts on the OpenAI shape.
     """
-    if model.backend not in ("claude", "gemini"):
-        return
     if req.tools:
         unsupported = "a 'tools' parameter"
     elif any(
@@ -830,7 +890,7 @@ def _run_cli_backend(
     CLI (``call_claude`` / ``call_gemini``); ``error_cls`` maps to a 502."""
     if not req.messages:
         raise HTTPException(status_code=400, detail="messages must not be empty")
-    reject_tools_on_cli_backend(model, req)
+    reject_unservable_request(model, req)
     system = _system_to_text(req.system)
     with _extract_media_blocks(req.messages) as (msgs, attachments):
         prompt = _flatten_messages(msgs)
@@ -939,6 +999,7 @@ def call_openai_upstream(
 def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     # Validated before the on-demand spin-up below: a malformed tool
     # definition is a 400 and shouldn't cold-start a model to discover it.
+    reject_unservable_request(model, req)
     extra = openai_backend_extra(model, req)
     # On-demand lifecycle (#422): a cold ``startup: on_demand`` local backend
     # is spawned here and the request blocks until it answers (503 on load

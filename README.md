@@ -2232,6 +2232,16 @@ whose port isn't reachable, and reports per-model pass/fail.
     so the hub surfaces the upstream message verbatim rather than silently
     downgrading the choice. Use `auto` (or a no-think model id such as
     `qwen3.5-4b-nothink`) if you need forced tool calling.
+- **Stop and sampling parameters on `/v1/messages`** (issue #607). The
+  local backends receive `stop_sequences` (sent upstream as `stop`),
+  `top_p` and `top_k`, buffered or streamed. llama-server doesn't report
+  which stop word matched, so a hit still ends with `stop_reason:
+  "end_turn"`. The CLI backends have no stop control, so `stop_sequences`
+  on a `claude-*` / `gemini-*` model is a 400 rather than a reply that
+  runs past the marker; `temperature`, `top_p` and `top_k` are accepted
+  there and ignored. **Extended thinking is refused everywhere:**
+  `thinking: {"type": "enabled"}` returns a 400 because the hub emits no
+  thinking blocks; `{"type": "disabled"}` is accepted.
 - **Image and document content blocks are supported on the `claude-*`
   and `gemini-*` subscription paths** — the hub base64-decodes each
   `image` / `document` block to a per-request temp dir, adds that dir to
@@ -2263,14 +2273,6 @@ whose port isn't reachable, and reports per-model pass/fail.
   the print call. Concurrent `gemini-*` requests run one at a time;
   switching model between calls adds a one-time interactive step.
 - **The `agy` attachment path can only be verified locally.** GitHub CI (`windows-latest`) has no authenticated `agy` / Gemini subscription. `tests/test_gemini_attachments_live.py` is the live regression guard for the `--add-dir` fix from #63 — it is skipped by default and must be run manually on the Windows reference box after any change to `src/gemini_cli.py`'s attachment handling: `$env:HUB_LIVE_GEMINI = "1"; .venv/Scripts/python.exe -m pytest tests/test_gemini_attachments_live.py -v`.
-
-## Backlog for improvement
-
-Remaining API-parity and developer-experience gaps are tracked as a
-GitHub issue, not restated here —
-[`#453`](https://github.com/ferraroroberto/local-llm-hub/issues/453)
-("Backlog: API-parity and DX improvements") carries the full, ordered
-list and stays current as entries ship.
 
 ## License
 
