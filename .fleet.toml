@@ -6,7 +6,7 @@ layer       = "enabling"
 icon        = "🧠"
 port        = ":8000"
 description = "Shared LLM gateway — routes to local models or claude -p."
-chips       = ["claude -p", "agy gemini", "qwen35-4b :8088", "gemma-26b :8087", "voice → gaming+mac", "tts :8092+", "flux1-dev :8188", "flux2-klein :8190"]
+chips       = ["claude -p", "agy gemini", "qwen35-4b :8088", "gemma-26b :8087", "voice → gaming+mac", "tts :8092+", "flux1-dev :8188", "flux2-klein :8190", "typesafe jev (egress)"]
 
 # Extra gitignored path an agent worktree needs junctioned in alongside .venv
 # so this repo's own gate can pass there (fleet-config#620). Read by

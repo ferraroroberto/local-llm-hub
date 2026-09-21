@@ -56,6 +56,9 @@ flowchart TB
     AUDIOR["server_audio_asr.py + server_audio_tts.py\n/v1/audio/* proxy (#451 split)"]
     IMAGESR["server_images.py\n/v1/images/* proxy — dispatches on backend:\ngemini (Imagen) | comfyui (FLUX, #492)"]
     COMFYCLI["comfyui_client.py (#492)\nhttpx -> ComfyUI prompt API:\nPOST /prompt -> poll /history -> GET /view;\ntwo graphs behind one ModelSpec (#498):\nflux1 all-in-one · flux2 split-loader;\n>2 MP: sample native -> 4x upscale\n-> optional refine pass (#497)"]
+    SYSONER["server_systemone.py (#611)
+/v1/systemone passthrough — body + status
+unchanged, no retries, opt-in only"]
     IMGSIZE["image_sizes.py (#497)\nsize presets + 16px-grid validation +\nnative-vs-upscale split — one source\nfor the API and the Playground dropdown"]
   end
   CHATT -->|backend=claude| CLAUDECLI
@@ -67,6 +70,8 @@ flowchart TB
   SRV --> AUDIOR
   SRV --> IMAGESR
   SRV --> OTELRECV
+  SRV --> SYSONER
+  SYSONER -->|httpx, Bearer TYPESAFE_API_KEY| TYPESAFE
   IMAGESR -->|backend=gemini: call_gemini_image| GEMINICLI
   IMAGESR -->|backend=comfyui: generate_image| COMFYCLI
   IMAGESR -->|ensure_ready before generating (#492)| ONDEMAND
@@ -157,6 +162,9 @@ flowchart TB
     PARAKEETWORKER["mac/parakeet-worker/ (Swift, ANE)\nFluidAudio Parakeet TDT 0.6B v3\nvia CoreML"]
     AGENTSVIEW["AgentsView server (optional, external)\nkenn-io/agentsview · :8080 (issue #280)"]
     SESSIONHOST["app-launcher session-host (:8446)\nloopback ConPTY/WS engine reused for the\nSSH terminal — needs app-launcher#558"]
+    TYPESAFE["TypeSafe API (third-party, US-hosted)
+api.typesafe.ai/v1/systemone · Jev
+the hub's only internet egress (#611)"]
     OPENCLAW["OpenClaw (Linux laptop)\nmanaged-only machine: SSH reboot/shutdown/\nuptime + RDP (Machines console, #309)"]
     GAMING["gaming (Ryzen Linux satellite)\npeer local-llm-hub install :8000 (systemd, #341;\ninstall.py + bootstrap/sync parity #368)\nowns all whisper.cpp STT (turbo/translate/vanilla)\n#323/#370; orpheus fallback tier only since #422\nGTX 1070, CUDA sm_61 builds"]
   end

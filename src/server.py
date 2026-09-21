@@ -29,6 +29,8 @@ Shapes exposed:
   * POST /v1/images/generations, /v1/images/edits
                                - image gen/edit (`server_images.py`);
                                  edits are gemini-only
+  * POST /v1/systemone         - TypeSafe Jev passthrough (`server_systemone.py`);
+                                 the hub's only third-party egress, opt-in
 
 Caveats: image and document content blocks work on the claude-* and gemini-* paths
 (decoded to a per-request temp dir); local llama-server backends are
@@ -119,6 +121,7 @@ from .server_audio_asr import router as _audio_router
 from . import server_audio_tts as _server_audio_tts  # noqa: F401 — registers /v1/audio/speech onto _audio_router
 from .server_images import router as _images_router
 from .server_otel_receiver import router as _otel_receiver_router
+from .server_systemone import router as _systemone_router
 from .openai_upstream import (
     UpstreamError,
     anthropic_to_openai_messages,
@@ -323,6 +326,7 @@ def info() -> Dict[str, Any]:
             "count_tokens": "POST /v1/messages/count_tokens",
             "chat_completions": "POST /v1/chat/completions",
             "models": "GET /v1/models",
+            "systemone": "POST /v1/systemone",
             "docs": "GET /docs",
         },
         "models": sorted({m.display_name for m in enabled_models()}),
@@ -1059,8 +1063,9 @@ def _flatten_openai_prompt(messages: List[Dict[str, Any]]) -> str:
         return ""
 
 
-# ---- Image + audio routes (split into sibling modules) ----
-# The /v1/images/* handlers live in server_images.py; the /v1/audio/* proxy
+# ---- Image, audio + TypeSafe routes (split into sibling modules) ----
+# The /v1/images/* handlers live in server_images.py and the TypeSafe
+# /v1/systemone passthrough in server_systemone.py (#611); the /v1/audio/* proxy
 # is split across server_audio_asr.py (transcriptions/translations/health —
 # owns the router object) and server_audio_tts.py (speech, registered onto
 # that same router via the import above — #451). All are plain APIRouters
@@ -1069,6 +1074,7 @@ def _flatten_openai_prompt(messages: List[Dict[str, Any]]) -> str:
 app.include_router(_images_router)
 app.include_router(_audio_router)
 app.include_router(_otel_receiver_router)
+app.include_router(_systemone_router)
 
 
 def main() -> None:
