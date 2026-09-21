@@ -9,6 +9,7 @@ checked both on the wire and in the observability ring.
 from __future__ import annotations
 
 import json
+import time
 
 import httpx
 import pytest
@@ -97,6 +98,12 @@ def _assert_no_key_leak(resp: httpx.Response, rec: dict) -> None:
 
 
 def test_passthrough_returns_vendor_answers_unchanged(upstream):
+    def _answer(req):
+        # A real wait: Windows' monotonic clock ticks ~15.6 ms, so an instant
+        # stub can legitimately measure 0.0 ms and hide a missing latency.
+        time.sleep(0.03)
+        return httpx.Response(200, json=_ANSWER)
+    upstream["handler"] = _answer
     r = _post()
     assert r.status_code == 200
     assert r.json() == _ANSWER  # probabilities + confidence intact
@@ -112,7 +119,7 @@ def test_passthrough_returns_vendor_answers_unchanged(upstream):
     assert rec["backend"] == "typesafe"
     assert (rec["in_tok"], rec["out_tok"]) == (412, 9)
     assert rec["detail"] == "3 questions"
-    assert rec["latency_ms"] > 0
+    assert rec["latency_ms"] >= 30
     assert rec["error_detail"] == ""
     _assert_no_key_leak(r, rec)
 
