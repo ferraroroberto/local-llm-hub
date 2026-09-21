@@ -104,11 +104,17 @@ function renderRequests() {
       : '';
     li.innerHTML =
       '<span class="muted">' + fmtClock(r.ts) + '</span>' +
-      '<span>' + modelLabel(r, '(no model)') + ' <span class="muted">' + escapeHtml(r.backend || '') + '</span></span>' +
+      '<span>' + modelLabel(r, '(no model)') + ' <span class="muted">' + escapeHtml(r.backend || '') + detailSuffix(r) + '</span></span>' +
       '<span class="req-status ' + cls + '">' + r.status + ' · ' + r.latency_ms + ' ms</span>' +
       '<span class="muted">' + (r.in_tok || 0) + ' / ' + (r.out_tok || 0) + ' tok ' + traceCol + '</span>';
     list.appendChild(li);
   });
+}
+
+/* Route-specific one-liner (e.g. "3 questions" on /v1/systemone, #611),
+ * appended after the backend in both request lists; '' when absent. */
+function detailSuffix(r) {
+  return r.detail ? ' · ' + escapeHtml(r.detail) : '';
 }
 
 function renderErrors() {
@@ -122,7 +128,7 @@ function renderErrors() {
     const li = document.createElement('li');
     li.innerHTML =
       '<span class="muted">' + fmtClock(r.ts) + '</span>' +
-      '<span>' + modelLabel(r, '(no model)') + ' <span class="muted">' + escapeHtml(r.backend || '') + '</span></span>' +
+      '<span>' + modelLabel(r, '(no model)') + ' <span class="muted">' + escapeHtml(r.backend || '') + detailSuffix(r) + '</span></span>' +
       '<span class="req-status err">' + r.status + '</span>' +
       '<span class="muted">' + escapeHtml((r.error_detail || '').slice(0, 80)) + '</span>';
     list.appendChild(li);

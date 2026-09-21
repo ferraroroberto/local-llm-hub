@@ -66,6 +66,10 @@ class RequestRecord:
     client: str = ""          # client IP (best-effort)
     error_detail: str = ""    # filled when status >= 400
     trace_id: str = ""        # Langfuse trace id (set per routed request)
+    # Free-form, route-specific one-liner for a dimension no other field
+    # carries — e.g. "3 questions" on /v1/systemone (#611). Never payload
+    # content: the ring is not subject to OTEL_HASH_PROMPTS.
+    detail: str = ""
 
 
 @dataclass
@@ -107,6 +111,7 @@ class ObservabilityCtx:
         "stop_reason",
         "error_detail",
         "trace_id",
+        "detail",
     )
 
     def __init__(self) -> None:
@@ -122,6 +127,7 @@ class ObservabilityCtx:
         self.stop_reason: str = ""
         self.error_detail: str = ""
         self.trace_id: str = ""
+        self.detail: str = ""
 
 
 class Observatory:
@@ -260,6 +266,7 @@ def _rec_to_dict(r: RequestRecord) -> Dict[str, Any]:
         "client": r.client,
         "error_detail": r.error_detail,
         "trace_id": r.trace_id,
+        "detail": r.detail,
     }
 
 
@@ -280,6 +287,7 @@ OBSERVABLE_PATHS = (
     "/v1/images/edits",
     "/v1/audio/transcriptions",
     "/v1/audio/translations",
+    "/v1/systemone",
 )
 
 
@@ -335,6 +343,7 @@ class ObservatoryMiddleware(BaseHTTPMiddleware):
                     client=client,
                     error_detail=ctx.error_detail or error_detail,
                     trace_id=ctx.trace_id,
+                    detail=ctx.detail,
                 )
             )
 

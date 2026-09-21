@@ -433,6 +433,8 @@ openClaw / anthropic SDK / openai SDK / curl
    │      (the audio proxy lands requests in the observability ring)    │
    │    GET  /v1/audio/health         → probe whisper/tts; 503 if down   │
    │      (preflight liveness — never sends a doomed transcription)      │
+   │    POST /v1/systemone            → api.typesafe.ai (third-party, US) │
+   │      (TypeSafe Jev passthrough; opt-in, never a fallback — #611)    │
    └──────────────────────────────────────────────────────────┘
 
 audio clients  ──►  hub 127.0.0.1:8000 /v1/audio/*  ──►  whisper-server / tts shim  (proxied, observable)
@@ -1106,6 +1108,7 @@ local-llm-hub/
 │   ├── server_audio_common.py  # header-safety + upstream-error helpers shared by the two above (#451)
 │   ├── audio_proxy.py        # shared multipart bridging + default-language lookup for the whisper transcribe/translate paths
 │   ├── server_images.py      # /v1/images/* handlers (generations, edits)
+│   ├── server_systemone.py   # /v1/systemone — TypeSafe Jev passthrough, the only third-party egress (#611)
 │   ├── comfyui_client.py     # ComfyUI prompt API client — local FLUX.1 [dev] (#492)
 │   ├── image_sizes.py        # size presets + native/upscale split, one source for API + UI (#497)
 │   ├── claude_cli.py         # subprocess wrapper around `claude -p`
@@ -2019,6 +2022,31 @@ curl -is -X OPTIONS http://127.0.0.1:8000/v1/messages \
 curl -is -X OPTIONS http://127.0.0.1:8000/v1/messages \
   -H "Origin: https://evil.example" \
   -H "Access-Control-Request-Method: POST"
+```
+
+## TypeSafe System One passthrough (`/v1/systemone`)
+
+`POST /v1/systemone` forwards a TypeSafe "System One" request to `https://api.typesafe.ai/v1/systemone` and returns the vendor's status and JSON unchanged — the `answers` map with its per-option `probabilities` and `confidence`, plus `model` (the versioned id, e.g. `jev-1.13.0`) and `usage`. The request body is TypeSafe's own shape (`model`, `state`, typed `questions`); see TypeSafe's HTTP reference (`https://docs.typesafe.ai/api.md`). Jev is a decision model, not a chat model, so it is deliberately **not** reachable through `/v1/messages` / `/v1/chat/completions` and not listed in `GET /v1/models`.
+
+> **Privacy:** this route sends the request content to a **third-party API hosted in the United States**. It is the hub's only internet egress; it is opt-in — a caller has to call this route explicitly, and nothing in the hub falls back to it.
+
+Set `TYPESAFE_API_KEY` in `.env` (read per call, so no restart is needed after adding it). The key is never logged or returned. The hub does **not** retry — TypeSafe's SDKs already back off on 429/529 — and passes `Retry-After` through. Hub-originated failures carry a `hub_error` field so they can't be mistaken for vendor errors:
+
+| Condition | Status | Body |
+|---|---|---|
+| `TYPESAFE_API_KEY` unset | 503 | `hub_error: typesafe_not_configured` (nothing is sent) |
+| Vendor rejects the key / validation / rate limit / overload | 401 / 422 / 429 / 529 | the vendor's body, unchanged |
+| Vendor unreachable | 502 | `hub_error: typesafe_unreachable` |
+| No answer within 60 s | 504 | `hub_error: typesafe_timeout` |
+
+Every call lands in the admin request ring with the requested and served model, latency, token usage and the question count (`3 questions`); request and answer bodies go to Langfuse under the same `OTEL_HASH_PROMPTS` rule as other routes, and vendor error text is kept out of the ring when hashing is on.
+
+```bash
+curl -s http://127.0.0.1:8000/v1/systemone -H 'content-type: application/json' -d '{
+  "model": "jev-latest",
+  "state": "Newsletter issue about local LLM hubs.",
+  "questions": {"relevant": {"type": "noul", "instructions": "Is this relevant to AI engineering?"}}
+}'
 ```
 
 ## Observability
