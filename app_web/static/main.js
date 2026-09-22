@@ -13,6 +13,7 @@ import { wireStartupProfile, fetchStartupProfile } from './startup.js';
 import { fetchFleetPlacement } from './fleet_placement.js';
 import { wireRolesCard } from './roles_card.js';
 import { wirePlayground, fetchPlaygroundModels, fetchTtsModels, fetchImageModels } from './playground.js';
+import { wireJev, fetchJevInfo } from './playground_jev.js';
 import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls, fetchTelemetryHealth } from './telemetry.js';
 import { wireCodeUsage, startCodeUsagePolls, stopCodeUsagePolls, restyleCodeUsageCharts } from './code_usage.js';
 import { wireMachines, startMachinesPolls, stopMachinesPolls } from './machines.js';
@@ -71,6 +72,7 @@ function fetchAllData() {
     fetchPlaygroundModels(),
     fetchTtsModels(),
     fetchImageModels(),
+    fetchJevInfo(),
   ]);
 }
 
@@ -84,6 +86,7 @@ async function boot() {
   wireStartupProfile();
   wireRolesCard();
   wirePlayground();
+  wireJev();
   wireTelemetry();
   wireCodeUsage();
   wireMachines();

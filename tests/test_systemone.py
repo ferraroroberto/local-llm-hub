@@ -192,3 +192,105 @@ def test_timeout_is_distinct_from_unreachable(upstream):
 def test_not_listed_in_models(upstream):
     ids = [m["id"] for m in TestClient(server_mod.app).get("/v1/models").json()["data"]]
     assert not any(i.startswith("jev") for i in ids)
+    assert systemone_mod.ADMIN_MODEL_ID not in ids  # the admin tile never leaks into /v1/models
+
+
+# --------------------------------------------------------------------- #
+# Admin surfaces (#611 follow-up): Models-tab tile + Playground Decision card.
+# --------------------------------------------------------------------- #
+
+def _admin_models(monkeypatch, **params) -> dict:
+    from app_web.routers import models as models_router
+    from src import remote_stats
+
+    async def _no_remote(*_a, **_kw):
+        return None  # remote-owned rows render offline; nothing leaves the box
+
+    monkeypatch.setattr(models_router, "snapshot_listening_pids", lambda: {})
+    monkeypatch.setattr(remote_stats, "remote_models", _no_remote)
+    return TestClient(server_mod.app).get("/admin/api/models", params=params).json()
+
+
+def _jev_rows(body: dict) -> list:
+    return [m for m in body["models"] if m["id"] == systemone_mod.ADMIN_MODEL_ID]
+
+
+def test_models_tab_lists_jev_tile_with_key_state(upstream, monkeypatch):
+    rows = _jev_rows(_admin_models(monkeypatch))
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["backend"] == "typesafe"
+    assert row["controllable"] is False           # no start/stop — no process
+    assert row["reachable"] is True and row["key_configured"] is True
+    assert row["aliases"] == list(systemone_mod.MODEL_ALIASES)
+    assert _KEY not in json.dumps(row)
+    assert upstream["seen"] == {}                 # listing never probes the vendor
+
+    monkeypatch.delenv("TYPESAFE_API_KEY")
+    row = _jev_rows(_admin_models(monkeypatch))[0]
+    assert row["reachable"] is False and row["key_configured"] is False
+
+
+def test_models_tab_peer_merge_listing_excludes_jev(upstream, monkeypatch):
+    # `local_only` is what a peer hub fetches to merge registry rows; the tile
+    # is per-hub key state and must not ride along.
+    assert _jev_rows(_admin_models(monkeypatch, local_only="true")) == []
+
+
+def test_playground_info_reports_key_state_not_key(upstream, monkeypatch):
+    client = TestClient(server_mod.app)
+    body = client.get("/admin/api/playground/systemone_info").json()
+    assert body["models"] == list(systemone_mod.MODEL_ALIASES)
+    assert body["key_configured"] is True
+    assert _KEY not in json.dumps(body)
+    monkeypatch.delenv("TYPESAFE_API_KEY")
+    assert client.get("/admin/api/playground/systemone_info").json()["key_configured"] is False
+
+
+@pytest.fixture
+def loopback(monkeypatch):
+    """Route the Playground's loopback call into the in-process hub app, so the
+    Decision card is exercised through the real ``/v1/systemone`` route."""
+    from app_web.routers import playground as playground_router
+
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=server_mod.app))
+    monkeypatch.setattr(playground_router, "get_async_client", lambda: client)
+
+
+def _evaluate(body=None):
+    payload = body or {k: _REQUEST[k] for k in ("model", "state", "questions")}
+    return TestClient(server_mod.app).post("/admin/api/playground/systemone", json=payload)
+
+
+def test_playground_evaluation_goes_through_hub_route(upstream, loopback):
+    r = _evaluate()
+    assert r.status_code == 200, r.text
+    assert r.json() == _ANSWER
+    assert json.loads(upstream["seen"]["body"])["questions"] == _REQUEST["questions"]
+    rec = _last_ring_entry()                      # lands in the ring like any caller
+    assert rec["status"] == 200 and rec["detail"] == "3 questions"
+
+
+def test_playground_relays_not_configured(upstream, loopback, monkeypatch):
+    monkeypatch.delenv("TYPESAFE_API_KEY")
+    r = _evaluate()
+    assert r.status_code == 503
+    assert "typesafe_not_configured" in r.json()["detail"]
+    assert upstream["seen"] == {}
+
+
+def test_playground_vendor_401_is_not_an_admin_401(upstream, loopback):
+    # A relayed 401 would pop the admin SPA's login overlay for a vendor-key
+    # problem — it must travel as a 502 that names the real cause.
+    upstream["handler"] = lambda req: httpx.Response(401, json={"detail": "bad key"})
+    r = _evaluate()
+    assert r.status_code == 502
+    assert "rejected the API key (401)" in r.json()["detail"]
+
+
+def test_playground_rejects_bad_questions_without_egress(upstream, loopback):
+    r = _evaluate({"model": "jev-latest", "state": "x", "questions": []})
+    assert r.status_code == 400
+    r = _evaluate({"model": "jev-latest", "state": "", "questions": {"a": {"type": "noul"}}})
+    assert r.status_code == 400
+    assert upstream["seen"] == {}

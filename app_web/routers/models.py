@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException
 from src import backend_process as bp
 from src import config_write
 from src import remote_stats
+from src import server_systemone
 from src.host_profile import all_hosts, get_host, resolve as resolve_host
 from src.model_failover import effective_owner
 from src.model_registry import (
@@ -301,6 +302,11 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
             _add_failover_fields(row, m, host_id)
             _add_placement_fields(row, m, cpu_map)
             rows.append(row)
+
+    # TypeSafe Jev (#611): a read-only tile for this hub's third-party egress.
+    # Not a registry model and never in the peer-merge (`local_only`) listing —
+    # each hub reports only its own key state.
+    rows.append(server_systemone.admin_model_row(active.id))
 
     return {"models": rows, "config": _config_block()}
 

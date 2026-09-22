@@ -241,6 +241,19 @@ export const els = {
   ttsLatency: document.getElementById('ttsLatency'),
   ttsAudio: document.getElementById('ttsAudio'),
   ttsCard: document.getElementById('ttsCard'),
+  // Playground — TypeSafe Jev decision tester (issue #611)
+  jevKeyNote: document.getElementById('jevKeyNote'),
+  jevModel: document.getElementById('jevModel'),
+  jevState: document.getElementById('jevState'),
+  jevQuestions: document.getElementById('jevQuestions'),
+  jevJsonError: document.getElementById('jevJsonError'),
+  jevEvalBtn: document.getElementById('jevEvalBtn'),
+  jevResetBtn: document.getElementById('jevResetBtn'),
+  jevLatency: document.getElementById('jevLatency'),
+  jevResults: document.getElementById('jevResults'),
+  jevServedModel: document.getElementById('jevServedModel'),
+  jevAnswers: document.getElementById('jevAnswers'),
+  jevUsage: document.getElementById('jevUsage'),
 
   // Code-usage tab (issue #20)
   cldFreshness: document.getElementById('cldFreshness'),

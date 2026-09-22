@@ -334,7 +334,7 @@
     </section>
 
     <section id="panePlayground" class="pane" hidden role="tabpanel">
-      <!-- The three testers are vendored disclosure cards, folded by default,
+      <!-- The four testers are vendored disclosure cards, folded by default,
            so one opens at a time by choice (#217). -->
       <details class="card card--collapsible">
         <summary class="collapse-summary">
@@ -531,6 +531,52 @@
         <p id="ttsLatency" class="muted small" style="margin: 8px 0 0;"></p>
 
         <audio id="ttsAudio" controls style="width: 100%; margin-top: 10px;" hidden></audio>
+        </div>
+      </details>
+
+      <!-- TypeSafe Jev decision tester (#611): typed questions in, per-option
+           probabilities + confidence out, via the hub's /v1/systemone. -->
+      <details class="card card--collapsible" id="jevCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon" aria-hidden="true"><use href="#i-circle-help"></use></svg>
+            <h3 class="collapse-title">Decision (Jev)</h3>
+          </span>
+          <span class="collapse-chevron" aria-hidden="true">›</span>
+        </summary>
+        <div class="collapse-body">
+
+        <p class="jev-privacy muted small"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg><span>Sent to <code>api.typesafe.ai</code>, a third-party API hosted in the US — don't paste private content.</span></p>
+        <p id="jevKeyNote" class="muted small" role="status" aria-live="polite" hidden></p>
+
+        <div class="opt-stack">
+          <label for="jevModel">Model</label>
+          <select id="jevModel" aria-label="Jev model"></select>
+        </div>
+
+        <div class="opt-stack">
+          <label for="jevState">State <span class="muted small">(the content being judged)</span></label>
+          <textarea id="jevState" rows="3"></textarea>
+        </div>
+
+        <div class="opt-stack">
+          <label for="jevQuestions">Questions <span class="muted small">(JSON — noul / choice / score)</span></label>
+          <textarea id="jevQuestions" class="jev-json" rows="12" spellcheck="false"></textarea>
+          <p id="jevJsonError" class="jev-json-error small" role="alert" hidden></p>
+        </div>
+
+        <div class="playground-send-row">
+          <button id="jevEvalBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Evaluate</button>
+          <button id="jevResetBtn" type="button" class="ghost-btn">Reset sample</button>
+        </div>
+        <p id="jevLatency" class="muted small" style="margin: 8px 0 0;"></p>
+
+        <div id="jevResults" hidden>
+          <h3 class="opt-group-title">Answers <span id="jevServedModel" class="muted small"></span></h3>
+          <div id="jevAnswers" class="jev-answers"></div>
+          <h3 class="opt-group-title">Usage</h3>
+          <div id="jevUsage" class="kv-grid usage"></div>
+        </div>
         </div>
       </details>
     </section>

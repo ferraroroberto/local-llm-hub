@@ -126,10 +126,14 @@ function fillItem(li, m) {
     buttons.push({ act: 'start', glyph: icon('play'), label: 'Start', disabled: ownership !== 'none' });
     buttons.push({ act: 'stop',  glyph: icon('square'), label: 'Stop',  disabled: ownership !== 'ours', danger: true });
   }
-  buttons.push({
-    act: 'ping', glyph: icon('signal'), label: 'Ping',
-    disabled: !reachable && m.backend !== 'claude' && m.backend !== 'gemini',
-  });
+  // No ping for the TypeSafe tile (#611): every probe is a billed vendor
+  // evaluation — the Playground's Decision card is where Jev gets exercised.
+  if (m.backend !== 'typesafe') {
+    buttons.push({
+      act: 'ping', glyph: icon('signal'), label: 'Ping',
+      disabled: !reachable && m.backend !== 'claude' && m.backend !== 'gemini',
+    });
+  }
   if (adopted) {
     buttons.push({ act: 'force-stop', glyph: icon('skull'), label: 'Force stop', danger: true });
   }
@@ -162,6 +166,8 @@ function fillItem(li, m) {
   // name to nothing on a phone ("parakeet … on mac-mini-m4").
   meta.textContent =
     m.backend +
+    // Third-party egress (#611) — name where the content goes.
+    (m.backend === 'typesafe' ? ' · api.typesafe.ai (US)' : '') +
     (m.port ? ' · :' + m.port : '') +
     (remote ? ' on ' + m.host : '') +
     // Dynamic host-chain fallback (#342): flag a model currently served
@@ -554,6 +560,9 @@ function mountPlacementEditor(panel, m) {
 }
 
 function badge(m) {
+  if (m.backend === 'typesafe' && !m.key_configured) {
+    return ' <span class="badge warn" title="Set TYPESAFE_API_KEY in the hub’s .env">no key</span>';
+  }
   if (!m.controllable) return ' <span class="badge">' + escapeHtml(m.backend) + '</span>';
   if (m.ownership === 'ours') return ' <span class="badge good">running</span>';
   if (m.ownership === 'external') return ' <span class="badge warn">adopted</span>';
