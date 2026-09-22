@@ -1,8 +1,13 @@
-"""Playground tab API — model dropdown + send (proxies in-process to /v1/messages)."""
+"""Playground tab API — model dropdown + send (proxies in-process to /v1/messages).
+
+Also the Decision card (#611): TypeSafe Jev evaluations proxied to the hub's
+own ``/v1/systemone``.
+"""
 
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import mimetypes
 from typing import Any, Dict, List, Optional
@@ -12,6 +17,7 @@ from fastapi.responses import Response, StreamingResponse
 
 from src.host_profile import hub_port
 from src.http_client import get_async_client
+from src import server_systemone
 from src.model_registry import enabled_models, resolve as resolve_model
 from src.tts_engines import capabilities_for_engine
 
@@ -347,6 +353,78 @@ async def playground_send(
         "stop_reason": body.get("stop_reason"),
         "usage": body.get("usage") or {},
     }
+
+
+@router.get("/api/playground/systemone_info")
+async def playground_systemone_info() -> Dict[str, Any]:
+    """Aliases + key state for the Decision card (#611). Never the key itself."""
+    return {
+        "models": list(server_systemone.MODEL_ALIASES),
+        "key_configured": server_systemone.key_configured(),
+        "vendor_url": server_systemone.TYPESAFE_URL,
+    }
+
+
+def _systemone_error_detail(r: Any) -> str:
+    """Readable message from a failed ``/v1/systemone`` answer.
+
+    Hub-originated failures carry ``{detail, hub_error}``; vendor bodies pass
+    through unchanged, so their shape is not ours to assume — fall back to the
+    raw text rather than guessing a field.
+    """
+    try:
+        body = r.json()
+    except ValueError:
+        body = None
+    if isinstance(body, dict) and body.get("hub_error"):
+        return f"{body.get('detail')} ({body['hub_error']})"
+    if isinstance(body, dict) and isinstance(body.get("detail"), str):
+        return body["detail"]
+    if body is not None:
+        return json.dumps(body)[:500]
+    return (r.text or f"HTTP {r.status_code}")[:500]
+
+
+@router.post("/api/playground/systemone")
+async def playground_systemone(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Run one Jev evaluation from the Decision card (#611).
+
+    Proxies through the hub's *own* ``/v1/systemone`` over loopback, exactly
+    like the chat card does with ``/v1/messages``, so a Playground evaluation
+    lands in the request ring and Langfuse like any external call. Only shape
+    is checked here — the vendor's 422 is the authoritative validator.
+    """
+    import httpx
+
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="body must be a JSON object")
+    state_value = payload.get("state")
+    if state_value in (None, "", [], {}):
+        raise HTTPException(status_code=400, detail="state is empty")
+    questions = payload.get("questions")
+    if not isinstance(questions, dict) or not questions:
+        raise HTTPException(status_code=400, detail="questions must be a non-empty JSON object")
+    model = str(payload.get("model") or server_systemone.MODEL_ALIASES[0])
+
+    url = f"http://127.0.0.1:{hub_port()}{server_systemone.ROUTE}"
+    body = {"model": model, "state": state_value, "questions": questions}
+    try:
+        r = await get_async_client().post(url, json=body, timeout=server_systemone.TIMEOUT_S + 5)
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"hub loopback error: {type(exc).__name__}")
+    if not r.is_success:
+        detail = _systemone_error_detail(r)
+        if r.status_code == 401:
+            # A 401 here is TypeSafe rejecting the *vendor* key. Relayed as-is,
+            # the admin SPA would read it as its own session expiring and pop
+            # the login overlay — so it travels as a 502 naming the real cause.
+            raise HTTPException(status_code=502, detail=f"TypeSafe rejected the API key (401): {detail}")
+        raise HTTPException(status_code=r.status_code, detail=detail)
+    try:
+        answer = r.json()
+    except ValueError:
+        raise HTTPException(status_code=502, detail="TypeSafe returned a non-JSON answer")
+    return answer if isinstance(answer, dict) else {"answer": answer}
 
 
 @router.post("/api/playground/generate_image")

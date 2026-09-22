@@ -981,6 +981,57 @@ h2 { display: flex; align-items: center; gap: 8px; }
   margin-top: 10px;
 }
 .playground-send-row > button { flex: 1; min-width: 0; }
+
+/* ---------- Playground: Decision (Jev) card (#611) ---------- */
+/* Third-party egress notice — attention colour, the same token as .badge.warn. */
+.jev-privacy {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+  margin: 0 0 var(--space-sm);
+}
+.jev-privacy .icon { flex-shrink: 0; color: var(--attention); margin-top: 1px; }
+#jevKeyNote { color: var(--attention); margin: 0 0 var(--space-sm); }
+/* The questions box is JSON source — monospace like the other code panes. */
+.opt-stack > textarea.jev-json { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.jev-json-error { color: var(--danger); margin: var(--space-xs) 0 0; }
+.jev-answers { display: flex; flex-direction: column; }
+/* One flat list-row per answer on a top hairline — never nested cards. */
+.jev-answer { padding: var(--space-sm) 0; border-top: 1px solid var(--line-muted); }
+.jev-answer:first-child { border-top: 0; padding-top: 0; }
+.jev-answer-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: baseline;
+  margin-bottom: var(--space-xs);
+}
+.jev-verdict { font-weight: 600; }
+/* A model id — keep its case inside the uppercase section title. */
+#jevServedModel { text-transform: none; letter-spacing: normal; }
+.jev-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) 1fr 2.6rem;
+  gap: var(--space-sm);
+  align-items: center;
+  font-size: var(--font-caption);
+  color: var(--muted);
+  padding: 2px 0;
+}
+.jev-bar.chosen { color: var(--ink); font-weight: 600; }
+.jev-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jev-bar-track {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--card-off);
+  border: 1px solid var(--line-muted);
+  overflow: hidden;
+}
+/* Unchosen options: a mid-strength accent (the same 45% mix the *-border
+ * tokens use) — --accent-soft's 16% vanishes on the dark track. */
+.jev-bar-fill { display: block; height: 100%; background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.jev-bar.chosen .jev-bar-fill { background: var(--accent); }
+.jev-bar-val { text-align: right; font-variant-numeric: tabular-nums; }
 /* ---------- badges ---------- */
 .badge {
   background: var(--card-off);

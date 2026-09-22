@@ -1198,9 +1198,10 @@ local-llm-hub/
 │   │                         #   diagnostics
 │   └── static/               #   index.html + main.js + state.js + tabs.js + api.js +
 │                             #   hub.js + models.js + startup.js + fleet_placement.js +
-│                             #   playground.js + code_usage.js/.css + diagnostics.js +
-│                             #   glossary.js + machines.js/.css + machines_terminal.js +
-│                             #   roles_card.js + telemetry.js/.css + styles.css +
+│                             #   playground.js + playground_jev.js + code_usage.js/.css +
+│                             #   diagnostics.js + glossary.js + machines.js/.css +
+│                             #   machines_terminal.js + roles_card.js + telemetry.js/.css +
+│                             #   styles.css +
 │                             #   manifest.webmanifest + icon-*.png/favicon.ico (generated
 │                             #   by scripts/gen_icons.py, committed)
 │       └── _vendored/        #   project-scaffolding components: button / card /
@@ -2027,6 +2028,8 @@ curl -is -X OPTIONS http://127.0.0.1:8000/v1/messages \
 ## TypeSafe System One passthrough (`/v1/systemone`)
 
 `POST /v1/systemone` forwards a TypeSafe "System One" request to `https://api.typesafe.ai/v1/systemone` and returns the vendor's status and JSON unchanged — the `answers` map with its per-option `probabilities` and `confidence`, plus `model` (the versioned id, e.g. `jev-1.13.0`) and `usage`. The request body is TypeSafe's own shape (`model`, `state`, typed `questions`); see TypeSafe's HTTP reference (`https://docs.typesafe.ai/api.md`). Jev is a decision model, not a chat model, so it is deliberately **not** reachable through `/v1/messages` / `/v1/chat/completions` and not listed in `GET /v1/models`.
+
+In the admin SPA, Jev shows up in two places, both admin-only. The **Models** tab has a read-only *TypeSafe Jev* tile: backend `typesafe`, `api.typesafe.ai (US)`, the aliases, and a `no key` badge when `TYPESAFE_API_KEY` is unset. It has no start/stop/ping, because every probe would be a billed evaluation. The **Playground** has a *Decision (Jev)* card: a state box plus a questions JSON box, prefilled with the vendor quickstart. It shows each answer as probability bars with the chosen option or score and its confidence. The card calls this route over loopback, so its evaluations land in the request ring like any other caller's. A vendor 401 comes back as a 502 naming the rejected key, so it can't be mistaken for the admin session expiring.
 
 > **Privacy:** this route sends the request content to a **third-party API hosted in the United States**. It is the hub's only internet egress; it is opt-in — a caller has to call this route explicitly, and nothing in the hub falls back to it.
 

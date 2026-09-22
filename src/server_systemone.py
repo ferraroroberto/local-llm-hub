@@ -17,6 +17,9 @@ route is therefore deliberately thin and strictly opt-in:
   layer here would multiply load against a rate limit. ``Retry-After`` is
   passed through so the caller's policy has what it needs.
 * Nothing falls back to this route and it is not listed in ``GET /v1/models``.
+  Jev is surfaced only in the admin UI: a read-only Models-tab tile
+  (``admin_model_row``) and the Playground's Decision card, which calls this
+  route over loopback like any other caller.
 
 Hub-originated failures are distinguishable from vendor ones by status *and*
 by a ``hub_error`` field in the body (the vendor never sends one):
@@ -59,6 +62,11 @@ ROUTE = "/v1/systemone"
 TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone"
 BACKEND = "typesafe"
 API_KEY_ENV = "TYPESAFE_API_KEY"
+# Vendor aliases as of 2026-09-19 (both resolve to jev-1.13.0). Only used to
+# label the admin tile and fill the Playground dropdown — the route itself
+# forwards whatever ``model`` the caller sends.
+MODEL_ALIASES = ("jev-latest", "jev-preview")
+ADMIN_MODEL_ID = "typesafe_jev"
 # Outbound ceiling for one evaluation. Generous against a vendor-side p99 we
 # have no data on yet; a stalled call surfaces as its own 504, not a hang.
 TIMEOUT_S = 60.0
@@ -72,6 +80,44 @@ _UPSTREAM_LABELS = {
     429: "typesafe rate limited (429)",
     529: "typesafe overloaded (529)",
 }
+
+
+def _api_key() -> str:
+    """The configured key, or ``""`` — read per call so a ``.env`` edit needs no restart."""
+    return os.environ.get(API_KEY_ENV, "").strip()
+
+
+def key_configured() -> bool:
+    """Whether a TypeSafe key is set — never exposes the key itself."""
+    return bool(_api_key())
+
+
+def admin_model_row(host_id: str) -> Dict[str, Any]:
+    """The admin Models-tab row for Jev: a read-only tile, not a registry model.
+
+    Jev lives outside ``config/models.yaml`` on purpose (no host placement, no
+    process, never routable through the chat shapes), so the tile is built
+    here rather than from the registry. ``reachable`` means "key configured":
+    probing the vendor would spend a real evaluation on every 5 s poll.
+    """
+    configured = key_configured()
+    return {
+        "id": ADMIN_MODEL_ID,
+        "display_name": "TypeSafe Jev",
+        "backend": BACKEND,
+        "engine": None,
+        "port": None,
+        "url": TYPESAFE_URL,
+        "aliases": list(MODEL_ALIASES),
+        "controllable": False,
+        "ownership": "none",
+        "pid": None,
+        "reachable": configured,
+        "key_configured": configured,
+        "route": ROUTE,
+        "model_path": None,
+        "host": host_id,
+    }
 
 
 def _hub_error(status: int, kind: str, message: str) -> JSONResponse:
@@ -132,7 +178,7 @@ async def systemone(request: Request) -> Response:
         logger.warning("⚠️ %s %s: %s", ROUTE, kind, message)
         return _hub_error(status, kind, message)
 
-    api_key = os.environ.get(API_KEY_ENV, "").strip()
+    api_key = _api_key()
     if not api_key:
         return _fail(
             503, "typesafe_not_configured",

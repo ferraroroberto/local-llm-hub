@@ -200,6 +200,7 @@ the hub's only internet egress (#611)"]
   CFGWRITE -->|post-write + drift sync of satellites| REMOTEBOOT
   LIFECYCLE -->|config drift loop| CFGWRITE
   WROUT -->|playground tab| SRV
+  WROUT -->|playground Decision card: loopback /v1/systemone;\nmodels tab: read-only Jev tile (#611)| SYSONER
 
   subgraph obs["Observability"]
     HUBLOG["hub_log.py / hub_observability.py\nin-memory ring -> admin Hub tab"]
