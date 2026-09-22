@@ -2049,6 +2049,9 @@ curl -s http://127.0.0.1:8000/v1/systemone -H 'content-type: application/json' -
 }'
 ```
 
+Fleet-wide survey of which other call sites could route to this model, plus a
+local/open-source alternative spike: [docs/jev-call-site-survey.md](docs/jev-call-site-survey.md) (#614).
+
 ## Observability
 
 The hub emits OpenTelemetry traces + metrics via OTLP/gRPC into a local
