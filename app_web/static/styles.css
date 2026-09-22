@@ -1007,6 +1007,8 @@ h2 { display: flex; align-items: center; gap: 8px; }
   margin-bottom: var(--space-xs);
 }
 .jev-verdict { font-weight: 600; }
+/* A model id — keep its case inside the uppercase section title. */
+#jevServedModel { text-transform: none; letter-spacing: normal; }
 .jev-bar {
   display: grid;
   grid-template-columns: minmax(0, 9rem) 1fr 2.6rem;
@@ -1025,7 +1027,9 @@ h2 { display: flex; align-items: center; gap: 8px; }
   border: 1px solid var(--line-muted);
   overflow: hidden;
 }
-.jev-bar-fill { display: block; height: 100%; background: var(--accent-soft); }
+/* Unchosen options: a mid-strength accent (the same 45% mix the *-border
+ * tokens use) — --accent-soft's 16% vanishes on the dark track. */
+.jev-bar-fill { display: block; height: 100%; background: color-mix(in srgb, var(--accent) 45%, transparent); }
 .jev-bar.chosen .jev-bar-fill { background: var(--accent); }
 .jev-bar-val { text-align: right; font-variant-numeric: tabular-nums; }
 /* ---------- badges ---------- */
