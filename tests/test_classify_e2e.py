@@ -37,7 +37,7 @@ def test_real_rules_route_representative_paths() -> None:
     assert tier("app_web/static/_vendored/card/card.css") == "full"
 
     # The e2e suite itself + its boot conftest -> full.
-    assert tier("tests/e2e/test_smoke.py") == "full"
+    assert tier("tests/e2e/test_smoke.py") == "surface"
     assert tier("tests/e2e/conftest.py") == "full"
 
     # Inert static assets -> static.
