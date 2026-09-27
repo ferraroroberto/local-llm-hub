@@ -11,6 +11,11 @@ the Antigravity CLI) or FLUX.1 [dev] running locally on the GPU.
 
 ## Active rotation
 
+*Host names below (`gaming`, `tower`, `mac-mini-m4`) describe the decisions
+behind each backend's placement — [`config/models.yaml`](config/models.yaml)
+alone is authoritative for **current** ownership; a host mentioned here can
+move without this section being updated.*
+
 Subscription-backed cloud routes (no GPU, no API keys, no Cloud project):
 
 - **`claude-*`** — forwarded to the **`claude -p`** CLI on your machine,
@@ -446,21 +451,18 @@ audio clients  ──►  tts shim       127.0.0.1:8092   (chatterbox, text→sp
                            POST via the hub proxy for observability, or direct to the port — on the
                            host that owns the backend — to skip it)
 
-STT is NOT provisioned on this box. The whisper trio moved to the gaming
-satellite (#323/#370) and parakeet lives on the Mac Mini; the tower is only
+STT is NOT provisioned on this box in the normal case — the tower is only
 whisper's degraded `cpu: true` last rung. Callers still POST to this hub's
-:8000 and it proxies to the owner — but weights, builds, and `enabled:` rows
-belong on the owning machine:
-  whisper / whisper_translate / whisper_vanilla  → gaming      (address: config/machines.local.yaml)
-  parakeet (transcribe primary)                  → mac-mini-m4 (address: config/machines.local.yaml)
+:8000 and it proxies to whichever host owns each row; weights, builds, and
+`enabled:` rows belong on the owning machine, not here:
+  whisper / whisper_translate / whisper_vanilla  → see config/models.yaml (address: config/machines.local.yaml)
+  parakeet (transcribe primary)                  → see config/models.yaml (address: config/machines.local.yaml)
 
-Demoted (defined in config/models.yaml, not in any host's enabled list):
-  glm-4.5-air — bring up via launchers/run_model.bat glm
-Replaced as agentic_light on 2026-05-10 (still enabled on tower for fallback):
-  gemma4-e4b-it — bring up via launchers/run_model.bat gemma4_e4b
-Mac Mini (mac-mini-m4), proxied through this hub's own base_url — see below:
-  qwen3.5-9b  → this hub 127.0.0.1:8000  → mac hub <mac-mini-m4 address>:8000 → llama-server :8081
-  parakeet    → this hub 127.0.0.1:8000  → mac hub <mac-mini-m4 address>:8000 → parakeet-server :8098
+Demoted candidates and any model proxied through another host's own
+`base_url` (e.g. a Mac-Mini-owned row reached as
+`this hub 127.0.0.1:8000 → mac hub <address>:8000 → llama-server`) are listed
+in [Demoted candidates](#demoted-candidates-kept-defined-not-in-active-rotation)
+below; current ownership for every row is `config/models.yaml` alone.
 ```
 
 Which machine owns which row is [`config/models.yaml`](config/models.yaml)'s
@@ -478,6 +480,11 @@ request-lifecycle sequences and the LLM key-facts briefing,
 (`/v1/audio/speech`).
 
 ## Multi-host: the Mac Mini
+
+*As with [Active rotation](#active-rotation) above, host names in this
+section (including the `hosts:` chain examples below) describe the
+placement decisions as made — [`config/models.yaml`](config/models.yaml)
+alone is authoritative for current ownership.*
 
 `local-llm-hub` runs as **one full install per machine**, but a model can
 be *owned* by one host and made reachable through any other host's own
@@ -1305,12 +1312,13 @@ translate (~1.5 GB), plus Gemma 4 E4B (~5 GB) kept as the
 agentic_light fallback, plus the llama.cpp + whisper.cpp CUDA
 binaries under `vendor/`. On the Mac mini it's Qwen only.
 
-The demoted candidates (`qwen3.5-9b`, `glm-4.5-air`) are in the
-registry but **not** in any host's `enabled:` list, so the installer
-ignores them. To bring one up ad-hoc, add it to `enabled:` and re-run
-`--fix`, or just download manually with
-`python scripts/download_models.py --only qwen` and launch via
-`launchers/run_model.bat qwen`.
+The demoted candidate `glm-4.5-air` is in the registry but **not** in
+any host's `enabled:` list, so the installer ignores it. To bring it up
+ad-hoc, add it to `enabled:` and re-run `--fix`, or just download
+manually and launch via `launchers/run_model.bat glm`. `qwen3.5-9b` is
+no longer demoted — it is active on its owning host's own `enabled:`
+list; see [config/models.yaml](config/models.yaml) for current
+placement instead of naming a host here.
 
 On a host with a TTS role enabled, `--fix` also pip-installs
 [requirements-tts.txt](requirements-tts.txt) (`chatterbox-tts`, `snac`,
@@ -1393,9 +1401,9 @@ launchers\run_all.bat                      :: start every backend in `enabled:` 
 
 :: Fallback / ad-hoc (still in `enabled:` on tower, not autostarted)
 launchers\run_model.bat gemma4_e4b         :: previous agentic_light on :8086
+launchers\run_model.bat qwen               :: cross-enabled for proxy only — see config/models.yaml for the owning host
 
 :: Demoted candidates — present but not in `enabled:` by default
-launchers\run_model.bat qwen               :: llama-server for Qwen on :8081
 launchers\run_model.bat glm                :: llama-server for GLM on :8082
 ```
 
@@ -1421,8 +1429,8 @@ Starts a resident system-tray icon (silent — no terminal window) that:
   surface (tray, `run_hub.bat`, or `python -m src.run_backend hub`):
   - the **registry-derived model set** (#430) — every `startup: eager` row in
     `config/models.yaml` whose preferred chain host is this machine
-    (`model_registry.desired_model_ids`; on the tower today that's
-    `qwen35_4b`, `piper`, and `orpheus`); `startup: on_demand` rows load on
+    (`model_registry.desired_model_ids`; see `config/models.yaml` for the
+    current eager set on this host); `startup: on_demand` rows load on
     first request instead;
   - the **services** configured in **`config/startup_profile.json`**
     (gitignored live file; see the committed
@@ -1450,6 +1458,17 @@ endpoint after login. Routine tray activity is silent; if the tray
 ever crashes, a single-shot `tray-crash.log` is written at the repo
 root with the traceback (delete it any time — it's only recreated on
 the next crash).
+
+**Safe restart.** `tray.bat --restart` reclaims the hub port **:8000** by
+PID (scoped to this repo's `.venv`) and starts fresh; it deliberately
+leaves `:8090` (whisper-server) and the llama-server model ports alone —
+see [CLAUDE.md](CLAUDE.md#internal-architecture) for the full reclaim
+mechanics. One-line restart matrix:
+
+| Touched | Restart |
+| --- | --- |
+| Hub code (`src/`, `app_web/`, `CLAUDE.md`-tracked config loaders) | `tray.bat --restart` |
+| A model backend/TTS shim (llama-server row, whisper-server row, `src/tts_server.py`) | Stop/start that model from the Models tab or `launchers/run_model.bat <id>` — not a hub restart |
 
 ### Cloudflare tunnel (optional)
 
@@ -1540,9 +1559,9 @@ Equivalent Python entrypoints (run from the project root):
 
 :: Fallback (still enabled, not autostarted)
 .venv\Scripts\python -m src.run_backend gemma4_e4b
+.venv\Scripts\python -m src.run_backend qwen   :: cross-enabled for proxy only — see config/models.yaml for the owning host
 
 :: Demoted (ad-hoc only; not in tray autostart, not auto-installed)
-.venv\Scripts\python -m src.run_backend qwen
 .venv\Scripts\python -m src.run_backend glm
 ```
 
@@ -1676,9 +1695,9 @@ msg = client.messages.create(
 print(msg.content[0].text)
 ```
 
-> Demoted candidates (`qwen3.5-9b`, `glm-4.5-air`) work the same way
-> if you've brought them up ad-hoc — pass their model name as
-> `model=`. The hub will return 400 if their backend isn't reachable.
+> A demoted candidate (e.g. `glm-4.5-air`) works the same way if you've
+> brought it up ad-hoc — pass its model name as `model=`. The hub will
+> return 400 if its backend isn't reachable.
 
 OpenAI SDK (get native tool calls via `llama-server --jinja`):
 

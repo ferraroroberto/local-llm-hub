@@ -22,7 +22,7 @@ companion, and the cross-machine SSH/access details also live in the `life-os`
 | Host id | Role | OS | Hardware |
 | --- | --- | --- | --- |
 | `tower` | The hub runs here; Windows workstation | Windows 11 | Ryzen 7 7800X3D · RTX 5060 Ti 16 GB · 128 GB RAM |
-| `mac-mini-m4` | Apple-silicon hub peer (owns `qwen3.5-9b`, `parakeet`) | macOS | Apple M4 · 16 GB unified |
+| `mac-mini-m4` | Apple-silicon hub peer — current model placement: `config/models.yaml` | macOS | Apple M4 · 16 GB unified |
 | `openclaw` | Ubuntu laptop · future inference node | Ubuntu | GeForce MX250 · Wi-Fi only (no wired NIC) |
 | `gaming` | Ryzen inference satellite · STT/TTS offload (#323) | Ubuntu 24.04 (HWE, kernel 7.0) | Ryzen 9 5900X · GeForce GTX 1070 8 GB · 16 GB RAM |
 
@@ -54,7 +54,7 @@ glance that used to gate a placement change by hand.
 | Host id | `vram_mb` ceiling | Source |
 | --- | --- | --- |
 | `tower` | `16384` | RTX 5060 Ti 16 GB |
-| `gaming` | `8192` | GTX 1070 8 GB — the tightest ceiling; holds whisper + orpheus + whisper_translate + whisper_vanilla (#370) — 2000 + 2200 + 0 + 2000 = 6200 MB, comfortably under |
+| `gaming` | `8192` | GTX 1070 8 GB — the tightest ceiling; current placement + footprint math: `config/models.yaml` |
 | `mac-mini-m4` | *(none)* | Apple-silicon **unified memory** has no fixed VRAM partition to check against — the grid skips the warning rather than inventing a misleading ceiling |
 | `openclaw` | *(none)* | Serves no models; not placeable, so no ceiling needed |
 

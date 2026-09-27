@@ -383,9 +383,11 @@ Sessions that hit neither path show "—" in the panel's Project column.
 
 ## Limitations / known gaps
 
-- **No streaming on `/v1/messages`** — the hub still returns a single
-  JSON for Anthropic-shape stream requests, so TTFT/TPS only land for
-  OpenAI-shape streams against local llama-server.
+- **`/v1/messages` streams Anthropic SSE (#550)** — `claude` and local
+  `llama-server` (OpenAI-shape) backends emit real incremental SSE, so
+  TTFT/TPS land for both. The `gemini` backend still runs the request to
+  completion first and replays the result as buffered SSE
+  (`iter_buffered_anthropic_sse`), so its TTFT equals its last-token time.
 - **Claude `usage` is best-effort** — `claude -p` returns it sometimes;
   when absent we leave `gen_ai.usage.*` unset rather than fake zeros.
 - **Gemini `usage` is always zero** — the `agy` CLI does not surface
