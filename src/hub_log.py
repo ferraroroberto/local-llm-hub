@@ -108,7 +108,12 @@ def install_root_handler() -> None:
     )
     HUB_LOG.setFormatter(fmt)
 
-    targets = ("", "uvicorn", "uvicorn.error", "uvicorn.access")
+    # "uvicorn.error" deliberately excluded: it propagates to "uvicorn", and
+    # `uvicorn.run("src.server:app")` re-imports this module after uvicorn's
+    # own dictConfig, re-attaching the handler to both — so every
+    # uvicorn.error line (startup, ASGI exception tracebacks) would appear
+    # twice in the Hub tab log (#618).
+    targets = ("", "uvicorn", "uvicorn.access")
     for name in targets:
         lg = logging.getLogger(name)
         if HUB_LOG not in lg.handlers:

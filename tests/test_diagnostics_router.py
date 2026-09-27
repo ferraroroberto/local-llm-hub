@@ -251,6 +251,23 @@ def test_reevaluate_rereads_thresholds(client):
     assert body["ok"] is True and body["level"] in {"healthy", "warning", "critical"}
 
 
+def test_reevaluate_refuses_a_pruned_run(client):
+    """Regression (#618): `store.prune` deletes a run's raw samples and
+    promises to keep its saved verdict forever — re-evaluating a pruned run
+    would re-run `evaluate()` against zero rows and silently overwrite that
+    verdict (e.g. "critical" with findings) with a bogus pass."""
+    run_id = _seed_run()
+    client.post(f"/admin/api/diagnostics/runs/{run_id}/evaluate")
+    # Mirror what store.prune() does to a stale run: drop its raw rows, mark
+    # it pruned, but leave the saved verdict alone.
+    with store.connect() as conn:
+        conn.execute("DELETE FROM samples WHERE run_id = ?", (run_id,))
+        conn.execute("UPDATE runs SET status = 'pruned' WHERE run_id = ?", (run_id,))
+
+    resp = client.post(f"/admin/api/diagnostics/runs/{run_id}/evaluate")
+    assert resp.status_code == 409, resp.text
+
+
 def test_app_cpu_is_normalized_to_percent_of_machine(client):
     """psutil reports per-process CPU per *core*, so an app's summed figure can
     exceed 100% on a multi-core box. Rendering that raw beside a 25% machine-

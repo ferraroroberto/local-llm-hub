@@ -63,11 +63,14 @@ def test_quiet_machine_is_healthy(db):
     assert result["findings"] == []
 
 
-def test_empty_run_is_healthy_not_an_error(db):
+def test_empty_run_is_not_evaluated_not_an_error(db):
+    """A run with no sample rows is unmeasured, not proven healthy (#618) —
+    reporting "healthy" here let a pruned run's saved verdict (kept forever,
+    per `store.prune`) get silently overwritten on re-evaluate."""
     run_id = db.create_run(machine_id="pc-test", os_name="TestOS",
                            interval_s=15.0, duration_s=60.0)
     result = rules.evaluate(run_id)
-    assert result["level"] == "healthy"
+    assert result["level"] == "not_evaluated"
     assert result["findings"] == []
     assert result["sample_count"] == 0
 

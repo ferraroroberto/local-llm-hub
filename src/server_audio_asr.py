@@ -619,7 +619,7 @@ def audio_health() -> Response:
     from .backend_process import is_reachable
     from .host_profile import resolve as _resolve_host
     from .model_failover import effective_owner
-    from .model_registry import local_models
+    from .model_registry import STARTUP_ON_DEMAND, local_models
 
     backends = []
     # Backends this host *currently serves* only — a remote-owned row's
@@ -637,16 +637,24 @@ def audio_health() -> Response:
     ]
     for m in audio:
         reachable = is_reachable(m, timeout=1.0)
-        backends.append({
+        entry = {
             "id": m.id,
             "backend": m.backend,
             "port": m.port,
             "reachable": reachable,
-        })
+        }
+        # An idle `startup: on_demand` row is unloaded by design, not down —
+        # the first real request would load it (#618). Give it its own state
+        # and drop it from the ok/degraded verdict rather than counting it as
+        # an outage.
+        if not reachable and m.startup == STARTUP_ON_DEMAND:
+            entry["state"] = "idle"
+        backends.append(entry)
 
+    verdict_backends = [b for b in backends if b.get("state") != "idle"]
     if not backends:
         status, code = "none", 503
-    elif all(b["reachable"] for b in backends):
+    elif not verdict_backends or all(b["reachable"] for b in verdict_backends):
         status, code = "ok", 200
     else:
         status, code = "degraded", 503

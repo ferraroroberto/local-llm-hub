@@ -200,6 +200,14 @@ async def diagnostics_reevaluate(run_id: str) -> Dict[str, Any]:
     run = await asyncio.to_thread(store.get_run, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="unknown run")
+    if run.get("status") == "pruned":
+        # `store.prune` already deleted this run's sample rows and promises to
+        # keep its saved verdict forever — re-evaluating with no rows left
+        # would overwrite that verdict with "not_evaluated" (#618).
+        raise HTTPException(
+            status_code=409,
+            detail="run's raw samples were pruned; its saved verdict is final",
+        )
     await asyncio.to_thread(rules.reload_thresholds)
     result = await asyncio.to_thread(rules.evaluate_and_save, run_id)
     return {"ok": True, **result}
