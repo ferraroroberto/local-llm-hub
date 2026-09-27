@@ -166,8 +166,14 @@ restarts mid-run doesn't inflate its app's apparent concurrency.
 ## Health verdicts
 
 `config/diagnostics_rules.json` (committed) holds every threshold. A finished
-run gets a persisted `healthy` / `warning` / `critical` verdict plus findings,
-each carrying the evidence behind it.
+run with sample rows gets a persisted `healthy` / `warning` / `critical`
+verdict plus findings, each carrying the evidence behind it. A run with zero
+sample rows (stopped before its first tick, or already `store.prune`d) gets
+`not_evaluated` instead — reporting `healthy` there would read "unmeasured" as
+"fine", and would let a re-evaluate silently overwrite a pruned run's saved
+verdict (which can be `critical` with findings, and `store.prune` promises to
+keep forever). `POST /admin/api/diagnostics/runs/{id}/evaluate` on a pruned
+run refuses with `409` instead (#618).
 
 | Rule | Fires on |
 | --- | --- |
