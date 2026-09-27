@@ -24,12 +24,13 @@ import asyncio
 import json
 import logging
 import queue
+import re
 import subprocess
 import tempfile
 import threading
 import time
 from contextlib import asynccontextmanager
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Optional
 
 import uvicorn
@@ -129,6 +130,21 @@ def _start_worker() -> "tuple[subprocess.Popen, queue.Queue[str]]":
     return proc, lines
 
 
+_SAFE_SUFFIX = re.compile(r"\.[A-Za-z0-9]{1,10}")
+
+
+def _upload_path(tmpdir: str, client_filename: Optional[str]) -> Path:
+    """Scratch path for an uploaded file inside ``tmpdir``.
+
+    The name is fixed; only a plain extension is kept from the client's
+    filename (afconvert uses it as a format hint).
+    """
+    suffix = PurePath((client_filename or "").replace("\\", "/")).suffix
+    if not _SAFE_SUFFIX.fullmatch(suffix):
+        suffix = ".bin"
+    return Path(tmpdir) / f"upload{suffix}"
+
+
 def _to_wav16k_mono(src: Path) -> Path:
     dst = src.with_suffix(".norm.wav")
     subprocess.run(
@@ -171,7 +187,7 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
             out_q = state.out_q
 
             with tempfile.TemporaryDirectory() as tmpdir:
-                raw_path = Path(tmpdir) / (file.filename or "upload.bin")
+                raw_path = _upload_path(tmpdir, file.filename)
                 raw_path.write_bytes(await file.read())
                 try:
                     wav_path = await asyncio.to_thread(_to_wav16k_mono, raw_path)

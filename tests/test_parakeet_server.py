@@ -10,8 +10,11 @@ tests fake `subprocess.Popen` rather than driving the real Swift process.
 from __future__ import annotations
 
 import queue as queue_mod
+import subprocess
+from types import SimpleNamespace
 
 import pytest
+from fastapi.testclient import TestClient
 
 from src import parakeet_server
 
@@ -94,3 +97,58 @@ def test_start_worker_raises_on_early_exit(monkeypatch):
 
     with pytest.raises(RuntimeError, match="failed to start"):
         parakeet_server._start_worker()
+
+
+# --- transcribe: the uploaded bytes stay in the request's working dir -------
+
+
+def _transcribe_client(monkeypatch, seen):
+    monkeypatch.setattr(
+        parakeet_server, "resolve_model_for_engine",
+        lambda *_a, **_k: SimpleNamespace(display_name="parakeet-test"),
+    )
+    monkeypatch.setattr(
+        parakeet_server, "_start_worker",
+        lambda: (_FakeProc([]), queue_mod.Queue()),
+    )
+
+    def _fake_convert(src):
+        seen.append(src)
+        raise subprocess.CalledProcessError(1, "afconvert", stderr=b"stub")
+
+    monkeypatch.setattr(parakeet_server, "_to_wav16k_mono", _fake_convert)
+    return TestClient(parakeet_server.build_app("parakeet"))
+
+
+@pytest.mark.parametrize("name_kind", ["absolute", "relative"])
+def test_transcribe_keeps_upload_in_its_working_dir(monkeypatch, tmp_path, name_kind):
+    target = tmp_path / "outside" / "clip.wav"
+    target.parent.mkdir()
+    if name_kind == "absolute":
+        client_name = str(target)
+    else:
+        # Climb from the request's temp dir to the filesystem root, then back
+        # down to ``target`` (drive letter dropped, same drive assumed).
+        client_name = "../" * 12 + str(target).replace("\\", "/").lstrip("/").split(":", 1)[-1].lstrip("/")
+    seen: list = []
+    with _transcribe_client(monkeypatch, seen) as client:
+        r = client.post(
+            "/v1/audio/transcriptions",
+            files={"file": (client_name, b"RIFFdata", "audio/wav")},
+        )
+    assert r.status_code == 400
+    assert not target.exists()
+    assert len(seen) == 1
+    assert seen[0].name == "upload.wav"
+    assert tmp_path not in seen[0].parents
+
+
+@pytest.mark.parametrize(
+    "client_name, expected",
+    [(None, "upload.bin"), ("clip.m4a", "upload.m4a"), ("noext", "upload.bin"),
+     ("a\\..\\b.wav", "upload.wav"), ("x.w a v", "upload.bin")],
+)
+def test_upload_path_is_fixed_name_in_dir(tmp_path, client_name, expected):
+    p = parakeet_server._upload_path(str(tmp_path), client_name)
+    assert p.parent == tmp_path
+    assert p.name == expected
