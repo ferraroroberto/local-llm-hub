@@ -266,6 +266,18 @@ def is_reachable(model: Model, timeout: float = 1.5) -> bool:
             return r.status_code == 200
         except Exception:
             return False
+    if model.engine == "tts-server":
+        # tts_server.py answers /health with 200 the instant the process
+        # starts, before the engine finishes loading in its background
+        # thread — the body's `ready` flag is the real signal (#618). A
+        # bare status-code check would let ensure_ready return early and
+        # the first request into a cold on-demand row hit the shim's own
+        # 503 "still loading" instead of waiting here.
+        try:
+            r = get_sync_client().get(f"{base}/health", timeout=timeout)
+            return r.status_code == 200 and bool(r.json().get("ready"))
+        except Exception:
+            return False
     try:
         r = get_sync_client().get(f"{base}/health", timeout=timeout)
         if r.status_code == 200:
@@ -625,7 +637,12 @@ def _looks_like_backend_binary(
     reclaim the VRAM.
     """
     exe = (exe or "").lower()
-    if model.engine == "whisper-server" or model.backend == "whisper":
+    if model.engine == "whisper-server":
+        # Engine-specific, not `model.backend == "whisper"` — a whisper-
+        # *shaped* backend on a different engine (e.g. Parakeet's
+        # `engine: parakeet-server`, a `python -m src.parakeet_server`
+        # process, #618) never spawns whisper-server.exe and would otherwise
+        # never match here, falling through to "external" on every restart.
         return "whisper-server" in exe or exe.endswith("whisper-server.exe")
     if _is_comfyui(model):
         # ComfyUI runs as a plain python.exe, so the generic "python" test below

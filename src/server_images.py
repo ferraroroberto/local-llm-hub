@@ -24,6 +24,7 @@ mounted onto the parent hub app by ``server.py`` via ``include_router``.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import tempfile
@@ -311,7 +312,9 @@ async def images_edits(
             tf.write(raw)
             tmp_path = Path(tf.name)
         try:
-            out = call_gemini_image(prompt, reference_image=tmp_path)
+            out = await asyncio.to_thread(
+                call_gemini_image, prompt, reference_image=tmp_path
+            )
         except GeminiCLIError as e:
             record_genai_metrics(
                 model=model, backend=resolved.backend,

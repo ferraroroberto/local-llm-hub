@@ -128,3 +128,53 @@ def test_audio_health_degraded_when_down(monkeypatch):
     body = resp.json()
     assert body["status"] == "degraded"
     assert any(not b["reachable"] for b in body["backends"])
+
+
+def test_audio_health_reports_idle_on_demand_row_as_ok_not_degraded(monkeypatch):
+    """Regression (#618): an idle `startup: on_demand` row is unloaded by
+    design, not down — the first real request would load it. It must get its
+    own state and drop out of the ok/degraded verdict, not read as an outage."""
+    from src.model_registry import Model, STARTUP_ON_DEMAND
+
+    idle_row = Model(
+        id="tts_idle", display_name="tts_idle", backend="tts",
+        engine="tts-server", port=9999, startup=STARTUP_ON_DEMAND,
+    )
+    monkeypatch.setattr("src.model_registry.local_models", lambda: [idle_row])
+    monkeypatch.setattr("src.backend_process.is_reachable", lambda m, timeout=1.0: False)
+
+    client = TestClient(server_mod.app)
+    resp = client.get("/v1/audio/health")
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert body["backends"] == [{
+        "id": "tts_idle", "backend": "tts", "port": 9999,
+        "reachable": False, "state": "idle",
+    }]
+
+
+def test_audio_health_stays_degraded_when_an_eager_row_is_down(monkeypatch):
+    """An idle on-demand row never masks a genuinely down eager backend."""
+    from src.model_registry import Model, STARTUP_EAGER, STARTUP_ON_DEMAND
+
+    idle_row = Model(
+        id="tts_idle", display_name="tts_idle", backend="tts",
+        engine="tts-server", port=9999, startup=STARTUP_ON_DEMAND,
+    )
+    eager_row = Model(
+        id="whisper_eager", display_name="whisper_eager", backend="whisper",
+        port=9998, startup=STARTUP_EAGER,
+    )
+    monkeypatch.setattr(
+        "src.model_registry.local_models", lambda: [idle_row, eager_row]
+    )
+    monkeypatch.setattr("src.backend_process.is_reachable", lambda m, timeout=1.0: False)
+
+    client = TestClient(server_mod.app)
+    resp = client.get("/v1/audio/health")
+
+    assert resp.status_code == 503, resp.text
+    body = resp.json()
+    assert body["status"] == "degraded"

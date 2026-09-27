@@ -172,11 +172,12 @@ async def _host_status(
         # on :8090) is flagged so the summary can label it distinctly rather
         # than claim the hub runs it (#431).
         external = [m for m in running if bp.inherited_foreign(m)]
+        gpus = await asyncio.to_thread(system_stats.gpu_stats)
         return {
             **base, "local": True, "reachable": True, "dormant": False,
             "running": running, "external": external,
             "ram": system_stats.ram_stats(),
-            "gpu": _gpu_snapshot(system_stats.gpu_stats()),
+            "gpu": _gpu_snapshot(gpus),
             **_capacity(profile, placed, running, vram, devices),
         }
 

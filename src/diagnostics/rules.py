@@ -288,7 +288,12 @@ def evaluate(run_id: str) -> Dict[str, Any]:
     coverage_map = run.get("coverage") or {}
     rows = store.samples(run_id)
     if not rows:
-        return {"level": "healthy", "findings": [], "sample_count": 0,
+        # A run with no sample rows is unmeasured, not proven fine — reporting
+        # "healthy" here let a pruned run's saved verdict (which can be
+        # "critical" with findings, and `store.prune` promises to keep those
+        # forever) get silently overwritten on re-evaluate, and let a capture
+        # stopped before its first tick read as healthy (#618).
+        return {"level": "not_evaluated", "findings": [], "sample_count": 0,
                 "coverage": coverage_map}
 
     apps = store.app_aggregates(run_id)

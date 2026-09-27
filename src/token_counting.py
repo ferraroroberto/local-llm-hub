@@ -158,8 +158,26 @@ def _count_via_llama_server(model: Model, req: MessagesRequest) -> TokenCount:
     )
     prompt = _apply_chat_template(base, oai_messages)
     if prompt is not None:
+        input_tokens = _tokenize(base, prompt)
+        if req.tools:
+            # /apply-template only ever renders `messages` (#618) — a
+            # request's tool schemas (and any `inject_extra` template
+            # kwargs a real /v1/chat/completions call would add) never
+            # reach the render, so the count omits every tool definition.
+            # Calling that "exact" would be a measurement dressed-up
+            # estimate; flag it instead.
+            return TokenCount(
+                input_tokens=input_tokens,
+                method=METHOD_LLAMA_TOKENIZER,
+                exact=False,
+                warning=(
+                    "APPROXIMATE: this request has tools, but /apply-template "
+                    "was rendered without them — the count omits every tool "
+                    "schema, so the real prompt is larger."
+                ),
+            )
         return TokenCount(
-            input_tokens=_tokenize(base, prompt),
+            input_tokens=input_tokens,
             method=METHOD_LLAMA_TOKENIZER,
             exact=True,
         )

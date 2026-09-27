@@ -132,6 +132,31 @@ def test_llama_server_without_apply_template_is_flagged_approximate(monkeypatch)
     assert body["warning"].startswith("APPROXIMATE")
 
 
+def test_llama_server_with_tools_is_flagged_approximate(monkeypatch):
+    """Regression (#618): `/apply-template` renders only messages + system,
+    dropping any request tools — reporting `exact: true` there would omit
+    every tool schema from an "exact" count."""
+    _patch_upstream(monkeypatch, _FakeClient(tokens=23))
+
+    r = _client().post(
+        "/v1/messages/count_tokens",
+        json=_body(
+            LLAMA_MODEL,
+            tools=[{
+                "name": "get_weather",
+                "description": "look up the weather",
+                "input_schema": {"type": "object", "properties": {}},
+            }],
+        ),
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["input_tokens"] == 23
+    assert body["exact"] is False
+    assert body["method"] == tc.METHOD_LLAMA_TOKENIZER
+    assert body["warning"].startswith("APPROXIMATE")
+
+
 def test_unreachable_llama_server_is_a_502(monkeypatch):
     class _Dead:
         def post(self, *a, **kw):

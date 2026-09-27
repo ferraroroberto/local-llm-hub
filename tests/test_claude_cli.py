@@ -79,6 +79,20 @@ def test_call_claude_attachments_enable_only_read(captured_run, tmp_path):
     )
 
 
+def test_call_claude_timeout_is_a_claude_cli_error(monkeypatch):
+    """Regression (#618): `subprocess.run` past its timeout raises
+    `TimeoutExpired`, which used to escape uncaught as a bare 500 with no
+    metrics — `call_claude_stream`'s timeout path already raised a distinct
+    `ClaudeCLIError`; the buffered path must match."""
+    def fake_run(args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=args, timeout=kwargs.get("timeout"))
+
+    monkeypatch.setattr(claude_cli_mod.subprocess, "run", fake_run)
+
+    with pytest.raises(claude_cli_mod.ClaudeCLIError, match="timed out after"):
+        claude_cli_mod.call_claude("hi", timeout=5.0)
+
+
 class _FakeProcess:
     def __init__(self) -> None:
         self.stdin = StringIO()

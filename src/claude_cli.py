@@ -147,6 +147,10 @@ def call_claude(
             raise ClaudeCLIError(
                 "`claude` CLI not found on PATH. Install Claude Code first."
             ) from e
+        except subprocess.TimeoutExpired as e:
+            raise ClaudeCLIError(
+                f"claude -p timed out after {timeout:g}s"
+            ) from e
 
         if span is not None and hasattr(span, "set_attribute"):
             with safe_span("claude_cli.invoke"):

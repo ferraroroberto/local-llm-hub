@@ -57,6 +57,7 @@ function verdictMeta(level) {
   if (level === 'critical') return { cls: 'danger', label: 'Critical' };
   if (level === 'warning') return { cls: 'warn', label: 'Warning' };
   if (level === 'healthy') return { cls: 'good', label: 'Healthy' };
+  if (level === 'not_evaluated') return { cls: '', label: 'Not evaluated' };
   return { cls: '', label: 'No capture yet' };
 }
 
