@@ -237,12 +237,11 @@ use this path; it stays on the gemini backend.
   [`src/remote_proxy.py`](../src/remote_proxy.py) resolves the owning
   host's own hub `base_url` and the request is forwarded there verbatim —
   a client never needs to know or care which machine actually runs a
-  model. Today `qwen3.5-9b` and Parakeet ASR are owned by `mac-mini-m4`
-  and the whisper.cpp STT trio by the `gaming` satellite (`#323`/`#370`),
-  with [`src/model_failover.py`](../src/model_failover.py) picking the live
-  owner along a chain; see the README's "Multi-host: the Mac Mini" section
-  for the full walkthrough. Placement is the registry's to state — read it
-  there, never from a doc.
+  model, with [`src/model_failover.py`](../src/model_failover.py) picking
+  the live owner along a chain; see the README's "Multi-host: the Mac
+  Mini" section for the full walkthrough. Placement (which host owns which
+  row) is [`config/models.yaml`](../config/models.yaml)'s to state — read
+  it there, never from a doc.
 - **The three backend-invocation entry points** are
   [`src/claude_cli.py`](../src/claude_cli.py) (owns
   `subprocess.run(["claude", "-p", ...])`),

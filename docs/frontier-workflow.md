@@ -86,27 +86,35 @@ UI viewer for them.
 
 ## The `roles:` section in `config/models.yaml`
 
-Roles are declared as harmless declarative state — four `model_id:`
-strings — in `config/models.yaml`:
+Roles are declared in a `roles:` block in `config/models.yaml` — a
+`model_id:` per role, plus an optional ordered `fallback:` list for the
+`audio` roles (#348). Shape (values are illustrative — see
+[`config/models.yaml`](../config/models.yaml) for the current ones):
 
 ```yaml
 roles:
   agentic_light:
-    model_id: qwen3_4b
+    model_id: qwen35_4b_nothink
   agentic_heavy:
     model_id: gemma4_26b
   audio:
     transcribe:
-      model_id: whisper
+      model_id: parakeet
+      fallback: [whisper]
     translate:
       model_id: whisper_translate
+    speech:
+      model_id: piper
 ```
 
 It is the single source of truth for "who fills which role right now".
-`/swap-model` rewrites it. It is **not** code-driving: `src.model_registry`
-does not consult it, the hub does not read it, the installer ignores it.
-Without it, the mapping would have to be *inferred* from comments or
-filenames, which goes stale.
+`/swap-model` rewrites it. Since #348, `roles.audio.*` **is** code-driving:
+`src.model_registry.audio_role_chain()` reads it, and the audio proxy uses
+the resulting chain to route and fail over live `/v1/audio/*` traffic — so
+editing it is not harmless. The `roles.agentic_light` / `agentic_heavy` pair
+above still is not consulted the same way; see
+[`config/models.yaml`](../config/models.yaml) for the current, authoritative
+`roles:` block rather than the snapshot above.
 
 ## Why this shape
 
