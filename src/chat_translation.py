@@ -996,17 +996,19 @@ def call_openai_upstream(
         raise HTTPException(status_code=502, detail=str(e))
 
 
-def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
-    # Validated before the on-demand spin-up below: a malformed tool
-    # definition is a 400 and shouldn't cold-start a model to discover it.
+def prepare_openai_messages_call(
+    model: Model, req: MessagesRequest
+) -> Tuple[OpenAIUpstream, List[Dict[str, Any]], Dict[str, Any]]:
+    """Validate a ``/v1/messages`` request for an ``openai`` backend, then ready it.
+
+    The one setup both the buffered (``_run_openai_backend``) and streaming
+    (``server._stream_anthropic_response``) paths share. Every 400 (unservable
+    request, malformed tool definition, image/document on a text-only row) is
+    raised *before* the on-demand spin-up, so a bad request never cold-starts
+    a model to discover it. Returns ``(upstream, openai_messages, extra)``.
+    """
     reject_unservable_request(model, req)
     extra = openai_backend_extra(model, req)
-    # On-demand lifecycle (#422): a cold ``startup: on_demand`` local backend
-    # is spawned here and the request blocks until it answers (503 on load
-    # failure) — same hook the OpenAI-shape route applies in server.py.
-    from .server_common import ensure_backend_ready_or_503
-    ensure_backend_ready_or_503(model)
-    upstream = resolve_openai_upstream(model)
     if any(
         isinstance(m.content, list)
         and any(b.type in ("image", "document") for b in m.content)
@@ -1020,10 +1022,21 @@ def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
                 "model instead."
             ),
         )
+    # On-demand lifecycle (#422): a cold ``startup: on_demand`` local backend
+    # is spawned here and the request blocks until it answers (503 on load
+    # failure) — same hook the OpenAI-shape route applies in server.py.
+    from .server_common import ensure_backend_ready_or_503
+    ensure_backend_ready_or_503(model)
+    upstream = resolve_openai_upstream(model)
     messages = anthropic_to_openai_messages(
         [m.model_dump() for m in req.messages],
         _system_to_text(req.system),
     )
+    return upstream, messages, extra
+
+
+def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
+    upstream, messages, extra = prepare_openai_messages_call(model, req)
     raw = call_openai_upstream(
         model,
         upstream,

@@ -170,41 +170,11 @@ def snapshot_listening_pids() -> dict[int, list[int]]:
 def find_port_pids(port: int) -> list[int]:
     """Return PIDs of processes listening on `port`, if any.
 
-    Cross-platform: uses `netstat` on Windows, `lsof` on macOS/Linux.
-    Returns [] if nothing is listening or the tool isn't available.
-
-    Note: under ``pythonw`` (e.g. when called from the tray) Windows
-    Terminal will spawn a fresh window for any console child unless we
-    pass ``NO_WINDOW``. Callers that need ports for *many*
-    sockets in one tick should prefer :func:`snapshot_listening_pids`
-    to avoid spawning N netstat / lsof processes.
+    A thin lookup over :func:`snapshot_listening_pids` (psutil fast path,
+    ``netstat`` / ``lsof`` fallback), so there is one listener parser in this
+    module. Returns [] if nothing is listening or no lookup path works.
     """
-    try:
-        if sys.platform == "win32":
-            out = subprocess.run(
-                ["netstat", "-ano", "-p", "TCP"],
-                capture_output=True, encoding="oem", errors="replace", timeout=5,
-                creationflags=NO_WINDOW,
-            ).stdout
-            pids: set[int] = set()
-            for line in out.splitlines():
-                if "LISTENING" not in line:
-                    continue
-                # columns: Proto  LocalAddress  ForeignAddress  State  PID
-                m = re.search(rf":{port}\b.*LISTENING\s+(\d+)", line)
-                if m:
-                    pids.add(int(m.group(1)))
-            return sorted(pids)
-        else:
-            out = subprocess.run(
-                ["lsof", "-nP", "-a", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
-                capture_output=True, text=True, timeout=5,
-            ).stdout
-            pids = sorted({int(x) for x in out.split() if x.strip().isdigit()})
-            logger.info("ℹ️ listener lookup for TCP :%s resolved PID(s) %s", port, pids)
-            return pids
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        return []
+    return snapshot_listening_pids().get(port, [])
 
 
 def resolve_ownership(running: bool, port: int) -> str:

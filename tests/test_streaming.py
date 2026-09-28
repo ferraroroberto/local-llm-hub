@@ -33,6 +33,7 @@ from src import openai_upstream as upstream_mod
 from src import claude_cli as claude_cli_mod
 from src import chat_translation as chat_translation_mod
 from src import server as server_mod
+from src import server_common as server_common_mod
 from src.chat_translation import AnthropicStreamState, iter_claude_anthropic_sse
 from src.hub_observability import OBS
 from src.openai_upstream import (
@@ -371,7 +372,9 @@ def test_messages_openai_stream_translates_and_strips_thinking(monkeypatch):
             usage,
         )
 
-    monkeypatch.setattr(server_mod, "_ensure_backend_ready", lambda model: None)
+    monkeypatch.setattr(
+        server_common_mod, "ensure_backend_ready_or_503", lambda model: None
+    )
     monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
     client = TestClient(server_mod.app)
     with client.stream(
@@ -595,7 +598,9 @@ def test_messages_http_disconnect_finishes_on_demand_stream(monkeypatch):
 
     raw = CloseAwareRaw()
     lease = Lease()
-    monkeypatch.setattr(server_mod, "_ensure_backend_ready", lambda model: None)
+    monkeypatch.setattr(
+        server_common_mod, "ensure_backend_ready_or_503", lambda model: None
+    )
     monkeypatch.setattr(server_mod, "call_openai_chat_stream", lambda *a, **k: raw)
     monkeypatch.setattr(server_mod._on_demand, "tracking", lambda *a, **k: lease)
     request = server_mod.MessagesRequest(
@@ -1046,7 +1051,9 @@ def test_openai_stream_records_first_and_last_token_on_span(monkeypatch, route):
 
     span = _FakeSpan()
     monkeypatch.setattr(server_mod, "_current_otel_span", lambda: span)
-    monkeypatch.setattr(server_mod, "_ensure_backend_ready", lambda model: None)
+    monkeypatch.setattr(
+        server_common_mod, "ensure_backend_ready_or_503", lambda model: None
+    )
     monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
     client = TestClient(server_mod.app)
     with client.stream(
