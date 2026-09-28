@@ -81,13 +81,13 @@ from .chat_translation import (
     _run_claude_backend,
     _run_gemini_backend,
     _run_openai_backend,
+    prepare_openai_messages_call,
     _system_to_text,
     anthropic_stream_error,
     call_openai_upstream,
     iter_buffered_anthropic_sse,
     iter_claude_anthropic_sse,
     iter_openai_anthropic_sse,
-    openai_backend_extra,
     reject_unservable_request,
     resolve_openai_upstream,
 )
@@ -124,7 +124,6 @@ from .server_otel_receiver import router as _otel_receiver_router
 from .server_systemone import router as _systemone_router
 from .openai_upstream import (
     UpstreamError,
-    anthropic_to_openai_messages,
     call_openai_chat_stream,
     clean_openai_response,
     iter_cleaned_sse,
@@ -436,28 +435,11 @@ def _stream_anthropic_response(
     openai_messages: List[Dict[str, Any]] = []
     openai_extra: Dict[str, Any] = {}
     if model.backend == "openai":
-        if any(
-            isinstance(message.content, list)
-            and any(block.type in ("image", "document") for block in message.content)
-            for message in req.messages
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"backend {model.id!r} ({model.display_name}) is text-only. "
-                    "Route image/document requests to a claude-* or gemini-* "
-                    "model instead."
-                ),
-            )
-        _ensure_backend_ready(model)
-        upstream = resolve_openai_upstream(model)
-        openai_messages = anthropic_to_openai_messages(
-            [message.model_dump() for message in req.messages],
-            _system_to_text(req.system),
+        # Validates (400s) before the on-demand spin-up, all before the
+        # response starts — not mid-stream.
+        upstream, openai_messages, openai_extra = prepare_openai_messages_call(
+            model, req
         )
-        # Built up here too: a malformed tool definition must 400 before
-        # the response starts, not mid-stream.
-        openai_extra = openai_backend_extra(model, req)
     elif model.backend not in ("claude", "gemini"):
         raise HTTPException(status_code=500, detail=f"unknown backend {model.backend!r}")
 

@@ -14,10 +14,12 @@ from pathlib import Path
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src import chat_translation as chat_translation_mod
 from src import server as server_mod
+from src import server_common as server_common_mod
 
 
 # 1x1 PNG (red pixel), valid bytes — base64-encoded for transport.
@@ -208,6 +210,30 @@ def test_url_image_falls_back_to_text_reference(monkeypatch):
     # URL images aren't downloaded; they become a text reference.
     assert captured["images"] in (None, [], ())
     assert "https://example.com/cat.png" in captured["prompt"]
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_local_backend_image_400_precedes_on_demand_spin_up(monkeypatch, stream):
+    """#620 — the text-only 400 must fire before a cold model is started."""
+    started: list[str] = []
+    monkeypatch.setattr(
+        server_common_mod, "ensure_backend_ready_or_503",
+        lambda model: started.append(model.id),
+    )
+    r = TestClient(server_mod.app).post("/v1/messages", json={
+        "model": "qwen3.5-4b",
+        "stream": stream,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {
+                    "type": "base64", "media_type": "image/png", "data": _RED_PIXEL_B64,
+                }},
+            ],
+        }],
+    })
+    assert r.status_code == 400
+    assert started == []
 
 
 def test_local_backend_rejects_image_with_helpful_400():

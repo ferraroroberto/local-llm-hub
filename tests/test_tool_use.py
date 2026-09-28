@@ -648,7 +648,7 @@ def test_messages_stream_tool_call_end_to_end(monkeypatch):
             _tool_chunk(0, arguments=': "Brussels"}', finish="tool_calls"),
         )
 
-    monkeypatch.setattr(server_mod, "_ensure_backend_ready", lambda model: None)
+    monkeypatch.setattr(server_common_mod, "ensure_backend_ready_or_503", lambda model: None)
     monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
     client = TestClient(server_mod.app)
     with client.stream("POST", "/v1/messages", json={
@@ -708,7 +708,6 @@ def _messages_upstream_extra(monkeypatch, body: dict) -> dict:
 
     monkeypatch.setattr(chat_mod, "call_openai_chat", fake_call)
     monkeypatch.setattr(server_common_mod, "ensure_backend_ready_or_503", lambda model: None)
-    monkeypatch.setattr(server_mod, "_ensure_backend_ready", lambda model: None)
     monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
     client = TestClient(server_mod.app)
     if body.get("stream"):

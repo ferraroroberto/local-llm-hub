@@ -8,25 +8,35 @@ from types import SimpleNamespace
 from src import host_profile, server_process
 
 
-def test_find_port_pids_constrains_posix_lsof_to_requested_listener(monkeypatch):
-    calls: list[list[str]] = []
+def test_find_port_pids_reads_the_shared_listener_snapshot(monkeypatch):
+    monkeypatch.setattr(
+        server_process, "snapshot_listening_pids", lambda: {8098: [40368], 8000: [1]}
+    )
+
+    assert server_process.find_port_pids(8098) == [40368]
+    assert server_process.find_port_pids(9999) == []
+
+
+def test_snapshot_listening_pids_posix_lsof_fallback(monkeypatch):
+    """With psutil unusable, the one lsof parser serves every port lookup."""
+    import psutil
+
+    def denied(**_kwargs):
+        raise psutil.AccessDenied()
 
     def fake_run(command, **_kwargs):
-        calls.append(command)
-        return SimpleNamespace(stdout="40368\n")
+        assert command[0] == "lsof"
+        return SimpleNamespace(
+            stdout="p40368\nPTCP\nn*:8098\np77\nPTCP\nn127.0.0.1:8000\n"
+        )
 
+    monkeypatch.setattr(psutil, "net_connections", denied)
     monkeypatch.setattr(server_process.sys, "platform", "darwin")
     monkeypatch.setattr(server_process.subprocess, "run", fake_run)
 
     assert server_process.find_port_pids(8098) == [40368]
-    assert calls == [[
-        "lsof",
-        "-nP",
-        "-a",
-        "-iTCP:8098",
-        "-sTCP:LISTEN",
-        "-t",
-    ]]
+    assert server_process.find_port_pids(8000) == [77]
+    assert server_process.find_port_pids(1234) == []
 
 
 def test_port_and_base_url_follow_hub_port_from_config(write_config, monkeypatch):
