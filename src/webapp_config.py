@@ -1,15 +1,15 @@
 """Webapp-specific configuration loader for the /admin sub-app.
 
 Stored separately from ``config/models.yaml`` because these settings are
-authored from the web UI ("Save settings" button) and persist across runs.
-The tray also reads this file so all surfaces share one source of truth.
+secrets/instance-local, not model routing. Nothing in the admin SPA writes
+this file — it is authored by hand-editing ``config/webapp_config.json`` and
+by the tray's ``ensure_auth_token`` on first boot (minting a bearer token if
+none exists). The parent hub, the /admin sub-app and the tray all read it so
+every surface shares one source of truth.
 
 Holds:
   * auth token (bearer) and optional password gate
   * WebAuthn relying-party identity for the passkey gate
-  * Cloudflare tunnel hostname (read-only mirror of the hostname pulled
-    from ``webapp/cloudflared.yml``; cached here so the tray can copy a
-    URL without re-parsing yaml on every menu refresh)
   * tailnet allowlist (extra IPs/CIDRs beyond loopback that bypass
     bearer-token enforcement)
   * CORS allowed origins (extra browser origins beyond loopback that may
@@ -22,7 +22,7 @@ import json
 import logging
 import os
 import secrets
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode, urlparse, urlunparse
@@ -125,18 +125,6 @@ def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
     os.replace(tmp, target)
     logger.info(f"💾 Saved webapp_config to {target}")
     return target
-
-
-def update_webapp_config(**fields) -> WebappConfig:
-    """Read, patch, save — convenience for the API endpoint.
-
-    Lets :class:`WebappConfigError` propagate: saving a patch over defaults
-    would replace an unreadable file and discard every setting it held.
-    """
-    current = load_webapp_config()
-    patched = replace(current, **fields)
-    save_webapp_config(patched)
-    return patched
 
 
 def ensure_auth_token(cfg: Optional[WebappConfig] = None) -> WebappConfig:

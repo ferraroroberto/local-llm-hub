@@ -144,13 +144,13 @@ _F2_LATENT = "empty_latent"
 _F2_SAMPLER = "sampler"
 _F2_DECODE = "vae_decode"
 
-# FLUX.2 reference settings. Guidance 4.0 is Black Forest Labs' published
-# default for the dev checkpoint; the distilled klein sibling wants fewer steps
-# and lower guidance, hence the per-variant overrides in FLUX2_DEFAULTS.
+# FLUX.2 reference settings — Guidance 4.0 is Black Forest Labs' published
+# default for the dev checkpoint. Fallback only: a row that wants different
+# sampling (the distilled klein sibling wants fewer steps and lower guidance)
+# carries its own `image_steps`/`image_guidance` in models.yaml, wired through
+# by `server_images.model_spec_for` into `ModelSpec.steps`/`.guidance` (#619).
 DEFAULT_FLUX2_STEPS = 24
 DEFAULT_FLUX2_GUIDANCE = 4.0
-FLUX2_KLEIN_STEPS = 8
-FLUX2_KLEIN_GUIDANCE = 3.0
 
 
 def build_flux2_workflow(

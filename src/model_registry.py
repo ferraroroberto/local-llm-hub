@@ -41,13 +41,8 @@ class Model:
     # ``internal_port``: the loopback port a hub-owned child process binds
     # when ``port`` is the *external*, hub-proxied contract — e.g. the
     # Orpheus TTS engine's own llama-server child (``src/tts_engines/
-    # orpheus.py``). ``idle_seconds`` was the retired ``whisper-server-lazy``
-    # engine's idle-unload window (#530 replaced it with the generic
-    # ``startup: on_demand`` lifecycle — see ``STARTUP_ON_DEMAND`` /
-    # ``idle_unload_minutes`` below); no row sets it any more, kept only so
-    # a stray old config value parses instead of raising ``AttributeError``.
+    # orpheus.py``).
     internal_port: Optional[int] = None
-    idle_seconds: Optional[int] = None
     # A *virtual* model is an alias of another backend: it shares an existing
     # backend's ``port`` (so ``url`` already points at the running process) and
     # has no engine / weights of its own. It is never launched, downloaded, or
@@ -125,6 +120,12 @@ class Model:
     # ``SamplerCustomAdvanced`` rather than ``EmptySD3LatentImage``/``KSampler``
     # — so it cannot be expressed as a parameter tweak of the FLUX.1 graph.
     workflow: Optional[str] = None
+    # Per-row sampler overrides for a ``workflow: flux2`` row (#619) — the
+    # distilled klein checkpoint wants fewer steps and lower guidance than
+    # the dev reference settings baked into ``comfyui_client``'s defaults.
+    # ``None`` means "use the workflow builder's default".
+    image_steps: Optional[int] = None
+    image_guidance: Optional[float] = None
 
     @property
     def host_chain(self) -> List[str]:
@@ -218,7 +219,6 @@ def _row_to_model(model_id: str, row: Dict) -> Model:
         model_path=row.get("model_path"),
         args=list(row.get("args", []) or []),
         internal_port=int(row["internal_port"]) if row.get("internal_port") is not None else None,
-        idle_seconds=int(row["idle_seconds"]) if row.get("idle_seconds") is not None else None,
         virtual=bool(row.get("virtual", False)),
         inject_extra=row.get("inject_extra") or None,
         host=hosts[0] if hosts else None,
@@ -232,6 +232,10 @@ def _row_to_model(model_id: str, row: Dict) -> Model:
         ),
         extra_weights=[dict(w) for w in (row.get("extra_weights") or [])],
         workflow=row.get("workflow"),
+        image_steps=int(row["image_steps"]) if row.get("image_steps") is not None else None,
+        image_guidance=(
+            float(row["image_guidance"]) if row.get("image_guidance") is not None else None
+        ),
     )
 
 

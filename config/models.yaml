@@ -367,6 +367,12 @@ models:
     backend: comfyui
     engine: comfyui-server
     workflow: flux2
+    # klein is distilled: fewer steps and lower guidance than the dev
+    # reference settings (comfyui_client's DEFAULT_FLUX2_STEPS/GUIDANCE),
+    # which is what `_build_graph` falls back to for any flux2 row that
+    # leaves these unset (#619).
+    image_steps: 8
+    image_guidance: 3.0
     host: tower
     image_gen: true
     aliases: ["flux2_klein", "klein"]

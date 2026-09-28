@@ -19,7 +19,6 @@ export function tokenFromUrl() {
 
 export function readToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
 export function writeToken(t) { if (t) localStorage.setItem(TOKEN_KEY, t); }
-export function clearToken() { localStorage.removeItem(TOKEN_KEY); }
 
 export function urlWithToken(path) {
   const token = readToken();
@@ -309,14 +308,6 @@ export function fmtCost(n) {
   return '≈ $' + n.toFixed(2);
 }
 
-export function fmtBytes(n) {
-  if (!Number.isFinite(n)) return '—';
-  if (n < 1024) return n + ' B';
-  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-  if (n < 1024 * 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + ' MB';
-  return (n / 1024 / 1024 / 1024).toFixed(2) + ' GB';
-}
-
 /* MB (VRAM/RAM figure) -> compact "X.X GB" label, unit baked in. Shared by
  * the Models fleet-editor and Machines/Placement tabs (#448 dedup — was
  * defined verbatim in both). */
@@ -329,13 +320,4 @@ export function fmtGb(mb) {
  * #384; #448 dedup — was defined verbatim in both Machines and Placement). */
 export function fmtGbValue(n) {
   return Number.isFinite(n) ? n.toFixed(1) : '—';
-}
-
-export function fmtAge(ts) {
-  if (!ts) return '';
-  const ms = Date.now() - new Date(ts).getTime();
-  if (ms < 1000) return 'just now';
-  if (ms < 60_000) return Math.floor(ms / 1000) + 's ago';
-  if (ms < 3_600_000) return Math.floor(ms / 60_000) + 'm ago';
-  return Math.floor(ms / 3_600_000) + 'h ago';
 }

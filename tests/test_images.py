@@ -417,6 +417,15 @@ def test_spec_basenames_the_registry_paths():
         assert "/" not in name and "\\" not in name
 
 
+def test_klein_carries_its_own_sampler_settings_into_the_spec():
+    """klein is the distilled sibling of the FLUX.2 dev reference settings
+    (#619): without its own `image_steps`/`image_guidance` row it would
+    silently sample at `comfyui_client`'s dev-tuned defaults instead."""
+    spec = images_mod.model_spec_for(_row("flux2_klein"))
+    assert spec.steps == 8
+    assert spec.guidance == 3.0
+
+
 @pytest.mark.parametrize("model_id", ["flux2_klein"])
 def test_flux2_rows_generate_through_the_route(monkeypatch, model_id):
     _row(model_id)
