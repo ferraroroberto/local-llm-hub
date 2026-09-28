@@ -119,6 +119,8 @@ def model_spec_for(model: Model) -> ModelSpec:
         unet_name=checkpoint_name_for(model.model_path),
         clip_name=checkpoint_name_for(by_role.get("text_encoder")),
         vae_name=checkpoint_name_for(by_role.get("vae")),
+        steps=model.image_steps,
+        guidance=model.image_guidance,
     )
 
 

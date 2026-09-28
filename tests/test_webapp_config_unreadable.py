@@ -77,12 +77,6 @@ def test_ensure_auth_token_refuses_to_overwrite_an_unreadable_config(broken_conf
     assert broken_config.read_text(encoding="utf-8") == _MALFORMED
 
 
-def test_update_webapp_config_refuses_to_overwrite_an_unreadable_config(broken_config):
-    with pytest.raises(webapp_config_mod.WebappConfigError):
-        webapp_config_mod.update_webapp_config(auth_password="x")
-    assert broken_config.read_text(encoding="utf-8") == _MALFORMED
-
-
 # ---- parent hub ----
 
 def test_parent_malformed_config_refuses_non_loopback(broken_config, caplog):

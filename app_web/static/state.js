@@ -19,7 +19,6 @@ export const MODELS_ACTIVE_ONLY_KEY = 'llmhub.models.activeOnly';
 export const STATUS_POLL_MS = 4000;
 export const COUNTERS_POLL_MS = 4000;
 export const MODELS_POLL_MS = 5000;
-export const STATS_POLL_MS = 2000;
 /* Machines tab (issue #309) — only polled while that tab is active. */
 export const MACHINES_POLL_MS = 10000;
 
@@ -30,7 +29,6 @@ export const state = {
   counters: [],           // rows from /admin/api/hub/counters
   liveRequests: [],       // ring synced from SSE stream
   recentErrors: [],
-  logLines: [],
   logPaused: false,
   installRows: [],
   version: null,
