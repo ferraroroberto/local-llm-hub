@@ -321,3 +321,14 @@ def test_quoted_windows_path_still_matches(windows):
     """Windows command lines commonly arrive quoted; the anchor must see past it."""
     assert attribution.attribute(
         "svchost.exe", r'"C:\Windows\system32\svchost.exe" -k netsvcs') == "windows-services"
+
+
+def test_scan_listening_ports_failure_is_blind_not_empty(monkeypatch):
+    """Any net_connections failure — not just AccessDenied — must report the
+    scan as blind so coverage records it; `([], False)` would read as
+    'nothing listening'."""
+    def _boom(**_kw):
+        raise OSError("scan exploded")
+
+    monkeypatch.setattr(attribution.psutil, "net_connections", _boom)
+    assert attribution.scan_listening_ports([]) == ([], True)

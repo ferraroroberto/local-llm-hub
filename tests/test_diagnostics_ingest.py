@@ -247,3 +247,17 @@ def test_foreign_ingest_does_not_corrupt_host_attribution(db):
                                    platform="linux"))
     assert attribution.attribute("llama-server.exe", "llama-server.exe --port 8088",
                                  platform="windows") == win_before == "llama.cpp"
+
+
+def test_portable_scan_ports_failure_is_blind_not_empty(monkeypatch):
+    """The portable script mirrors attribution: a non-AccessDenied scan
+    failure reports blind (True), never 'nothing listening' (False)."""
+    spec = importlib.util.spec_from_file_location("portable_capture", PORTABLE)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    def _boom(**_kw):
+        raise OSError("scan exploded")
+
+    monkeypatch.setattr(mod.psutil, "net_connections", _boom)
+    assert mod._scan_ports([]) == ([], True)

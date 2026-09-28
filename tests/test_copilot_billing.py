@@ -122,3 +122,42 @@ def test_day_first_seen_already_in_the_past_settles_immediately(monkeypatch):
 
     _run(cb.get_daily_credits(days=14))
     assert calls.count(past_day) == 1  # still cached forever, no re-fetch
+
+
+def test_failed_day_is_reported_missing_not_dropped(monkeypatch):
+    """A non-404 HTTP or network error on one day must surface that day in
+    `missing_days` (partial=True) instead of silently omitting it, which the
+    card would render as $0 spend for a day whose spend is unknown."""
+    import httpx
+
+    bad_http = date(2026, 8, 25)
+    bad_net = date(2026, 8, 26)
+
+    async def _fake_fetch_day(client, pat, username, d):
+        if d == bad_http:
+            resp = httpx.Response(500, request=httpx.Request("GET", "https://x"))
+            raise httpx.HTTPStatusError("boom", request=resp.request, response=resp)
+        if d == bad_net:
+            raise httpx.ConnectError("down")
+        return [{"model": "gpt-4", "netAmount": 5.0}]
+
+    monkeypatch.setattr(cb, "_fetch_day", _fake_fetch_day)
+    _set_now(monkeypatch, datetime(2026, 8, 27, 12, 0, 0, tzinfo=timezone.utc))
+
+    result = _run(cb.get_daily_credits(days=3))
+    assert result["available"] is True
+    assert result["partial"] is True
+    assert result["missing_days"] == ["2026-08-25", "2026-08-26"]
+    assert {r["date"] for r in result["daily"]} == {"2026-08-27"}
+
+
+def test_complete_fetch_is_not_partial(monkeypatch):
+    async def _fake_fetch_day(client, pat, username, d):
+        return [{"model": "gpt-4", "netAmount": 5.0}]
+
+    monkeypatch.setattr(cb, "_fetch_day", _fake_fetch_day)
+    _set_now(monkeypatch, datetime(2026, 8, 27, 12, 0, 0, tzinfo=timezone.utc))
+
+    result = _run(cb.get_daily_credits(days=2))
+    assert result["partial"] is False
+    assert result["missing_days"] == []

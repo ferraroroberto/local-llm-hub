@@ -222,3 +222,13 @@ def test_full_coverage_report_has_no_coverage_noise(db):
     assert "## Coverage" not in md
     assert "partial coverage" not in md
     assert "Not collected" not in md
+
+
+def test_report_without_a_verdict_is_not_evaluated_not_healthy(db):
+    """A run whose verdict was never saved (capture still running, or a failed
+    save_verdict) must not render as HEALTHY or claim 'looks healthy'."""
+    run_id = _run(db, [_proc(1)])
+    md = report.markdown_report(run_id)
+    assert "**NOT EVALUATED**" in md
+    assert "HEALTHY" not in md
+    assert "looks healthy" not in md

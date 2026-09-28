@@ -305,11 +305,12 @@ def scan_listening_ports(
     immediately meaningful on a fleet with a documented port map (8000, 808x,
     809x…). Needs elevated privileges on macOS to see other users' sockets.
 
-    Returns ``(rows, denied)``. On ``AccessDenied`` it still degrades to an
-    empty list rather than failing the run, but reports ``denied=True`` so the
-    caller can record coverage — an empty list and a *blind* list are otherwise
-    indistinguishable once stored, and treating "couldn't look" as "nothing
-    there" is exactly the defect #322 fixes."""
+    Returns ``(rows, denied)``. On ``AccessDenied`` — or any other scan failure —
+    it still degrades to an empty list rather than failing the run, but reports
+    ``denied=True`` ("the scan was blind") so the caller can record coverage —
+    an empty list and a *blind* list are otherwise indistinguishable once
+    stored, and treating "couldn't look" as "nothing there" is exactly the
+    defect #322 fixes."""
     by_pid = {p.get("pid"): p for p in (processes or [])}
     out: List[Dict[str, Any]] = []
     try:
@@ -319,7 +320,7 @@ def scan_listening_ports(
         return [], True
     except Exception as exc:  # noqa: BLE001
         logger.debug("net_connections failed: %s", exc)
-        return [], False
+        return [], True
 
     seen: set[tuple] = set()
     for conn in conns:

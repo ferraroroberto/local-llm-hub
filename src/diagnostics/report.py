@@ -245,7 +245,11 @@ def markdown_report(run_id: str) -> Optional[str]:
     d = drift(run_id)
 
     degraded = cov.is_degraded(coverage_map)
-    verdict_line = (verdict.get("level") or "healthy").upper()
+    # A missing verdict (capture still running, or a failed save_verdict) is
+    # "not evaluated", never "healthy" — unknown is its own state.
+    verdict_level = verdict.get("level")
+    evaluated = bool(verdict_level) and verdict_level != "not_evaluated"
+    verdict_line = verdict_level.replace("_", " ").upper() if evaluated else "NOT EVALUATED"
     if degraded:
         verdict_line += " · ⚠ partial coverage"
 
@@ -262,7 +266,9 @@ def markdown_report(run_id: str) -> Optional[str]:
     findings = verdict.get("findings") or []
     lines.append("## Findings")
     lines.append("")
-    if not findings:
+    if not findings and not evaluated:
+        lines.append("This run has not been evaluated — no verdict has been recorded for it.")
+    elif not findings:
         lines.append("No threshold was crossed — the machine looks healthy for this window.")
     else:
         for f in findings:

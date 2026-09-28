@@ -242,15 +242,28 @@ function renderCopilotBilling(body) {
   // `available: false` forces the empty treatment regardless of `daily` —
   // there's no billing data worth showing, just a reason.
   const rows = (body.available && body.daily) || [];
+  // Days the server could not fetch: unknown spend, shown as such — never as
+  // an absent day (which reads as $0) and never summed into the total.
+  const missing = (body.available && body.missing_days) || [];
   if (els.cldCopilotBillingEmptyMsg) {
     els.cldCopilotBillingEmptyMsg.textContent = body.available === false
       ? (body.reason || 'Not available.')
       : 'No billing data for this window.';
   }
   const totalCredits = rows.reduce(function (sum, r) { return sum + (Number(r.credits) || 0); }, 0);
-  set(els.cldCopilotBillingTotal, rows.length ? totalCredits.toFixed(2) : '—');
+  set(els.cldCopilotBillingTotal, rows.length
+    ? totalCredits.toFixed(2) + (missing.length ? ' (partial)' : '')
+    : '—');
 
-  renderTable(els.cldCopilotBillingTable, els.cldCopilotBillingEmpty, rows, function (r) {
+  const tableRows = rows.concat(missing.map(function (d) { return { date: d, unknown: true }; }))
+    .sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+  renderTable(els.cldCopilotBillingTable, els.cldCopilotBillingEmpty, tableRows, function (r) {
+    if (r.unknown) {
+      return '<tr>' +
+        '<td>' + escapeHtml(r.date) + '</td>' +
+        '<td class="muted" colspan="3">unknown — could not be fetched</td>' +
+        '</tr>';
+    }
     return '<tr>' +
       '<td>' + escapeHtml(r.date) + '</td>' +
       '<td>' + escapeHtml(r.model) + '</td>' +
