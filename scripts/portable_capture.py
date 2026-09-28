@@ -136,9 +136,9 @@ def _scan_ports(processes):
     """Listening sockets with their owning pid/name — raw, un-attributed.
 
     Returns ``(rows, denied)``. On ``AccessDenied`` (needs root/sudo on macOS to
-    see other users' sockets) it degrades to an empty list but reports
-    ``denied=True``, so the ingest records a coverage gap instead of letting a
-    blind scan read as 'nothing listening' (#322)."""
+    see other users' sockets) or any other scan failure it degrades to an empty
+    list but reports ``denied=True``, so the ingest records a coverage gap
+    instead of letting a blind scan read as 'nothing listening' (#322)."""
     by_pid = {p.get("pid"): p for p in processes}
     try:
         conns = psutil.net_connections(kind="inet")
@@ -146,7 +146,7 @@ def _scan_ports(processes):
         return [], True
     except Exception as exc:  # noqa: BLE001
         sys.stderr.write(f"portable_capture: net_connections failed: {exc}\n")
-        return [], False
+        return [], True
 
     out, seen = [], set()
     for conn in conns:

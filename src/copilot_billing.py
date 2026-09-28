@@ -123,9 +123,12 @@ async def get_daily_credits(days: int = 14) -> Dict[str, Any]:
     """Return per-day x per-model AI Credit spend for the last ``days`` days.
 
     Shape: ``{"available": bool, "reason": str|None, "daily": [{"date",
-    "model", "credits", "usd"}], "as_of": iso}``. Degrades cleanly (never
-    raises) when no PAT is configured or the account isn't on the enhanced
-    billing platform.
+    "model", "credits", "usd"}], "missing_days": [iso date], "partial": bool,
+    "as_of": iso}``. Degrades cleanly (never raises) when no PAT is configured
+    or the account isn't on the enhanced billing platform. A day whose fetch
+    failed is listed in ``missing_days`` (``partial`` is true) rather than
+    left out of ``daily`` — an absent day would read as $0 spend, but its
+    spend is unknown.
     """
     pat = os.environ.get(_PAT_ENV, "").strip()
     if not pat:
@@ -150,6 +153,7 @@ async def get_daily_credits(days: int = 14) -> Dict[str, Any]:
     window = [today - timedelta(days=i) for i in range(days - 1, -1, -1)]
 
     rows: List[Dict[str, Any]] = []
+    missing_days: List[str] = []
     for i, d in enumerate(window):
         cached = _day_cache.get(d)
         is_today = d == today
@@ -173,12 +177,15 @@ async def get_daily_credits(days: int = 14) -> Dict[str, Any]:
                     reason = "GitHub billing API returned 404 (account likely not on the enhanced billing platform)"
                     _log.info("ℹ️ copilot_billing: %s", reason)
                     return _degraded(_set_unavailable(reason)["reason"])
-                # Non-404 error for one day: skip this day, keep the rest of
-                # the window (don't fail the whole card over one bad day).
+                # Non-404 error for one day: keep the rest of the window (don't
+                # fail the whole card over one bad day) but report the day as
+                # missing — its spend is unknown, not $0.
                 _log.warning("⚠️ copilot_billing: %s failed: %s", d, exc)
+                missing_days.append(d.isoformat())
                 continue
             except httpx.HTTPError as exc:
                 _log.warning("⚠️ copilot_billing: network error fetching %s: %s", d, exc)
+                missing_days.append(d.isoformat())
                 continue
             _day_cache[d] = {
                 "items": items,
@@ -193,6 +200,8 @@ async def get_daily_credits(days: int = 14) -> Dict[str, Any]:
         "available": True,
         "reason": None,
         "daily": rows,
+        "missing_days": missing_days,
+        "partial": bool(missing_days),
         "as_of": datetime.now(tz=timezone.utc).isoformat(),
     }
 
