@@ -7,7 +7,7 @@ The fleet's canonical **primary navigation**: a top segmented control on desktop
 | File | Role |
 | --- | --- |
 | `nav-tabs.js` | Behaviour. ESM module — `initNavTabs(opts)`. Discovers tabs/panes from the DOM, persists the active tab, keeps ARIA + roving `tabindex` in sync. |
-| `nav-tabs.css` | Visual contract. The desktop segmented control + the `@media (pointer: coarse)` floating pill + the modal-hide rule. References design tokens only. |
+| `nav-tabs.css` | Visual contract. The desktop segmented control, the wide-layout left rail, the `@media (pointer: coarse)` floating pill and the modal-hide rule. References design tokens only. |
 | `nav-tabs.html` | Markup skeleton to copy and adapt (3 example tabs). |
 
 ## How to vendor
@@ -21,7 +21,17 @@ The fleet's canonical **primary navigation**: a top segmented control on desktop
    ```css
    /* No tab-count variable is required: the mobile grid auto-fits 4–6 tabs. */
    ```
-4. Wire up the switcher once the DOM is ready:
+4. **Put the standalone page head in your `index.html` `<head>`** (#287). The installed-app anchoring below assumes the web view spans the whole screen, and iOS gives an installed app the whole screen only with the translucent status bar:
+   ```html
+   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+   ```
+   Without `apple-mobile-web-app-status-bar-style: black-translucent` plus `viewport-fit=cover`, the app starts below an opaque status bar and the pill lands one status-bar height (about 59pt) too low, mostly off-screen (parking-manager#24). Desktop browsers and Playwright's WebKit don't reproduce it, so assert the pair in your e2e smoke test rather than waiting for a phone to show it:
+   ```python
+   assert page.locator('meta[name="apple-mobile-web-app-status-bar-style"]').get_attribute("content") == "black-translucent"
+   assert "viewport-fit=cover" in page.locator('meta[name="viewport"]').get_attribute("content")
+   ```
+5. Wire up the switcher once the DOM is ready:
    ```js
    import { initNavTabs } from '/static/_vendored/nav/nav-tabs.js';
    const nav = initNavTabs({
@@ -50,9 +60,11 @@ Each `.tab` carries `data-tab` (its name) and `aria-controls` (the id of the pan
 
 ## Tab icons
 
-Each `.tab` holds one `<svg class="tab-icon">` stroke glyph and one `<span class="tab-label">` — and the icon is visible on **both** surfaces: beside the label in the desktop segmented control, above it in the mobile pill. Give the SVG a `24 24` viewBox and `<path>`s with no `fill`/`stroke` attributes of their own; `nav-tabs.css` paints them (`fill: none; stroke: currentColor`) so they inherit the active/inactive tab colour. Desktop sizes the icon at `1.05em` of the label's font-size; the pill uses `--bottom-tabs-icon`. Below 520px on a fine pointer the label is clipped to the accessibility tree and the icon stands alone.
+Each `.tab` holds one `<svg class="tab-icon">` stroke glyph and one `<span class="tab-label">` — and the icon is visible on **both** surfaces: beside the label in the desktop segmented control, above it in the mobile pill. Give the SVG a `24 24` viewBox and `<path>`s with no `fill`/`stroke` attributes of their own; `nav-tabs.css` paints them (`fill: none; stroke: currentColor`) so they inherit the active/inactive tab colour. Desktop sizes the icon at `1.05em` of the label's font-size; the pill uses `--bottom-tabs-icon`. Below 520px on a fine pointer (a squeezed desktop window) the tab stacks the icon over its label, the pill's shape at the `--font-caption` size, since an icon beside a 7–8 letter label no longer fits five tabs there. The nav never goes icon-only (`design.md` navigation contract, fleet-config#966); the label ellipsizes only as a last resort (#278).
 
-`.tab-emoji` is **legacy** — an emoji span the desktop control used to show instead of the icon, superseded by SVG glyphs fleet-wide (`home-automation#77`, fixed here in `project-scaffolding#142`). `nav-tabs.css` hides it at every width, so an app still shipping the span picks up its desktop icon by re-vendoring the CSS alone; delete the span from your markup when you next touch it. If your app kept a per-app `.tab-icon { display: … }` override to work around the old rule, drop that too — it now fights the vendored file.
+## Wide layout: left rail
+
+At `(min-width: 1100px) and (pointer: fine)` (`design.md` `layout.wide`, fleet-config#968) the segmented control becomes a **left rail**: `layout.rail` (80px) wide, full height, on the `card` surface with a `line` hairline on its right edge. It shows the same tabs stacked top to bottom, each an `--icon-feature` glyph over a `--font-caption` label, never icon-only. Only the placement changes. The active tint, `aria-selected` and persistence are the same rules, and the markup is the same skeleton. The file offsets your content past the rail itself: `body:has(> .tabs)` gets `padding-left: var(--layout-rail)`, and `.tabs ~ .app` gets the top gap the sticky control used to supply. Both are keyed on the nav so they outrank an app's own `body` / `.app` padding shorthand loaded after this file. Below 1100px the control keeps the `layout.measure` column (`--layout-measure`, 772px); on a coarse pointer nothing changes at any width. Master-detail and a board's full-width exception are app layout, not nav, so they stay in your CSS (#281, lifted from app-launcher#1166).
 
 ## Required design tokens
 
@@ -62,13 +74,19 @@ Each `.tab` holds one `<svg class="tab-icon">` stroke glyph and one `<span class
 | --- | --- | --- |
 | `--card` | `#ffffff` | tab bar surface (desktop) |
 | `--card-off` | `#f6f8fa` | active-tab fill |
-| `--accent` | `#0969da` | active-tab text/icon |
+| `--accent-text` | `#0550ae` (dark `#58a6ff`) | active-tab text/icon (text on the `accent-soft` tint, fleet-config#963) |
 | `--muted` | `#656d76` | inactive-tab text |
 | `--line` | `#d1d9e0` | bar border, active-tab border (mobile) |
 | `--space-xs` | `4px` | bar padding / gap (desktop) |
-| `--gap` | `12px` | bottom-padding reserve |
-| `--font-label` | `0.92rem` | tab label (desktop) |
-| `--font-caption` | `0.78rem` | tab label (narrow desktop) |
+| `--gap` | `12px` | bottom-padding reserve; phone `.app` side padding (the phone top padding is `env(safe-area-inset-top)` alone, #288) |
+| `--font-label` | `0.875rem` | tab label (desktop) |
+| `--font-caption` | `0.75rem` | tab label (narrow desktop) |
+| `--row-sm` | `44px` | stacked narrow-desktop tab min-height (`hit-target.min`) |
+| `--row-lg` | `60px` | rail tab min-height |
+| `--space-sm` | `8px` | rail tab padding |
+| `--icon-feature` | `24px` | rail icon size (`icons.size.feature`) |
+| `--layout-measure` | `772px` | desktop column the control spans (falls back to 772px if unset) |
+| `--layout-rail` | `80px` | wide-layout rail width + content offset (falls back to 80px if unset) |
 | `--radius-md` | `12px` | bar corners (desktop) |
 | `--radius-pill` | `9999px` | tab corners |
 | `--radius-nav` | `30px` | floating bar corners (mobile) |
@@ -98,6 +116,7 @@ Hard-won contract, validated extensively on a real iPhone (`home-automation` #20
 - **Browser tab → minimal transform.** Only in a real browser tab (where the toolbar genuinely collapses) does it translate the bar up by the hidden slice — clamped to a toolbar's height (~160px) and suppressed while the soft keyboard is up (a focused field, or a viewport shrink past a toolbar's worth). Desktop's sticky top control is untouched; feature-detected on `window.visualViewport`.
 - **Force the page scrollable (browser tab).** `nav-tabs.css` sets `.app { min-height: calc(100dvh + 1px) }`. iOS standalone can anchor a `position: fixed` bar to the *content* bottom on a non-scrolling page, so a short tab may float the bar up; the extra 1px keeps the page technically scrollable, which helps iOS anchor fixed elements at the screen bottom. (Cost: a barely-perceptible scroll on short tabs.)
 - **Standalone → the fixed-inset `.app` scroller is the contract (home-automation#303), not normal document scroll.** Document scroll is the **browser-tab** behavior above. In an *installed* standalone PWA the home-screen WKWebView's native scroll bounce moves the visual viewport itself (home-automation#300), dragging every `position: fixed` element with it — `overscroll-behavior: none` doesn't govern that native bounce the way it does in a Safari tab. So in standalone the document must never scroll at all: `nav-tabs.css` makes `.app` a `position: fixed; inset: 0` element scroller (sized `height: 100vh` → `100lvh` so it has its final geometry from the first frame of iOS's cold-launch viewport-expansion animation, `overflow-y: auto`, `overscroll-behavior: none`), and an inert `body::after` spacer (`calc(100dvh + 1px)`) keeps the *document* technically scrollable — which keeps iOS's layout viewport expanded to the full physical screen — while no touch gesture can ever reach that 1px, so nothing meaningfully unlocked is left for the bounce to move. The `.tabs` bar anchors from the stable **top** edge via `100lvh` (a bottom anchor visibly floats down for ~2s during the cold-launch expansion) and refuses pan gestures (`touch-action: none`) since it's the one fixed surface a drag could still reach the 1px-scrollable document through. This revives the inner-scroller shell an earlier fleet round (home-automation#232) rejected for leaving an unusable bottom safe-area dead band — the `100lvh` sizing (large-viewport unit, stable from the first frame while iOS animates the layout-viewport expansion) is what resolves that dead band, which is why the shell is now the accepted standalone contract rather than a fallback of last resort. `design_lint.py`'s nav-contract check (`fleet-config#282`) keys on exactly this block, so a verbatim adopter of this file passes it automatically.
+- **Standalone geometry needs the full-screen web view (#287).** Both the `100lvh` shell and the `100lvh` top anchor assume the installed app's web view spans the whole physical screen, status bar included. iOS does that only when the page sets `apple-mobile-web-app-status-bar-style: black-translucent` plus `viewport-fit=cover` (How to vendor, step 4). Without them the web view starts below an opaque status bar while `100lvh` still measures the full screen, so the pill lands one status-bar height too low. home-automation and app-launcher always set the pair; parking-manager didn't, and hit it (parking-manager#24).
 
 **Recommended app-level hardening:**
 

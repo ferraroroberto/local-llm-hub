@@ -9,7 +9,8 @@
  *
  * Pairs with nav-tabs.js (behaviour) and nav-tabs.html (markup skeleton).
  *
- * Desktop (pointer: fine) renders a top segmented control; touch / installed-PWA
+ * Desktop (pointer: fine) renders a top segmented control, which becomes an 80px
+ * left rail on a wide window (min-width: 1100px); touch / installed-PWA
  * (pointer: coarse, narrow) renders the floating bottom-tab pill — that pill is
  * the fleet navigation contract every app must feel identical on. */
 
@@ -17,10 +18,10 @@
 .tabs {
   display: flex;
   gap: var(--space-xs);
-  /* Body-level nav: match .app's content column (772px minus 2×--gap)
-     because the nav is intentionally outside .app on iOS PWA. */
+  /* Body-level nav: match .app's content column (layout.measure, 772px,
+     minus 2×--gap) because the nav is intentionally outside .app on iOS PWA. */
   width: calc(100% - var(--gap) - var(--gap));
-  max-width: calc(772px - var(--gap) - var(--gap));
+  max-width: calc(var(--layout-measure, 772px) - var(--gap) - var(--gap));
   margin: calc(env(safe-area-inset-top, 0px) + var(--gap) + var(--space-xs)) auto 14px;
   background: var(--card);
   padding: var(--space-xs);
@@ -46,7 +47,7 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.tab.active { background: var(--accent-soft); color: var(--accent); }
+.tab.active { background: var(--accent-soft); color: var(--accent-text); }
 .tab:active { transform: scale(0.97); }
 /* The stroke SVG icon shows everywhere — desktop segmented control and mobile
    pill alike (home-automation #77 made icon-as-SVG the fleet's direction; this
@@ -64,10 +65,6 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-/* Legacy, superseded by .tab-icon. Hidden at every width so an app still
-   shipping a `.tab-emoji` span gets the icon back by re-vendoring this file
-   alone; drop the span from your markup when you next touch it. */
-.tab-emoji { display: none; }
 @media (max-width: 430px) {
   .tab {
     min-width: 0;
@@ -76,21 +73,84 @@
   }
 }
 /* Narrow non-touch windows (a squeezed desktop browser, fine-pointer tablets):
-   the row of icon+label tabs no longer fits, and without a strategy the labels
-   collide with the next tab (home-automation #365). Collapse to icon-only —
-   the label stays in the accessibility tree via the clip idiom (display:none
-   would strip the button's accessible name). An absolutely-positioned label is
-   no longer a flex item, so `.tab`'s gap leaves no phantom space beside the
-   icon. The coarse-pointer pill below is untouched: it matches
-   (pointer: coarse) first and never reaches this state. */
+   an icon BESIDE its label no longer fits, and labels collided with the next
+   tab (home-automation #365). Stack the icon OVER the label instead, the
+   mobile pill's own shape, so every tab keeps its label: the nav contract is
+   "icon and label, never icon-only" (fleet-config#966). Measured at five tabs
+   from 320 to 520px, Chromium and WebKit: inline, 7-8 letter labels clipped
+   below ~440px; stacked, every label fits (project-scaffolding#278). The
+   ellipsis is the safety net for the Large text step at 320px. min-height
+   holds the 44px floor the stack would otherwise miss by 2px. The
+   coarse-pointer pill below is untouched: it matches (pointer: coarse). */
 @media (pointer: fine) and (max-width: 520px) {
+  .tab {
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    min-height: var(--row-sm);
+    padding: 6px 2px;
+    font-size: var(--font-caption);
+    line-height: 1.1;
+  }
   .tab-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
+    display: block;
+    max-width: 100%;
     overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+/* ------------------------------------------------- wide layout: left rail */
+/* design.md Layout, "Wide layout" (fleet-config#968): on a wide, fine-pointer
+   window the top segmented control becomes a full-height left rail
+   (layout.rail, 80px) on the card surface with a line hairline on its right
+   edge, each tab an icon over its label, never icon-only. Placement only: the
+   active tint, aria-selected and persistence are the rules above, unchanged.
+   Lifted from app-launcher#1166 (project-scaffolding#281). The content offsets
+   key on the nav itself (body:has(> .tabs), .tabs ~ .app) so they outrank an
+   app's own `body`/`.app` padding shorthand loaded after this file; without
+   that, content slides under the rail. Master-detail and a board's
+   full-width exception stay app-side. Below 1100px, or on a coarse pointer at
+   any width, none of this applies. */
+@media (min-width: 1100px) and (pointer: fine) {
+  body:has(> .tabs) { padding-left: var(--layout-rail, 80px); }
+  /* The sticky top control used to supply the column's top gap. */
+  .tabs ~ .app { padding-top: calc(env(safe-area-inset-top, 0px) + var(--gap) + var(--space-xs)); }
+  .tabs {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    flex-direction: column;
+    width: var(--layout-rail, 80px);
+    max-width: none;
+    margin: 0;
+    padding: calc(env(safe-area-inset-top, 0px) + var(--gap)) var(--space-xs) var(--gap);
+    border: 0;
+    border-right: 1px solid var(--line);
+    border-radius: 0;
+    box-sizing: border-box;
+  }
+  .tab {
+    flex: none;
+    flex-direction: column;
+    gap: var(--space-xs);
+    min-width: 0;
+    min-height: var(--row-lg);
+    padding: var(--space-sm) var(--space-xs);
+    border-radius: var(--radius-md);
+    font-size: var(--font-caption);
+    line-height: 1.1;
+  }
+  .tab-icon {
+    width: var(--icon-feature);
+    height: var(--icon-feature);
+  }
+  .tab-label {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
@@ -109,7 +169,9 @@
        tabs technically scrollable so iOS anchors fixed to the screen bottom. */
     min-height: calc(100vh + 1px);
     min-height: calc(100dvh + 1px);
-    padding: calc(env(safe-area-inset-top, 0px) + var(--gap)) var(--gap) calc(
+    /* Top is the safe area alone (#288): the first card starts directly under
+       the status bar, as in app-launcher. Sides and bottom keep --gap. */
+    padding: env(safe-area-inset-top, 0px) var(--gap) calc(
       env(safe-area-inset-bottom, 0px) + var(--bottom-tabs-margin, 21px) +
       var(--bottom-tabs-height, 61px) + var(--bottom-tabs-margin, 21px) + var(--gap)
     );
@@ -145,7 +207,15 @@
      fixed .app scroller (its overscroll-behavior: none stops chaining), and
      the nav declines pan gestures outright — so the WKWebView bounce that
      moves `visualViewport.offsetTop` (home-automation#300) still has no entry
-     point. */
+     point.
+
+     Page-head dependency (#287): this shell and the `.tabs` anchor below
+     assume the web view spans the WHOLE screen, which iOS gives an installed
+     app only when the page sets
+     `<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">`
+     plus `viewport-fit=cover` in its viewport meta. Without them the app starts
+     below an opaque status bar and the pill lands one status-bar height
+     (about 59pt) too low, mostly off-screen (parking-manager#24). */
   @media (display-mode: standalone) {
     .app {
       position: fixed;
@@ -280,7 +350,7 @@
   .tab.active {
     background: var(--accent-soft);
     border-color: var(--accent-border-soft);
-    color: var(--accent);
+    color: var(--accent-text);
     box-shadow: none;
   }
   .tab:active { transform: scale(0.97); }
