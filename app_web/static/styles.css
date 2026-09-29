@@ -24,11 +24,16 @@
   /* colors — accent + status (status colors signal state only, never decoration) */
   --accent: #0969da;
   --accent-fg: #ffffff;     /* text/icon on an accent fill */
+  --accent-fill: #0969da;   /* solid primary fill (button-primary) — equals accent here */
+  --accent-text: #0550ae;   /* accent-coloured TEXT on an accent-soft tint (fleet-config#963) */
   --on: #1a7f37;
   --danger: #cf222e;
+  --danger-text: #a40e26;   /* danger-coloured TEXT on a danger-soft tint (fleet-config#963) */
   --attention: #9a6700;
+  /* Neutral control surface: input/select boundary + switch off-track — 3:1+
+     against `card` (WCAG 1.4.11); `--line` hairlines stay for card borders. */
+  --control-border: #818b98;
   /* derived surface roles (mapped onto the neutral tokens above) */
-  --toggle-track: var(--line);  /* vendored switch: off-track */
   --toggle-knob: #ffffff;       /* vendored switch: thumb */
   --input-bg: var(--card-off);
   --code-bg: var(--card-off);  /* logpane / trace-detail <pre> surfaces */
@@ -43,6 +48,12 @@
   --danger-border: color-mix(in srgb, var(--danger) 45%, transparent);
   --success-border: color-mix(in srgb, var(--on) 45%, transparent);
   --attention-border: color-mix(in srgb, var(--attention) 45%, transparent);
+  /* --deficit is the vendored button.css tint recipe's own generic name for
+     the "danger" role (fleet-config#296) — alias it onto this app's danger
+     tokens rather than duplicating the color-mix composites. */
+  --deficit: var(--danger);
+  --deficit-soft: var(--danger-soft);
+  --deficit-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
   /* radii (rounded scale) */
   --radius-sm: 8px;
   --radius-md: 12px;        /* buttons / inputs */
@@ -63,14 +74,18 @@
      disclosure / empty-state components) */
   --icon-title: 18px;
   --icon-feature: 24px;
+  /* rows 3-step scale (design.md `rows.*`) — consumed by _vendored/nav's
+     stacked/rail tab min-heights; single scale, not themed. */
+  --row-sm: 44px;
+  --row-lg: 60px;
   /* typography roles — system stack, weight (not case) for hierarchy.
      The five roles cover every text need; no ad-hoc sizes. */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-heading-xl: 2rem;
   --font-heading-lg: 1.5rem;
   --font-body: 1rem;
-  --font-label: 0.92rem;
-  --font-caption: 0.78rem;
+  --font-label: 0.875rem;
+  --font-caption: 0.75rem;
   /* elevation — cards lean on surface + hairline border; only floating
      elements (toast) carry a real shadow. */
   --shadow: 0 8px 24px rgba(31, 35, 40, 0.12);
@@ -103,9 +118,13 @@
   --line-muted: #21262d;
   --accent: #2f81f7;
   --accent-fg: #ffffff;
+  --accent-fill: #1f6feb;   /* one step below --accent so white text holds AA */
+  --accent-text: #58a6ff;
   --on: #3fb950;
   --danger: #f85149;
+  --danger-text: #ff7b72;
   --attention: #d29922;
+  --control-border: #6e7681;
   --toggle-knob: var(--ink);
   --close-bg: var(--line);   /* vendored modal's × close-button fill (_vendored/modal) */
   /* Depth on a near-black canvas comes from surface lightness, not shadow. */
@@ -121,12 +140,14 @@
 @media (color-gamut: p3) {
   :root {
     --accent: oklch(0.52 0.18 256);
+    --accent-fill: oklch(0.52 0.18 256);
     --on: oklch(0.55 0.14 150);
     --danger: oklch(0.55 0.20 25);
     --attention: oklch(0.55 0.11 80);
   }
   [data-theme="dark"] {
     --accent: oklch(0.64 0.18 256);
+    --accent-fill: oklch(0.57 0.21 260);
     --on: oklch(0.72 0.18 150);
     --danger: oklch(0.68 0.20 25);
     --attention: oklch(0.77 0.13 85);

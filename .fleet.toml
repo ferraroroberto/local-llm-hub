@@ -80,5 +80,12 @@ path = ".fleet.toml"
 # `/propagate-vendored <key>`; never edit a copy here — fix it in the scaffold
 # and propagate. `sha` is the scaffold commit the current bytes came from.
 [vendored]
-runtime_data = { src = "src/runtime_data.py", sha = "346765f7c14af0ec61e960333c055974e4e9e1db", dest = "src/runtime_data.py" }
-classify_e2e = { src = "scripts/classify_e2e.py", sha = "bede95f00aee0b17d5007246a29fa881a71f24f4", dest = "scripts/classify_e2e.py" }
+runtime_data  = { src = "src/runtime_data.py", sha = "346765f7c14af0ec61e960333c055974e4e9e1db", dest = "src/runtime_data.py" }
+classify_e2e  = { src = "scripts/classify_e2e.py", sha = "bede95f00aee0b17d5007246a29fa881a71f24f4", dest = "scripts/classify_e2e.py" }
+button        = { src = "app/webapp/static/_vendored/button", sha = "56e76aa373c6cb689b100f1ce14aa8171d872085", dest = "app_web/static/_vendored/button" }
+empty-state   = { src = "app/webapp/static/_vendored/empty-state", sha = "56e76aa373c6cb689b100f1ce14aa8171d872085", dest = "app_web/static/_vendored/empty-state" }
+icons         = { src = "app/webapp/static/_vendored/icons", sha = "56e76aa373c6cb689b100f1ce14aa8171d872085", dest = "app_web/static/_vendored/icons" }
+modal         = { src = "app/webapp/static/_vendored/modal", sha = "56e76aa373c6cb689b100f1ce14aa8171d872085", dest = "app_web/static/_vendored/modal" }
+nav           = { src = "app/webapp/static/_vendored/nav", sha = "56e76aa373c6cb689b100f1ce14aa8171d872085", dest = "app_web/static/_vendored/nav" }
+select-native = { src = "app/webapp/static/_vendored/select-native", sha = "56e76aa373c6cb689b100f1ce14aa8171d872085", dest = "app_web/static/_vendored/select-native" }
+switch        = { src = "app/webapp/static/_vendored/switch", sha = "56e76aa373c6cb689b100f1ce14aa8171d872085", dest = "app_web/static/_vendored/switch" }
