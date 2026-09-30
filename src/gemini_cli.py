@@ -58,6 +58,10 @@ class GeminiCLIError(RuntimeError):
 # selected so it only pays the ~interactive model-switch cost on a change.
 _LOCK = threading.Lock()
 _current_model: Optional[str] = None
+# Picker rows seen on the last successful `/model` read (#629). ``None`` =
+# catalogue unknown (never read, or the last read parsed to nothing) —
+# distinct from a known catalogue that doesn't contain a given model.
+_catalogue: Optional[List[str]] = None
 
 # Image generation has no picker model in `agy` — the only image backend is
 # Google's Imagen, exposed as an agentic tool reachable from any Gemini text
@@ -207,6 +211,30 @@ def _norm(label: str) -> str:
     return re.sub(r"\s+", " ", label).strip().lower()
 
 
+# A rule made only of box-drawing / dash characters — the search-box underline
+# and any other horizontal line the picker draws above its model rows.
+_RULE_RE = re.compile(r"^[─-╿\-=_]+$")
+
+
+def _is_picker_chrome(row: str) -> bool:
+    """True for a header-area line that is UI chrome, not a model row.
+
+    `agy` >=1.2 draws a ``Search:`` input and a rule between the "Switch
+    Model" header and the model rows (#629); read as rows they made every
+    Gemini call fail with a garbage "available" list.
+    """
+    return row.lower().startswith("search:") or bool(_RULE_RE.match(row))
+
+
+def is_model_offered(label: str) -> Optional[bool]:
+    """Whether `agy` offers ``label``: ``True``/``False``, or ``None`` when the
+    catalogue hasn't been read (unknown is not the same as "not offered")."""
+    catalogue = _catalogue
+    if catalogue is None:
+        return None
+    return _norm(label) in {_norm(c) for c in catalogue}
+
+
 def _parse_picker(rendered: str) -> Tuple[List[str], int]:
     """Parse the `/model` picker screen.
 
@@ -214,13 +242,14 @@ def _parse_picker(rendered: str) -> Tuple[List[str], int]:
     the "Switch Model" block. The current model is the row tagged
     ``(current)``.
 
-    Rows are a contiguous run of non-blank lines directly under the
-    "Switch Model" header — bounded structurally by the header above and
-    the first blank line below, not by row content. (Older `agy` baked
-    the effort tier into each label, e.g. "Gemini 3.1 Pro (High)"; newer
-    `agy` shows a bare model name here and exposes effort as a separate
-    Low/Medium/High slider control below the list, so a row is no longer
-    guaranteed to contain "(...)" — issue #440.)
+    Rows are a contiguous run of non-blank lines under the "Switch Model"
+    header, after any header chrome (the ``Search:`` input and its rule —
+    #629) — bounded structurally by that chrome above and the first blank
+    line below, not by row content. (Older `agy` baked the effort tier into
+    each label, e.g. "Gemini 3.1 Pro (High)"; newer `agy` shows a bare model
+    name here and exposes effort as a separate Low/Medium/High slider
+    control below the list, so a row is no longer guaranteed to contain
+    "(...)" — issue #440.)
     """
     start = rendered.rfind("Switch Model")
     if start < 0:
@@ -232,7 +261,8 @@ def _parse_picker(rendered: str) -> Tuple[List[str], int]:
 
     lines = block.splitlines()[1:]
     i = 0
-    while i < len(lines) and not lines[i].strip():
+    while i < len(lines) and (
+            not lines[i].strip() or _is_picker_chrome(lines[i].strip())):
         i += 1
 
     labels: List[str] = []
@@ -276,9 +306,17 @@ def _switch_model(exe: str, target: str, timeout: float = 120.0) -> None:
             raise GeminiCLIError("agy `/model` picker did not open")
         time.sleep(0.6)
 
+        global _catalogue
         labels, current = _parse_picker(_strip_ansi(pty.text()))
         if not labels:
-            raise GeminiCLIError("could not parse agy `/model` picker")
+            _catalogue = None
+            logger.warning("⚠️ agy /model picker parsed to zero model rows")
+            raise GeminiCLIError(
+                "agy model catalogue unavailable: no model rows could be "
+                "read from the `/model` picker")
+        _catalogue = labels
+        logger.info("ℹ️ agy model catalogue parsed (%d): %s",
+                    len(labels), ", ".join(labels))
         norm_target = _norm(target)
         try:
             target_idx = next(
