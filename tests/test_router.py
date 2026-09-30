@@ -226,7 +226,7 @@ def test_chat_completions_routes_gemini(monkeypatch):
     r = client.post(
         "/v1/chat/completions",
         json={
-            "model": "Gemini 3.6 Flash",
+            "model": "Gemini 3.8 Flash",
             "messages": [{"role": "user", "content": "hello"}],
         },
     )
@@ -350,7 +350,7 @@ def test_chat_completions_refuses_image_url_instead_of_dropping_it(monkeypatch):
             ".docx",
         ),
         (
-            "Gemini 3.6 Flash",
+            "Gemini 3.8 Flash",
             "call_gemini",
             "report.pdf",
             "data:application/pdf;base64," + base64.b64encode(b"tiny pdf").decode(),
@@ -488,7 +488,7 @@ def test_list_models_hides_gemini_row_agy_does_not_offer(monkeypatch):
     assert "gemini_lite" in ids  # unknown ≠ not offered
 
     monkeypatch.setattr(
-        gemini_cli, "_catalogue", ["Gemini 3.6 Flash", "Gemini 3.1 Pro"])
+        gemini_cli, "_catalogue", ["Gemini 3.8 Flash", "Gemini 3.1 Pro"])
     ids = {e["id"] for e in client.get("/v1/models").json()["data"]}
     assert "gemini_pro" in ids and "gemini_flash" in ids
     assert "gemini_lite" not in ids and "Gemini 3.7 Flash" not in ids

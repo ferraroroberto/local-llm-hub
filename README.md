@@ -28,7 +28,7 @@ Subscription-backed cloud routes (no GPU, no API keys, no Cloud project):
   unchanged.
 - **`gemini-*`** — forwarded to the **Antigravity CLI** (`agy`), using
   your Google sign-in (no API key required). Three rows: `Gemini 3.1
-  Pro` (alias `gemini_pro`), `Gemini 3.6 Flash` (alias
+  Pro` (alias `gemini_pro`), `Gemini 3.8 Flash` (alias
   `gemini_flash`), `Gemini 3.7 Flash` (alias `gemini_lite`).
   `agy` replaces the standalone `gemini` CLI, which Google deprecates
   for AI Pro / Ultra subscribers on 2026-06-18. `agy` has no per-call
