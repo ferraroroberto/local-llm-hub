@@ -52,6 +52,15 @@ mapping lives in [config/models.yaml](../config/models.yaml) (and
 [model-comparison.md](model-comparison.md)); it is repointed when Google
 changes the picker labels, without touching the stable `aliases`.
 
+**Catalogue awareness (#629).** Every model switch reads the picker's rows
+and logs them (`agy model catalogue parsed (N): …`). A `backend: gemini`
+picker row that the last read did not contain is dropped from
+`GET /v1/models` (and its calls fail with `not offered by agy; available:
+<real rows>`). If the picker can't be read at all the call fails with
+`agy model catalogue unavailable`, and the catalogue is treated as *unknown*
+— nothing is hidden on an unknown catalogue, only on a positive "not offered".
+The catalogue is filled by the first Gemini call after a hub restart.
+
 ## Known limitations (empirical caveats)
 
 - **Serialized calls.** Because model selection is global CLI state,

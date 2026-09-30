@@ -93,6 +93,7 @@ from .chat_translation import (
 )
 from .claude_cli import ClaudeCLIError, call_claude, call_claude_stream
 from .cors_policy import install_cors
+from . import gemini_cli
 from .gemini_cli import GeminiCLIError, call_gemini
 from .host_profile import hub_bind_host, hub_port
 from .hub_log import install_root_handler
@@ -346,6 +347,12 @@ def health() -> Dict[str, str]:
 def list_models() -> Dict[str, Any]:
     data = []
     for m in enabled_models():
+        # Don't advertise a Gemini picker model agy is known not to offer (#629).
+        # Unknown catalogue (None) keeps the row listed — only a positive
+        # "not in the catalogue" hides it.
+        if (m.backend == "gemini" and not m.image_gen
+                and gemini_cli.is_model_offered(m.display_name) is False):
+            continue
         for name in m.all_names:
             data.append({
                 "id": name,

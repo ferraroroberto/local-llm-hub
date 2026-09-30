@@ -17,8 +17,10 @@ def _reset_state(monkeypatch):
     """Pretend `agy` is on PATH and reset the remembered model per test."""
     monkeypatch.setattr(gemini_cli.shutil, "which", lambda name: "/fake/agy")
     gemini_cli._current_model = None
+    gemini_cli._catalogue = None
     yield
     gemini_cli._current_model = None
+    gemini_cli._catalogue = None
 
 
 def _stub_calls(monkeypatch, captured, reply="hi there"):
@@ -220,3 +222,107 @@ def test_parse_picker_empty_when_no_block():
 def test_strip_ansi_keeps_only_text():
     raw = "\x1b[1t\x1b[c\x1b[?9001hPONG\r\n"
     assert gemini_cli._strip_ansi(raw).strip() == "PONG"
+
+
+# Trimmed capture of the real `/model` picker from agy 1.2.13 (#629): the
+# header is followed by a `Search:` input and a box-drawing rule *before* the
+# model rows. The old parser read those two lines as the only "models".
+_PICKER_SCREEN_AGY_1_2 = (
+    "Switch Model\n"
+    "\n"
+    "  Search:  \n"
+    " ────────────────────\n"
+    "\n"
+    "  Gemini 3.8 Flash\n"
+    "  Gemini 3.7 Flash\n"
+    "  Gemini 3.6 Flash\n"
+    "> Gemini 3.1 Pro (current)\n"
+    "  Claude Sonnet 4.6 (Thinking)\n"
+    "  Claude Opus 4.6 (Thinking)\n"
+    "  GPT-OSS 120B (Medium)\n"
+    "\n"
+    "  Effort  ◂            ◉──────────────────────○            ▸\n"
+    "           low                   high          \n"
+    " Faster responses, lighter reasoning — great for simpler tasks\n"
+    "\n"
+    "Keyboard: ↑/↓ Navigate  ←/→ Effort  enter Select  esc Go Back\n"
+)
+
+
+def test_parse_picker_skips_search_box_and_rule():
+    labels, current = gemini_cli._parse_picker(_PICKER_SCREEN_AGY_1_2)
+    assert labels == [
+        "Gemini 3.8 Flash",
+        "Gemini 3.7 Flash",
+        "Gemini 3.6 Flash",
+        "Gemini 3.1 Pro",
+        "Claude Sonnet 4.6 (Thinking)",
+        "Claude Opus 4.6 (Thinking)",
+        "GPT-OSS 120B (Medium)",
+    ]
+    assert current == 3
+
+
+def test_parse_picker_search_box_with_query_text():
+    rendered = (
+        "Switch Model\n\n  Search: pro\n ──────\n\n"
+        "> Gemini 3.1 Pro (current)\n\nKeyboard: x\n")
+    assert gemini_cli._parse_picker(rendered) == (["Gemini 3.1 Pro"], 0)
+
+
+class _PickerPty:
+    """Fake ConPTY that 'renders' a fixed picker screen."""
+
+    def __init__(self, screen: str):
+        self._screen = screen
+        self.writes: list = []
+
+    def wait_for(self, markers, timeout):
+        return markers[0]
+
+    def text(self):
+        return self._screen
+
+    def write(self, keys):
+        self.writes.append(keys)
+
+    def kill(self):
+        pass
+
+
+def _fake_picker(monkeypatch, screen):
+    pty = _PickerPty(screen)
+    monkeypatch.setattr(gemini_cli, "_Pty", lambda *a, **k: pty)
+    monkeypatch.setattr(gemini_cli.time, "sleep", lambda s: None)
+    return pty
+
+
+def test_switch_model_records_catalogue_and_logs(monkeypatch, caplog):
+    _fake_picker(monkeypatch, _PICKER_SCREEN_AGY_1_2)
+    with caplog.at_level("INFO", logger=gemini_cli.logger.name):
+        gemini_cli._switch_model("/fake/agy", "Gemini 3.6 Flash")
+    assert gemini_cli.is_model_offered("Gemini 3.6 Flash") is True
+    assert gemini_cli.is_model_offered("Gemini 3.5 Flash") is False
+    assert "Gemini 3.8 Flash" in caplog.text
+
+
+def test_switch_model_not_offered_lists_real_catalogue(monkeypatch):
+    _fake_picker(monkeypatch, _PICKER_SCREEN_AGY_1_2)
+    with pytest.raises(gemini_cli.GeminiCLIError) as exc:
+        gemini_cli._switch_model("/fake/agy", "Gemini 3.5 Flash")
+    msg = str(exc.value)
+    assert "not offered by agy" in msg
+    assert "Gemini 3.1 Pro" in msg and "Search:" not in msg
+
+
+def test_switch_model_unreadable_picker_reports_catalogue_unavailable(monkeypatch):
+    gemini_cli._catalogue = ["Gemini 3.1 Pro"]
+    _fake_picker(monkeypatch, "Switch Model\n\n  Search:  \n ─────\n\nKeyboard: x\n")
+    with pytest.raises(gemini_cli.GeminiCLIError, match="catalogue unavailable"):
+        gemini_cli._switch_model("/fake/agy", "Gemini 3.1 Pro")
+    # Unknown, not "not offered": nothing gets hidden on an unreadable screen.
+    assert gemini_cli.is_model_offered("Gemini 3.1 Pro") is None
+
+
+def test_is_model_offered_unknown_before_any_read():
+    assert gemini_cli.is_model_offered("Gemini 3.1 Pro") is None
