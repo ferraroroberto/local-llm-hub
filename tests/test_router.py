@@ -491,5 +491,5 @@ def test_list_models_hides_gemini_row_agy_does_not_offer(monkeypatch):
         gemini_cli, "_catalogue", ["Gemini 3.6 Flash", "Gemini 3.1 Pro"])
     ids = {e["id"] for e in client.get("/v1/models").json()["data"]}
     assert "gemini_pro" in ids and "gemini_flash" in ids
-    assert "gemini_lite" not in ids and "Gemini 3.5 Flash" not in ids
+    assert "gemini_lite" not in ids and "Gemini 3.7 Flash" not in ids
     assert "gemini_image" in ids  # not a picker model — never filtered
