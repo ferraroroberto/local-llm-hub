@@ -264,6 +264,12 @@ models:
   # gemini_flash takes the newest generation and gemini_flash_lite keeps
   # the now-previous-gen row — latest-vs-previous-gen instead of
   # effort-vs-effort.
+  #
+  # 2026-09-30 (#629 / #635): "Gemini 3.5 Flash" left the picker, so
+  # gemini_lite was repointed to "Gemini 3.7 Flash" (operator's choice).
+  # The picker now also offers "Gemini 3.8 Flash"; gemini_flash still
+  # names 3.6, so the old lite-is-previous-gen ordering no longer holds —
+  # the alias is now just a stable name for its row.
   gemini_pro:
     display_name: "Gemini 3.1 Pro"
     backend: gemini
@@ -275,7 +281,7 @@ models:
     aliases: ["gemini_flash"]
 
   gemini_flash_lite:
-    display_name: "Gemini 3.5 Flash"
+    display_name: "Gemini 3.7 Flash"
     backend: gemini
     aliases: ["gemini_lite"]
 
