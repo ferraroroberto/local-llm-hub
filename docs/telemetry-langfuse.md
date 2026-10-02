@@ -8,6 +8,46 @@ var change). Everything below is local-only and personal-scale by
 design — no auth on the OTel pipe, default-on prompt capture, single-host
 Langfuse.
 
+## Host prerequisite: WSL memory cap
+
+Docker Desktop runs the Langfuse stack and SearXNG inside a WSL 2 VM. With no
+`%USERPROFILE%\.wslconfig`, that VM may grow to half of host RAM, and it never
+gives the memory back to Windows. Almost all of it is Linux page cache and
+kernel slab, not memory the containers use. On the reference machine it grew to
+35 GB and then 62 GB while the containers' anonymous memory was about 3 GB. MinIO
+holds most of it, because Langfuse writes many small event objects to it
+(`LANGFUSE_S3_EVENT_UPLOAD_*` in `docker/langfuse/docker-compose.yml`).
+
+Cap the VM with `%USERPROFILE%\.wslconfig`:
+
+```ini
+[wsl2]
+memory=16GB
+```
+
+16 GB is about 5x the measured anonymous usage, so ClickHouse merges and
+Langfuse spikes have headroom. Raise it if `docker inspect -f
+'{{.State.OOMKilled}}' <container>` ever reports `true`. Leave `processors`
+and `swap` at their defaults.
+
+Apply it with `wsl --shutdown`, wait until `wsl --list --running` reports no
+running distributions, then let Docker Desktop start again. The Langfuse
+containers come back on their own, or re-run `start_langfuse.bat`. If
+`http://localhost:3000` returns empty replies although `docker ps` shows the
+web container up, `docker restart langfuse-langfuse-web-1` re-publishes the
+port. This stops
+every WSL 2 distro on the host, so do it deliberately, not unattended.
+
+Confirm the cap took effect, because a missing or malformed file (sizes need a
+unit: `16GB`, `512MB`) is silently ignored:
+
+```powershell
+docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}"   # limit column = cap, not ~62 GiB
+Get-Process vmmemWSL | Select-Object @{n='WS_GB';e={[math]::Round($_.WorkingSet64/1GB,1)}}
+```
+
+Reference: <https://learn.microsoft.com/en-us/windows/wsl/wsl-config>.
+
 ## Quick start
 
 ```bat
