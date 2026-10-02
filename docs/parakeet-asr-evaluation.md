@@ -494,14 +494,15 @@ while adding a ~97 MB model load plus per-request CTC inference. Hence
 
 ---
 
-## Update 2026-10-02: Parakeet Ultra pre-flight (#640) — evaluated, swap not applied
+## Update 2026-10-02: Parakeet Ultra pre-flight (#640) — evaluated (swap applied same day, see below)
 
 [#640](https://github.com/ferraroroberto/local-llm-hub/issues/640) tracks the
 2026-10-01 frontier verdict `runtime_upgrade` for this role: swap the worker's
 pinned checkpoint from `.v3` to FluidAudio's `.ultra` (Moondream's post-trained,
 drop-in derivative of the same `parakeet-tdt-0.6b-v3`). This pass covers only
 the license check and the pre-flight comparison; **the swap itself was not
-applied** and the live worker, hub and whisper were not touched.
+applied in that pass** (it follows in the decision below) and the live worker,
+hub and whisper were not touched while measuring.
 
 **License: CC-BY-4.0, confirmed from the model cards.** The upstream
 `moondream/parakeet-ultra` card has `license: cc-by-4.0` and states "License is
@@ -564,3 +565,21 @@ was verified byte-identical before and after.
 Recommendation: **go** for the swap on this evidence, with the numeral-style
 change and the attribution requirement noted. The decision and the
 `/swap-model` run remain with the owner.
+
+### Decision: swap applied (2026-10-02, #640)
+
+The owner approved the swap on the evidence above. The worker's pinned
+checkpoint moved from `.v3` to `.ultra`
+(`mac/parakeet-worker/Sources/ParakeetWorker/main.swift`) and the FluidAudio
+floor in `Package.swift` rose from `0.12.4` to `0.17.3`, which `.ultra` needs.
+`parakeet` stays the model id and the `audio_transcribe` role primary with
+`fallback: [whisper]`; no registry row, role, port or concurrency change, and
+`model=whisper` remains the explicit jargon-safe escape hatch. The wake-phrase /
+jargon gap is unchanged and stays tracked in #401. The post-deploy live
+verification is recorded in the #640 closing comment.
+
+**Attribution (CC-BY-4.0).** Parakeet Ultra is a derivative of NVIDIA's
+`parakeet-tdt-0.6b-v3` (NVIDIA, CC-BY-4.0), post-trained by Moondream
+(`moondream/parakeet-ultra`, CC-BY-4.0) and converted to CoreML by FluidInference
+(`FluidInference/parakeet-ultra-coreml`, CC-BY-4.0). The credit is carried in the
+README "License" section.

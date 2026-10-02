@@ -5,7 +5,7 @@ let package = Package(
     name: "ParakeetWorker",
     platforms: [.macOS(.v14)],
     dependencies: [
-        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.12.4")
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.17.3")
     ],
     targets: [
         .executableTarget(

@@ -507,8 +507,8 @@ Today this powers the `mac-mini-m4` host (Apple M4; address in
 - **`qwen3.5-9b`** — moved here from `tower` (see
   [Demoted candidates](#demoted-candidates-kept-defined-not-in-active-rotation)
   above); same `llama-server`, just running on the Mac.
-- **`parakeet-tdt-0.6b-v3`** — NVIDIA Parakeet TDT 0.6B v3 on the Apple
-  Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio)
+- **`parakeet-tdt-0.6b-v3`** — NVIDIA Parakeet TDT 0.6B v3 (running the
+  Parakeet Ultra checkpoint since #640) on the Apple Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio)
   (CoreML), served by the vendored Swift worker in `mac/parakeet-worker/`
   + `src/parakeet_server.py`. The **`audio_transcribe` role primary** since
   #350 (a latency/placement call, not an accuracy one): a plain
@@ -2339,5 +2339,10 @@ underlying `claude` CLI is still governed by Anthropic's terms (see
 weights follow their own licenses
 ([Gemma terms](https://ai.google.dev/gemma/terms),
 [Whisper / OpenAI MIT](https://github.com/openai/whisper/blob/main/LICENSE),
+[Parakeet Ultra](https://huggingface.co/moondream/parakeet-ultra) (CC-BY-4.0:
+post-trained by Moondream from NVIDIA's
+[parakeet-tdt-0.6b-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3),
+CoreML build by [FluidInference](https://huggingface.co/FluidInference/parakeet-ultra-coreml);
+runs through [FluidAudio](https://github.com/FluidInference/FluidAudio), Apache-2.0),
 plus [Qwen](https://huggingface.co/Qwen) /
 [GLM](https://huggingface.co/zai-org) for the demoted candidates).
