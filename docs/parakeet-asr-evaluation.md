@@ -491,3 +491,76 @@ while adding a ~97 MB model load plus per-request CTC inference. Hence
   already recognizes both "Claude Code" and "YOLO" correctly (see the
   survival table above), so it remains the jargon-safe path for callers that
   address it explicitly (`model=whisper`).
+
+---
+
+## Update 2026-10-02: Parakeet Ultra pre-flight (#640) — evaluated, swap not applied
+
+[#640](https://github.com/ferraroroberto/local-llm-hub/issues/640) tracks the
+2026-10-01 frontier verdict `runtime_upgrade` for this role: swap the worker's
+pinned checkpoint from `.v3` to FluidAudio's `.ultra` (Moondream's post-trained,
+drop-in derivative of the same `parakeet-tdt-0.6b-v3`). This pass covers only
+the license check and the pre-flight comparison; **the swap itself was not
+applied** and the live worker, hub and whisper were not touched.
+
+**License: CC-BY-4.0, confirmed from the model cards.** The upstream
+`moondream/parakeet-ultra` card has `license: cc-by-4.0` and states "License is
+CC-BY-4.0, same as the original"; the `FluidInference/parakeet-ultra-coreml`
+card (the CoreML build FluidAudio downloads) has `license: cc-by-4.0` and
+"License CC-BY-4.0, as the upstream checkpoint". That matches NVIDIA's
+`parakeet-tdt-0.6b-v3`, so no new terms versus today. CC-BY-4.0 requires
+attribution (NVIDIA as the original author, Moondream for the derivative) —
+carry that credit wherever the model is credited. The FluidAudio release notes
+for v0.17.3 state no license; FluidAudio itself is Apache-2.0.
+
+### How it was measured
+
+A throwaway copy of the worker (FluidAudio 0.17.3, which `.ultra` needs; the
+live worker resolves 0.15.4) was built in a scratch directory on `mac-mini-m4`
+and run by hand, `.v3` and `.ultra` from the same binary, each clip run twice
+(second run timed). Clips: the same 12 dictation clips as the #138 spike
+(556 s, 6 general + 6 jargon, one with an English→Spanish tail), plus 8
+synthetic sentences (4 EN, 4 ES, macOS `say`) with exact known text. WER is
+against the archived transcripts, which are whisper-derived and so favour
+whisper-style output — directional, not absolute, as in #138. Scratch build,
+clips and the extra model download were removed afterwards; the live v3 cache
+was verified byte-identical before and after.
+
+### Results
+
+| | `.v3` | `.ultra` |
+| --- | --- | --- |
+| WER vs archived refs (12 clips, 1232 words) | 8.85 % | **7.71 %** |
+| Warm inference, 556 s of audio | 2.40 s (232× RT) | 2.09 s (266× RT) |
+| "Claude Code" wake phrase (2 spoken) | 0 / 2 | 0 / 2 |
+| "YOLO" (3 spoken) | 1 / 3 ("yellow" ×2) | 1 / 3 ("yellow" ×2) |
+| "Shift-Tab" (2 spoken) | 0 / 2 ("shift dub") | **2 / 2** |
+| Spanish tail ("muchas gracias") | dropped — output truncated mid-sentence | **recovered** |
+| "PTI" (1 spoken) | **correct** | "PPI" |
+| Synthetic ES, 4 sentences (66 words) | 0 errors | 0 errors |
+| Synthetic EN, 4 sentences (62 words) | 7 errors | 8 errors |
+
+- **No regression on the wake-phrase/jargon axis** (acceptance criterion 2):
+  "Claude Code" is dropped and "YOLO" is mangled to "yellow" exactly as under
+  `.v3`; Ultra was not trained for that gap and does not close it (#401 stays
+  open). Net jargon movement is positive (Shift-Tab, "approve") with one
+  regression ("PTI" → "PPI").
+- **Spanish:** on the one real code-switch clip `.v3` stops mid-sentence and
+  `.ultra` transcribes through to the Spanish tail (one clip: suggestive, not
+  proof that it fixes the #123/#138 dropped-tail finding). The clean synthetic ES/EN
+  sentences are saturated (identical text, bar numeral style) and do not
+  discriminate.
+- **Behaviour change to expect:** Ultra writes numerals as digits ("241",
+  "2026", "1st", "8 o'clock") where `.v3` spelled them out. Harmless for
+  dictation; check any downstream consumer that parses the text.
+- **Footprint/latency:** same ANE path; model dir 606 MB vs 461 MB on disk;
+  the first load of `.ultra` was ~25 s including the download (warm loads
+  ~0.3 s). Output was identical across two `.ultra` runs.
+- **Swap implications:** `Package.swift` must raise the FluidAudio lower bound
+  to `0.17.3` (it floors at `0.12.4`; the Mac resolves 0.15.4 today and
+  `Package.resolved` is not tracked) before the pin can move to `.ultra`; the
+  scratch build took ~90 s on Swift 6.3.3.
+
+Recommendation: **go** for the swap on this evidence, with the numeral-style
+change and the attribution requirement noted. The decision and the
+`/swap-model` run remain with the owner.
