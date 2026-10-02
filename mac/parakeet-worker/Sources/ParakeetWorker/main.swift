@@ -23,9 +23,9 @@ func emit(_ resp: AsrResponse) {
 @main
 struct ParakeetWorker {
     static func main() async {
-        FileHandle.standardError.write("Loading Parakeet TDT v3 models...\n".data(using: .utf8)!)
+        FileHandle.standardError.write("Loading Parakeet Ultra models...\n".data(using: .utf8)!)
         do {
-            let models = try await AsrModels.downloadAndLoad(version: .v3)
+            let models = try await AsrModels.downloadAndLoad(version: .ultra)
             let asrManager = AsrManager(config: .default)
             try await asrManager.loadModels(models)
             FileHandle.standardError.write("READY\n".data(using: .utf8)!)
