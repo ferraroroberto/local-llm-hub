@@ -1441,6 +1441,9 @@ Starts a resident system-tray icon (silent — no terminal window) that:
     off from the admin SPA's Models tab **Service startup** card, or hand-edit the
     JSON. Peer wake/sync is *not* a startup-profile toggle — it is owned by
     the fleet reconcile loop, driven by the registry-derived desired state.
+    The Docker VM's memory is capped host-side by `%USERPROFILE%\.wslconfig`
+    (`[wsl2] memory=16GB`) — see
+    [Host prerequisite: WSL memory cap](docs/telemetry-langfuse.md#host-prerequisite-wsl-memory-cap).
 - Lets you toggle any other enabled local model on/off from the
   **🧠 Models** submenu (multiple may run concurrently).
 - Surfaces the admin webapp via **🚀 Open admin** — same `:8000/admin/`
