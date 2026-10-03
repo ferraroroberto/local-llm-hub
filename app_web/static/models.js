@@ -261,7 +261,7 @@ function buildPlacement(m, editorOpen) {
   if (canEditPlacement(m)) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'icon-btn placement-edit-btn' + (editorOpen ? ' active' : '');
+    btn.className = 'icon-btn hit-target placement-edit-btn' + (editorOpen ? ' active' : '');
     btn.dataset.act = 'edit-placement';
     btn.title = 'Edit placement (writes to config/models.yaml)';
     btn.setAttribute('aria-label', btn.title);

@@ -70,6 +70,8 @@
   --gap: 12px;
   /* shared height for inline controls (select / input) so they line up */
   --control-h: 36px;
+  /* components.hit-target.min — the floor for every pointer target */
+  --hit-min: 44px;
   /* canonical icon-size steps (icons.size.* — consumed by the vendored
      disclosure / empty-state components) */
   --icon-title: 18px;
@@ -286,6 +288,16 @@ h2 { display: flex; align-items: center; gap: 8px; }
   display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: 10px;
   align-items: center;
 }
+/* Shared hit-area expansion (design.md Touch targets): keep the compact visual
+ * and grow the effective pointer rect invisibly by --hit-grow per side
+ * (compact + 2*grow = 44). Co-apply to isolated controls only — adjacent
+ * controls get real 44px geometry instead, so expanded rects never overlap. */
+.hit-target { position: relative; --hit-grow: 5px; }
+.hit-target::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--hit-grow) * -1);
+}
 /* Header-mounted icon action. Smaller than .icon-btn so it doesn't
  * dominate the card header. */
 .icon-header-btn {
@@ -393,7 +405,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: var(--control-h);
+  min-height: var(--hit-min);
   padding: 8px 14px;
   font: inherit;
   font-size: var(--font-label);
@@ -649,15 +661,15 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .app-item .badge { flex-shrink: 0; }
 .app-item .app-icons {
   display: flex;
-  gap: 2px;
+  gap: 0;
   flex-shrink: 0;
   /* Push the action icons to the right edge now that .app-title no longer
    * grows to fill the row. */
   margin-left: auto;
 }
 .app-item .app-icons .icon-btn {
-  width: 36px;
-  min-height: 36px;
+  width: var(--hit-min);
+  min-height: var(--hit-min);
   border-radius: var(--radius-sm);
 }
 .app-item .app-meta {
@@ -712,8 +724,8 @@ h2 { display: flex; align-items: center; gap: 8px; }
   font-weight: 600;
 }
 /* Edit affordance (#424) — compact inline icon control on the placement
- * line, same sub-row scale as the glossary REPL row's delete button. */
-.placement-line .placement-edit-btn { width: 26px; min-height: 26px; }
+ * line; the 26px visual reaches the 44px floor through .hit-target. */
+.placement-line .placement-edit-btn { width: 26px; min-height: 26px; --hit-grow: 9px; }
 
 /* ---------- placement editor (#424, inline panel under a model row) ----------
  * Same sibling-panel recipe as .glossary-panel — the panel sits next to
@@ -767,9 +779,8 @@ h2 { display: flex; align-items: center; gap: 8px; }
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
 }
 .pe-cpu-label:has(.pe-cpu) { cursor: pointer; }
-/* Compact inline chain controls — sub-row icon scale, same rationale as
- * .glossary-repl-row .icon-btn. */
-.pe-host-row .icon-btn { width: 30px; min-height: 30px; flex-shrink: 0; }
+/* Up / down / remove sit side by side: real 44px geometry, not an expansion. */
+.pe-host-row .icon-btn { width: var(--hit-min); min-height: var(--hit-min); flex-shrink: 0; }
 .pe-add-row { display: flex; gap: 8px; align-items: stretch; }
 .pe-add-row select {
   flex: 1 1 0;
@@ -864,10 +875,8 @@ h2 { display: flex; align-items: center; gap: 8px; }
   font-size: var(--font-label);
 }
 .glossary-arrow { color: var(--muted); flex-shrink: 0; }
-/* Compact inline delete action nested inside a REPL row — deliberately below
- * the 44/52/60 rows scale, which governs list-row containers, not the icon
- * controls sitting in them (design.md Components list-row). */
-.glossary-repl-row .icon-btn { width: 30px; min-height: 30px; flex-shrink: 0; }
+/* Up / down / delete sit side by side in a REPL row: real 44px geometry. */
+.glossary-repl-row .icon-btn { width: var(--hit-min); min-height: var(--hit-min); flex-shrink: 0; }
 .glossary-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .glossary-chip {
   display: inline-flex;
@@ -942,7 +951,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   padding: 10px 12px;
   font: inherit;
   font-size: var(--font-label);
-  min-height: var(--control-h);
+  min-height: var(--hit-min);
   width: 100%;
 }
 .opt-stack > textarea {
@@ -970,6 +979,15 @@ h2 { display: flex; align-items: center; gap: 8px; }
   justify-content: space-between;
   gap: var(--space-sm);
 }
+/* A collapsible "More options" title is a <summary>: a tap target, so it gets
+ * the full 44px row. */
+summary.opt-group-title {
+  display: flex;
+  align-items: center;
+  min-height: var(--hit-min);
+  margin: 0;
+  cursor: pointer;
+}
 .opt-group-title {
   font-size: var(--font-caption);
   color: var(--muted);
@@ -993,7 +1011,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   padding: 8px 10px;
   font: inherit;
   font-size: var(--font-label);
-  min-height: var(--control-h);
+  min-height: var(--hit-min);
 }
 .playground-send-row {
   display: flex;
@@ -1095,22 +1113,20 @@ h2 { display: flex; align-items: center; gap: 8px; }
   word-break: break-word;
   min-width: 0;
 }
-/* Row-level service action (Wake / Sync) — compact, never a big block. */
+/* Row-level service action (Wake / Sync) — compact padding, full 44px height. */
 .services-row .ghost-btn {
-  min-height: 28px;
   padding: 4px 10px;
   font-size: var(--font-caption);
 }
-/* Docker/Langfuse/AgentsView start+stop pair (#284) — same compact
- * icon-btn sizing as .glossary-repl-row, scaled down from the Models
- * tab's 36px touch target to fit this row's 28px ghost-btn rhythm. */
+/* Docker/Langfuse/AgentsView start+stop pair (#284) — the pair sits side by
+ * side, so each button gets real 44px geometry (expanded rects must not overlap). */
 .services-row .services-actions {
   display: flex;
-  gap: 2px;
+  gap: 0;
 }
 .services-row .services-actions .icon-btn {
-  width: 28px;
-  min-height: 28px;
+  width: var(--hit-min);
+  min-height: var(--hit-min);
   border-radius: var(--radius-sm);
 }
 
