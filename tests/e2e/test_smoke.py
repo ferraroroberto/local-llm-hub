@@ -32,6 +32,27 @@ SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
 PHONE_VIEWPORT = {"width": 390, "height": 844}
 
 
+# Counts the Hub tab's live-request EventSource connections and the frames
+# they deliver, so the live-stream test can wait on "stream open" and "seed
+# replayed" instead of fixed sleeps. The listener is registered at
+# construction, ahead of the app's own ``onmessage``, so a count read from a
+# later task already includes that frame's render.
+_SSE_TAP = """
+(() => {
+  const Native = window.EventSource;
+  window.__sse = { opened: 0, messages: 0 };
+  window.EventSource = class extends Native {
+    constructor(url, ...rest) {
+      super(url, ...rest);
+      if (!String(url).includes('/requests/stream')) return;
+      this.addEventListener('open', () => { window.__sse.opened += 1; });
+      this.addEventListener('message', () => { window.__sse.messages += 1; });
+    }
+  };
+})();
+"""
+
+
 @pytest.fixture(autouse=True)
 def _no_console_errors(page):
     """Fail the test if the page logs an actual ``console.error`` line.
@@ -238,13 +259,14 @@ def test_live_requests_stream_rolls_forward(page, admin_url):
     base = admin_url.rsplit("/admin/", 1)[0]
     # wait_until="load" — consistent with test_models_tab (issue #19);
     # the later #tabModels click then can't race wireTabs() either.
+    page.add_init_script(_SSE_TAP)
     page.goto(admin_url, wait_until="load")
     page.wait_for_selector("#paneHub", state="visible", timeout=5000)
     page.wait_for_selector("#liveRequestsList", state="attached", timeout=3000)
-    # Let the EventSource open + the initial seed drain. We don't rely
-    # on baseline counts because earlier tests in the same session may
-    # have left records in the server-side ring.
-    page.wait_for_timeout(700)
+    # Wait for the EventSource to open, so the requests below arrive as live
+    # frames. We don't rely on baseline counts because earlier tests in the
+    # same session may have left records in the server-side ring.
+    page.wait_for_function("window.__sse.opened >= 1", timeout=5000)
 
     # Use distinguishable model names so each marker is a unique row.
     marker_a = "e2e-rolls-forward-A"
@@ -295,13 +317,18 @@ def test_live_requests_stream_rolls_forward(page, admin_url):
     # stream on tab-out and starts it again on tab-in — the server then
     # replays its 20-record seed, which used to duplicate every visible
     # row in the pane.
+    frames_before = page.evaluate("window.__sse.messages")
     page.click("#tabModels")
     page.wait_for_selector("#paneModels", state="visible", timeout=2000)
-    page.wait_for_timeout(300)
     page.click("#tabHub")
     page.wait_for_selector("#paneHub", state="visible", timeout=2000)
-    # Give the fresh EventSource time to receive the replayed seed.
-    page.wait_for_timeout(900)
+    # Wait until the fresh EventSource has replayed its seed: the ring holds
+    # at least the two markers above, one frame each.
+    page.wait_for_function(
+        "(n) => window.__sse.opened >= 2 && window.__sse.messages >= n + 2",
+        arg=frames_before,
+        timeout=10000,
+    )
     counts_after = _marker_counts()
     assert counts_after[marker_a] == 1, (
         f"marker_a duplicated after SSE reconnect: {counts_after}"
