@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from functools import lru_cache
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 
-from src.static_versioning import rewrite_index_html
+from src.build_info import git_sha
+from src.static_versioning import fleet_hash_of, rewrite_index_html
 
 from ._helpers import PROJECT_ROOT, STATIC_DIR
 
@@ -40,8 +42,36 @@ def _icon_sprite() -> str:
     return re.sub(r"<!--.*?-->", "", text, flags=re.S).strip()
 
 
+_INDEX_CACHE_CONTROL = "no-cache, must-revalidate"
+
+
+def _index_etag(body: str, asset_hashes: Dict[str, str]) -> str:
+    """Weak validator for the stamped entry document.
+
+    The stamped HTML names only the assets it references directly, so a changed
+    transitive module leaves it byte-identical. The git sha and the fleet asset
+    hash (both fixed at startup) join the body so a 304 can never pin a phone to
+    a stale build. Weak because the wire bytes vary with ``Content-Encoding``.
+    """
+    digest = hashlib.sha256()
+    for part in (git_sha(), fleet_hash_of(asset_hashes), body):
+        digest.update(part.encode("utf-8"))
+        digest.update(b"\0")
+    return f'W/"{digest.hexdigest()[:16]}"'
+
+
+def _if_none_match_hits(header: str, etag: str) -> bool:
+    """True when ``If-None-Match`` names ``etag`` (weak comparison) or is ``*``."""
+    wanted = etag.removeprefix("W/")
+    for candidate in header.split(","):
+        candidate = candidate.strip()
+        if candidate == "*" or candidate.removeprefix("W/") == wanted:
+            return True
+    return False
+
+
 @router.get("/", include_in_schema=False)
-async def index(request: Request) -> HTMLResponse:
+async def index(request: Request) -> Response:
     index_path = STATIC_DIR / "index.html"
     if not index_path.exists():
         raise HTTPException(status_code=500, detail="index.html missing")
@@ -55,11 +85,15 @@ async def index(request: Request) -> HTMLResponse:
         stamped = stamped.replace("<body>", "<body>\n" + sprite, 1)
     # Force browsers (especially iOS Safari PWA) to revalidate the HTML
     # on every load so a stale cached index.html doesn't keep pointing
-    # at a `?v=<old hash>` script that no longer exists after a deploy.
-    return HTMLResponse(
-        content=stamped,
-        headers={"Cache-Control": "no-cache, must-revalidate"},
-    )
+    # at a `?v=<old hash>` script that no longer exists after a deploy. The
+    # ETag lets that revalidation answer 304 instead of re-sending the page.
+    headers = {
+        "Cache-Control": _INDEX_CACHE_CONTROL,
+        "ETag": _index_etag(stamped, asset_hashes),
+    }
+    if _if_none_match_hits(request.headers.get("if-none-match", ""), headers["ETag"]):
+        return Response(status_code=304, headers=headers)
+    return HTMLResponse(content=stamped, headers=headers)
 
 
 @router.get("/api/healthz")
