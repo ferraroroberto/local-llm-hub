@@ -120,6 +120,7 @@ def _item(page, model_id):
 
 
 def _open_editor(page, model_id):
+    _item(page, model_id).locator(".row-menu-toggle").click()
     _item(page, model_id).locator(".placement-edit-btn").click()
     page.wait_for_selector(
         f'#modelsList .app-item[data-id="{model_id}"] .placement-editor',

@@ -292,16 +292,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
   display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: 10px;
   align-items: center;
 }
-/* Shared hit-area expansion (design.md Touch targets): keep the compact visual
- * and grow the effective pointer rect invisibly by --hit-grow per side
- * (compact + 2*grow = 44). Co-apply to isolated controls only — adjacent
- * controls get real 44px geometry instead, so expanded rects never overlap. */
-.hit-target { position: relative; --hit-grow: 5px; }
-.hit-target::before {
-  content: "";
-  position: absolute;
-  inset: calc(var(--hit-grow) * -1);
-}
 /* Header-mounted icon action. Smaller than .icon-btn so it doesn't
  * dominate the card header. */
 .icon-header-btn {
@@ -682,6 +672,54 @@ h2 { display: flex; align-items: center; gap: 8px; }
   color: var(--muted);
   overflow-wrap: anywhere;
 }
+/* Trailing "More actions" menu (action-row: one accessory per row). The
+ * <details> summary is the 44px accessory; the list floats under it so opening
+ * it never reflows the row. */
+.row-menu { position: relative; }
+.row-menu-toggle {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--hit-min);
+  min-height: var(--hit-min);
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.row-menu-toggle::-webkit-details-marker { display: none; }
+.row-menu[open] > .row-menu-toggle { color: var(--ink); background: var(--card-off); }
+.row-menu-list {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+  min-width: 220px;
+  padding: var(--space-xs);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.row-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: var(--hit-min);
+  padding: 0 var(--space-sm);
+  font: inherit;
+  font-size: var(--font-label);
+  color: var(--ink);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.row-menu-item:hover { background: var(--card-off); }
+.row-menu-item.active { color: var(--accent-text); background: var(--accent-soft); }
+.row-menu-item.danger { color: var(--danger-text); }
 .app-item .app-icons .icon-btn.active {
   color: var(--accent-text);
   background: var(--accent-soft);
@@ -728,9 +766,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
   border-color: var(--accent-border-strong);
   font-weight: 600;
 }
-/* Edit affordance (#424) — compact inline icon control on the placement
- * line; the 26px visual reaches the 44px floor through .hit-target. */
-.placement-line .placement-edit-btn { width: 26px; min-height: 26px; --hit-grow: 9px; }
 
 /* ---------- placement editor (#424, inline panel under a model row) ----------
  * Same sibling-panel recipe as .glossary-panel — the panel sits next to

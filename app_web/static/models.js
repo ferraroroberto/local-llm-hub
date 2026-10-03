@@ -119,12 +119,17 @@ function fillItem(li, m) {
   titleRow.innerHTML =
     '<span class="app-title"><span class="app-name">' + escapeHtml(m.display_name) + '</span></span>' + badge(m);
 
+  // An open "More actions" menu must survive the 5 s poll's rebuild.
+  const menuWasOpen = !!li.querySelector(':scope > .app-main .row-menu[open]');
   const icons = document.createElement('div');
   icons.className = 'app-icons';
   const buttons = [];
   if (m.controllable) {
-    buttons.push({ act: 'start', glyph: icon('play'), label: 'Start', disabled: ownership !== 'none' });
-    buttons.push({ act: 'stop',  glyph: icon('square'), label: 'Stop',  disabled: ownership !== 'ours', danger: true });
+    // One power control (action-row: a single leading toggle): Start while the
+    // model is down, Stop once this hub owns the process.
+    buttons.push(ownership === 'ours'
+      ? { act: 'stop',  glyph: icon('square'), label: 'Stop' }
+      : { act: 'start', glyph: icon('play'), label: 'Start', disabled: ownership !== 'none' });
   }
   // No ping for the TypeSafe tile (#611): every probe is a billed vendor
   // evaluation — the Playground's Decision card is where Jev gets exercised.
@@ -134,20 +139,10 @@ function fillItem(li, m) {
       disabled: !reachable && m.backend !== 'claude' && m.backend !== 'gemini',
     });
   }
-  if (adopted) {
-    buttons.push({ act: 'force-stop', glyph: icon('skull'), label: 'Force stop', danger: true });
-  }
-  if (m.backend === 'whisper') {
-    // The transcription dictionary is shared by every whisper backend, so
-    // the same editor opens from any whisper row.
-    buttons.push({ act: 'dictionary', glyph: icon('book-open'), label: 'Transcription dictionary' });
-  }
-  const panelOpen = !!li.querySelector(':scope > .glossary-panel:not([hidden])');
   buttons.forEach(function (b) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'icon-btn' + (b.danger ? ' danger' : '');
-    if (b.act === 'dictionary' && panelOpen) btn.classList.add('active');
+    btn.className = 'icon-btn';
     btn.dataset.act = b.act;
     btn.disabled = !!b.disabled;
     btn.title = b.label;
@@ -156,6 +151,24 @@ function fillItem(li, m) {
     btn.addEventListener('click', function () { handleAction(m, b.act); });
     icons.appendChild(btn);
   });
+
+  // Everything else lives in one trailing menu (action-row: destructive and
+  // rarely-used actions stay out of the row): force-stop of an adopted
+  // process, the shared transcription dictionary (any whisper row opens the
+  // same editor), and the placement editor on the write host (#424).
+  const panelOpen = !!li.querySelector(':scope > .glossary-panel:not([hidden])');
+  const editorOpen = !!li.querySelector(':scope > .placement-editor');
+  const menuItems = [];
+  if (adopted) {
+    menuItems.push({ act: 'force-stop', glyph: icon('skull'), label: 'Force stop', danger: true });
+  }
+  if (m.backend === 'whisper') {
+    menuItems.push({ act: 'dictionary', glyph: icon('book-open'), label: 'Transcription dictionary', active: panelOpen });
+  }
+  if (canEditPlacement(m)) {
+    menuItems.push({ act: 'edit-placement', glyph: icon('wrench'), label: 'Edit placement', active: editorOpen, cls: 'placement-edit-btn' });
+  }
+  if (menuItems.length) icons.appendChild(buildRowMenu(m, menuItems, menuWasOpen));
   titleRow.appendChild(icons);
   main.appendChild(titleRow);
 
@@ -192,8 +205,7 @@ function fillItem(li, m) {
 
   // Placement card (#423) — declared intent under the runtime meta; the
   // edit affordance (#424) rides it on the write host.
-  const editorOpen = !!li.querySelector(':scope > .placement-editor');
-  const placement = buildPlacement(m, editorOpen);
+  const placement = buildPlacement(m);
   if (placement) main.appendChild(placement);
 
   // Keep .app-main as the first child so any inline panel (dictionary or
@@ -216,8 +228,9 @@ function fillItem(li, m) {
  * (#434): host capacity lives on the Fleet summary card, and the old
  * per-card bar repeated the same machine fact on every card.
  * Subscription rows (claude/gemini) carry no `placement` key and get nothing.
- * On the single write host (#424) an edit button opens the inline editor. */
-function buildPlacement(m, editorOpen) {
+ * On the single write host (#424) the row's "More actions" menu opens the
+ * inline editor. */
+function buildPlacement(m) {
   const p = m.placement;
   if (!p) return null;
   const wrap = document.createElement('div');
@@ -255,22 +268,44 @@ function buildPlacement(m, editorOpen) {
   // #434: no per-card size chip and no host budget bar — the cards stay
   // light; sizes/capacity live in the placement editor and the Fleet summary.
 
-  // Edit affordance (#424): only where this hub may write (tower — the
-  // single-writer contract) and the row's placement is its own (a virtual
-  // alias shares its parent's process, so `editable` is false there).
-  if (canEditPlacement(m)) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'icon-btn hit-target placement-edit-btn' + (editorOpen ? ' active' : '');
-    btn.dataset.act = 'edit-placement';
-    btn.title = 'Edit placement (writes to config/models.yaml)';
-    btn.setAttribute('aria-label', btn.title);
-    btn.innerHTML = icon('wrench');
-    btn.addEventListener('click', function () { togglePlacementEditor(m); });
-    line.appendChild(btn);
-  }
   wrap.appendChild(line);
   return wrap;
+}
+
+/* Trailing "More actions" menu of a model row — one <details> whose summary is
+ * the row's single accessory. Items are plain buttons carrying data-act, routed
+ * through handleAction like the row's visible controls. The edit item is only
+ * offered where this hub may write (tower — the single-writer contract) and the
+ * row's placement is its own (#424). */
+function buildRowMenu(m, items, open) {
+  const menu = document.createElement('details');
+  menu.className = 'row-menu';
+  menu.open = !!open;
+  const toggle = document.createElement('summary');
+  toggle.className = 'row-menu-toggle';
+  toggle.title = 'More actions';
+  toggle.setAttribute('aria-label', 'More actions');
+  toggle.innerHTML = icon('chevron-down');
+  menu.appendChild(toggle);
+  const list = document.createElement('div');
+  list.className = 'row-menu-list';
+  list.setAttribute('role', 'menu');
+  items.forEach(function (it) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'row-menu-item' + (it.danger ? ' danger' : '') +
+      (it.active ? ' active' : '') + (it.cls ? ' ' + it.cls : '');
+    btn.dataset.act = it.act;
+    btn.setAttribute('role', 'menuitem');
+    btn.innerHTML = it.glyph + '<span>' + escapeHtml(it.label) + '</span>';
+    btn.addEventListener('click', function () {
+      menu.open = false;
+      handleAction(m, it.act);
+    });
+    list.appendChild(btn);
+  });
+  menu.appendChild(list);
+  return menu;
 }
 
 /* Startup policy badge: `eager` is the quiet default; an on-demand row reads
@@ -326,13 +361,13 @@ function togglePlacementEditor(m) {
   panel.className = 'placement-editor';
   li.appendChild(panel);
   mountPlacementEditor(panel, m);
-  const btn = li.querySelector('.icon-btn[data-act="edit-placement"]');
+  const btn = li.querySelector('.row-menu-item[data-act="edit-placement"]');
   if (btn) btn.classList.add('active');
 }
 
 function closeAllPlacementEditors(root) {
   root.querySelectorAll('.placement-editor').forEach(function (p) { p.remove(); });
-  root.querySelectorAll('.icon-btn[data-act="edit-placement"].active')
+  root.querySelectorAll('.row-menu-item[data-act="edit-placement"].active')
     .forEach(function (b) { b.classList.remove('active'); });
 }
 
@@ -599,6 +634,8 @@ async function handleAction(m, act) {
     } catch (exc) { toast(String(exc.message || exc), 'error'); }
   } else if (act === 'dictionary') {
     toggleDictionaryPanel(m);
+  } else if (act === 'edit-placement') {
+    togglePlacementEditor(m);
   }
 }
 
@@ -621,13 +658,13 @@ function toggleDictionaryPanel(m) {
   panel.className = 'glossary-panel';
   li.appendChild(panel);
   mountGlossaryEditor(panel);
-  const btn = li.querySelector('.icon-btn[data-act="dictionary"]');
+  const btn = li.querySelector('.row-menu-item[data-act="dictionary"]');
   if (btn) btn.classList.add('active');
 }
 
 function closeAllDictionaryPanels(root) {
   root.querySelectorAll('.glossary-panel').forEach(function (p) { p.remove(); });
-  root.querySelectorAll('.icon-btn[data-act="dictionary"].active')
+  root.querySelectorAll('.row-menu-item[data-act="dictionary"].active')
     .forEach(function (b) { b.classList.remove('active'); });
 }
 
@@ -660,6 +697,12 @@ export function wireModels() {
     if (stored !== null) state.modelsActiveOnly = stored === 'true';
   } catch (_) { /* private mode */ }
   renderActiveToggle();
+
+  // A row's "More actions" menu closes on any tap outside it.
+  document.addEventListener('click', function (ev) {
+    if (!els.modelsList || ev.target.closest('.row-menu')) return;
+    els.modelsList.querySelectorAll('.row-menu[open]').forEach(function (d) { d.open = false; });
+  });
 
   if (els.modelsActiveToggle) {
     els.modelsActiveToggle.addEventListener('click', function (ev) {
