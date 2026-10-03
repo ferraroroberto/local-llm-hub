@@ -206,6 +206,31 @@ def _stub(module: Any, name: str, replacement: Any) -> None:
     setattr(module, name, replacement)
 
 
+def _isolate_usage_data(state_dir: Path) -> None:
+    """Point every Code Usage source at an empty path under ``state_dir``.
+
+    The summary endpoint otherwise cold-scans this machine's whole Claude /
+    Codex / Copilot session history (about 40 s on a ~300k-record history,
+    over half the suite's wall time), folds it into ``data/`` snapshots and
+    renders it, so a run's result and duration depended on whoever's history
+    was on the box. The tab's assertions are about structure, which an empty
+    history exercises just as well; the parsers, vendor filter and response
+    shape are unit-tested (tests/test_code_usage_router.py, #599).
+    """
+    from src import claude_code_otel, code_usage, code_usage_history, codex_usage, copilot_usage
+
+    empty = state_dir / "usage-empty"
+    empty.mkdir(parents=True, exist_ok=True)
+    otel_dir = state_dir / "telemetry"
+    _stub(code_usage, "_CLAUDE_PROJECTS_DIR", empty)
+    _stub(codex_usage, "_CODEX_SESSIONS_DIR", empty)
+    _stub(copilot_usage, "_CLI_SESSION_STATE_DIR", empty)
+    _stub(copilot_usage, "_VSCODE_WORKSPACE_STORAGE_DIR", empty)
+    _stub(claude_code_otel, "_DATA_DIR", otel_dir)
+    _stub(claude_code_otel, "_DATA_FILE", otel_dir / "claude_code_otel_usage.jsonl")
+    code_usage_history._reset_for_tests(state_dir / "code_usage_history.json")
+
+
 def isolate_from_live_services(state_dir: Path) -> None:
     """Make the hub's live-machine probes inert and deterministic.
 
@@ -221,6 +246,7 @@ def isolate_from_live_services(state_dir: Path) -> None:
     os.environ["LANGFUSE_HOST"] = ""
     os.environ["OTEL_SDK_DISABLED"] = "true"
     _pin_config(state_dir)
+    _isolate_usage_data(state_dir)
 
     from src import backend_process, install, server_lifecycle, server_process, services, system_stats
     from src.hub_log import HUB_LOG

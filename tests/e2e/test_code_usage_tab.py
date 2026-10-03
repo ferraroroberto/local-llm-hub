@@ -2,10 +2,9 @@
 
 Boots the hub with OTel disabled (set in tests/e2e/_isolated_hub.py).
 
-The JSONL parser reads from ~/.claude/projects/ — on a CI runner or a
-dev machine those files exist (Claude Code writes them automatically).
-The /admin/api/code/usage/summary endpoint is expected to return a valid
-JSON dict even when no JSONL files are present (empty-state path).
+The test hub reads no usage history (see _isolate_usage_data in
+tests/e2e/_isolated_hub.py), so every run renders the empty-state path of
+/admin/api/code/usage/summary.
 
 Checks:
   - Tab button is visible and clickable.
@@ -18,7 +17,6 @@ Checks:
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
 
 import httpx
@@ -31,38 +29,26 @@ PHONE_VIEWPORT = {"width": 390, "height": 844}
 # Pane-switch DOM/CSS transition can overrun a tight budget under runner
 # contention (issue #177) — give it the same headroom as the button wait.
 PANE_TIMEOUT = 10000
-# The summary endpoint cold-scans every vendor's full session history on the
-# hub's first call (no mtime cache yet — each e2e session boots a fresh hub
-# subprocess, so every run pays this once): ~19.7s for period=all, vendor=all
-# on this box's ~300k-record Claude history (#491). The
-# ``_warm_code_usage_cache`` fixture below pays that cost once, up front, so
-# the SPA's own polling never races it. The response shape and vendor filter
-# are unit-tested in tests/test_code_usage_router.py (#599).
-# Generous ceiling for the one-off cold scan itself — not a race, just a
-# backstop against a genuinely hung hub.
-_WARMUP_TIMEOUT = 90.0
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _warm_code_usage_cache(admin_url):
-    """Pay the cold-scan cost once, before any test assertion depends on it.
+def _usage_data_is_hermetic(admin_url):
+    """Fail fast if the test hub is reading this machine's usage history.
 
-    ``get_summary`` builds every vendor's mtime cache from scratch on the
-    hub's first call (#491) — cheap once warm, but ~20s cold on this box's
-    transcript volume. Firing the most expensive combination
-    (``period=all&vendor=all``) here means every test below — including the
-    SPA's own polling in ``test_code_usage_tab_loads`` /
-    ``test_code_usage_tab_phone_screenshot`` — runs against an already-warm
-    cache instead of racing the scan under its own fixed timeout. Duration is
-    logged (not just swallowed) so a growing cold-scan cost stays visible
-    over time rather than silently hidden behind ever-larger budgets.
+    ``tests/e2e/_isolated_hub.py`` points every Code Usage source at an empty
+    path. Left pointing at the host's real session history, the summary
+    endpoint cold-scans it (about 40 s on a ~300k-record history, over half
+    the suite's wall time) and the tab renders whoever's data is on the box.
+    The all-time, all-vendor summary is the widest view, so zero requests
+    there means no source leaked in.
     """
     base = admin_url.rstrip("/") + "/api/code/usage/summary"
-    t0 = time.monotonic()
-    r = httpx.get(base, params={"period": "all", "vendor": "all"}, timeout=_WARMUP_TIMEOUT)
-    elapsed = time.monotonic() - t0
-    print(f"\n[code-usage] cold-scan warm-up: {elapsed:.2f}s (status {r.status_code})")
-    assert r.status_code == 200, f"warm-up call failed: {r.text}"
+    r = httpx.get(base, params={"period": "all", "vendor": "all"}, timeout=30.0)
+    assert r.status_code == 200, f"usage summary failed: {r.text}"
+    assert r.json()["totals"]["requests"] == 0, (
+        "the e2e hub read real usage history; see _isolate_usage_data in "
+        "tests/e2e/_isolated_hub.py"
+    )
 
 
 @pytest.fixture(autouse=True)
