@@ -835,8 +835,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
   gap: 4px;
   font-size: var(--font-caption);
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 .pe-field select,
 .pe-field input {
@@ -972,8 +970,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .opt-stack > label {
   font-size: var(--font-caption);
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 .opt-stack > textarea,
 .opt-stack > input,
@@ -1026,8 +1022,6 @@ summary.opt-group-title {
   font-size: var(--font-caption);
   color: var(--muted);
   margin: 14px 0 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
   font-weight: 500;
 }
 .maxtokens-row {
@@ -1080,8 +1074,6 @@ summary.opt-group-title {
   margin-bottom: var(--space-xs);
 }
 .jev-verdict { font-weight: 600; }
-/* A model id — keep its case inside the uppercase section title. */
-#jevServedModel { text-transform: none; letter-spacing: normal; }
 .jev-bar {
   display: grid;
   grid-template-columns: minmax(0, 9rem) 1fr 2.6rem;
