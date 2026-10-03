@@ -42,8 +42,10 @@ def _no_console_errors(page):
 
 def test_telemetry_tab_loads_and_health_renders(page, admin_url):
     page.goto(admin_url, wait_until="domcontentloaded")
-    page.wait_for_selector("#tabTelemetry", state="visible", timeout=5000)
-    page.click("#tabTelemetry")
+    # OTel is a header destination, not one of the bar's five tabs.
+    assert page.locator("nav.tabs [role=tab]").count() == 5
+    page.wait_for_selector("#paneHub [data-open-tab=telemetry]", state="visible", timeout=5000)
+    page.click("#paneHub [data-open-tab=telemetry]")
     page.wait_for_selector("#paneTelemetry", state="visible", timeout=3000)
     # Other panes hidden — wait for state, don't snapshot mid-transition.
     page.wait_for_selector("#paneHub", state="hidden", timeout=3000)
@@ -66,7 +68,7 @@ def test_telemetry_tab_loads_and_health_renders(page, admin_url):
 def test_telemetry_tab_phone_screenshot(page, admin_url, browser_name):
     page.set_viewport_size(PHONE_VIEWPORT)
     page.goto(admin_url, wait_until="domcontentloaded")
-    page.click("#tabTelemetry")
+    page.click("#paneHub [data-open-tab=telemetry]")
     page.wait_for_selector("#paneTelemetry", state="visible", timeout=3000)
     page.wait_for_function(
         "document.getElementById('telHealthText') && "

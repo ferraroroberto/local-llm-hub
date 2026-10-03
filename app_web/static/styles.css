@@ -294,6 +294,10 @@ h2 { display: flex; align-items: center; gap: 8px; }
  * invisible hit-area expansion (34 + 2x5; design.md Touch targets). The 12px
  * header gap keeps neighbouring expanded rects from overlapping. */
 .home-head .home-toggle { position: relative; }
+/* Two header buttons (OTel, theme): only the first is pushed right. */
+.home-head .home-toggle + .home-toggle { margin-left: 0; }
+/* The nav tracks the OTel pane through a hidden entry; the bar shows five tabs. */
+.tabs .tab[data-tab="telemetry"] { display: none; }
 .home-head .home-toggle::before { content: ""; position: absolute; inset: -5px; }
 
 /* Filter above a long list (action-row: 44px, control-border). */

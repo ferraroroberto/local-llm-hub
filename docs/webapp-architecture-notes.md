@@ -8,8 +8,8 @@ debugging something and wants the gotchas in one place.
 
 The admin webapp is a FastAPI **sub-app** mounted at `/admin` on the
 hub's own `:8000` — there is no second port, no second Python process,
-no bundler. Six tabs (Hub / Models / Play / OTel / Code / Machines) cover
-every operational concern.
+no bundler. Five tabs (Hub / Models / Play / Code / Machines) plus the
+OTel page, opened from the header button, cover every operational concern.
 
 ```
 src/server.py            ── parent FastAPI hub (:8000)

@@ -6,7 +6,7 @@
 import { state, els, THEME_KEY, STATUS_POLL_MS, COUNTERS_POLL_MS, MODELS_POLL_MS } from './state.js';
 import { jsonApi, tokenFromUrl, writeToken, wireLoginForm, toast } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
-import { wireTabs, onTabChange } from './tabs.js';
+import { wireTabs, onTabChange, setTab } from './tabs.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchInstallStatus, fetchServicesStatus } from './hub.js';
 import { wireModels, fetchModels } from './models.js';
 import { wireStartupProfile, fetchStartupProfile } from './startup.js';
@@ -121,6 +121,10 @@ async function boot() {
     if (tab === 'models') fetchFleetPlacement().catch(function () {});
   });
   wireTabs();
+  // Header buttons that open a destination which is not in the bottom bar.
+  document.querySelectorAll('[data-open-tab]').forEach(function (btn) {
+    btn.addEventListener('click', function () { setTab(btn.dataset.openTab); });
+  });
 
   await Promise.allSettled([fetchVersion(), fetchAllData()]);
 
