@@ -169,6 +169,9 @@
 }
 
 * { box-sizing: border-box; }
+/* Form controls inherit the page font (design.md typography.body); the UA
+ * default ("MS Shell Dlg" on Windows) would otherwise show on the nav tabs. */
+button, input, select, textarea { font: inherit; }
 /* The HTML5 `hidden` attribute means `display: none`, but an explicit
  * `display: flex|grid` on the same element wins. Force the standard
  * semantics back so toggling `hidden` from JS hides overlays / panes. */
