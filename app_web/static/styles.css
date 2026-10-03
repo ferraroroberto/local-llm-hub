@@ -74,6 +74,7 @@
   --hit-min: 44px;
   /* canonical icon-size steps (icons.size.* — consumed by the vendored
      disclosure / empty-state components) */
+  --icon-inline: 16px;
   --icon-title: 18px;
   --icon-feature: 24px;
   /* rows 3-step scale (design.md `rows.*`) — consumed by _vendored/nav's
@@ -213,19 +214,17 @@ pre code { font-family: inherit; } /* …but code inside a pre stays mono */
  * see api.js modelLabel (#412). */
 .model-served { color: var(--muted); }
 .model-host { color: var(--muted); }
-/* Separator glyphs are Lucide chevrons on the 16px `inline` icon step. */
-.model-served .icon,
-.placement-arrow .icon,
-.glossary-arrow .icon { width: 16px; height: 16px; }
 
 /* ---------- icons (vendored Lucide sprite — _vendored/icons) ----------
  * The `.icon` rule is the required CSS contract from the vendored component's
  * README: glyphs inherit `currentColor`, so they recolor for free. Size them
- * with `font-size`/`width`/`height` at the call site (1em tracks the text). */
+ * at the call site with `width`/`height` on one of the icons.size steps; the
+ * default is the 16px `inline` step, never a font-derived size (12/14px text
+ * would put the glyph off the steps). */
 .icon {
   display: inline-block;
-  width: 1em;
-  height: 1em;
+  width: var(--icon-inline);
+  height: var(--icon-inline);
   flex: none;
   stroke: currentColor;
   stroke-width: 2;
