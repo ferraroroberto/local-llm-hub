@@ -107,6 +107,7 @@ export const els = {
   telSummary: document.getElementById('telSummary'),
   telCountersTable: document.getElementById('telCountersTable'),
   telTracesList: document.getElementById('telTracesList'),
+  telTracesFilter: document.getElementById('telTracesFilter'),
   telTracesBadge: document.getElementById('telTracesBadge'),
   telTracesEmpty: document.getElementById('telTracesEmpty'),
   telCcSummary: document.getElementById('telCcSummary'),
@@ -154,6 +155,7 @@ export const els = {
 
   // Diagnostic disclosure cards (Live / Counters / Errors / Log — #215)
   liveRequestsList: document.getElementById('liveRequestsList'),
+  liveRequestsFilter: document.getElementById('liveRequestsFilter'),
   liveRequestsBadge: document.getElementById('liveRequestsBadge'),
   liveRequestsEmpty: document.getElementById('liveRequestsEmpty'),
   countersTable: document.getElementById('countersTable'),

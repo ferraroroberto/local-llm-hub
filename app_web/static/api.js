@@ -235,6 +235,17 @@ export function fmtSecs(ms) {
   return (n / 1000).toFixed(n < 995 ? 2 : 1) + 's';
 }
 
+/* Client-side row filter for a rendered list (design.md action-row: a list over
+ * 12 rows gets a filter). Hides the rows whose text lacks the query; call it
+ * after every re-render and from the input's own `input` event. */
+export function applyListFilter(input, list) {
+  if (!input || !list) return;
+  const q = input.value.trim().toLowerCase();
+  list.querySelectorAll(':scope > li').forEach(function (li) {
+    li.hidden = !!q && !li.textContent.toLowerCase().includes(q);
+  });
+}
+
 /* One "in / out" token cell — merges the former In tok / Out tok columns. */
 export function tokPair(inTok, outTok) {
   if (!inTok && !outTok) return '—';

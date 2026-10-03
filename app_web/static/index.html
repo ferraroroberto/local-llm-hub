@@ -204,6 +204,7 @@
           <span class="collapse-chevron" aria-hidden="true">›</span>
         </summary>
         <div class="collapse-body">
+          <input id="liveRequestsFilter" type="search" class="list-filter" placeholder="Filter requests" aria-label="Filter live requests" autocomplete="off">
           <ul id="liveRequestsList" class="card-list dense" aria-label="Live request stream"></ul>
           <div id="liveRequestsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No requests yet — the ring fills as clients call the hub.</p></div>
           <p class="muted small" style="margin: 8px 0 0;">Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and don't show here.</p>
@@ -655,6 +656,7 @@
           <h2><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Live traces</h2>
           <span id="telTracesBadge" class="badge">0</span>
         </div>
+        <input id="telTracesFilter" type="search" class="list-filter" placeholder="Filter traces" aria-label="Filter live traces" autocomplete="off">
         <ul id="telTracesList" class="card-list dense tel-traces" aria-label="Live trace feed"></ul>
         <div id="telTracesEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No traces yet — the ring fills as clients call the hub.</p></div>
         <p class="muted small" style="margin: 8px 0 0;">Tap a row to expand prompt/completion preview. <svg class="icon" aria-hidden="true"><use href="#i-thumbs-up"></use></svg>/<svg class="icon" aria-hidden="true"><use href="#i-thumbs-down"></use></svg> sends a Langfuse score; <svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg> opens the full trace.</p>

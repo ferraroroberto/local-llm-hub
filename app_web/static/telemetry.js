@@ -10,7 +10,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, fmtTok, fmtCost, tokPair, renderCounterTable, renderTable, modelLabel, modelLabelText } from './api.js';
+import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, fmtTok, fmtCost, tokPair, renderCounterTable, renderTable, modelLabel, modelLabelText, applyListFilter } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 
 const HEALTH_POLL_MS = 8000;
@@ -232,6 +232,7 @@ function renderTraces() {
 
     list.appendChild(li);
   });
+  applyListFilter(els.telTracesFilter, list);
 }
 
 async function hydrateDetailPanel(target, traceId) {
@@ -317,6 +318,11 @@ function escapeAttr(s) { return escapeHtml(s); }
 
 // --------------------------------------------------------- lifecycle
 export function wireTelemetry() {
+  if (els.telTracesFilter) {
+    els.telTracesFilter.addEventListener('input', function () {
+      applyListFilter(els.telTracesFilter, els.telTracesList);
+    });
+  }
   if (els.telCcPeriodSeg) {
     els.telCcPeriodSeg.addEventListener('click', function (e) {
       const btn = e.target.closest('button[data-period]');
