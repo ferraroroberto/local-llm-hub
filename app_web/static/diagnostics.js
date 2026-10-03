@@ -277,7 +277,7 @@ function renderSummary(summary, drift) {
         const sign = c.delta > 0 ? '+' : '';
         const cls = c.delta > 0 ? 'warn' : (c.delta < 0 ? 'good' : '');
         return '<li><span>' + escapeHtml(c.label) + '</span>'
-          + '<span class="diag-delta ' + cls + '">' + escapeHtml(String(c.before)) + ' → '
+          + '<span class="diag-delta ' + cls + '">' + escapeHtml(String(c.before)) + ' to '
           + escapeHtml(String(c.now)) + ' (' + sign + escapeHtml(String(c.delta)) + ')</span></li>';
       }).join('') + '</ul>');
     }

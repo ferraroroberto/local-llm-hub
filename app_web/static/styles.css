@@ -213,6 +213,10 @@ pre code { font-family: inherit; } /* …but code inside a pre stays mono */
  * see api.js modelLabel (#412). */
 .model-served { color: var(--muted); }
 .model-host { color: var(--muted); }
+/* Separator glyphs are Lucide chevrons on the 16px `inline` icon step. */
+.model-served .icon,
+.placement-arrow .icon,
+.glossary-arrow .icon { width: 16px; height: 16px; }
 
 /* ---------- icons (vendored Lucide sprite — _vendored/icons) ----------
  * The `.icon` rule is the required CSS contract from the vendored component's

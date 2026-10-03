@@ -93,7 +93,8 @@ export function mountGlossaryEditor(container) {
       from.addEventListener('input', function () { rule.from = from.value; });
 
       const arrow = document.createElement('span');
-      arrow.className = 'glossary-arrow'; arrow.textContent = '→';
+      arrow.className = 'glossary-arrow'; arrow.innerHTML = icon('chevron-right');
+      arrow.setAttribute('aria-label', 'becomes');
 
       const to = document.createElement('input');
       to.type = 'text'; to.value = rule.to; to.placeholder = 'correct to…';
@@ -255,7 +256,7 @@ export function mountGlossaryEditor(container) {
       const wrap = document.createElement('div');
       wrap.className = 'glossary-chips';
       repls.forEach(function (r) {
-        const chip = suggestionChip(r.from + ' → ' + r.to, function () {
+        const chip = suggestionChip(r.from + ' to ' + r.to, function () {
           model.replacements.push({ from: r.from, to: r.to });
           renderRepl(); chip.remove();
         });
