@@ -599,7 +599,7 @@ export function wireHub() {
   }, 5000);
 }
 
-async function renderSparklines() {
+export async function renderSparklines() {
   let stats;
   try {
     stats = await jsonApi('/admin/api/hub/stats');
