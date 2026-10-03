@@ -40,7 +40,7 @@ def _no_console_errors(page):
         raise AssertionError("console errors: " + " | ".join(errs))
 
 
-def test_telemetry_tab_loads(page, admin_url):
+def test_telemetry_tab_loads_and_health_renders(page, admin_url):
     page.goto(admin_url, wait_until="domcontentloaded")
     page.wait_for_selector("#tabTelemetry", state="visible", timeout=5000)
     page.click("#tabTelemetry")
@@ -52,12 +52,6 @@ def test_telemetry_tab_loads(page, admin_url):
     # Health strip + leaderboard table rendered.
     page.wait_for_selector("#telHealth", state="visible", timeout=3000)
     page.wait_for_selector("#telCountersTable", state="visible", timeout=3000)
-
-
-def test_telemetry_health_renders(page, admin_url):
-    page.goto(admin_url, wait_until="domcontentloaded")
-    page.click("#tabTelemetry")
-    page.wait_for_selector("#paneTelemetry", state="visible", timeout=3000)
     # Wait for the first health poll to land (initial state is "checking…").
     page.wait_for_function(
         "document.getElementById('telHealthText') && "
