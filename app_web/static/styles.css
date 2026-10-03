@@ -320,9 +320,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
 }
 .icon-header-btn:hover { color: var(--ink); background: var(--card-off); }
 .icon-header-btn:active { background: var(--bg); }
-/* Toggled-on state — same accent-tint recipe as .app-item .app-icons
- * .icon-btn.active (#266's Models "Active only" filter). */
-.icon-header-btn.active { color: var(--accent-text); background: var(--accent-soft); }
 
 /* Hub card header — title + inline live status (dot + word), then
  * the action buttons on the right. */
@@ -676,6 +673,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
  * <details> summary is the 44px accessory; the list floats under it so opening
  * it never reflows the row. */
 .row-menu { position: relative; }
+.models-filter-row { margin: var(--space-sm) 0; }
 .row-menu-toggle {
   list-style: none;
   display: flex;
@@ -720,10 +718,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .row-menu-item:hover { background: var(--card-off); }
 .row-menu-item.active { color: var(--accent-text); background: var(--accent-soft); }
 .row-menu-item.danger { color: var(--danger-text); }
-.app-item .app-icons .icon-btn.active {
-  color: var(--accent-text);
-  background: var(--accent-soft);
-}
 
 /* ---------- Models tab: read-only placement cards (#423) ----------
  * A per-row intent section under the runtime meta line: host-chain pills in
