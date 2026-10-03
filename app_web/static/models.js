@@ -234,7 +234,7 @@ function buildPlacement(m, editorOpen) {
       if (i) {
         const sep = document.createElement('span');
         sep.className = 'placement-arrow';
-        sep.textContent = '›';
+        sep.innerHTML = icon('chevron-right');
         sep.setAttribute('aria-hidden', 'true');
         chainEl.appendChild(sep);
       }

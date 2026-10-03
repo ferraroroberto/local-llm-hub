@@ -411,9 +411,9 @@ function renderSessions(sessions) {
       '<span class="cld-sess-model">' + model + '</span>' +
       '<div class="cld-sess-meta">' +
         '<code>' + sid + '</code>' +
-        ' · ' + firstTs + ' → ' + lastTs +
+        ' · ' + firstTs + ' to ' + lastTs +
         ' · ' + fmtNum(s.requests) + ' req' +
-        ' · ' + fmtTok(totalIn) + '↑ ' + fmtTok(s.output_tokens) + '↓' +
+        ' · ' + fmtTok(totalIn) + ' in / ' + fmtTok(s.output_tokens) + ' out' +
       '</div>' +
       '</li>';
   }).join('');
@@ -442,7 +442,7 @@ function renderDeltas(body) {
     el.hidden = false;
     const pct = Math.round((c - p) / p * 100);
     el.className = pct > 0 ? 'cld-delta up' : pct < 0 ? 'cld-delta down' : 'cld-delta';
-    el.textContent = pct > 0 ? '+' + pct + '% ↑' : pct < 0 ? pct + '% ↓' : '±0%';
+    el.textContent = pct > 0 ? '+' + pct + '%' : pct < 0 ? pct + '%' : '±0%';
   }
 
   const prevIn  = prev ? (prev.input_tokens || 0) + (prev.cache_creation_tokens || 0) : 0;

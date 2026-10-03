@@ -1,6 +1,7 @@
 /* HTTP + SSE helpers, bearer-token plumbing, login overlay, toast. */
 
 import { els, state, TOKEN_KEY } from './state.js';
+import { icon } from './_vendored/icons/icons.js';
 
 // --------------------------------------------------------------- tokens
 export function tokenFromUrl() {
@@ -171,7 +172,7 @@ export function escapeHtml(s) {
 
 /* Plain-text label for a request record's model: the requested name, the model
  * that actually served it when the hub resolved one to the other, and the host
- * that served it ("audio_transcribe → parakeet @mac-mini-m4"). The served host
+ * that served it ("audio_transcribe, served by parakeet @mac-mini-m4"). The served host
  * is the dimension the #405 drill was missing — a `model=whisper` answered by
  * a machine with no whisper bound was a legitimate remote hop, and no field
  * said so. Only the audio paths populate the served pair, so ordinary chat
@@ -181,7 +182,7 @@ export function modelLabelText(rec, fallback) {
   const served = (rec && rec.served_model) || '';
   const host = (rec && rec.served_host) || '';
   let out = requested || fallback || '';
-  if (served && served !== requested) out += ' → ' + served;
+  if (served && served !== requested) out += ', served by ' + served;
   if (host) out += ' @' + host;
   return out;
 }
@@ -196,7 +197,7 @@ export function modelLabel(rec, fallback) {
   const host = (rec && rec.served_host) || '';
   let html = escapeHtml(requested || fallback || '');
   if (served && served !== requested) {
-    html += ' <span class="model-served">&rarr; ' + escapeHtml(served) + '</span>';
+    html += ' <span class="model-served">' + icon('chevron-right') + escapeHtml(served) + '</span>';
   }
   if (host) html += ' <span class="model-host">@' + escapeHtml(host) + '</span>';
   return html;
