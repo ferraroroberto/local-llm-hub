@@ -676,7 +676,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .app-item .app-meta {
   font-size: var(--font-caption);
   color: var(--muted);
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .app-item .app-icons .icon-btn.active {
   color: var(--accent-text);
