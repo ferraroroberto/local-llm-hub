@@ -604,7 +604,7 @@
         </div>
         <p id="telOfflineHint" class="muted small" style="margin: 4px 0 0;" hidden>
           Langfuse stack offline — run <code>start_langfuse.bat</code>, open
-          <a href="http://localhost:3000" target="_blank" rel="noopener">localhost:3000</a>,
+          the Langfuse UI (button above),
           create a project, copy the keys into <code>.env</code>, then restart the hub.
         </p>
       </section>
@@ -643,7 +643,7 @@
           </table>
         </div>
         <div id="telCcEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-code"></use></svg><p class="empty-state-message">No sub-agent/Claude Code OTel usage yet — needs <code>CLAUDE_CODE_ENABLE_TELEMETRY</code> set on the host.</p></div>
-        <p class="muted small" style="margin: 8px 0 0;">Sourced from Claude Code's own OTel export (<code>POST /v1/metrics</code>) — the only channel that sees sub-agent (Task tool) usage. Persisted separately from the Code tab's JSONL totals, not summed into them, to avoid double-counting. Project is auto-tagged for sessions launched via the <code>claude</code> shell wrapper fleet-config wires into your PowerShell profile (from the invoking repo); "—" for anything else (a one-off <code>OTEL_RESOURCE_ATTRIBUTES=project.name=&lt;repo&gt;</code> covers those). (<a href="https://github.com/ferraroroberto/local-llm-hub/issues/68" target="_blank" rel="noopener">#68</a>, <a href="https://github.com/ferraroroberto/local-llm-hub/issues/234" target="_blank" rel="noopener">#234</a>)</p>
+        <p class="muted small" style="margin: 8px 0 0;">Sourced from Claude Code's own OTel export (<code>POST /v1/metrics</code>) — the only channel that sees sub-agent (Task tool) usage. Persisted separately from the Code tab's JSONL totals, not summed into them, to avoid double-counting. Project is auto-tagged for sessions launched via the <code>claude</code> shell wrapper fleet-config wires into your PowerShell profile (from the invoking repo); "—" for anything else (a one-off <code>OTEL_RESOURCE_ATTRIBUTES=project.name=&lt;repo&gt;</code> covers those).</p>
       </section>
 
       <!-- Live trace feed -->
@@ -730,7 +730,7 @@
           Cache reads are served from the 5-min/1-hr prompt cache.
           <span class="cld-counter-cost" style="display:inline">≈ $</span> lines show the equivalent
           metered-API cost these tokens would have billed.</p>
-        <p class="muted small" style="margin: 4px 0 0;"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg> <strong>Claude figures undercount two ways</strong> — sessions bridged through claude.ai/code don't write usage to the local transcripts at all (the <strong>OTel tab's "Claude Code (host CLI)"</strong> panel captures those when telemetry is enabled), and Claude Code prunes transcripts after ~30 days — the hub snapshots daily rollups so "All" keeps growing from 2026-07-12 forward, but earlier pruned days are gone. Sub-agent (Task tool) usage <em>is</em> counted where the newer per-session transcript folders exist. (<a href="https://github.com/ferraroroberto/local-llm-hub/issues/68" target="_blank" rel="noopener">#68</a>, <a href="https://github.com/ferraroroberto/local-llm-hub/issues/280" target="_blank" rel="noopener">#280</a>)</p>
+        <p class="muted small" style="margin: 4px 0 0;"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg> <strong>Claude figures undercount two ways</strong> — sessions bridged through claude.ai/code don't write usage to the local transcripts at all (the <strong>OTel tab's "Claude Code (host CLI)"</strong> panel captures those when telemetry is enabled), and Claude Code prunes transcripts after ~30 days — the hub snapshots daily rollups so "All" keeps growing from 2026-07-12 forward, but earlier pruned days are gone. Sub-agent (Task tool) usage <em>is</em> counted where the newer per-session transcript folders exist.</p>
       </section>
 
       <!-- Per-vendor breakdown (issue #71) — shown only in "All" mode -->
