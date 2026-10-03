@@ -428,6 +428,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   color: var(--accent-text);
   border-color: var(--accent-border-strong);
   font-weight: 600;
+  min-height: 48px;   /* components.button-primary.height */
 }
 .ghost-btn.primary:hover {
   color: var(--accent-text);
