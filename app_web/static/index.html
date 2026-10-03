@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/admin/static/styles.css">
   <link rel="stylesheet" href="/admin/static/_vendored/button/button.css">
   <link rel="stylesheet" href="/admin/static/_vendored/card/card.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/home-head/home-head.css">
   <link rel="stylesheet" href="/admin/static/_vendored/disclosure/disclosure.css">
   <link rel="stylesheet" href="/admin/static/_vendored/switch/switch.css">
   <link rel="stylesheet" href="/admin/static/_vendored/empty-state/empty-state.css">
@@ -66,21 +67,16 @@
 
   <main class="app">
     <section id="paneHub" class="pane" role="tabpanel" aria-labelledby="tabHub">
-      <!-- Hub card: title + inline live status, PID + Uptime (one line),
-           sparklines. Theme toggle sits alone in the header, right-aligned. -->
+      <!-- Page header: the vendored home-head (_vendored/home-head) — title, one context
+           line, and the theme toggle pinned right. -->
+      <div class="card home-head">
+        <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>Hub</span>
+        <span id="hubLiveStatus" class="status hub-live-status" aria-live="polite"><span class="dot"></span><span id="hubLiveStatusText">checking…</span></span>
+        <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+      </div>
+
+      <!-- Hub card: PID + Uptime (one line), sparklines. -->
       <section class="card">
-        <div class="card-header">
-          <div class="hub-title-block">
-            <h2><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>Hub</h2>
-            <span id="hubLiveStatus" class="hub-live-status" aria-live="polite">
-              <span class="dot"></span>
-              <span id="hubLiveStatusText">checking…</span>
-            </span>
-          </div>
-          <div class="card-header-actions">
-            <button id="themeToggleBtn" type="button" class="icon-header-btn" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
-          </div>
-        </div>
         <div class="hub-meta-row">
           <span><span>PID</span><code id="hubPid">—</code></span>
           <span><span>Uptime</span><span id="hubUptime">—</span></span>
@@ -264,6 +260,13 @@
     </section>
 
     <section id="paneModels" class="pane" hidden role="tabpanel">
+      <!-- Page header: the vendored home-head (_vendored/home-head) — title, one context
+           line, and the theme toggle pinned right. -->
+      <div class="card home-head">
+        <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-boxes"></use></svg>Models</span>
+        <span class="status">Backends enabled on this host</span>
+        <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+      </div>
       <!-- Service startup (#265; services-only since #430, renamed #431).
            Folded by default — a one-time setup surface, not something you
            check every visit (#266). First in the tab: boot-time switches
@@ -339,6 +342,13 @@
     </section>
 
     <section id="panePlayground" class="pane" hidden role="tabpanel">
+      <!-- Page header: the vendored home-head (_vendored/home-head) — title, one context
+           line, and the theme toggle pinned right. -->
+      <div class="card home-head">
+        <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>Playground</span>
+        <span class="status">Try a model through the hub</span>
+        <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+      </div>
       <!-- The four testers are vendored disclosure cards, folded by default,
            so one opens at a time by choice (#217). -->
       <details class="card card--collapsible">
@@ -587,6 +597,13 @@
     </section>
 
     <section id="paneTelemetry" class="pane" hidden role="tabpanel">
+      <!-- Page header: the vendored home-head (_vendored/home-head) — title, one context
+           line, and the theme toggle pinned right. -->
+      <div class="card home-head">
+        <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg>OTel</span>
+        <span class="status">Traces and Claude Code usage</span>
+        <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+      </div>
       <!-- Stack health strip: OTel SDK state + Langfuse reachability + PII mode -->
       <section class="card">
         <div class="card-header">
@@ -664,6 +681,13 @@
     </section>
 
     <section id="paneCodeUsage" class="pane" hidden role="tabpanel">
+      <!-- Page header: the vendored home-head (_vendored/home-head) — title, one context
+           line, and the theme toggle pinned right. -->
+      <div class="card home-head">
+        <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Code</span>
+        <span class="status">Coding-agent usage</span>
+        <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+      </div>
 
       <!-- Today / This week counters -->
       <section class="card">
@@ -859,6 +883,13 @@
     </section>
 
     <section id="paneMachines" class="pane" hidden role="tabpanel" aria-labelledby="tabMachines">
+      <!-- Page header: the vendored home-head (_vendored/home-head) — title, one context
+           line, and the theme toggle pinned right. -->
+      <div class="card home-head">
+        <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-server"></use></svg>Machines</span>
+        <span class="status">Fleet machines</span>
+        <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+      </div>
       <!-- Async lifecycle (design.md): loading / error empty-states, a stale
            inline note, then one .card per machine in machinesList. Only one
            of loading/error/the card list is visible at a time (issue #309). -->

@@ -48,9 +48,9 @@ Derived hub tokens (mapped onto the roles above, re-theme for free):
 
 **Theme selection:** a pre-paint boot script in `index.html` stamps
 `html[data-theme]` from localStorage `llmhub.theme`, falling back to the OS
-`prefers-color-scheme`; the sun/moon `#themeToggleBtn` in the Hub card
-header flips and persists it (`main.js` theme block — the
-home-automation/app-launcher mechanism).
+`prefers-color-scheme`; the sun/moon `.theme-toggle` in every pane's
+vendored `home-head` header flips and persists it (`main.js` theme block —
+the home-automation/app-launcher mechanism).
 
 ## Frame
 

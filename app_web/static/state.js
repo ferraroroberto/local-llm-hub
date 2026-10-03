@@ -119,7 +119,8 @@ export const els = {
   // (replaces the old always-on status strip).
   hubLiveStatus: document.getElementById('hubLiveStatus'),
   hubLiveStatusText: document.getElementById('hubLiveStatusText'),
-  themeToggleBtn: document.getElementById('themeToggleBtn'),
+  // One theme toggle per pane header (the vendored home-head).
+  themeToggleBtns: Array.from(document.querySelectorAll('.theme-toggle')),
   hubPid: document.getElementById('hubPid'),
   hubUptime: document.getElementById('hubUptime'),
   hubSparklines: document.getElementById('hubSparklines'),
