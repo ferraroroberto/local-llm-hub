@@ -126,9 +126,9 @@ def test_playground_no_attachment_is_text_only(monkeypatch):
     assert content == [{"type": "text", "text": "hi"}]
 
 
-def _mock_stream_upstream(monkeypatch) -> dict:
+def _mock_stream_upstream(monkeypatch, chunk: bytes = b"\x01\x00") -> dict:
     """Patch httpx.AsyncClient so the proxied /v1/audio/speech *stream* is
-    captured and a fake chunked body is returned."""
+    captured and a fake chunked body (``chunk`` twice) is returned."""
     captured: dict = {}
 
     class _FakeStreamResp:
@@ -137,8 +137,8 @@ def _mock_stream_upstream(monkeypatch) -> dict:
         headers = {"content-type": "audio/L16", "x-sample-rate": "24000"}
 
         async def aiter_bytes(self):
-            yield b"\x01\x00"
-            yield b"\x02\x00"
+            yield chunk
+            yield chunk
 
         async def aread(self):
             return b""
@@ -179,7 +179,7 @@ def test_playground_speak_streaming_forwards_chunks(monkeypatch):
     assert r.status_code == 200, r.text
     assert r.headers["content-type"].startswith("audio/L16")
     assert r.headers["x-sample-rate"] == "24000"
-    assert r.content == b"\x01\x00\x02\x00"
+    assert r.content == b"\x01\x00\x01\x00"
     # The hub-side streaming flag was forwarded upstream.
     assert captured["payload"]["stream_format"] == "audio"
 

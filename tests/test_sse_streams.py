@@ -22,6 +22,10 @@ from src.async_fanout import AsyncFanout
 from tests._worker_loop import run_on_worker_thread
 
 
+# First frame of every stream: flushes the response head through GZipMiddleware.
+OPEN = ":open\n\n"
+
+
 def _run(coro, timeout: float = 10.0):
     # 10 s cap: a hung scenario fails the test instead of wedging the suite.
     return run_on_worker_thread(coro, timeout)
@@ -58,7 +62,7 @@ def test_sse_stream_yields_seed_then_stops_on_disconnect():
         request = _FakeRequest(disconnect_after=0)
         resp = sse_stream(request, fanout.subscribe, fanout.unsubscribe, seed=["line1", "line2"])
         chunks = await _collect(resp.body_iterator)
-        assert chunks == ["data: line1\n\n", "data: line2\n\n"]
+        assert chunks == [OPEN, "data: line1\n\n", "data: line2\n\n"]
 
     _run(scenario())
 
@@ -73,7 +77,7 @@ def test_sse_stream_reverses_seed_when_requested():
             seed=["newest", "middle", "oldest"], reverse_seed=True,
         )
         chunks = await _collect(resp.body_iterator)
-        assert chunks == ["data: oldest\n\n", "data: middle\n\n", "data: newest\n\n"]
+        assert chunks == [OPEN, "data: oldest\n\n", "data: middle\n\n", "data: newest\n\n"]
 
     _run(scenario())
 
@@ -92,14 +96,17 @@ def test_sse_stream_applies_to_dict_to_live_items_only():
         )
         gen = resp.body_iterator
         chunks = []
-        # Pull the seed frame, then push one live item before the generator's
-        # next is_disconnected() check flips true and ends the loop.
+        # Pull the open frame and the seed frame, then push one live item
+        # before the generator's next is_disconnected() check flips true and
+        # ends the loop.
+        chunks.append(await gen.__anext__())
         chunks.append(await gen.__anext__())
         fanout.push("raw-item")
         chunks.append(await gen.__anext__())
         # Loop ends on the next disconnect check; drain to confirm cleanup.
         rest = await _collect(gen)
         assert chunks == [
+            OPEN,
             'data: {"already": "dict"}\n\n',
             'data: {"converted": "raw-item"}\n\n',
         ]
