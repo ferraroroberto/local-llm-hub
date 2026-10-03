@@ -32,6 +32,7 @@ data/telemetry/
 # directory generated images land in.
 data/comfyui/
 data/code_usage_history.json
+data/e2e-junit.xml
 # Diagnostics capture store (issue #315) — per-machine runtime data, plus the
 # SQLite WAL/shm sidecars. config/diagnostics_{apps,rules}.json ARE committed:
 # they are the tunable rule sets, not runtime state.

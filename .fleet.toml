@@ -26,6 +26,9 @@ full_pytest_target    = "tests/e2e"
 # structural — one admin SPA, one file per tab, no redundancy found (#604).
 # Lower this as the suite trims; /e2e-audit re-fires when the count exceeds it.
 test_budget           = 46
+# Timing source for /e2e-audit: the gate (scripts/verify-before-ship.ps1) writes
+# this JUnit file on every e2e run, so per-test seconds are measured, not guessed.
+junit_xml             = "data/e2e-junit.xml"
 
 [[e2e.rule]]              # inert assets under the admin SPA's static tree -> static
 tier       = "static"

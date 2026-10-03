@@ -7,7 +7,7 @@
 # Steps:
 #   1. byte-compile every .py file under src/, app_web/, tray/, scripts/
 #   2. `pytest -q` (unit tests, no GPU / no real CLIs)
-#   3. `pytest tests/e2e -q --browser chromium`
+#   3. `pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml`
 #
 # Stops on the first failure.
 
@@ -41,7 +41,9 @@ Step "pytest (unit)" {
 }
 
 Step "pytest (e2e · chromium)" {
-    & $Python -m pytest tests/e2e -q --browser chromium
+    # JUnit record of the run: /e2e-audit reads per-test seconds from it
+    # ([e2e] junit_xml in .fleet.toml). Git-ignored, overwritten each run.
+    & $Python -m pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml
 }
 
 Write-Host ""
