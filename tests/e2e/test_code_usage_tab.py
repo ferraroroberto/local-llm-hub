@@ -76,6 +76,19 @@ def _no_console_errors(page, request):
         raise AssertionError("console errors: " + " | ".join(errs))
 
 
+
+def _await_first_summary(page):
+    """Block until the tab's first summary poll has been fetched *and* drawn.
+
+    ``#cldFreshness`` starts empty and only reads ``updated …`` once ``render``
+    has run, so this is the state the old fixed 2 s sleep was standing in for.
+    """
+    page.wait_for_function(
+        "(document.getElementById('cldFreshness')?.textContent || '').startsWith('updated')",
+        timeout=PANE_TIMEOUT,
+    )
+
+
 def test_code_usage_tab_loads(page, admin_url):
     page.goto(admin_url, wait_until="domcontentloaded")
     # Tab button must be present and visible.
@@ -104,8 +117,7 @@ def test_period_toggle_changes_counters(page, admin_url):
     page.goto(admin_url, wait_until="domcontentloaded")
     page.click("#tabCodeUsage")
     page.wait_for_selector("#paneCodeUsage", state="visible", timeout=PANE_TIMEOUT)
-    # Give the first poll a moment to land.
-    page.wait_for_timeout(2000)
+    _await_first_summary(page)
     # Fire the click via JS so viewport clipping doesn't block us.
     page.evaluate(
         "document.querySelector('#cldPeriodSeg button[data-period=\"week\"]').click()"
@@ -123,7 +135,7 @@ def test_vendor_toggle_changes_selector(page, admin_url):
     page.goto(admin_url, wait_until="domcontentloaded")
     page.click("#tabCodeUsage")
     page.wait_for_selector("#paneCodeUsage", state="visible", timeout=PANE_TIMEOUT)
-    page.wait_for_timeout(2000)
+    _await_first_summary(page)
     # Default is "all" → per-vendor card visible.
     assert page.evaluate(
         "document.querySelector('#cldVendorSeg button.active')?.dataset.vendor"
@@ -149,12 +161,9 @@ def test_code_usage_tab_phone_screenshot(page, admin_url, browser_name):
     page.goto(admin_url, wait_until="domcontentloaded")
     page.click("#tabCodeUsage")
     page.wait_for_selector("#paneCodeUsage", state="visible", timeout=PANE_TIMEOUT)
-    # Wait for the first poll to complete (counters fill in).
-    page.wait_for_function(
-        "document.getElementById('cldRequests') && "
-        "document.getElementById('cldRequests').textContent !== ''",
-        timeout=8000,
-    )
+    # Wait for the first poll to complete (counters fill in). The counters
+    # start as "—", so their text is no signal; the freshness stamp is.
+    _await_first_summary(page)
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     out = SNAPSHOT_DIR / f"code-usage-390x844-{browser_name}.png"
     page.screenshot(path=str(out), full_page=True)
