@@ -51,10 +51,10 @@
       <svg class="icon tab-icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>
       <span class="tab-label">Play</span>
     </button>
-    <button id="tabTelemetry" type="button" class="tab" data-tab="telemetry" role="tab" aria-selected="false" aria-controls="paneTelemetry" tabindex="-1">
-      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-activity"></use></svg>
-      <span class="tab-label">OTel</span>
-    </button>
+    <!-- OTel is not a primary destination (the bar holds five): it opens from the
+         header's OTel button. This entry stays in the nav only so the vendored
+         switcher keeps tracking the pane; it is never shown and carries no tab role. -->
+    <button id="tabTelemetry" type="button" class="tab" data-tab="telemetry" hidden aria-controls="paneTelemetry" tabindex="-1" aria-hidden="true"></button>
     <button id="tabCodeUsage" type="button" class="tab" data-tab="code-usage" role="tab" aria-selected="false" aria-controls="paneCodeUsage" tabindex="-1">
       <svg class="icon tab-icon" aria-hidden="true"><use href="#i-code"></use></svg>
       <span class="tab-label">Code</span>
@@ -72,6 +72,7 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>Hub</span>
         <span id="hubLiveStatus" class="status hub-live-status" aria-live="polite"><span class="dot"></span><span id="hubLiveStatusText">checking…</span></span>
+        <button type="button" class="home-toggle" data-open-tab="telemetry" aria-label="Open OTel traces and usage" title="OTel traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></button>
         <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
       </div>
 
@@ -265,6 +266,7 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-boxes"></use></svg>Models</span>
         <span class="status">Backends enabled on this host</span>
+        <button type="button" class="home-toggle" data-open-tab="telemetry" aria-label="Open OTel traces and usage" title="OTel traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></button>
         <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
       </div>
       <!-- Service startup (#265; services-only since #430, renamed #431).
@@ -347,6 +349,7 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>Playground</span>
         <span class="status">Try a model through the hub</span>
+        <button type="button" class="home-toggle" data-open-tab="telemetry" aria-label="Open OTel traces and usage" title="OTel traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></button>
         <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
       </div>
       <!-- The four testers are vendored disclosure cards, folded by default,
@@ -686,6 +689,7 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Code</span>
         <span class="status">Coding-agent usage</span>
+        <button type="button" class="home-toggle" data-open-tab="telemetry" aria-label="Open OTel traces and usage" title="OTel traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></button>
         <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
       </div>
 
@@ -888,6 +892,7 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-server"></use></svg>Machines</span>
         <span class="status">Fleet machines</span>
+        <button type="button" class="home-toggle" data-open-tab="telemetry" aria-label="Open OTel traces and usage" title="OTel traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></button>
         <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
       </div>
       <!-- Async lifecycle (design.md): loading / error empty-states, a stale
