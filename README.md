@@ -1413,8 +1413,8 @@ systemd unit at `linux/systemd/local-llm-hub.service` instead — see "Linux
 satellite lifecycle" above.)
 
 Once the hub is running, open `http://127.0.0.1:8000/admin/` for the
-admin webapp — six tabs (Hub / Models / Play / OTel / Code / Machines)
-covering every operational concern. Going to `http://127.0.0.1:8000/`
+admin webapp — five tabs (Hub / Models / Play / Code / Machines; OTel
+opens from the header button) covering every operational concern. Going to `http://127.0.0.1:8000/`
 redirects there.
 
 ### Tray launcher (Windows)
