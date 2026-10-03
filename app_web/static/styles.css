@@ -328,7 +328,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .icon-header-btn:active { background: var(--bg); }
 /* Toggled-on state — same accent-tint recipe as .app-item .app-icons
  * .icon-btn.active (#266's Models "Active only" filter). */
-.icon-header-btn.active { color: var(--accent); background: var(--accent-soft); }
+.icon-header-btn.active { color: var(--accent-text); background: var(--accent-soft); }
 
 /* Hub card header — title + inline live status (dot + word), then
  * the action buttons on the right. */
@@ -425,12 +425,12 @@ h2 { display: flex; align-items: center; gap: 8px; }
  * never a solid fill — home-automation's .range-tab.active recipe (#215). */
 .ghost-btn.primary {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text);
   border-color: var(--accent-border-strong);
   font-weight: 600;
 }
 .ghost-btn.primary:hover {
-  color: var(--accent);
+  color: var(--accent-text);
   background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .ghost-btn.primary:active {
@@ -490,7 +490,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .segmented button::before { content: ""; position: absolute; inset: -4px 0; }
 .segmented button.active {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text);
   border-color: var(--accent-border-strong);
 }
 
@@ -678,7 +678,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   word-break: break-all;
 }
 .app-item .app-icons .icon-btn.active {
-  color: var(--accent);
+  color: var(--accent-text);
   background: var(--accent-soft);
 }
 
@@ -718,7 +718,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   white-space: nowrap;
 }
 .place-pill.owner {
-  color: var(--accent);
+  color: var(--accent-text);
   background: var(--accent-soft);
   border-color: var(--accent-border-strong);
   font-weight: 600;
@@ -823,7 +823,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .pe-error {
   margin: 0;
   font-size: var(--font-caption);
-  color: var(--danger);
+  color: var(--danger-text);
   background: var(--danger-soft);
   border: 1px solid var(--danger-border);
   border-radius: var(--radius-sm);
@@ -848,7 +848,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .glossary-shared-note {
   margin: 0;
   font-size: var(--font-caption);
-  color: var(--accent);
+  color: var(--accent-text);
   background: var(--accent-soft);
   border: 1px solid var(--accent-border-soft);
   border-radius: var(--radius-sm);
@@ -1345,7 +1345,7 @@ summary.opt-group-title {
 .login-card .error {
   background: var(--danger-soft);
   border: 1px solid var(--danger);
-  color: var(--danger);
+  color: var(--danger-text);
   padding: 8px 10px;
   border-radius: var(--radius-sm);
   font-size: var(--font-caption);

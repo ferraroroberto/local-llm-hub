@@ -132,7 +132,7 @@ ul.cld-sessions > li > .cld-sess-meta code {
   gap: 6px;
   margin: -4px 0 8px;
   padding: 7px 10px;
-  color: var(--danger);
+  color: var(--danger-text);
   background: var(--danger-soft);
   border: 1px solid var(--danger-border);
   border-radius: var(--radius-sm);

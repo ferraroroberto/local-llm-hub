@@ -182,7 +182,7 @@
 }
 .detail-save-btn.danger {
   background: var(--danger-soft);
-  color: var(--danger);
+  color: var(--danger-text);
   border-color: var(--danger-border);
 }
 .detail-save-btn.danger:disabled {
@@ -365,7 +365,7 @@
   font-weight: 700;
   white-space: nowrap;
 }
-.diag-badge.accent { background: var(--accent-soft); border-color: var(--accent-border-soft); color: var(--accent); }
+.diag-badge.accent { background: var(--accent-soft); border-color: var(--accent-border-soft); color: var(--accent-text); }
 .diag-badge.good { color: var(--on); }
 .diag-badge.warn { color: var(--attention); }
 .diag-badge.danger { color: var(--danger); }
