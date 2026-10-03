@@ -4,7 +4,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, renderCounterTable, shortGpu, modelLabel } from './api.js';
+import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, renderCounterTable, shortGpu, modelLabel, applyListFilter } from './api.js';
 import { langfuseTraceUrl, fetchTelemetryHealth } from './telemetry.js';
 import { icon } from './_vendored/icons/icons.js';
 
@@ -109,6 +109,7 @@ function renderRequests() {
       '<span class="muted">' + (r.in_tok || 0) + ' / ' + (r.out_tok || 0) + ' tok ' + traceCol + '</span>';
     list.appendChild(li);
   });
+  applyListFilter(els.liveRequestsFilter, list);
 }
 
 /* Route-specific one-liner (e.g. "3 questions" on /v1/systemone, #611),
@@ -507,6 +508,11 @@ function onLangfuseStopClick() {
 
 // --------------------------------------------------------- wire buttons
 export function wireHub() {
+  if (els.liveRequestsFilter) {
+    els.liveRequestsFilter.addEventListener('input', function () {
+      applyListFilter(els.liveRequestsFilter, els.liveRequestsList);
+    });
+  }
   function togglePause() {
     state.logPaused = !state.logPaused;
     if (els.hubLogPauseBtn) {

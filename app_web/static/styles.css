@@ -287,6 +287,19 @@ h2 { display: flex; align-items: center; gap: 8px; }
   align-items: center;
   gap: 2px;
 }
+/* Filter above a long list (action-row: 44px, control-border). */
+.list-filter {
+  width: 100%;
+  min-height: var(--hit-min);
+  margin: 0 0 var(--space-sm);
+  padding: 0 12px;
+  font: inherit;
+  font-size: var(--font-label);
+  color: var(--ink);
+  background: var(--input-bg);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+}
 .card-actions {
   display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: 10px;
   align-items: center;
