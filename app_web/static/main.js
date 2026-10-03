@@ -7,7 +7,7 @@ import { state, els, THEME_KEY, STATUS_POLL_MS, COUNTERS_POLL_MS, MODELS_POLL_MS
 import { jsonApi, tokenFromUrl, writeToken, wireLoginForm, toast } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { wireTabs, onTabChange, setTab } from './tabs.js';
-import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchServicesStatus } from './hub.js';
+import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchServicesStatus, renderSparklines } from './hub.js';
 import { wireModels, fetchModels } from './models.js';
 import { wireStartupProfile, fetchStartupProfile } from './startup.js';
 import { fetchFleetPlacement } from './fleet_placement.js';
@@ -98,6 +98,8 @@ async function boot() {
   onTabChange(function (tab) {
     if (tab === 'hub') {
       startHubStreams();
+      // Draw the tiles now instead of leaving them blank until the 2.5 s poll.
+      renderSparklines();
     } else {
       stopHubStreams();
     }

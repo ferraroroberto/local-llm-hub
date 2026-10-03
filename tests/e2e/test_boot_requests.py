@@ -28,3 +28,9 @@ def test_boot_does_not_wait_on_live_probe_endpoints(page, admin_url):
         "document.getElementById('installSummary').textContent.indexOf('checks') !== -1",
         timeout=15000,
     )
+
+
+def test_hub_sparklines_paint_without_waiting_for_the_first_poll(page, admin_url):
+    # The 2.5 s poll used to be the only thing that drew them, leaving the tiles blank.
+    page.goto(admin_url, wait_until="load")
+    page.wait_for_selector("#hubSparklines .sparkline", state="attached", timeout=1500)
