@@ -7,7 +7,7 @@ import { state, els, THEME_KEY, STATUS_POLL_MS, COUNTERS_POLL_MS, MODELS_POLL_MS
 import { jsonApi, tokenFromUrl, writeToken, wireLoginForm, toast } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { wireTabs, onTabChange, setTab } from './tabs.js';
-import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchInstallStatus, fetchServicesStatus } from './hub.js';
+import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchServicesStatus } from './hub.js';
 import { wireModels, fetchModels } from './models.js';
 import { wireStartupProfile, fetchStartupProfile } from './startup.js';
 import { fetchFleetPlacement } from './fleet_placement.js';
@@ -58,15 +58,16 @@ async function fetchVersion() {
 // Every authed data fetch behind the tabs — one list shared by boot() and
 // resumeAfterLogin(), so a fetch added for a new card reaches both. The
 // version readout isn't here: /admin/api/version is auth-exempt, so boot()
-// already has it and a login doesn't change it.
+// already has it and a login doesn't change it. Two live-probe endpoints are
+// left out on purpose (seconds each, neither feeds the landing view, #646):
+// fleet-placement loads when the Models tab opens (onTabChange below) and
+// install/status when the Health & install card opens (wireHub).
 function fetchAllData() {
   return Promise.allSettled([
     fetchHubStatus(),
     fetchCounters(),
     fetchModels(),
     fetchStartupProfile(),
-    fetchFleetPlacement(),
-    fetchInstallStatus(),
     fetchServicesStatus(),
     fetchTelemetryHealth(),
     fetchPlaygroundModels(),

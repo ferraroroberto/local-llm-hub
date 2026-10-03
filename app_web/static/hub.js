@@ -543,6 +543,17 @@ export function wireHub() {
   if (els.installRefreshBtn) {
     els.installRefreshBtn.addEventListener('click', function () { fetchInstallStatus(); });
   }
+  // The install battery takes seconds, so it runs when the card is first opened
+  // rather than in the boot burst (#646).
+  const installCard = document.getElementById('installCard');
+  if (installCard) {
+    installCard.addEventListener('toggle', function () {
+      if (installCard.open && !state.installChecked) {
+        state.installChecked = true;
+        fetchInstallStatus();
+      }
+    });
+  }
 
   if (els.servicesLaunchBtn) {
     els.servicesLaunchBtn.addEventListener('click', onServicesLaunchClick);

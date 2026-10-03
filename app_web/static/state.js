@@ -31,6 +31,7 @@ export const state = {
   recentErrors: [],
   logPaused: false,
   installRows: [],
+  installChecked: false,   // the install battery has been requested once (it loads on first open)
   version: null,
   hubStreamCtl: null,     // EventSource abort handles
   hubLogStreamCtl: null,
