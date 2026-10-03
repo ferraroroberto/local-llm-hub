@@ -35,8 +35,6 @@
 .cld-counter-label {
   font-size: var(--font-caption);
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
 }
 
 /* Equivalent metered-API cost, sits just under the token value (issue #52). */
@@ -76,8 +74,6 @@
 .cld-chart-label {
   font-size: var(--font-caption);
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
   margin-bottom: 6px;
 }
 
