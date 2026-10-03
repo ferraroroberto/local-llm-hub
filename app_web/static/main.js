@@ -21,11 +21,11 @@ import { wireMachines, startMachinesPolls, stopMachinesPolls } from './machines.
 // --------------------------------------------------------------- theme toggle
 // The pre-paint boot script in index.html already stamped html[data-theme]
 // (localStorage override, prefers-color-scheme fallback); this block owns the
-// Hub-card sun/moon button. Same mechanism as home-automation/app-launcher.
+// sun/moon button in every pane header. Same mechanism as home-automation/app-launcher.
 function applyTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   // Show the glyph for the action: sun to switch to light, moon to switch to dark.
-  if (els.themeToggleBtn) els.themeToggleBtn.innerHTML = icon(dark ? 'sun' : 'moon');
+  els.themeToggleBtns.forEach(function (btn) { btn.innerHTML = icon(dark ? 'sun' : 'moon'); });
   localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
   // Chart.js canvases can't follow CSS vars on their own — re-resolve them.
   restyleCodeUsageCharts();
@@ -41,7 +41,7 @@ function toggleTheme() {
   applyTheme(stored ? stored === 'dark' : prefersDark);
 })();
 
-if (els.themeToggleBtn) els.themeToggleBtn.addEventListener('click', toggleTheme);
+els.themeToggleBtns.forEach(function (btn) { btn.addEventListener('click', toggleTheme); });
 
 async function fetchVersion() {
   try {

@@ -290,6 +290,12 @@ h2 { display: flex; align-items: center; gap: 8px; }
   align-items: center;
   gap: 2px;
 }
+/* The vendored home-head's 34px icon toggles reach the 44px floor through an
+ * invisible hit-area expansion (34 + 2x5; design.md Touch targets). The 12px
+ * header gap keeps neighbouring expanded rects from overlapping. */
+.home-head .home-toggle { position: relative; }
+.home-head .home-toggle::before { content: ""; position: absolute; inset: -5px; }
+
 /* Filter above a long list (action-row: 44px, control-border). */
 .list-filter {
   width: 100%;
