@@ -21,6 +21,7 @@ from src import server_systemone
 from src.model_registry import enabled_models, resolve as resolve_model
 from src.tts_engines import capabilities_for_engine
 
+from ._helpers import IDENTITY_ENCODING
 from .models import list_models_for_admin
 
 logger = logging.getLogger(__name__)
@@ -232,7 +233,7 @@ async def playground_speak(
             finally:
                 await stream_cm.__aexit__(None, None, None)
 
-        out_headers = {}
+        out_headers = dict(IDENTITY_ENCODING)
         sr = upstream.headers.get("x-sample-rate")
         if sr:
             out_headers["X-Sample-Rate"] = sr
@@ -254,7 +255,11 @@ async def playground_speak(
         except Exception:  # noqa: BLE001
             pass
         raise HTTPException(status_code=r.status_code, detail=str(detail)[:500])
-    return Response(content=r.content, media_type=r.headers.get("content-type", "audio/wav"))
+    return Response(
+        content=r.content,
+        media_type=r.headers.get("content-type", "audio/wav"),
+        headers=IDENTITY_ENCODING,
+    )
 
 
 @router.post("/api/playground/send")
@@ -502,4 +507,4 @@ async def playground_generate_image(
     from src.gemini_cli import _sniff_image_media_type
 
     media_type = _sniff_image_media_type(img) or "image/png"
-    return Response(content=img, media_type=media_type)
+    return Response(content=img, media_type=media_type, headers=IDENTITY_ENCODING)

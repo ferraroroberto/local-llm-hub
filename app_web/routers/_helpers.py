@@ -19,6 +19,11 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 T = TypeVar("T")
 
+# The admin sub-app's GZipMiddleware leaves a response that already carries a
+# ``Content-Encoding`` alone. Streamed audio (gzip would buffer it) and stored
+# images (already compressed) are marked with this so they pass through as-is.
+IDENTITY_ENCODING = {"Content-Encoding": "identity"}
+
 
 async def maybe_json(request: Request) -> Dict[str, Any]:
     if request.headers.get("content-type", "").startswith("application/json"):
