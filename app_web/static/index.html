@@ -296,7 +296,6 @@
             <!-- models.yaml config version (#424) — same sha on every
                  converged hub; compare across /admin pages to spot drift. -->
             <span id="modelsConfigSha" class="models-config-sha muted small"></span>
-            <button id="modelsActiveToggle" type="button" class="icon-header-btn active" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></button>
             <span class="collapse-chevron" aria-hidden="true">›</span>
           </span>
         </summary>
@@ -304,6 +303,10 @@
           <p class="muted small">One row per backend enabled for this host. Local <code>llama-server</code>
             and <code>whisper-server</code> backends can be started or stopped individually; the
             Claude and Gemini rows are subscription-backed and don't have a managed process.</p>
+          <div class="opt-switch-row models-filter-row">
+            <span>Active models only</span>
+            <button id="modelsActiveToggle" type="button" class="toggle on" role="switch" aria-checked="true" aria-label="Active models only"><span class="knob"></span><span class="toggle-label">ON</span></button>
+          </div>
           <ul id="modelsList" class="models-list"></ul>
           <div id="modelsEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-boxes"></use></svg><p class="empty-state-message">No models enabled for this host — check <code>config/models.yaml</code>.</p></div>
         </div>

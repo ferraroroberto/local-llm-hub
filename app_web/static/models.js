@@ -11,6 +11,7 @@ import { els, state, MODELS_ACTIVE_ONLY_KEY } from './state.js';
 import { jsonApi, postJson, putJson, toast, escapeHtml, fmtGb } from './api.js';
 import { mountGlossaryEditor } from './glossary.js';
 import { icon } from './_vendored/icons/icons.js';
+import { setSwitch } from './_vendored/switch/switch.js';
 
 export async function fetchModels() {
   try {
@@ -676,19 +677,14 @@ function cssEscape(s) {
 
 function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-// "Active only" toggle — lives in the card's own collapse-summary header
-// (#266) as an .icon-header-btn, same recipe as the Hub card's theme/restart
-// buttons, with the toggled-on state borrowed from .app-item .icon-btn.active.
+// "Active models only" switch — the first row of the card body (#266), a
+// vendored switch rather than a control in the collapse-summary, where a nested
+// control makes every tap ambiguous between toggling the filter and the card.
 // Persisted like home-automation Plugs' show-hidden localStorage flag.
 function renderActiveToggle() {
   const btn = els.modelsActiveToggle;
   if (!btn) return;
-  btn.classList.toggle('active', state.modelsActiveOnly);
-  btn.setAttribute('aria-pressed', state.modelsActiveOnly ? 'true' : 'false');
-  btn.title = state.modelsActiveOnly
-    ? 'Showing active only — click to show all'
-    : 'Showing all — click to show active only';
-  btn.setAttribute('aria-label', btn.title);
+  setSwitch(btn, state.modelsActiveOnly);
 }
 
 export function wireModels() {
@@ -705,11 +701,7 @@ export function wireModels() {
   });
 
   if (els.modelsActiveToggle) {
-    els.modelsActiveToggle.addEventListener('click', function (ev) {
-      // The button lives inside <summary> — without this, clicking it
-      // also fires the <details> element's native open/close toggle.
-      ev.preventDefault();
-      ev.stopPropagation();
+    els.modelsActiveToggle.addEventListener('click', function () {
       state.modelsActiveOnly = !state.modelsActiveOnly;
       try {
         localStorage.setItem(MODELS_ACTIVE_ONLY_KEY, String(state.modelsActiveOnly));
