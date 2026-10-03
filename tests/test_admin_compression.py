@@ -7,8 +7,13 @@ SSE/audio stream and burns CPU on bytes that are already compressed.
 
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
+import asyncio
 
+from fastapi import FastAPI, Request
+from fastapi.testclient import TestClient
+from starlette.middleware.gzip import GZipMiddleware
+
+from app_web.routers._helpers import sse_stream
 from src import server as server_mod
 from tests.test_playground_router import _mock_stream_upstream
 
@@ -48,3 +53,40 @@ def test_streamed_audio_is_not_gzipped(monkeypatch):
     )
     assert r.status_code == 200, r.text
     assert r.headers.get("content-encoding") in (None, "identity")
+
+
+def test_empty_sse_stream_opens_immediately_under_gzip():
+    # GZipMiddleware holds ``http.response.start`` until the first body chunk.
+    # With nothing to seed, a stream would stay "connecting" until the first
+    # 10 s keepalive, so sse_stream sends a comment frame right away.
+    app = FastAPI()
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+    @app.get("/stream")
+    async def stream(request: Request):
+        return sse_stream(request, asyncio.Queue, lambda q: None, seed=[])
+
+    async def first_message() -> str:
+        sent: list = []
+        scope = {
+            "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+            "method": "GET", "path": "/stream", "raw_path": b"/stream",
+            "query_string": b"", "root_path": "", "scheme": "http",
+            "headers": [(b"accept-encoding", b"gzip"), (b"host", b"test")],
+            "client": ("127.0.0.1", 1), "server": ("127.0.0.1", 80),
+        }
+
+        async def receive():
+            await asyncio.sleep(3600)
+
+        async def send(message):
+            sent.append(message["type"])
+
+        task = asyncio.create_task(app(scope, receive, send))
+        await asyncio.sleep(0.5)
+        seen = list(sent)
+        task.cancel()
+        return seen
+
+    sent = asyncio.run(first_message())
+    assert "http.response.start" in sent

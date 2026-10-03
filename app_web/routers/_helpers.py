@@ -91,6 +91,11 @@ def sse_stream(
 
     async def _gen() -> AsyncIterator[str]:
         try:
+            # Flush the response head at once: GZipMiddleware holds
+            # ``http.response.start`` until the first body chunk, so an empty
+            # seed would leave the EventSource "connecting" until the first
+            # keepalive. A comment frame is ignored by every SSE consumer.
+            yield ":open\n\n"
             for item in seed_items:
                 yield sse_pack(item)
             while True:
