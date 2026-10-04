@@ -83,5 +83,7 @@ def test_hub_counters_and_errors_empties_name_what_to_do(page, admin_url):
     counters = page.locator("#countersTable tbody").text_content() or ""
     assert "No requests yet" in counters, counters
     assert "Playground" in counters, f"counters empty row names no control: {counters!r}"
-    errors = page.locator("#recentErrorsEmpty .empty-state-message").text_content() or ""
-    assert "Live requests" in errors, f"errors empty state names no control: {errors!r}"
+    # The errors empty state carries its own action (a card name is not a control).
+    action = page.locator("#recentErrorsEmpty .empty-state-action")
+    assert action.count() == 1, "recent errors empty state has no action"
+    assert action.get_attribute("data-open-tab") == "playground"

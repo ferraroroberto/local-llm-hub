@@ -183,6 +183,7 @@ export const els = {
   // Model decisions card (issue #373) — Hub tab, role → model + placement
   rolesCard: document.getElementById('rolesCard'),
   rolesStatus: document.getElementById('rolesStatus'),
+  rolesSections: document.getElementById('rolesSections'),
   rolesList: document.getElementById('rolesList'),
   rolesPlacementList: document.getElementById('rolesPlacementList'),
   rolesViewPlacementBtn: document.getElementById('rolesViewPlacementBtn'),

@@ -174,10 +174,13 @@
         </summary>
         <div class="collapse-body">
           <p id="rolesStatus" class="muted small" hidden></p>
-          <h4 class="opt-group-title">Roles</h4>
-          <ul id="rolesList" class="startup-list" aria-label="Role to model assignments"></ul>
-          <h4 class="opt-group-title">Placement</h4>
-          <ul id="rolesPlacementList" class="startup-list" aria-label="Per-host placement summary"></ul>
+          <!-- Shown once the first fetch lands: no bare headings over empty lists (J-09, #647). -->
+          <div id="rolesSections" hidden>
+            <h4 class="opt-group-title">Roles</h4>
+            <ul id="rolesList" class="startup-list" aria-label="Role to model assignments"></ul>
+            <h4 class="opt-group-title">Placement</h4>
+            <ul id="rolesPlacementList" class="startup-list" aria-label="Per-host placement summary"></ul>
+          </div>
           <div class="card-actions">
             <button id="rolesViewPlacementBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg>View fleet summary</button>
           </div>
@@ -254,7 +257,7 @@
         </summary>
         <div class="collapse-body">
           <ul id="recentErrorsList" class="card-list dense" aria-label="Recent errors"></ul>
-          <div id="recentErrorsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-circle-check"></use></svg><p class="empty-state-message">No non-2xx responses in the ring — the Live requests card above lists every call.</p></div>
+          <div id="recentErrorsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-circle-check"></use></svg><p class="empty-state-message">No failed requests yet — a failure shows here the moment a client gets a non-2xx answer.</p><button type="button" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
         </div>
       </details>
 
