@@ -164,6 +164,9 @@ def test_fleet_summary_renders_read_only_host_groups(page, admin_url):
     assert "Online" in claw.locator(".hub-live-status").inner_text()
     assert claw.locator(".startup-row").count() == 0
     assert "no models placeable" in claw.locator(".fleet-host-note").inner_text().lower()
+    # J-09 (#647): the empty note names the control that fills it, in words (the
+    # card stays button-free); "Edit placement" is the Models row menu item.
+    assert "edit placement" in claw.locator(".fleet-host-note").inner_text().lower()
 
 
 def test_offline_host_shows_deferred_note_not_error(page, admin_url):
