@@ -2192,7 +2192,8 @@ Two cross-vendor token semantics to keep in mind: for **Codex**, `cached_input`
 tokens are a *subset* of input (the cost path prices the non-cached remainder at
 the input rate and the cached portion at the cheaper cached rate), and
 `reasoning_output_tokens` are a *subset* of output — surfaced as an "incl. …
-reasoning" sub-note under the output tile, never added on top.  Claude's
+reasoning" tooltip on the output tile's figure (no extra line on the card, so
+the four cards stay one height), never added on top.  Claude's
 `cache_read` tokens, by contrast, are reported separately/additively.  The
 OpenAI >272K long-context surcharge (2× input / 1.5× output) is not modelled.
 
