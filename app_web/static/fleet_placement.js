@@ -178,7 +178,8 @@ function buildHostGroup(host) {
   if (!eligible.length) {
     const note = document.createElement('p');
     note.className = 'fleet-host-note muted small';
-    note.textContent = 'No models placeable on this machine.';
+    // Name the control that changes it (J-09, #647): the card itself stays button-free.
+    note.textContent = 'No models placeable on this machine. Add it to a model’s host chain with Edit placement on the Models list.';
     group.appendChild(note);
     return group;
   }
