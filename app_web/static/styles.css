@@ -760,11 +760,10 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 }
 /* The placement card heads the list (#647): context, not an action. */
 .row-menu-list > .placement {
-  margin: 0;
+  margin: 0 0 var(--space-xs);
   padding: var(--space-xs) var(--space-sm) var(--space-sm);
   border-bottom: 1px solid var(--line);
 }
-.row-menu-list > .placement + [role="menu"] { margin-top: var(--space-xs); }
 .row-menu-item {
   display: flex;
   align-items: center;

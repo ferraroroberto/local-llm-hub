@@ -293,9 +293,11 @@ function buildRowMenu(m, items, open, placement) {
   menu.appendChild(toggle);
   const list = document.createElement('div');
   list.className = 'row-menu-list';
+  // The positioned list is the role=menu popup layer (the design review's
+  // TOUCH-02 counts it as painting over the rows below), so the read-only
+  // placement card shares it rather than sitting in an inner menu.
+  list.setAttribute('role', 'menu');
   if (placement) list.appendChild(placement);
-  const actions = document.createElement('div');
-  actions.setAttribute('role', 'menu');
   items.forEach(function (it) {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -309,9 +311,8 @@ function buildRowMenu(m, items, open, placement) {
       menu.open = false;
       handleAction(m, it.act);
     });
-    actions.appendChild(btn);
+    list.appendChild(btn);
   });
-  list.appendChild(actions);
   menu.appendChild(list);
   return menu;
 }
