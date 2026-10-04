@@ -95,20 +95,20 @@
 /* Session list rows */
 ul.cld-sessions.card-list.dense > li {
   display: grid;
-  grid-template-columns: 50px 1fr auto;
+  grid-template-columns: 1fr auto;
   grid-template-areas:
-    'time project model'
-    'meta meta    meta';
+    'project model'
+    'meta    meta';
   gap: 6px;
   padding: 8px 0;
 }
 
-ul.cld-sessions > li > .cld-sess-time    { grid-area: time;    color: var(--muted); font-size: var(--font-caption); }
 ul.cld-sessions > li > .cld-sess-project {
   grid-area: project;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--font-label);
   font-weight: 500;
 }
 ul.cld-sessions > li > .cld-sess-model  { grid-area: model;   color: var(--muted); font-size: var(--font-caption); }

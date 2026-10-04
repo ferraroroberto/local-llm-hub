@@ -102,11 +102,12 @@ function renderRequests() {
     const traceCol = (r.trace_id && traceUp)
       ? ('<a href="' + langfuseTraceUrl(r.trace_id) + '" target="_blank" rel="noopener" title="' + escapeHtml(r.trace_id) + '">trace</a>')
       : '';
+    // The model leads and the clock trails (J-10, #647): a row's key fact first.
     li.innerHTML =
-      '<span class="muted">' + fmtClock(r.ts) + '</span>' +
-      '<span>' + modelLabel(r, '(no model)') + ' <span class="muted">' + escapeHtml(r.backend || '') + detailSuffix(r) + '</span></span>' +
+      '<span class="req-name">' + modelLabel(r, '(no model)') + ' <span class="muted">' + escapeHtml(r.backend || '') + detailSuffix(r) + '</span></span>' +
       '<span class="req-status ' + cls + '">' + r.status + ' · ' + r.latency_ms + ' ms</span>' +
-      '<span class="muted">' + (r.in_tok || 0) + ' / ' + (r.out_tok || 0) + ' tok ' + traceCol + '</span>';
+      '<span class="muted">' + (r.in_tok || 0) + ' / ' + (r.out_tok || 0) + ' tok ' + traceCol + '</span>' +
+      '<span class="muted req-clock">' + fmtClock(r.ts) + '</span>';
     list.appendChild(li);
   });
   applyListFilter(els.liveRequestsFilter, list);
@@ -128,10 +129,10 @@ function renderErrors() {
   items.forEach(function (r) {
     const li = document.createElement('li');
     li.innerHTML =
-      '<span class="muted">' + fmtClock(r.ts) + '</span>' +
-      '<span>' + modelLabel(r, '(no model)') + ' <span class="muted">' + escapeHtml(r.backend || '') + detailSuffix(r) + '</span></span>' +
+      '<span class="req-name">' + modelLabel(r, '(no model)') + ' <span class="muted">' + escapeHtml(r.backend || '') + detailSuffix(r) + '</span></span>' +
       '<span class="req-status err">' + r.status + '</span>' +
-      '<span class="muted">' + escapeHtml((r.error_detail || '').slice(0, 80)) + '</span>';
+      '<span class="muted">' + escapeHtml((r.error_detail || '').slice(0, 80)) + '</span>' +
+      '<span class="muted req-clock">' + fmtClock(r.ts) + '</span>';
     list.appendChild(li);
   });
 }
