@@ -1205,6 +1205,38 @@ summary.opt-group-title {
   word-break: break-word;
   min-width: 0;
 }
+/* A long detail is one ellipsised line that opens to its full text (#647). The
+ * summary is the 44px tap target; the text span wraps once the row is open. */
+details.services-detail > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--hit-min);
+  cursor: pointer;
+  list-style: none;
+}
+details.services-detail > summary::-webkit-details-marker { display: none; }
+.services-detail-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+details.services-detail[open] .services-detail-text { white-space: normal; overflow: visible; }
+details.services-detail > summary .icon { flex: none; }
+details.services-detail[open] > summary .icon { transform: rotate(180deg); }
+.services-detail:empty { display: none; }
+/* Phone: name, status and the action share the first line, the detail takes the
+ * full width of a second one rather than being squeezed into a 80px column. */
+@media (max-width: 520px) {
+  .services-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .services-row > .services-label { grid-column: 1; grid-row: 1; }
+  .services-row > .hub-live-status { grid-column: 2; grid-row: 1; }
+  .services-row > .services-actions,
+  .services-row > .ghost-btn { grid-column: 3; grid-row: 1; }
+  .services-row > .services-detail { grid-column: 1 / -1; grid-row: 2; }
+}
 /* Row-level service action (Wake / Sync) — compact padding, full 44px height. */
 .services-row .ghost-btn {
   padding: 4px 10px;
