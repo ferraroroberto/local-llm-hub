@@ -1407,3 +1407,7 @@ summary.opt-group-title {
   font-size: var(--font-caption);
   margin: 0;
 }
+
+/* Settings dialog: the vendored text-size range-tabs sit in a detail-card row,
+ * so drop their stacked-control bottom margin and let them take the value side. */
+#settingsDialog .row .range-tabs { margin: 0; flex: 1; max-width: 70%; }

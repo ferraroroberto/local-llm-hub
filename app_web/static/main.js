@@ -17,6 +17,7 @@ import { wireJev, fetchJevInfo } from './playground_jev.js';
 import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls, fetchTelemetryHealth } from './telemetry.js';
 import { wireCodeUsage, startCodeUsagePolls, stopCodeUsagePolls, restyleCodeUsageCharts } from './code_usage.js';
 import { wireMachines, startMachinesPolls, stopMachinesPolls } from './machines.js';
+import { wireSettings } from './settings.js';
 
 // --------------------------------------------------------------- theme toggle
 // The pre-paint boot script in index.html already stamped html[data-theme]
@@ -91,6 +92,7 @@ async function boot() {
   wireTelemetry();
   wireCodeUsage();
   wireMachines();
+  wireSettings();
 
   // Register the tab-change hook BEFORE wiring the nav: the vendored
   // component restores the persisted tab during wireTabs() and fires
