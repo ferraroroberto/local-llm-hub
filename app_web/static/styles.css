@@ -700,10 +700,10 @@ h2 { display: flex; align-items: center; gap: 8px; }
    * grows to fill the row. */
   margin-left: auto;
 }
-.app-item .app-icons .icon-btn {
-  width: var(--hit-min);
-  min-height: var(--hit-min);
-  border-radius: var(--radius-sm);
+/* The row's one power control: glyph plus the verb (Start / Stop), compact. */
+.app-item .app-icons .ghost-btn {
+  padding: 4px 10px;
+  font-size: var(--font-caption);
 }
 .app-item .app-meta {
   font-size: var(--font-caption);
@@ -1185,16 +1185,11 @@ summary.opt-group-title {
   padding: 4px 10px;
   font-size: var(--font-caption);
 }
-/* Docker/Langfuse/AgentsView start+stop pair (#284) — the pair sits side by
- * side, so each button gets real 44px geometry (expanded rects must not overlap). */
+/* Docker/Langfuse/AgentsView start+stop (#284) — one is visible at a time, as a
+ * labelled button (glyph + verb) like Wake / Sync above. */
 .services-row .services-actions {
   display: flex;
   gap: 0;
-}
-.services-row .services-actions .icon-btn {
-  width: var(--hit-min);
-  min-height: var(--hit-min);
-  border-radius: var(--radius-sm);
 }
 
 /* ---------- Startup card — per-item toggle rows (#265) ---------- */

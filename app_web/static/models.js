@@ -135,12 +135,12 @@ function fillItem(li, m) {
   buttons.forEach(function (b) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'icon-btn';
+    btn.className = 'ghost-btn';
     btn.dataset.act = b.act;
     btn.disabled = !!b.disabled;
     btn.title = b.label;
     btn.setAttribute('aria-label', b.label);
-    btn.innerHTML = b.glyph;
+    btn.innerHTML = b.glyph + escapeHtml(b.label);
     btn.addEventListener('click', function () { handleAction(m, b.act); });
     icons.appendChild(btn);
   });
