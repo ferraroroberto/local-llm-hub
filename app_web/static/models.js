@@ -132,14 +132,6 @@ function fillItem(li, m) {
       ? { act: 'stop',  glyph: icon('square'), label: 'Stop' }
       : { act: 'start', glyph: icon('play'), label: 'Start', disabled: ownership !== 'none' });
   }
-  // No ping for the TypeSafe tile (#611): every probe is a billed vendor
-  // evaluation — the Playground's Decision card is where Jev gets exercised.
-  if (m.backend !== 'typesafe') {
-    buttons.push({
-      act: 'ping', glyph: icon('signal'), label: 'Ping',
-      disabled: !reachable && m.backend !== 'claude' && m.backend !== 'gemini',
-    });
-  }
   buttons.forEach(function (b) {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -160,6 +152,15 @@ function fillItem(li, m) {
   const panelOpen = !!li.querySelector(':scope > .glossary-panel:not([hidden])');
   const editorOpen = !!li.querySelector(':scope > .placement-editor');
   const menuItems = [];
+  // Ping is a word in the menu, not a bare signal-bars glyph on the row (#647).
+  // No ping for the TypeSafe tile (#611): every probe is a billed vendor
+  // evaluation — the Playground's Decision card is where Jev gets exercised.
+  if (m.backend !== 'typesafe') {
+    menuItems.push({
+      act: 'ping', glyph: icon('signal'), label: 'Ping',
+      disabled: !reachable && m.backend !== 'claude' && m.backend !== 'gemini',
+    });
+  }
   if (adopted) {
     menuItems.push({ act: 'force-stop', glyph: icon('skull'), label: 'Force stop', danger: true });
   }
@@ -297,6 +298,7 @@ function buildRowMenu(m, items, open) {
     btn.className = 'row-menu-item' + (it.danger ? ' danger' : '') +
       (it.active ? ' active' : '') + (it.cls ? ' ' + it.cls : '');
     btn.dataset.act = it.act;
+    btn.disabled = !!it.disabled;
     btn.setAttribute('role', 'menuitem');
     btn.innerHTML = it.glyph + '<span>' + escapeHtml(it.label) + '</span>';
     btn.addEventListener('click', function () {
