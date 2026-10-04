@@ -272,7 +272,6 @@ export const els = {
   cldCacheRead: document.getElementById('cldCacheRead'),
   cldInputCost: document.getElementById('cldInputCost'),
   cldOutputCost: document.getElementById('cldOutputCost'),
-  cldOutputReasoning: document.getElementById('cldOutputReasoning'),
   cldCacheCost: document.getElementById('cldCacheCost'),
   cldDeltaRequests: document.getElementById('cldDeltaRequests'),
   cldDeltaInputTok: document.getElementById('cldDeltaInputTok'),

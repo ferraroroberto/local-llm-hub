@@ -191,8 +191,9 @@ function setLoadError(reason) {
   // (there is nothing to compare), tear the charts down and empty the tables.
   [els.cldRequests, els.cldInputTok, els.cldOutputTok, els.cldCacheRead]
     .forEach(function (el) { set(el, '—'); });
-  [els.cldTotalCost, els.cldInputCost, els.cldOutputCost, els.cldCacheCost,
-   els.cldOutputReasoning].forEach(function (el) { set(el, ''); });
+  [els.cldTotalCost, els.cldInputCost, els.cldOutputCost, els.cldCacheCost]
+    .forEach(function (el) { set(el, ''); });
+  if (els.cldOutputTok) els.cldOutputTok.removeAttribute('title');
   [els.cldDeltaRequests, els.cldDeltaInputTok, els.cldDeltaOutputTok,
    els.cldDeltaCacheRead].forEach(function (el) { if (el) el.hidden = true; });
 
@@ -317,9 +318,14 @@ function renderCldCounters(body) {
   set(els.cldInputCost, fmtCost(bucket.input_cost));
   set(els.cldOutputCost, fmtCost(bucket.output_cost));
   set(els.cldCacheCost, fmtCost(bucket.cache_read_cost));
-  // Codex reasoning tokens — a subset of output, shown for transparency (#71).
+  // Codex reasoning tokens — a subset of output (#71). Off the card face so
+  // the four cards stay one height (#692); the figure rides the output
+  // tile's tooltip.
   const reasoning = bucket.reasoning_output_tokens || 0;
-  set(els.cldOutputReasoning, reasoning ? 'incl. ' + fmtTok(reasoning) + ' reasoning' : '');
+  if (els.cldOutputTok) {
+    if (reasoning) els.cldOutputTok.title = 'incl. ' + fmtTok(reasoning) + ' reasoning';
+    else els.cldOutputTok.removeAttribute('title');
+  }
 }
 
 function renderVendorTable(rows) {

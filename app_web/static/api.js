@@ -219,11 +219,16 @@ export function fmtClock(ts) {
   return d.toTimeString().slice(0, 8);
 }
 
-/* Compact token count — 1.2k / 3.4M (shared by the Hub counters, OTel
- * leaderboard, and Code-usage tables; #215 dedup). */
+/* Compact token count — 1.2k / 3.4M / 2,323.7M (shared by the Hub counters, OTel
+ * leaderboard, and Code-usage tables; #215 dedup). Millions group their integer
+ * part so a four-digit figure stays readable (#692). The grouping is pinned to
+ * en-US: the decimal point of every existing figure ("1.0M") must not move with
+ * the browser's locale, and the figure then reads the same on every device. */
 export function fmtTok(n) {
   if (!n) return '—';
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000_000) {
+    return (n / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'M';
+  }
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
   return String(n);
 }
