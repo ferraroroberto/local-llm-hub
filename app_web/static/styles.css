@@ -564,6 +564,18 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 .card-list .req-status.ok { color: var(--on); }
 .card-list .req-status.err { color: var(--danger); }
 .card-list .req-status.warn { color: var(--attention); }
+/* A row's trace link is a real 44px target, not a 26x16 inline word (TOUCH-01,
+ * #647): real geometry rather than an invisible expansion, because the links
+ * of neighbouring rows sit closer together than 44px and expansions must not
+ * overlap. */
+.card-list.dense > li { align-items: center; }
+.card-list.dense > li a[target="_blank"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--hit-min);
+  min-height: var(--hit-min);
+}
 
 /* ---------- counters table (scrollable wrap on phone) ---------- */
 .counters-wrap { overflow-x: auto; }
