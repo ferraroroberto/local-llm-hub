@@ -25,28 +25,90 @@ Cap the VM with `%USERPROFILE%\.wslconfig`:
 memory=16GB
 ```
 
-16 GB is about 5x the measured anonymous usage, so ClickHouse merges and
-Langfuse spikes have headroom. Raise it if `docker inspect -f
-'{{.State.OOMKilled}}' <container>` ever reports `true`. Leave `processors`
-and `swap` at their defaults.
+### Sizing
 
-Apply it with `wsl --shutdown`, wait until `wsl --list --running` reports no
-running distributions, then let Docker Desktop start again. The Langfuse
-containers come back on their own, or re-run `start_langfuse.bat`. If
-`http://localhost:3000` returns empty replies although `docker ps` shows the
-web container up, `docker restart langfuse-langfuse-web-1` re-publishes the
-port. This stops
-every WSL 2 distro on the host, so do it deliberately, not unattended.
+The cap is sized from measured anonymous memory, the part the kernel cannot
+reclaim, plus headroom. Page cache and slab are reclaimable, so they fill
+whatever cap is set and do not need room of their own.
 
-Confirm the cap took effect, because a missing or malformed file (sizes need a
-unit: `16GB`, `512MB`) is silently ignored:
+| Container | Anonymous memory (cgroup `anon`), 2026-10-04 |
+|---|---|
+| `langfuse-clickhouse-1` | 475 MiB |
+| `langfuse-langfuse-web-1` | 475 MiB |
+| `langfuse-langfuse-worker-1` | 344 MiB |
+| `langfuse-minio-1` | 317 MiB |
+| `langfuse-postgres-1` / `redis-1` / `searxng` | 19 / 5 / 12 MiB |
+| **Total** | **about 1.7 GiB** |
 
-```powershell
-docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}"   # limit column = cap, not ~62 GiB
-Get-Process vmmemWSL | Select-Object @{n='WS_GB';e={[math]::Round($_.WorkingSet64/1GB,1)}}
+An earlier reading, taken while ClickHouse was busy, was about 3 GB. 16 GB is
+about 5x that peak, so merges and Langfuse spikes have headroom. Leave
+`processors` and `swap` at their defaults. With the 16 GB cap in place the VM
+sat at 15.5 GB two days later, which is the expected steady state: MinIO's page
+cache (11 GiB `file` plus 1.4 GiB `kernel`) fills the cap rather than growing
+past it.
+
+Raise the value if `docker inspect -f '{{.State.OOMKilled}}' <container>` ever
+reports `true`.
+
+### Optional: `autoMemoryReclaim`
+
+Microsoft's [`.wslconfig` reference][wslconfig] lists
+`[experimental] autoMemoryReclaim` with the values `disabled`, `gradual` and
+`dropCache`, and `dropCache` is the default, so reclaim is already on. It is
+not part of the proposed file. The `memory` cap is what bounds the VM; reclaim
+only changes how quickly cache goes back to Windows. Add it only if, after a
+day under the cap, `vmmemWSL` sits at the cap while the containers' `anon`
+memory is far lower and Windows is short of RAM:
+
+```ini
+[experimental]
+autoMemoryReclaim=gradual
 ```
 
-Reference: <https://learn.microsoft.com/en-us/windows/wsl/wsl-config>.
+`gradual` returns cached memory slowly, which is gentler on MinIO's working set
+than `dropCache`. Revert to the default by deleting the key.
+
+### Apply
+
+This is a machine-level change that stops every WSL 2 distro on the host,
+Langfuse and SearXNG included, until they are restarted. Do it deliberately,
+not unattended.
+
+1. Save the file as `%USERPROFILE%\.wslconfig` (sizes need a unit: `16GB`,
+   `512MB`; a missing or malformed file is silently ignored).
+2. `wsl --shutdown`, then wait until `wsl --list --running` reports no running
+   distributions (Microsoft's 8-second rule).
+3. Start Docker Desktop again. The containers come back through their restart
+   policies; re-running `start_langfuse.bat` is idempotent and safe.
+4. Check health:
+
+   ```powershell
+   docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}"   # limit column = 15.62GiB, not ~62 GiB
+   docker ps --format "table {{.Names}}\t{{.Status}}"                   # all 7 Up, those with healthchecks healthy
+   docker ps -q | % { docker inspect -f '{{.Name}} OOMKilled={{.State.OOMKilled}}' $_ }   # all false
+   Get-Process vmmemWSL | Select-Object @{n='WS_GB';e={[math]::Round($_.WorkingSet64/1GB,1)}}
+   ```
+
+   Then confirm the hub sees the stack: `GET /admin/api/services/status`
+   (or the Hub tab's Services card) reports Docker up and Langfuse reachable,
+   SearXNG answers on its port, and `GET /admin/api/version` still returns the
+   hub's build. Make one request through the hub and confirm the trace appears
+   in Langfuse (`http://localhost:3000`).
+5. If `http://localhost:3000` returns empty replies although `docker ps` shows
+   the web container up, `docker restart langfuse-langfuse-web-1` re-publishes
+   the port (a stale port forward after the VM restart).
+
+The hub itself, whisper and the llama-server backends run on the host and are
+not touched by this.
+
+### Rollback
+
+1. Delete `%USERPROFILE%\.wslconfig` (or comment out the `memory=` line).
+2. `wsl --shutdown`, wait for `wsl --list --running` to report nothing, start
+   Docker Desktop, and repeat the health checks above. `docker stats` should
+   show the default limit again (50% of host RAM).
+
+[wslconfig]: https://learn.microsoft.com/en-us/windows/wsl/wsl-config
 
 ## Quick start
 
