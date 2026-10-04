@@ -851,7 +851,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   min-width: 0;
   background: var(--input-bg);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
   padding: 7px 9px;
   font: inherit;
@@ -870,7 +870,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .pe-field input {
   background: var(--input-bg);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
   padding: 7px 9px;
   font: inherit;
@@ -931,7 +931,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   min-width: 0;
   padding: 7px 9px;
   background: var(--input-bg);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
   color: var(--ink);
   font-size: var(--font-label);
@@ -973,7 +973,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   min-width: 0;
   padding: 7px 9px;
   background: var(--input-bg);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
   color: var(--ink);
   font-size: var(--font-label);
@@ -1006,7 +1006,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .opt-stack > select {
   background: var(--input-bg);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
   padding: 10px 12px;
   font: inherit;
@@ -1064,7 +1064,7 @@ summary.opt-group-title {
   width: 90px;
   background: var(--input-bg);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
   padding: 8px 10px;
   font: inherit;
