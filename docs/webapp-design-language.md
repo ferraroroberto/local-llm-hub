@@ -52,6 +52,13 @@ Derived hub tokens (mapped onto the roles above, re-theme for free):
 vendored `home-head` header flips and persists it (`main.js` theme block —
 the home-automation/app-launcher mechanism).
 
+**Text size:** the same boot script (the vendored `text-size-boot`, prefix
+`llmhub`) also stamps `html[data-textsize]` from `llmhub.textsize`; the gear
+beside the theme toggle opens a Settings dialog (`settings.js`) with the
+vendored Small / Default / Large range-tab row. The steps move the root
+font-size, so type stays rem-based and geometry (nav, rows, hit targets, icons)
+stays in px.
+
 ## Frame
 
 ```

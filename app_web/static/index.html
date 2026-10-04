@@ -23,14 +23,25 @@
   <link rel="stylesheet" href="/admin/static/code_usage.css">
   <link rel="stylesheet" href="/admin/static/_vendored/select-native/select-native.css">
   <link rel="stylesheet" href="/admin/static/_vendored/modal/modal.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/range-tab/range-tab.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/text-size/text-size.css">
   <link rel="stylesheet" href="/admin/static/_vendored/xterm/xterm.css">
   <link rel="stylesheet" href="/admin/static/machines.css">
   <title>Local LLM Hub</title>
   <script>
-    (function(){
-      var t = localStorage.getItem('llmhub.theme');
-      var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    (function () {
+      var app = 'llmhub';
+      var root = document.documentElement;
+      var theme = null;
+      var size = null;
+      try {
+        theme = localStorage.getItem(app + '.theme');
+        size = localStorage.getItem(app + '.textsize');
+      } catch (e) {}
+      var dark = theme ? theme === 'dark'
+        : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.dataset.theme = dark ? 'dark' : 'light';
+      root.dataset.textsize = size === 'small' || size === 'large' ? size : 'default';
     })();
   </script>
 </head>
@@ -74,6 +85,7 @@
         <span id="hubLiveStatus" class="status hub-live-status" aria-live="polite"><span class="dot"></span><span id="hubLiveStatusText">checking…</span></span>
         <button type="button" class="home-toggle" data-open-tab="telemetry" aria-label="Open OTel traces and usage" title="OTel traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></button>
         <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="button-surface home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
 
       <!-- Hub card: PID + Uptime (one line), sparklines. -->
@@ -268,6 +280,7 @@
         <span class="status">Backends enabled on this host</span>
         <button type="button" class="home-toggle" data-open-tab="telemetry" aria-label="Open OTel traces and usage" title="OTel traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></button>
         <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="button-surface home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
       <!-- Service startup (#265; services-only since #430, renamed #431).
            Folded by default — a one-time setup surface, not something you
@@ -351,6 +364,7 @@
         <span class="status">Try a model through the hub</span>
         <button type="button" class="home-toggle" data-open-tab="telemetry" aria-label="Open OTel traces and usage" title="OTel traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></button>
         <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="button-surface home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
       <!-- The four testers are vendored disclosure cards, folded by default,
            so one opens at a time by choice (#217). -->
@@ -606,6 +620,7 @@
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg>OTel</span>
         <span class="status">Traces and Claude Code usage</span>
         <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="button-surface home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
       <!-- Stack health strip: OTel SDK state + Langfuse reachability + PII mode -->
       <section class="card">
@@ -691,6 +706,7 @@
         <span class="status">Coding-agent usage</span>
         <button type="button" class="home-toggle" data-open-tab="telemetry" aria-label="Open OTel traces and usage" title="OTel traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></button>
         <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="button-surface home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
 
       <!-- Today / This week counters -->
@@ -894,6 +910,7 @@
         <span class="status">Fleet machines</span>
         <button type="button" class="home-toggle" data-open-tab="telemetry" aria-label="Open OTel traces and usage" title="OTel traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></button>
         <button type="button" class="home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="button-surface home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
       <!-- Async lifecycle (design.md): loading / error empty-states, a stale
            inline note, then one .card per machine in machinesList. Only one
@@ -981,6 +998,27 @@
         <p class="empty-state-message" id="machinesTerminalUnavailableMsg">Terminal unavailable.</p>
       </div>
       <div id="machinesTerminalMount" class="machines-terminal-mount"></div>
+    </div>
+  </dialog>
+
+  <!-- Settings (the home-head gear on every pane): a vendored dialog shell holding
+       the vendored text-size control (_vendored/text-size). -->
+  <dialog class="detail-dialog" id="settingsDialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg><span>Settings</span></h2>
+        <button type="button" class="detail-close" id="settingsCloseBtn" aria-label="Close settings">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div class="row">
+        <span>Text size</span>
+        <nav class="range-tabs" id="textSizeControl" aria-label="Text size">
+          <button type="button" class="range-tab" data-textsize="small">Small</button>
+          <button type="button" class="range-tab" data-textsize="default">Default</button>
+          <button type="button" class="range-tab" data-textsize="large">Large</button>
+        </nav>
+      </div>
     </div>
   </dialog>
 

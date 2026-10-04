@@ -1213,7 +1213,8 @@ local-llm-hub/
 │                             #   by scripts/gen_icons.py, committed)
 │       └── _vendored/        #   project-scaffolding components: button / card /
 │                             #   disclosure / empty-state / icons (Lucide sprite) /
-│                             #   modal / nav / switch / xterm — SPA UI glyphs +
+│                             #   modal / nav / range-tab / switch / text-size /
+│                             #   xterm — SPA UI glyphs +
 │                             #   primitives per design.md; chartjs (Chart.js
 │                             #   4.4.7 UMD, byte-for-byte, #451) — trend charts
 ├── tray/                     # Windows system-tray launcher (silent pythonw)
@@ -1414,7 +1415,9 @@ satellite lifecycle" above.)
 
 Once the hub is running, open `http://127.0.0.1:8000/admin/` for the
 admin webapp — five tabs (Hub / Models / Play / Code / Machines; OTel
-opens from the header button) covering every operational concern. Going to `http://127.0.0.1:8000/`
+opens from the header button) covering every operational concern. The
+header gear opens Settings, where a Small / Default / Large text-size control
+(persisted in the browser) scales every tab. Going to `http://127.0.0.1:8000/`
 redirects there.
 
 ### Tray launcher (Windows)
