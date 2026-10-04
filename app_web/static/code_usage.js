@@ -210,6 +210,7 @@ function setLoadError(reason) {
   if (els.cldSessionsEmpty) els.cldSessionsEmpty.hidden = false;
   // "—", not "0": the session count is unknown, not known to be none.
   set(els.cldSessionsBadge, '—');
+  revealBreakdownCards();
   setFreshness('load failed ' + new Date().toLocaleTimeString());
 }
 
@@ -277,8 +278,19 @@ function renderCopilotBilling(body) {
 // Render
 // ---------------------------------------------------------------------------
 
+/* The breakdown cards stay hidden until the first summary has been answered,
+ * success or failure (#647): a header-only table or a "none found" line before
+ * that would state an emptiness nothing has measured. Idempotent. */
+function revealBreakdownCards() {
+  if (els.cldPending) els.cldPending.hidden = true;
+  [els.cldModelCard, els.cldProjectCard, els.cldSessionsCard].forEach(function (card) {
+    if (card) card.hidden = false;
+  });
+}
+
 function render(body) {
   if (!body) return;
+  revealBreakdownCards();
   renderCldCounters(body);
   renderDeltas(body);
   renderCharts(body);

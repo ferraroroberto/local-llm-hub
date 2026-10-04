@@ -215,7 +215,7 @@
         <div class="collapse-body">
           <input id="liveRequestsFilter" type="search" class="list-filter" placeholder="Filter requests" aria-label="Filter live requests" autocomplete="off">
           <ul id="liveRequestsList" class="card-list dense" aria-label="Live request stream"></ul>
-          <div id="liveRequestsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No requests yet — the ring fills as clients call the hub.</p></div>
+          <div id="liveRequestsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No requests yet — the ring fills as clients call the hub.</p><button type="button" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
           <p class="muted small" style="margin: 8px 0 0;">Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and don't show here.</p>
         </div>
       </details>
@@ -695,7 +695,7 @@
         </div>
         <input id="telTracesFilter" type="search" class="list-filter" placeholder="Filter traces" aria-label="Filter live traces" autocomplete="off">
         <ul id="telTracesList" class="card-list dense tel-traces" aria-label="Live trace feed"></ul>
-        <div id="telTracesEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No traces yet — the ring fills as clients call the hub.</p></div>
+        <div id="telTracesEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No traces yet — the ring fills as clients call the hub.</p><button type="button" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
         <p class="muted small" style="margin: 8px 0 0;">Tap a row to expand prompt/completion preview. <svg class="icon" aria-hidden="true"><use href="#i-thumbs-up"></use></svg>/<svg class="icon" aria-hidden="true"><use href="#i-thumbs-down"></use></svg> sends a Langfuse score; <svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg> opens the full trace.</p>
       </section>
     </section>
@@ -784,6 +784,10 @@
         <p class="muted small" style="margin: 4px 0 0;"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg> <strong>Claude figures undercount two ways</strong> — sessions bridged through claude.ai/code don't write usage to the local transcripts at all (the <strong>OTel tab's "Claude Code (host CLI)"</strong> panel captures those when telemetry is enabled), and Claude Code prunes transcripts after ~30 days — the hub snapshots daily rollups so "All" keeps growing from 2026-07-12 forward, but earlier pruned days are gone. Sub-agent (Task tool) usage <em>is</em> counted where the newer per-session transcript folders exist.</p>
       </section>
 
+      <!-- Until the first usage summary lands the breakdown cards stay hidden: a header-only
+           table or a "none found" line would claim emptiness nothing has measured (#647). -->
+      <div id="cldPending" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-clock"></use></svg><p class="empty-state-message">Reading usage…</p></div>
+
       <!-- Per-vendor breakdown (issue #71) — shown only in "All" mode -->
       <section class="card" id="cldVendorCard" hidden>
         <div class="card-header">
@@ -799,7 +803,7 @@
             <tbody></tbody>
           </table>
         </div>
-        <div id="cldVendorEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg><p class="empty-state-message">No vendor data for this period.</p></div>
+        <div id="cldVendorEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg><p class="empty-state-message">No vendor data for this period — pick a longer period above.</p></div>
       </section>
 
       <!-- Copilot official credits (issue #231, part B) — shown only when the
@@ -833,7 +837,7 @@
       </section>
 
       <!-- Per-model breakdown -->
-      <section class="card">
+      <section class="card" id="cldModelCard" hidden>
         <div class="card-header">
           <h2><svg class="icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>Per-model</h2>
         </div>
@@ -847,11 +851,11 @@
             <tbody></tbody>
           </table>
         </div>
-        <div id="cldModelEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg><p class="empty-state-message">No model data for today.</p></div>
+        <div id="cldModelEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg><p class="empty-state-message">No model data for this period — pick a longer period or another vendor above.</p></div>
       </section>
 
       <!-- Per-project breakdown -->
-      <section class="card">
+      <section class="card" id="cldProjectCard" hidden>
         <div class="card-header">
           <h2><svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>Per-project</h2>
         </div>
@@ -865,7 +869,7 @@
             <tbody></tbody>
           </table>
         </div>
-        <div id="cldProjectEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-folder"></use></svg><p class="empty-state-message">No project data for today.</p></div>
+        <div id="cldProjectEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-folder"></use></svg><p class="empty-state-message">No project data for this period — pick a longer period or another vendor above.</p></div>
         <p class="muted small" style="margin: 6px 0 0;">Projects under the <code>automation</code> workspace show just the folder name (the <code>automation-</code> prefix is stripped; the workspace root itself stays <code>automation</code>). Long names are truncated with “…” — hover for the full path.</p>
       </section>
 
@@ -893,13 +897,13 @@
       </section>
 
       <!-- Recent sessions -->
-      <section class="card">
+      <section class="card" id="cldSessionsCard" hidden>
         <div class="card-header">
           <h2><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg>Recent sessions</h2>
           <span id="cldSessionsBadge" class="badge">0</span>
         </div>
         <ul id="cldSessionsList" class="card-list dense cld-sessions" aria-label="Recent Claude Code sessions"></ul>
-        <div id="cldSessionsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-clock"></use></svg><p class="empty-state-message">No sessions found in <code>~/.claude/projects/</code>.</p></div>
+        <div id="cldSessionsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-clock"></use></svg><p class="empty-state-message">No sessions found in <code>~/.claude/projects/</code> — pick another vendor above.</p></div>
       </section>
 
     </section>
