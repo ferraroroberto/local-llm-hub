@@ -634,7 +634,7 @@ Satellites converge automatically: a successful push fires the #181 sync
 (git pull + hub restart) at every hub peer, and a periodic drift loop on the
 write host re-syncs any satellite whose `models.yaml` sha lags (e.g. it was
 powered off during the push; it also catches up on next boot). The Models
-card header shows the config version (`cfg <sha>` — the models.yaml HEAD
+card header shows the config version (`Config <sha>` — the models.yaml HEAD
 sha, also on `/admin/api/version` as `config_sha`), so drift between hubs is
 visible by comparing their `/admin` pages. Non-write hosts render the cards
 read-only and 403 the write endpoint. The write runs no test suite, so the

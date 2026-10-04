@@ -70,3 +70,18 @@ def test_hub_and_otel_empty_lists_offer_a_test_request(page, admin_url):
         action = page.locator(f"{empty} .empty-state-action")
         assert action.count() == 1, f"{empty} has no action"
         assert action.get_attribute("data-open-tab") == "playground"
+
+
+def test_hub_counters_and_errors_empties_name_what_to_do(page, admin_url):
+    page.goto(admin_url, wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHub", state="attached")
+    # The e2e hub has served no model traffic, so both are in their empty state.
+    page.wait_for_function(
+        "(document.querySelector('#countersTable tbody')?.textContent || '').includes('No requests yet')",
+        timeout=10000,
+    )
+    counters = page.locator("#countersTable tbody").text_content() or ""
+    assert "No requests yet" in counters, counters
+    assert "Playground" in counters, f"counters empty row names no control: {counters!r}"
+    errors = page.locator("#recentErrorsEmpty .empty-state-message").text_content() or ""
+    assert "Live requests" in errors, f"errors empty state names no control: {errors!r}"
