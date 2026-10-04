@@ -18,12 +18,20 @@ What they lock in:
     only on rows that load a model process of their own — a virtual alias
     sharing another row's process (qwen35_4b_nothink) and subscription rows
     show no size;
-  * subscription rows (claude) carry no placement section at all.
+  * subscription rows (claude) carry no placement section at all;
+  * #647 (J-10): the placement chips are not on the row face — a row reads in
+    two lines (name + status, key fact) — and sit one tap behind the row's
+    "More actions" details, keyboard-reachable, on phone and desktop.
 """
 
 from __future__ import annotations
 
 import json
+
+import pytest
+
+PHONE = {"width": 390, "height": 844}
+DESKTOP = {"width": 1280, "height": 900}
 
 FAKE_MODELS = {
     "models": [
@@ -164,17 +172,25 @@ def _open_models_tab(page, admin_url):
     page.goto(admin_url, wait_until="load")
     page.click("#tabModels")
     page.wait_for_selector("#paneModels", state="visible", timeout=5000)
-    page.wait_for_selector("#modelsList .app-item .placement", state="visible", timeout=10000)
+    page.wait_for_selector("#modelsList .app-item", state="visible", timeout=10000)
 
 
 def _item(page, model_id):
     return page.locator(f'#modelsList .app-item[data-id="{model_id}"]')
 
 
+def _open_details(page, model_id):
+    """Open a row's "More actions" details — where the placement chips live."""
+    item = _item(page, model_id)
+    item.locator(".row-menu-toggle").click()
+    item.locator(".placement").wait_for(state="visible", timeout=5000)
+    return item
+
+
 def test_chain_pills_render_with_owner_highlight(page, admin_url):
     _open_models_tab(page, admin_url)
 
-    orpheus = _item(page, "orpheus")
+    orpheus = _open_details(page, "orpheus")
     pills = orpheus.locator(".place-pill")
     assert pills.count() == 2
     assert pills.nth(0).inner_text() == "tower"
@@ -188,7 +204,7 @@ def test_chain_pills_render_with_owner_highlight(page, admin_url):
 def test_degraded_cpu_tier_is_marked(page, admin_url):
     _open_models_tab(page, admin_url)
 
-    whisper = _item(page, "whisper")
+    whisper = _open_details(page, "whisper")
     pills = whisper.locator(".place-pill")
     assert pills.count() == 3
     # Owner highlight follows the *effective* owner (gaming), not position.
@@ -201,15 +217,15 @@ def test_degraded_cpu_tier_is_marked(page, admin_url):
 def test_startup_badge_reads_policy_and_live_state(page, admin_url):
     _open_models_tab(page, admin_url)
 
-    orpheus_badges = _item(page, "orpheus").locator(".placement .badge")
+    orpheus_badges = _open_details(page, "orpheus").locator(".placement .badge")
     assert orpheus_badges.count() == 1
     assert orpheus_badges.first.inner_text() == "eager"
 
-    gemma_badge = _item(page, "gemma4_26b").locator(".placement .badge").first
+    gemma_badge = _open_details(page, "gemma4_26b").locator(".placement .badge").first
     assert gemma_badge.inner_text() == "on-demand · idle-unloaded"
 
     # A reachable on-demand row reads "loaded" — and carries the good tint.
-    chatter_badge = _item(page, "chatterbox").locator(".placement .badge").first
+    chatter_badge = _open_details(page, "chatterbox").locator(".placement .badge").first
     assert chatter_badge.inner_text() == "on-demand · loaded"
     assert "good" in (chatter_badge.get_attribute("class") or "")
 
@@ -219,7 +235,7 @@ def test_always_cpu_owner_pill_carries_cpu_tag(page, admin_url):
     its owner pill must read `gaming · cpu`, matching the fleet summary."""
     _open_models_tab(page, admin_url)
 
-    pills = _item(page, "whisper_translate").locator(".place-pill")
+    pills = _open_details(page, "whisper_translate").locator(".place-pill")
     assert pills.count() == 1
     assert "gaming" in pills.first.inner_text()
     assert "cpu" in pills.first.inner_text()
@@ -259,3 +275,48 @@ def test_subscription_row_has_no_placement_section(page, admin_url):
     claude = _item(page, "claude_haiku")
     assert claude.count() == 1, "subscription row should still render"
     assert claude.locator(".placement").count() == 0
+
+
+@pytest.mark.parametrize("viewport", [PHONE, DESKTOP], ids=["phone", "desktop"])
+def test_row_face_is_two_lines_and_chips_sit_behind_details(page, admin_url, viewport):
+    """#647 (J-10): a Models row reads in two lines — name/status and the key
+    fact — with no placement chips on its face; one tap on "More actions"
+    shows every chip, and the keyboard reaches them too."""
+    page.set_viewport_size(viewport)
+    _open_models_tab(page, admin_url)
+
+    # Face: exactly the title row + the meta line, and no chip visible.
+    for model_id in ("orpheus", "whisper", "gemma4_26b", "claude_haiku"):
+        main = _item(page, model_id).locator(":scope > .app-main")
+        kids = main.locator(":scope > *")
+        assert kids.count() == 2, f"{model_id} face has {kids.count()} blocks"
+        assert "app-title-row" in (kids.nth(0).get_attribute("class") or "")
+        assert "app-meta" in (kids.nth(1).get_attribute("class") or "")
+        for chip in (".place-pill", ".placement .badge"):
+            assert not any(
+                main.locator(chip).nth(i).is_visible()
+                for i in range(main.locator(chip).count())
+            ), f"{model_id} shows {chip} on its face"
+
+    # Details: the whole chain + startup badge are one tap away, on screen.
+    whisper = _open_details(page, "whisper")
+    pills = whisper.locator(".place-pill")
+    assert [pills.nth(i).inner_text() for i in range(pills.count())] == [
+        "gaming", "mac-mini-m4", "tower · cpu"]
+    assert whisper.locator(".placement .badge").inner_text() == "eager"
+    box = whisper.locator(".row-menu-list").bounding_box()
+    assert box["x"] >= 0 and box["x"] + box["width"] <= viewport["width"], box
+
+    # The subscription row has nothing to show, so its details hold no chips.
+    claude = _item(page, "claude_haiku")
+    claude.locator(".row-menu-toggle").click()
+    assert claude.locator(".placement").count() == 0
+
+
+def test_placement_details_open_from_the_keyboard(page, admin_url):
+    _open_models_tab(page, admin_url)
+    orpheus = _item(page, "orpheus")
+    orpheus.locator(".row-menu-toggle").focus()
+    page.keyboard.press("Enter")
+    orpheus.locator(".placement").wait_for(state="visible", timeout=5000)
+    assert orpheus.locator(".place-pill").count() == 2

@@ -750,12 +750,21 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
   top: 100%;
   z-index: 20;
   min-width: 220px;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 2 * var(--space-md)));
   padding: var(--space-xs);
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
+/* The placement card heads the list (#647): context, not an action. */
+.row-menu-list > .placement {
+  margin: 0;
+  padding: var(--space-xs) var(--space-sm) var(--space-sm);
+  border-bottom: 1px solid var(--line);
+}
+.row-menu-list > .placement + [role="menu"] { margin-top: var(--space-xs); }
 .row-menu-item {
   display: flex;
   align-items: center;
@@ -777,7 +786,8 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 .row-menu-item.danger { color: var(--danger-text); }
 
 /* ---------- Models tab: read-only placement cards (#423) ----------
- * A per-row intent section under the runtime meta line: host-chain pills in
+ * A per-row intent section at the top of the row's "More actions" details
+ * (#647 — off the row face so a row reads in two lines): host-chain pills in
  * priority order (owner = the accent-soft "selected" tint, same recipe as
  * .segmented button.active), a startup-policy .badge, the static VRAM
  * estimate, and the owner host's budget bar. All caption-scale — placement
