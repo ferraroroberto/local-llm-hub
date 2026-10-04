@@ -10,12 +10,6 @@
   margin-bottom: 8px;
 }
 
-@media (max-width: 480px) {
-  .cld-counter-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 .cld-counter {
   background: var(--card-off);
   border-radius: var(--radius-sm);
@@ -52,6 +46,22 @@
   color: var(--muted);
   min-height: 14px;
   letter-spacing: -0.1px;
+}
+
+/* On a phone the four counters stack as label-left / value-right rows rather
+ * than sharing a 2x2 band (#647). */
+@media (max-width: 480px) {
+  .cld-counter-grid {
+    grid-template-columns: 1fr;
+  }
+  .cld-counter {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 12px;
+  }
+  .cld-counter-label { order: -1; flex: 1; font-size: var(--font-body); color: var(--ink); }
+  .cld-counter-sub { flex-basis: 100%; }
 }
 
 /* Delta badge — sits below the counter label, coloured green/red (issue #50). */
