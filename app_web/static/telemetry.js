@@ -189,11 +189,12 @@ function renderTraces() {
     const expanded = state.telExpandedTraceId && state.telExpandedTraceId === rec.trace_id;
     if (expanded) li.classList.add('expanded');
 
+    // Model first, clock last (J-10, #647); the grid areas place the cells.
     li.innerHTML =
-      '<span class="req-time">' + tsStr + '</span>' +
       '<span class="req-model" title="' + escapeAttr(modelTitle) + '">' + modelHtml + '</span>' +
       '<span class="req-latency">' + latency + '</span>' +
-      '<span class="req-status ' + statusCls + '">' + rec.status + '</span>';
+      '<span class="req-status ' + statusCls + '">' + rec.status + '</span>' +
+      '<span class="req-time">' + tsStr + '</span>';
 
     const meta = document.createElement('div');
     meta.className = 'tel-trace-meta';

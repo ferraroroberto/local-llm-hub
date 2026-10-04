@@ -553,10 +553,14 @@ h2 { display: flex; align-items: center; gap: 8px; }
   border-bottom: 1px solid var(--line-muted);
   font-size: var(--font-caption);
   display: grid;
-  grid-template-columns: 60px 1fr auto auto;
+  /* Name first (J-10): the model leads, status and tokens follow, the clock trails. */
+  grid-template-columns: 1fr auto auto auto;
   gap: 8px;
 }
 .card-list.dense > li:last-child { border-bottom: 0; }
+/* The row's name is its largest text. */
+.card-list.dense .req-name,
+ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 .card-list .req-status.ok { color: var(--on); }
 .card-list .req-status.err { color: var(--danger); }
 .card-list .req-status.warn { color: var(--attention); }

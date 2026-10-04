@@ -417,8 +417,8 @@ function renderSessions(sessions) {
     const proj = escapeHtml(s.project || s.project_key || '');
     const model = escapeHtml(modelShort(s.model || ''));
     const sid = escapeHtml((s.session_id || '').slice(0, 8));
+    // Project leads; the times live on the meta line (J-10, #647).
     return '<li>' +
-      '<span class="cld-sess-time">' + lastTs + '</span>' +
       '<span class="cld-sess-project">' + proj + '</span>' +
       '<span class="cld-sess-model">' + model + '</span>' +
       '<div class="cld-sess-meta">' +

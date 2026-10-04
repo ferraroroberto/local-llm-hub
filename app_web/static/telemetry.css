@@ -5,17 +5,17 @@
 ul.tel-traces.card-list.dense > li {
   /* Header row stays 4 columns to align with the Hub tab's live list. */
   display: grid;
-  grid-template-columns: 60px 1fr auto auto;
+  grid-template-columns: 1fr auto auto 60px;
   gap: 8px;
   padding: 8px 0;
-  /* Allow the per-row meta + actions divs to span the full width. */
+  /* The model leads, the clock trails (J-10); the meta + actions divs span the row. */
   grid-template-areas:
-    'time model latency status'
-    'meta meta  meta    meta'
+    'model latency status time'
+    'meta  meta    meta   meta'
     'actions actions actions actions'
     'err err err err';
 }
-ul.tel-traces > li > .req-time    { grid-area: time;    color: var(--muted); }
+ul.tel-traces > li > .req-time    { grid-area: time;    color: var(--muted); text-align: right; }
 ul.tel-traces > li > .req-model   {
   grid-area: model;
   overflow: hidden;
