@@ -12,7 +12,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, fmtTok, fmtCost, tokPair, escapeHtml, renderTable } from './api.js';
+import { jsonApi, fmtTok, fmtCost, tokPair, escapeHtml, renderTable, toastPending } from './api.js';
 
 // ---------------------------------------------------------------------------
 // Chart constants (issue #50)
@@ -49,6 +49,17 @@ let _chartCache  = null;
 const POLL_MS = 30_000;
 let _pollHandle = null;
 
+// A vendor/period switch (#693): the loading toast goes up at once, the fetch
+// starts once the clicks settle, and any earlier load is aborted, so a burst of
+// clicks sends one request for the final choice. `_choice` is the live switch;
+// `_pollCtl` the latest background poll, which a switch aborts and which never
+// raises the toast. `_gen` bumps on every switch so a poll that started before
+// it can never paint over the newer choice.
+const CHOICE_SETTLE_MS = 200;
+let _choice = null;
+let _pollCtl = null;
+let _gen = 0;
+
 // Empty-state blocks whose copy swaps to a "could not load" line while the
 // summary is failing (#580), and the pristine markup to restore on recovery.
 const EMPTY_STATE_KEYS = [
@@ -73,8 +84,7 @@ export function wireCodeUsage() {
       els.cldPeriodSeg.querySelectorAll('button').forEach(function (b) {
         b.classList.toggle('active', b === btn);
       });
-      // Immediate re-fetch so the switch feels instant.
-      fetchSummary().catch(function () {});
+      startChoiceLoad();
     });
   }
 
@@ -89,16 +99,14 @@ export function wireCodeUsage() {
       els.cldVendorSeg.querySelectorAll('button').forEach(function (b) {
         b.classList.toggle('active', b === btn);
       });
-      fetchSummary().catch(function () {});
+      startChoiceLoad();
     });
   }
 }
 
 export function startCodeUsagePolls() {
-  fetchSummary().catch(function () {});
-  _pollHandle = setInterval(function () {
-    fetchSummary().catch(function () {});
-  }, POLL_MS);
+  pollSummary();
+  _pollHandle = setInterval(pollSummary, POLL_MS);
 }
 
 export function stopCodeUsagePolls() {
@@ -112,12 +120,47 @@ export function stopCodeUsagePolls() {
 // Data fetch
 // ---------------------------------------------------------------------------
 
-async function fetchSummary() {
+/* Background refresh: silent (no toast), and it yields to a switch in flight. */
+function pollSummary() {
+  if (_choice) return;
+  const ctl = new AbortController();
+  _pollCtl = ctl;
+  fetchSummary(ctl, _gen).catch(function () {});
+}
+
+/* A user-picked vendor/period: toast now, fetch once the clicks settle. */
+function startChoiceLoad() {
+  _gen += 1;
+  if (_choice) {
+    clearTimeout(_choice.timer);
+    _choice.ctl.abort();
+  }
+  if (_pollCtl) _pollCtl.abort();
+  const ctl = new AbortController();
+  const mine = { ctl, gen: _gen, done: toastPending('Loading usage…'), timer: null };
+  _choice = mine;
+  mine.timer = setTimeout(function () {
+    fetchSummary(ctl, mine.gen).then(function (outcome) {
+      // Only the newest switch owns the toast; an aborted one is replaced.
+      if (_choice !== mine || outcome === 'aborted') return;
+      _choice = null;
+      // The sign-in overlay already speaks for an auth failure; no second message.
+      mine.done(outcome === 'ok' || outcome === 'auth' ? undefined : 'Could not load usage — ' + outcome);
+    });
+  }, CHOICE_SETTLE_MS);
+}
+
+/* Fetch + render one summary. Resolves 'ok', 'aborted' (superseded — nothing
+ * rendered), 'auth' (the sign-in overlay owns it) or the failure reason
+ * (already shown through the #580 banner). */
+async function fetchSummary(ctl, gen) {
   try {
     const body = await jsonApi(
       '/admin/api/code/usage/summary?period=' + state.cldPeriod +
-      '&vendor=' + state.cldVendor
+      '&vendor=' + state.cldVendor,
+      { signal: ctl.signal }
     );
+    if (ctl.signal.aborted || gen !== _gen) return 'aborted';
     // Belt and braces (#580): the route now answers 503 on a failed build, so
     // jsonApi throws and the catch below owns the error state. A 200 that
     // still carries `error` (an older hub on a peer machine) is a failure too
@@ -146,9 +189,13 @@ async function fetchSummary() {
     } else if (els.cldCopilotBillingCard) {
       els.cldCopilotBillingCard.hidden = true;
     }
+    return 'ok';
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
-    setLoadError(exc && exc.message ? String(exc.message) : 'unknown error');
+    if (ctl.signal.aborted || (exc && exc.name === 'AbortError') || gen !== _gen) return 'aborted';
+    if (String(exc.message) === 'auth required') return 'auth';
+    const reason = exc && exc.message ? String(exc.message) : 'unknown error';
+    setLoadError(reason);
+    return reason;
   }
 }
 

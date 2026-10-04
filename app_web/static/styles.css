@@ -1377,25 +1377,44 @@ summary.opt-group-title {
 .page-foot p { margin: 2px 0; }
 
 /* ---------- toast ---------- */
+/* The fleet's neutral frosted toast (design.md `toast`): the floating nav's
+ * glass, centred, one line whenever the message fits. Only a real error tints;
+ * success and info stay neutral. */
 .toast {
   position: fixed;
   left: 50%;
   bottom: calc(env(safe-area-inset-bottom, 0) + 20px);
   transform: translateX(-50%);
-  background: var(--card);
+  background: var(--tabbar-bg);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--tabbar-border);
   border-radius: var(--radius-md);
-  padding: 10px 16px;
+  padding: 12px 18px;
   font-size: var(--font-label);
-  max-width: calc(100vw - 32px);
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+  width: max-content;
+  max-width: min(calc(100vw - 24px), 560px);
+  text-wrap: balance;
   box-shadow: var(--shadow);
+  backdrop-filter: blur(20px) saturate(1.25);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
   /* Clear the vendored floating mobile nav (z-index: 120) so command
    * progress and results remain readable after the nav migration. */
   z-index: 130;
 }
-.toast.good  { border-color: var(--on); }
-.toast.error { border-color: var(--danger); }
+/* Phone: sit 8px above the floating bottom-tab pill rather than behind it. */
+@media (pointer: coarse) and (max-width: 520px) {
+  .toast {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bottom-tabs-margin) * 2 + var(--bottom-tabs-height) + 8px);
+  }
+}
+.toast.error {
+  background: color-mix(in srgb, var(--danger) 75%, transparent);
+  border-color: var(--danger);
+  color: var(--accent-fg);
+}
 
 /* ---------- login overlay ---------- */
 .overlay {
