@@ -70,6 +70,8 @@
   border-radius: var(--radius-md);
   padding: 13px;
   min-height: 48px;
+  font: inherit;
+  line-height: normal;
   font-size: var(--font-body);
   font-weight: 700;
   cursor: pointer;
@@ -90,6 +92,8 @@
   color: var(--muted);
   border: 1px solid var(--line);
   padding: 6px 10px;
+  font: inherit;
+  line-height: normal;
   font-size: var(--font-caption);
   font-weight: 600;
   border-radius: var(--radius-md);
@@ -103,6 +107,8 @@
   height: var(--control-h);
   padding: 0 10px;
   color: var(--muted);
+  font: inherit;
+  line-height: normal;
   font-size: var(--font-label);
   font-weight: 600;
   cursor: pointer;
