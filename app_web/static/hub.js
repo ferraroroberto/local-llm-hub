@@ -255,6 +255,27 @@ function setStatusPill(rootEl, textEl, kind, text) {
   if (textEl) textEl.textContent = text;
 }
 
+/* A Services row's detail is a raw error or version line (#647, J-10). A short
+ * one stays inline; a long one is a one-line, ellipsised disclosure whose full
+ * text opens in place, so a row reads in two lines whatever the error says.
+ * Nothing is dropped, and the summary is a native, keyboard-reachable toggle. */
+const DETAIL_INLINE_MAX = 40;
+
+function longDetailHtml(text) {
+  return '<details class="services-detail"><summary title="Show the full detail">'
+    + '<span class="services-detail-text">' + escapeHtml(text) + '</span>'
+    + icon('chevron-down') + '</summary></details>';
+}
+
+// Re-rendering on every poll must not snap an open disclosure shut, so a static
+// row only rewrites its detail when the text changed.
+function setDetail(el, text) {
+  if (!el || el.dataset.detail === text) return;
+  el.dataset.detail = text;
+  if (text.length > DETAIL_INLINE_MAX) el.innerHTML = longDetailHtml(text);
+  else el.textContent = text;
+}
+
 function renderServices() {
   const body = state.services;
   if (!body) return;
@@ -264,11 +285,9 @@ function renderServices() {
   const dockerKind = docker.running ? 'good' : 'danger';
   const dockerLabel = docker.running ? 'up' : 'down';
   setStatusPill(els.dockerStatus, els.dockerStatusText, dockerKind, dockerLabel);
-  if (els.dockerDetail) {
-    els.dockerDetail.textContent = docker.running
-      ? (docker.server_version ? 'engine ' + docker.server_version : '')
-      : (docker.error || '');
-  }
+  setDetail(els.dockerDetail, docker.running
+    ? (docker.server_version ? 'engine ' + docker.server_version : '')
+    : (docker.error || ''));
   // Start/Stop (#284) — only offered where launch_docker_desktop() actually
   // knows how (same `launchable` gate the combined Launch button already
   // uses: win32 + a found Docker Desktop install).
@@ -288,9 +307,7 @@ function renderServices() {
   if (lf.reachable) { lfKind = 'good'; lfLabel = 'up'; }
   else if (docker.running) { lfKind = 'warn'; lfLabel = 'down'; }
   setStatusPill(els.langfuseStatus, els.langfuseStatusText, lfKind, lfLabel);
-  if (els.langfuseDetail) {
-    els.langfuseDetail.textContent = lf.reachable ? '' : (lf.error || '');
-  }
+  setDetail(els.langfuseDetail, lf.reachable ? '' : (lf.error || ''));
   if (els.langfuseStartBtn) {
     els.langfuseStartBtn.hidden = lf.reachable;
     els.langfuseStartBtn.disabled = state.langfuseBusy;
@@ -311,11 +328,9 @@ function renderServices() {
   else if (!avEnabled) { avKind = 'warn'; avLabel = 'disabled'; }
   else if (av.installed === false) { avKind = 'warn'; avLabel = 'not installed'; }
   setStatusPill(els.agentsviewStatus, els.agentsviewStatusText, avKind, avLabel);
-  if (els.agentsviewDetail) {
-    els.agentsviewDetail.textContent = av.reachable
-      ? (av.version ? av.version : '')
-      : (av.installed === false ? 'see docs/code-usage-agentsview.md' : (av.error || ''));
-  }
+  setDetail(els.agentsviewDetail, av.reachable
+    ? (av.version ? av.version : '')
+    : (av.installed === false ? 'see docs/code-usage-agentsview.md' : (av.error || '')));
   if (els.agentsviewStartBtn) {
     els.agentsviewStartBtn.hidden = !(avEnabled && !av.reachable && av.installed);
     els.agentsviewStartBtn.disabled = state.agentsviewBusy;
@@ -402,7 +417,15 @@ function renderPeerRows() {
   const container = els.peerRows;
   if (!container) return;
   const peers = (state.services && state.services.peers) || [];
+  // A re-render must keep a peer's opened detail open (#647).
+  const opened = [...container.querySelectorAll('.services-row')]
+    .filter(function (r) { return r.querySelector('details[open]'); })
+    .map(function (r) { return r.dataset.hostId; });
   container.innerHTML = peers.map(renderPeerRow).join('');
+  container.querySelectorAll('.services-row').forEach(function (r) {
+    const d = r.querySelector('details');
+    if (d && opened.indexOf(r.dataset.hostId) !== -1) d.open = true;
+  });
 }
 
 function renderPeerRow(peer) {
@@ -413,7 +436,7 @@ function renderPeerRow(peer) {
   // false, never on "haven't compared yet" (#181).
   const outOfSync = peer.reachable && peer.git_sha_match === false;
   const detail = !peer.reachable
-    ? escapeHtml(peer.error || '')
+    ? ((peer.error || '').length > DETAIL_INLINE_MAX ? longDetailHtml(peer.error) : escapeHtml(peer.error || ''))
     : outOfSync
       ? '<span class="badge warn">out of sync</span> ' +
         escapeHtml(peer.remote_git_sha || '?') + ' vs ' + escapeHtml(peer.local_git_sha || '?')
