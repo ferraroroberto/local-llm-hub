@@ -232,7 +232,7 @@
         <div class="collapse-body">
           <div class="counters-wrap">
             <table id="countersTable" class="counters">
-              <thead><tr><th>Backend</th><th>Req</th><th>Err</th><th>p50</th><th>p95</th><th>I/O tok</th></tr></thead>
+              <thead><tr><th>Backend</th><th>Requests</th><th>Errors</th><th>Median</th><th>Slowest 5%</th><th>Tokens in/out</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -531,7 +531,7 @@
           <summary class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
 
           <div class="opt-stack">
-            <label for="ttsFormat">Format <span class="muted small">(buffered only — streaming uses PCM)</span></label>
+            <label for="ttsFormat">Format</label>
             <select id="ttsFormat" aria-label="Response format">
               <option value="wav" selected>wav</option>
               <option value="mp3">mp3</option>
@@ -539,6 +539,7 @@
               <option value="opus">opus</option>
               <option value="pcm">pcm</option>
             </select>
+            <p class="muted small">Streaming always plays raw PCM audio; the other formats apply to full responses.</p>
           </div>
 
           <div class="opt-stack" id="ttsSpeedGroup" hidden>
@@ -572,7 +573,7 @@
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon" aria-hidden="true"><use href="#i-circle-help"></use></svg>
-            <h3 class="collapse-title">Decision (Jev)</h3>
+            <h3 class="collapse-title">Decision questions</h3>
           </span>
           <span class="collapse-chevron" aria-hidden="true">›</span>
         </summary>
@@ -583,7 +584,7 @@
 
         <div class="opt-stack">
           <label for="jevModel">Model</label>
-          <select id="jevModel" aria-label="Jev model"></select>
+          <select id="jevModel" aria-label="Decision model"></select>
         </div>
 
         <div class="opt-stack">
@@ -592,8 +593,9 @@
         </div>
 
         <div class="opt-stack">
-          <label for="jevQuestions">Questions <span class="muted small">(JSON — noul / choice / score)</span></label>
+          <label for="jevQuestions">Questions</label>
           <textarea id="jevQuestions" class="jev-json" rows="12" spellcheck="false"></textarea>
+          <p class="muted small">One entry per question. Each has a type: yes/no (<code>noul</code>), <code>choice</code> or <code>score</code>.</p>
           <p id="jevJsonError" class="jev-json-error small" role="alert" hidden></p>
         </div>
 
@@ -656,7 +658,7 @@
         </div>
         <div class="counters-wrap">
           <table id="telCountersTable" class="counters">
-            <thead><tr><th>Model</th><th>Req</th><th>Err</th><th>p50</th><th>p95</th><th>I/O tok</th></tr></thead>
+            <thead><tr><th>Model</th><th>Requests</th><th>Errors</th><th>Median</th><th>Slowest 5%</th><th>Tokens in/out</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -677,7 +679,7 @@
         </div>
         <div class="counters-wrap">
           <table id="telCcTable" class="counters">
-            <thead><tr><th>Date</th><th>Project</th><th>Model</th><th>Source</th><th>In</th><th>Out</th><th>Cache rd</th><th>Cache cr</th><th>≈ $</th></tr></thead>
+            <thead><tr><th>Date</th><th>Project</th><th>Model</th><th>Source</th><th>In</th><th>Out</th><th>Cache reads</th><th>Cache writes</th><th>≈ $</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -791,7 +793,7 @@
           <table id="cldVendorTable" class="counters">
             <thead>
               <tr>
-                <th>Vendor</th><th>Req</th><th>I/O tok</th><th>Cache rd</th><th>≈ $</th>
+                <th>Vendor</th><th>Requests</th><th>Tokens in/out</th><th>Cache reads</th><th>≈ $</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -839,7 +841,7 @@
           <table id="cldModelTable" class="counters">
             <thead>
               <tr>
-                <th>Model</th><th>Req</th><th>I/O tok</th><th>Cache rd</th>
+                <th>Model</th><th>Requests</th><th>Tokens in/out</th><th>Cache reads</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -857,7 +859,7 @@
           <table id="cldProjectTable" class="counters">
             <thead>
               <tr>
-                <th>Project</th><th>Req</th><th>I/O tok</th>
+                <th>Project</th><th>Requests</th><th>Tokens in/out</th>
               </tr>
             </thead>
             <tbody></tbody>
