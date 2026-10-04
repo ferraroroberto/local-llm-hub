@@ -201,7 +201,7 @@ The SPA's UI glyphs are **Lucide**, the canonical fleet icon set (`~/.claude/des
 | Aspect | Hub | app-launcher | Reason |
 |---|---|---|---|
 | `--code-bg` token | present | absent | The hub's logpane needs its own inset surface (mapped to `--card-off`); launcher uses xterm.js which paints its own background. |
-| Counters table | compact columns (`p50`/`p95` in seconds, one `I/O tok` column, `.td-trunc` first column) inside `.counters-wrap` | n/a — launcher has no equivalent | Fits the phone width without horizontal scrolling (#215); the scroll wrap stays as a safety net only. |
+| Counters table | compact plain-word columns (Median and Slowest 5% in seconds, one Tokens in/out column, `.td-trunc` first column; headers wrap, phone padding is 5px) inside `.counters-wrap` | n/a — launcher has no equivalent | Fits the phone width without horizontal scrolling (#215); the scroll wrap stays as a safety net only. |
 | Icon set | Lucide via vendored `_vendored/icons/` | varied | Adopted the canonical fleet Lucide set per `~/.claude/design.md` (issue #139); nav tabs now show icon + label. Backend-identity emoji were dropped (no faithful Lucide equivalent; the backend name labels the row). See the **Icons** section above. |
 
 ## When to update this file

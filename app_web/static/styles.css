@@ -565,6 +565,11 @@ h2 { display: flex; align-items: center; gap: 8px; }
 }
 .counters th:first-child, .counters td:first-child { text-align: left; }
 .counters thead th { color: var(--muted); font-weight: 500; font-size: var(--font-caption); }
+/* Plain-word column headers (#647) are longer than the old shorthand: let them wrap. */
+.counters thead th { white-space: normal; vertical-align: bottom; }
+@media (max-width: 480px) {
+  .counters th, .counters td { padding-left: 5px; padding-right: 5px; }
+}
 /* Long first-column names (model ids, project paths) ellipsise instead of
  * forcing a horizontal scroll on phone; full name via the title tooltip.
  * .counters td is nowrap, so the ellipsis needs an explicit max-width cap. */
