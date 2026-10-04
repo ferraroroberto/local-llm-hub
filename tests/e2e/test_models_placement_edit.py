@@ -112,7 +112,7 @@ def _open_models_tab(page, admin_url, body, put_handler=None):
     page.goto(admin_url, wait_until="load")
     page.click("#tabModels")
     page.wait_for_selector("#paneModels", state="visible", timeout=5000)
-    page.wait_for_selector("#modelsList .app-item .placement", state="visible", timeout=10000)
+    page.wait_for_selector("#modelsList .app-item", state="visible", timeout=10000)
 
 
 def _item(page, model_id):

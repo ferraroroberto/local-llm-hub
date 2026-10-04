@@ -612,7 +612,9 @@ Fleet summary) and a startup-policy badge that reads the live state honestly
 size chip and no host budget bar (#434): capacity is the Fleet summary
 card's job, and the bar repeated the same machine fact on every card. The
 data rides `GET /admin/api/models` as a per-row `placement` object (the
-top-level `host_budgets` map was retired with the bar).
+top-level `host_budgets` map was retired with the bar). The card is not on
+the row face (#647): a row reads in two lines (name and status, then the key
+fact), and the chips open at the top of the row's "More actions" chevron.
 
 **Editable placement — the UI writes through to git (#424).** On the single
 write host (`hub.config_write_host` in `models.yaml` — the tower) each

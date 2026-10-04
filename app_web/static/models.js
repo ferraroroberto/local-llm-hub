@@ -170,7 +170,12 @@ function fillItem(li, m) {
   if (canEditPlacement(m)) {
     menuItems.push({ act: 'edit-placement', glyph: icon('wrench'), label: 'Edit placement', active: editorOpen, cls: 'placement-edit-btn' });
   }
-  if (menuItems.length) icons.appendChild(buildRowMenu(m, menuItems, menuWasOpen));
+  // The placement chips (#423) sit at the top of this same menu, not on the row
+  // face (#647, J-10): a row reads in two lines, the chips one tap away.
+  const placement = buildPlacement(m);
+  if (menuItems.length || placement) {
+    icons.appendChild(buildRowMenu(m, menuItems, menuWasOpen, placement));
+  }
   titleRow.appendChild(icons);
   main.appendChild(titleRow);
 
@@ -205,11 +210,6 @@ function fillItem(li, m) {
       ? ' · ~' + fmtGb(m.placement.est_vram_mb) : '');
   main.appendChild(meta);
 
-  // Placement card (#423) — declared intent under the runtime meta; the
-  // edit affordance (#424) rides it on the write host.
-  const placement = buildPlacement(m);
-  if (placement) main.appendChild(placement);
-
   // Keep .app-main as the first child so any inline panel (dictionary or
   // placement editor — both siblings, so they survive the 5 s poll) stays
   // below it.
@@ -222,6 +222,7 @@ function fillItem(li, m) {
 }
 
 /* ---------- read-only placement card (#423) ----------
+ * Lives inside the row's "More actions" details (#647), not on the row face.
  * Renders the declared placement *intent* from config/models.yaml (the Phase 1
  * #422 registry fields the API now carries per row): the host chain in
  * priority order with the effective owner highlighted and cpu-resident tiers
@@ -230,8 +231,7 @@ function fillItem(li, m) {
  * (#434): host capacity lives on the Fleet summary card, and the old
  * per-card bar repeated the same machine fact on every card.
  * Subscription rows (claude/gemini) carry no `placement` key and get nothing.
- * On the single write host (#424) the row's "More actions" menu opens the
- * inline editor. */
+ * On the single write host (#424) the same menu opens the inline editor. */
 function buildPlacement(m) {
   const p = m.placement;
   if (!p) return null;
@@ -275,11 +275,13 @@ function buildPlacement(m) {
 }
 
 /* Trailing "More actions" menu of a model row — one <details> whose summary is
- * the row's single accessory. Items are plain buttons carrying data-act, routed
+ * the row's single accessory. It opens on the row's placement card (read-only
+ * context, not a menu item — #647) above the actions. Items are plain buttons
+ * carrying data-act, routed
  * through handleAction like the row's visible controls. The edit item is only
  * offered where this hub may write (tower — the single-writer contract) and the
  * row's placement is its own (#424). */
-function buildRowMenu(m, items, open) {
+function buildRowMenu(m, items, open, placement) {
   const menu = document.createElement('details');
   menu.className = 'row-menu';
   menu.open = !!open;
@@ -291,7 +293,9 @@ function buildRowMenu(m, items, open) {
   menu.appendChild(toggle);
   const list = document.createElement('div');
   list.className = 'row-menu-list';
-  list.setAttribute('role', 'menu');
+  if (placement) list.appendChild(placement);
+  const actions = document.createElement('div');
+  actions.setAttribute('role', 'menu');
   items.forEach(function (it) {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -305,8 +309,9 @@ function buildRowMenu(m, items, open) {
       menu.open = false;
       handleAction(m, it.act);
     });
-    list.appendChild(btn);
+    actions.appendChild(btn);
   });
+  list.appendChild(actions);
   menu.appendChild(list);
   return menu;
 }
