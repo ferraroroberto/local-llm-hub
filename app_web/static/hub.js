@@ -187,6 +187,12 @@ function renderInstall(body) {
   els.installSummary.textContent = checks.length + ' checks · overall ' + overall;
   els.installSummary.className = 'collapse-count overall-' + overall;
   els.installRows.innerHTML = '';
+  // The one filled button is a repair: offer it only once a check has something to fix (J-02, #647).
+  if (els.installFixAllBtn) {
+    els.installFixAllBtn.hidden = !checks.some(function (c) {
+      return c.fix_id && (c.status === 'missing' || c.status === 'error');
+    });
+  }
   checks.forEach(function (c) {
     const row = document.createElement('div');
     row.className = 'install-row install-' + c.status;
