@@ -40,3 +40,30 @@ def test_page_header_is_as_tall_as_a_collapsed_card(page, admin_url):
         page.wait_for_selector(f"{pane} .home-head", state="visible", timeout=5000)
         header = _height(page, f"{pane} .home-head")
         assert abs(header - row) <= 1, f"{pane}: header {header}px vs collapsed card {row}px"
+
+
+def test_labelled_otel_button_keeps_every_header_inside_the_phone_width(page, admin_url):
+    page.set_viewport_size(PHONE)
+    page.goto(admin_url, wait_until="load")
+    for tab, pane in _TABS.items():
+        page.click(tab)
+        page.wait_for_selector(f"{pane} .home-head", state="visible", timeout=5000)
+        edges = page.evaluate(
+            """pane => {
+                const head = document.querySelector(pane + ' .home-head');
+                const h = head.getBoundingClientRect();
+                const right = Math.max(...[...head.querySelectorAll('button')]
+                    .map(b => b.getBoundingClientRect().right));
+                const st = head.querySelector('.status');
+                const stub = st && getComputedStyle(st).display !== 'none'
+                    ? st.getBoundingClientRect().width : null;
+                return { overflow: head.scrollWidth - head.clientWidth, right, edge: h.right, stub };
+            }""",
+            pane,
+        )
+        assert edges["overflow"] <= 0, f"{pane}: header overflows by {edges['overflow']}px"
+        assert edges["right"] <= edges["edge"], f"{pane}: a header button sits past the card edge"
+        # A context line is either readable or gone, never a one-letter stub.
+        assert edges["stub"] is None or edges["stub"] >= 60, (
+            f"{pane}: context line squeezed to {edges['stub']}px"
+        )
