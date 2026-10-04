@@ -289,7 +289,7 @@ export function renderCounterTable(table, rows) {
   });
   if (count === 0) {
     table.querySelector('tbody').innerHTML =
-      '<tr><td colspan="6" class="muted small">No requests yet.</td></tr>';
+      '<tr><td colspan="6" class="muted small">No requests yet — send a test request from the Playground tab.</td></tr>';
   }
 }
 

@@ -131,7 +131,7 @@ def _open_editor(page, model_id):
 
 def test_config_sha_chip_renders(page, admin_url):
     _open_models_tab(page, admin_url, _payload())
-    assert page.locator("#modelsConfigSha").inner_text() == "cfg abc1234"
+    assert page.locator("#modelsConfigSha").inner_text() == "Config abc1234"
 
 
 def test_no_edit_affordance_when_not_write_host(page, admin_url):
