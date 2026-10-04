@@ -87,6 +87,7 @@ function renderPlacement(placementBody) {
 // ------------------------------------------------------------------- fetch
 async function loadRolesCard() {
   setStatus('Loading…');
+  if (els.rolesSections) els.rolesSections.hidden = true;
   try {
     const [rolesBody, placementBody] = await Promise.all([
       jsonApi('/admin/api/roles'),
@@ -94,6 +95,7 @@ async function loadRolesCard() {
     ]);
     renderRoles(rolesBody);
     renderPlacement(placementBody);
+    if (els.rolesSections) els.rolesSections.hidden = false;
     setStatus('');
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;

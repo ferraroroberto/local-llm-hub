@@ -106,3 +106,31 @@ def test_view_placement_button_jumps_to_models_tab(page, admin_url):
         "document.getElementById('fleetPlacementCard').open === true",
         timeout=5000,
     )
+
+
+def test_roles_card_shows_no_bare_headings_while_loading(page, admin_url):
+    """J-09 (#647): while the first fetch is in flight the card shows one
+    "Loading…" line, not the Roles / Placement headings over empty lists."""
+    held = []
+    released = []
+
+    def hold(route):
+        if released:
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(
+                FAKE_ROLES if route.request.url.endswith("/roles") else FAKE_PLACEMENT))
+        else:
+            held.append(route)
+
+    page.route("**/admin/api/roles", hold)
+    page.route("**/admin/api/fleet-placement", hold)
+    page.goto(admin_url, wait_until="load")
+    page.eval_on_selector("#rolesCard", "el => { el.open = true; }")
+    page.wait_for_selector("#rolesStatus", state="visible", timeout=5000)
+    assert page.locator("#rolesCard .opt-group-title:visible").count() == 0
+
+    released.append(True)
+    for route in held:
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(
+            FAKE_ROLES if route.request.url.endswith("/roles") else FAKE_PLACEMENT))
+    page.wait_for_selector("#rolesList .startup-row", state="visible", timeout=10000)
+    assert page.locator("#rolesCard .opt-group-title:visible").count() == 2
