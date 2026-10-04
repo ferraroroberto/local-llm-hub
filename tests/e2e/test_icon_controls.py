@@ -3,7 +3,9 @@
 The design review's judgment pass flags icon-only buttons whose glyph is not
 a convention: the signal-bars Ping on every model row and the activity-pulse
 button that opens OTel. Ping now lives in the row's "More actions" menu as a
-text item, and the header opens OTel with a chart glyph.
+text item, and the header opens OTel with a chart glyph. A chart glyph alone has
+no fixed meaning, so that header button also carries the word "Traces" (J-05 again,
+both judges of the two-judge run flagged it).
 """
 
 from __future__ import annotations
@@ -30,3 +32,14 @@ def test_header_opens_otel_with_a_chart_glyph(page, admin_url):
     )
     assert glyphs, "no header button opens the OTel tab"
     assert set(glyphs) == {"#i-chart-column"}, glyphs
+
+
+def test_header_otel_button_is_labelled_in_words(page, admin_url):
+    page.goto(admin_url, wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHub .home-head", state="attached")
+    labels = page.evaluate(
+        """() => [...document.querySelectorAll('.home-head [data-open-tab="telemetry"]')]
+            .map(b => (b.textContent || '').trim())"""
+    )
+    assert labels, "no header button opens the OTel tab"
+    assert set(labels) == {"Traces"}, labels

@@ -299,8 +299,20 @@ h2 { display: flex; align-items: center; gap: 8px; }
  * outside); the header is border-box, so it adds the borders back to stay a
  * peer of the cards below it. `.app` lifts specificity over the vendored rule. */
 .app .card.home-head { min-height: calc(var(--row-md) + 2px); }
-/* Two header buttons (OTel, theme): only the first is pushed right. */
+/* The theme toggle and the gear: only the first is pushed right. */
 .home-head .home-toggle + .home-toggle { margin-left: 0; }
+/* The OTel entry is the one header action with words (a chart glyph alone has no
+ * fixed meaning, J-05): compact, never shrunk, so the status line is what ellipsizes. */
+.home-head .home-otel {
+  flex: none;
+  padding: 4px 10px;
+  font-size: var(--font-caption);
+}
+/* On a phone the word leaves the static subtitle under ~60px, a one-letter stub:
+ * drop it there and keep the live status pill, which carries state. */
+@media (max-width: 480px) {
+  .home-head .status:not(.hub-live-status) { display: none; }
+}
 /* The nav tracks the OTel pane through a hidden entry; the bar shows five tabs. */
 .tabs .tab[data-tab="telemetry"] { display: none; }
 .home-head .home-toggle::before { content: ""; position: absolute; inset: -5px; }
