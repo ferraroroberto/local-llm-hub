@@ -88,8 +88,11 @@
         <button type="button" class="button-surface home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
 
-      <!-- Hub card: PID + Uptime (one line), sparklines. -->
+      <!-- Hub card: heading first (J-04, #647), then PID + Uptime (one line), sparklines. -->
       <section class="card">
+        <div class="card-header">
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-server"></use></svg>This hub</h2>
+        </div>
         <div class="hub-meta-row">
           <span><span>PID</span><code id="hubPid">—</code></span>
           <span><span>Uptime</span><span id="hubUptime">—</span></span>
