@@ -304,6 +304,14 @@ def test_row_face_is_two_lines_and_chips_sit_behind_details(page, admin_url, vie
     assert [pills.nth(i).inner_text() for i in range(pills.count())] == [
         "gaming", "mac-mini-m4", "tower · cpu"]
     assert whisper.locator(".placement .badge").inner_text() == "eager"
+    # The floating list itself is the role=menu layer: the design review treats
+    # an absolutely positioned [role=menu] as the popup that paints over the
+    # rows below it, so the placement card and the actions share it (TOUCH-02).
+    menu = whisper.locator(".row-menu-list")
+    assert menu.get_attribute("role") == "menu"
+    assert menu.evaluate("e => getComputedStyle(e).position") == "absolute"
+    assert menu.locator(":scope > .placement").count() == 1
+    assert menu.locator(":scope > .row-menu-item").count() >= 1
     box = whisper.locator(".row-menu-list").bounding_box()
     assert box["x"] >= 0 and box["x"] + box["width"] <= viewport["width"], box
 
