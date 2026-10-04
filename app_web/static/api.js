@@ -150,8 +150,11 @@ export function wireLoginForm(onLoginSuccess) {
 
 // --------------------------------------------------------------- toast
 let toastTimer = null;
+// The live pending toast (toastPending), if any — a plain toast supersedes it.
+let pendingToast = null;
 export function toast(msg, kind) {
   if (!els.toast) return;
+  pendingToast = null;
   els.toast.textContent = msg;
   els.toast.className = 'toast ' + (kind || '');
   els.toast.hidden = false;
@@ -159,6 +162,28 @@ export function toast(msg, kind) {
   toastTimer = setTimeout(function () {
     els.toast.hidden = true;
   }, kind === 'error' ? 4500 : 2200);
+}
+
+/* A toast that stays up while a user-started load runs (#693): no auto-hide.
+ * Returns `done(errorMsg?)` — it hides the toast, or swaps it for an error toast
+ * when given a message. A later toast (or a newer pending one) supersedes this
+ * one, and its `done` then does nothing, so a stale load can never hide the
+ * message of the load that replaced it. */
+export function toastPending(msg) {
+  if (!els.toast) return function () {};
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = null;
+  els.toast.textContent = msg;
+  els.toast.className = 'toast';
+  els.toast.hidden = false;
+  const mine = {};
+  pendingToast = mine;
+  return function done(errorMsg) {
+    if (pendingToast !== mine) return;
+    pendingToast = null;
+    if (errorMsg) toast(errorMsg, 'error');
+    else els.toast.hidden = true;
+  };
 }
 
 // --------------------------------------------------------------- fmt
