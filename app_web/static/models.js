@@ -31,7 +31,7 @@ function renderConfigChip() {
   if (!el) return;
   const cfg = state.modelsConfig;
   const sha = cfg && cfg.sha && cfg.sha !== 'unknown' ? cfg.sha : '';
-  el.textContent = sha ? 'Config ' + sha : '';
+  el.textContent = sha ? 'Config version ' + sha : '';
   el.title = sha
     ? 'models.yaml config version (HEAD sha of config/models.yaml) — the same on every converged hub'
     : '';
