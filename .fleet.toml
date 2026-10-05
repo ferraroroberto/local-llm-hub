@@ -95,3 +95,11 @@ range-tab     = { src = "app/webapp/static/_vendored/range-tab", sha = "7e1433c7
 select-native = { src = "app/webapp/static/_vendored/select-native", sha = "7e1433c70cac1bdcdbd160e874d3f486ba9e2a08", dest = "app_web/static/_vendored/select-native" }
 switch        = { src = "app/webapp/static/_vendored/switch", sha = "7e1433c70cac1bdcdbd160e874d3f486ba9e2a08", dest = "app_web/static/_vendored/switch" }
 text-size     = { src = "app/webapp/static/_vendored/text-size", sha = "8f89563a959dbf05bb368a230e9b898a9cae2291", dest = "app_web/static/_vendored/text-size" }
+
+# Accepted /design-review exceptions: a failing rubric rule listed here is
+# filed under "## Accepted" in the design-review issue, never under Findings.
+# Roberto's fleet-config#1211 decision, 2026-10-05.
+[[design.accepted]]
+rule   = "TYPE-02"
+reason = "the Playground's JSON editor (textarea.jev-json) is set in a monospace font on purpose so the JSON lines up; it is not a UA-font fallback. Rule-wide for this repo, so re-check TYPE-02's flagged controls if it ever names anything else"
+record = "https://github.com/ferraroroberto/fleet-config/issues/1211"
