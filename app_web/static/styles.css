@@ -37,7 +37,7 @@
   --toggle-knob: #ffffff;       /* vendored switch: thumb */
   --input-bg: var(--card-off);
   --code-bg: var(--card-off);  /* logpane / trace-detail <pre> surfaces */
-  --close-bg: var(--card-off); /* vendored modal's × close-button fill (_vendored/modal) */
+  --close-bg: transparent; /* header toggles + modal ×: glyph on nothing at rest (fleet-config#1259) */
   --scrim: rgba(0, 0, 0, 0.5); /* login-overlay dim — theme-invariant by design */
   /* status-alpha composites — derived, so they re-theme for free */
   --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
@@ -130,7 +130,7 @@
   --attention: #d29922;
   --control-border: #6e7681;
   --toggle-knob: var(--ink);
-  --close-bg: var(--line);   /* vendored modal's × close-button fill (_vendored/modal) */
+  --close-bg: transparent;
   /* Depth on a near-black canvas comes from surface lightness, not shadow. */
   --shadow: 0 8px 24px rgba(1, 4, 9, 0.6);
   --tabbar-bg: rgba(22, 27, 34, 0.86);
