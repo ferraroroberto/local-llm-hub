@@ -55,6 +55,7 @@ ul.tel-traces > li > .tel-trace-actions {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 4px;
+  --icon-btn-box: var(--hit-min);
 }
 /* Row-level trace action (Copy/Replay) — compact padding, full 44px height. */
 ul.tel-traces > li > .tel-trace-actions .ghost-btn {

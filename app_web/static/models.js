@@ -480,7 +480,7 @@ function mountPlacementEditor(panel, m) {
       controls.forEach(function (c) {
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = 'icon-btn ' + c.cls + (c.danger ? ' danger' : '');
+        b.className = 'icon-button ' + c.cls + (c.danger ? ' danger' : '');
         b.title = c.label;
         b.setAttribute('aria-label', c.label);
         b.disabled = !!c.disabled;

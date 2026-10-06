@@ -138,7 +138,7 @@ export function mountGlossaryEditor(container) {
       chip.className = 'glossary-chip';
       chip.append(document.createTextNode(term));
       const x = document.createElement('button');
-      x.type = 'button'; x.className = 'glossary-chip-x'; x.innerHTML = icon('x');
+      x.type = 'button'; x.className = 'icon-button glossary-chip-x'; x.innerHTML = icon('x');
       x.setAttribute('aria-label', 'Remove ' + term);
       x.addEventListener('click', function () { model.boost_terms.splice(idx, 1); renderBoost(); });
       chip.appendChild(x);
@@ -301,7 +301,7 @@ function ghostBtn(label, onClick) {
 function iconBtn(glyph, label, onClick) {
   const b = document.createElement('button');
   b.type = 'button';
-  b.className = 'icon-btn';
+  b.className = 'icon-button';
   b.innerHTML = glyph;  // glyph is an icon() SVG string (no user input)
   b.title = label;
   b.setAttribute('aria-label', label);
