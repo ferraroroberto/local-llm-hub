@@ -334,7 +334,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: 10px;
   align-items: center;
 }
-/* Header-mounted icon action. Smaller than .icon-btn so it doesn't
+/* Header-mounted icon action. Smaller than .icon-button so it doesn't
  * dominate the card header. */
 .icon-header-btn {
   position: relative;
@@ -470,24 +470,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .ghost-btn.primary:active {
   background: color-mix(in srgb, var(--accent) 24%, transparent);
 }
-
-/* Row-level icon button (Models tab). Lives inside .row-actions. */
-.icon-btn {
-  width: 52px;
-  min-height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font: inherit;
-  font-size: 16px;
-  background: transparent;
-  border: 0;
-  color: var(--muted);
-  cursor: pointer;
-}
-.icon-btn:active { background: var(--card-off); color: var(--ink); }
-.icon-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
-.icon-btn.danger:active { color: var(--danger); background: var(--danger-strong); }
 
 /* ---------- segmented control (Code vendor/period, Playground max tokens) ----------
  * Home-automation's ghost .range-tabs pattern (#215): transparent container,
@@ -892,7 +874,7 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 }
 .pe-cpu-label:has(.pe-cpu) { cursor: pointer; }
 /* Up / down / remove sit side by side: real 44px geometry, not an expansion. */
-.pe-host-row .icon-btn { width: var(--hit-min); min-height: var(--hit-min); flex-shrink: 0; }
+.pe-host-row { --icon-btn-box: var(--hit-min); }
 .pe-add-row { display: flex; gap: 8px; align-items: stretch; }
 .pe-add-row select {
   flex: 1 1 0;
@@ -986,7 +968,7 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 }
 .glossary-arrow { color: var(--muted); flex-shrink: 0; }
 /* Up / down / delete sit side by side in a REPL row: real 44px geometry. */
-.glossary-repl-row .icon-btn { width: var(--hit-min); min-height: var(--hit-min); flex-shrink: 0; }
+.glossary-repl-row { --icon-btn-box: var(--hit-min); }
 .glossary-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .glossary-chip {
   display: inline-flex;
@@ -999,16 +981,9 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
   font-size: var(--font-label);
   color: var(--ink);
 }
-.glossary-chip-x {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 0;
-  font-size: var(--font-caption);
-  line-height: 1;
-}
-.glossary-chip-x:hover { color: var(--danger); }
+/* No fixed box inside the pill: a 16px icon-button box leaves the chip layout
+   unchanged and its ::before reaches the 44px target. */
+.glossary-chip-x { --icon-btn-box: 16px; }
 .glossary-chip-suggest {
   cursor: pointer;
   border-color: var(--accent-border-strong);

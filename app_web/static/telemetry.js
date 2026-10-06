@@ -209,8 +209,8 @@ function renderTraces() {
       const actions = document.createElement('div');
       actions.className = 'tel-trace-actions';
       actions.innerHTML =
-        '<button type="button" class="ghost-btn tel-thumb" data-thumbs="1" aria-label="Thumbs up">' + icon('thumbs-up') + '</button>' +
-        '<button type="button" class="ghost-btn tel-thumb" data-thumbs="-1" aria-label="Thumbs down">' + icon('thumbs-down') + '</button>' +
+        '<button type="button" class="icon-button tel-thumb" data-thumbs="1" aria-label="Thumbs up">' + icon('thumbs-up') + '</button>' +
+        '<button type="button" class="icon-button tel-thumb" data-thumbs="-1" aria-label="Thumbs down">' + icon('thumbs-down') + '</button>' +
         '<a class="ghost-btn tel-deeplink" target="_blank" rel="noopener" href="' + langfuseTraceUrl(rec.trace_id) + '">' + icon('external-link') + 'Langfuse</a>';
       li.appendChild(actions);
     }

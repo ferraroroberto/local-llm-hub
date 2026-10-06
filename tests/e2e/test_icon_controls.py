@@ -16,7 +16,7 @@ def test_model_rows_ping_from_the_menu_not_a_bare_glyph(page, admin_url):
     page.click("#tabModels")
     page.wait_for_selector("#modelsList .app-item", state="attached", timeout=10000)
 
-    assert page.locator('#modelsList .app-icons .icon-btn[data-act="ping"]').count() == 0
+    assert page.locator('#modelsList .app-icons .icon-button[data-act="ping"]').count() == 0
     items = page.locator('#modelsList .row-menu-item[data-act="ping"]')
     assert items.count() > 0, "no row offers Ping from its More actions menu"
     for i in range(items.count()):
