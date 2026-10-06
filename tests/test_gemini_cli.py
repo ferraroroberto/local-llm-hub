@@ -326,3 +326,63 @@ def test_switch_model_unreadable_picker_reports_catalogue_unavailable(monkeypatc
 
 def test_is_model_offered_unknown_before_any_read():
     assert gemini_cli.is_model_offered("Gemini 3.1 Pro") is None
+
+
+# ---- a signed-out `agy -p` prints its own error line as the reply (#703) ----
+
+_SIGNED_OUT_REPLY = (
+    "error: Eligibility check failed: PERMISSION_DENIED (code 403): Request "
+    "had insufficient authentication scopes.. Please log out (/logout) and "
+    "log back in (/login)."
+)
+
+
+def _fake_pty_replying(monkeypatch, reply):
+    class _FakePty:
+        def __init__(self, args, cwd=None, cols=160, rows=50):
+            pass
+
+        def wait_exit(self, timeout):
+            return True
+
+        def text(self):
+            return reply
+
+        def kill(self):
+            pass
+
+    monkeypatch.setattr(gemini_cli, "_Pty", _FakePty)
+
+
+def test_print_call_signed_out_error_reply_raises(monkeypatch):
+    _fake_pty_replying(monkeypatch, _SIGNED_OUT_REPLY)
+
+    with pytest.raises(gemini_cli.GeminiCLIError) as ei:
+        gemini_cli._print_call("/fake/agy", "hello", None, 600.0)
+
+    msg = str(ei.value)
+    assert "signed out" in msg
+    assert "run `agy` once interactively" in msg
+    # The CLI's own words stay in the message so the ring shows the cause.
+    assert "PERMISSION_DENIED" in msg
+
+
+def test_print_call_signed_out_reply_survives_ansi_and_padding(monkeypatch):
+    _fake_pty_replying(
+        monkeypatch, "\x1b[31m" + _SIGNED_OUT_REPLY + "\x1b[0m\r\n\r\n")
+
+    with pytest.raises(gemini_cli.GeminiCLIError, match="signed out"):
+        gemini_cli._print_call("/fake/agy", "hello", None, 600.0)
+
+
+@pytest.mark.parametrize("reply", [
+    # Prose that merely mentions the words — not the CLI's own error format.
+    "The error: PERMISSION_DENIED (code 403) means the caller lacks rights.",
+    "To fix a 403, log out (/logout) and log back in (/login) in your app.",
+    "error: expected ';' on line 3 — add the missing semicolon.",
+    "Here is why PERMISSION_DENIED happens in Google APIs: scopes are missing.",
+])
+def test_print_call_prose_mentioning_errors_is_an_answer(monkeypatch, reply):
+    _fake_pty_replying(monkeypatch, reply)
+
+    assert gemini_cli._print_call("/fake/agy", "hello", None, 600.0) == reply

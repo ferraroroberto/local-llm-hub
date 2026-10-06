@@ -349,6 +349,28 @@ def _switch_model(exe: str, target: str, timeout: float = 120.0) -> None:
         pty.kill()
 
 
+# `agy -p` prints its own auth failure as the reply, exit code and all, so a
+# signed-out CLI looks like a model answer (#703). The CLI's format is a
+# leading `error:` line carrying an auth marker; anchoring on both keeps a real
+# answer that merely discusses errors (or even starts "error: expected ';'")
+# working. Real error lines are one short sentence, hence the length cap.
+_CLI_ERROR_LINE = re.compile(r"^error:\s", re.IGNORECASE)
+_CLI_AUTH_MARKER = re.compile(
+    r"PERMISSION_DENIED|UNAUTHENTICATED|\(code 40[13]\)|/logout|/login",
+    re.IGNORECASE,
+)
+_CLI_ERROR_MAX_CHARS = 1000
+
+
+def _is_signed_out_reply(reply: str) -> bool:
+    """True when ``reply`` is `agy -p`'s own auth-failure line, not an answer."""
+    return (
+        len(reply) <= _CLI_ERROR_MAX_CHARS
+        and _CLI_ERROR_LINE.match(reply) is not None
+        and _CLI_AUTH_MARKER.search(reply) is not None
+    )
+
+
 def _print_call(exe: str, prompt: str, cwd: Optional[str],
                  timeout: float,
                  add_dirs: Optional[Sequence[str]] = None) -> str:
@@ -377,6 +399,13 @@ def _print_call(exe: str, prompt: str, cwd: Optional[str],
         raise GeminiCLIError(
             "empty reply from `agy -p` (print mode) — the CLI may be "
             "signed out; run `agy` once interactively to re-authenticate"
+        )
+    if _is_signed_out_reply(reply):
+        logger.warning("⚠️ agy -p replied with its auth-error line: %s",
+                       reply[:300])
+        raise GeminiCLIError(
+            "agy signed out / auth expired — run `agy` once interactively "
+            f"to re-authenticate (CLI said: {reply[:300]})"
         )
     return reply
 

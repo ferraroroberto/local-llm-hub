@@ -493,3 +493,47 @@ def test_list_models_hides_gemini_row_agy_does_not_offer(monkeypatch):
     assert "gemini_pro" in ids and "gemini_flash" in ids
     assert "gemini_lite" not in ids and "Gemini 3.7 Flash" not in ids
     assert "gemini_image" in ids  # not a picker model — never filtered
+
+
+def test_messages_gemini_signed_out_agy_is_502_and_ring_error(monkeypatch):
+    """#703: `agy -p` prints its own auth-error line as the reply when signed
+    out; that must surface as a non-2xx, not as the model's 200 answer."""
+    from src import gemini_cli
+    from src.hub_observability import OBS
+
+    class _SignedOutPty:
+        def __init__(self, args, cwd=None, cols=160, rows=50):
+            pass
+
+        def wait_exit(self, timeout):
+            return True
+
+        def text(self):
+            return (
+                "error: Eligibility check failed: PERMISSION_DENIED "
+                "(code 403): Request had insufficient authentication "
+                "scopes.. Please log out (/logout) and log back in (/login)."
+            )
+
+        def kill(self):
+            pass
+
+    monkeypatch.setattr(gemini_cli.shutil, "which", lambda name: "/fake/agy")
+    monkeypatch.setattr(gemini_cli, "_Pty", _SignedOutPty)
+    monkeypatch.setattr(gemini_cli, "_switch_model", lambda *a, **k: None)
+
+    client = TestClient(server_mod.app)
+    r = client.post(
+        "/v1/messages",
+        json={
+            "model": "Gemini 3.8 Flash",
+            "max_tokens": 16,
+            "messages": [{"role": "user", "content": "hello"}],
+        },
+    )
+
+    assert r.status_code == 502, r.text
+    assert "signed out" in r.text
+    newest = OBS.recent_errors(limit=1)[0]
+    assert newest["path"] == "/v1/messages"
+    assert newest["status"] == 502
