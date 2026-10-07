@@ -624,8 +624,7 @@ def generate_image(
     prompt: str,
     *,
     base_url: str,
-    spec: Optional[ModelSpec] = None,
-    ckpt_name: Optional[str] = None,
+    spec: ModelSpec,
     width: int = DEFAULT_WIDTH,
     height: int = DEFAULT_HEIGHT,
     seed: Optional[int] = None,
@@ -653,9 +652,6 @@ def generate_image(
     """
     from .image_sizes import native_source_size, needs_upscale
 
-    if spec is None:
-        # Back-compat for the single-model call shape (#492/#497).
-        spec = ModelSpec(workflow="flux1", ckpt_name=ckpt_name)
     if timeout_s is None:
         timeout_s = DEFAULT_TIMEOUT_S
 

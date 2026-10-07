@@ -34,7 +34,7 @@ into the hub) and the streaming work in #102 (perceived latency).
 .venv\Scripts\python.exe scripts\bench_orpheus.py --reps 5
 
 # End-to-end — times the live hub's POST /v1/audio/speech (:8000).
-.venv\Scripts\python.exe scripts\bench_orpheus.py --hub-e2e --reps 5
+.venv\Scripts\python.exe scripts\bench_voice.py tts --base-url http://127.0.0.1:8000 --model orpheus
 ```
 
 The phrase defaults to `"this is a test"` (the ~1.8 s clip #105 cites).

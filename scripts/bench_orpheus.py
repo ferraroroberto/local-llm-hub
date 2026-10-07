@@ -6,23 +6,17 @@ measures that floor in isolation so llama-server flags can be tuned without
 bouncing the live hub for every trial, and re-verified after future model /
 GPU swaps.
 
-Two modes:
+Spawns a *scratch* ``llama-server`` on ``--port`` (default 18099) for each
+named flag set in ``SWEEP``, POSTs the canonical Orpheus prompt to
+``/completion`` ``--reps`` times, and reports the median generation rate
+(``tok/s``, from llama's own ``timings``) and median wall time. Each scratch
+server is torn down before the next. This is pure llama-server — it does not
+touch the running hub.
 
-  Flag sweep (default) — spawn a *scratch* ``llama-server`` on ``--port``
-  (default 18099) for each named flag set in ``SWEEP``, POST the canonical
-  Orpheus prompt to ``/completion`` ``--reps`` times, and report the median
-  generation rate (``tok/s``, from llama's own ``timings``) and median wall
-  time. Each scratch server is torn down before the next. This is pure
-  llama-server — it does not touch the running hub.
+    .venv\\Scripts\\python scripts/bench_orpheus.py
 
-      .venv\\Scripts\\python scripts/bench_orpheus.py
-
-  Hub end-to-end (``--hub-e2e``) — time the *live* hub's
-  ``POST /v1/audio/speech`` (:8000) for the same phrase ``--reps`` times.
-  Run it once before the flag change (baseline) and once after the winning
-  flags are applied + the hub restarted (after) to get the end-to-end delta.
-
-      .venv\\Scripts\\python scripts/bench_orpheus.py --hub-e2e
+For the live hub's end-to-end ``POST /v1/audio/speech`` time, use
+``scripts/bench_voice.py tts --model orpheus`` instead.
 
 The phrase defaults to "this is a test" (the ~1.8 s clip the issue measured).
 """
@@ -60,7 +54,6 @@ from src.backend_process import VENDOR_LLAMA, llama_server_binary  # noqa: E402
 from src.model_registry import resolve as resolve_model  # noqa: E402
 
 DEFAULT_VOICE = "tara"
-HUB_BASE = "http://127.0.0.1:8000"
 
 # Named flag sets layered on top of the always-on base (``-ngl 99 --no-webui``
 # + the scratch host/port/model). One variable changed at a time so the
@@ -216,28 +209,6 @@ def run_sweep(port: int, text: str, voice: str, reps: int) -> None:
     log.info("=" * 64)
 
 
-def run_hub_e2e(text: str, voice: str, reps: int) -> None:
-    """Time the live hub's POST /v1/audio/speech end-to-end."""
-    url = f"{HUB_BASE}/v1/audio/speech"
-    body = {"model": "orpheus", "input": text, "voice": voice, "response_format": "wav"}
-    log.info("Hub end-to-end /v1/audio/speech — phrase=%r voice=%s reps=%d", text, voice, reps)
-    # Warmup (loads engine / fills cache) — not measured.
-    httpx.post(url, json=body, timeout=300.0).raise_for_status()
-    walls: List[float] = []
-    nbytes = 0
-    for _ in range(reps):
-        t0 = time.perf_counter()
-        r = httpx.post(url, json=body, timeout=300.0)
-        wall = (time.perf_counter() - t0) * 1000.0
-        r.raise_for_status()
-        nbytes = len(r.content)
-        walls.append(wall)
-        log.info("   → %8.1f ms (%d bytes)", wall, nbytes)
-    log.info("=" * 48)
-    log.info("median end-to-end: %.1f ms  (%d bytes wav)", statistics.median(walls), nbytes)
-    log.info("=" * 48)
-
-
 def main(argv: Optional[List[str]] = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -245,13 +216,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--reps", type=int, default=5, help="measured repetitions per trial (default 5)")
     ap.add_argument("--text", default="this is a test", help="phrase to synthesize")
     ap.add_argument("--voice", default=DEFAULT_VOICE, help="Orpheus voice (default tara)")
-    ap.add_argument("--hub-e2e", action="store_true", help="measure live hub :8000 end-to-end instead of the flag sweep")
     args = ap.parse_args(argv)
 
-    if args.hub_e2e:
-        run_hub_e2e(args.text, args.voice, args.reps)
-    else:
-        run_sweep(args.port, args.text, args.voice, args.reps)
+    run_sweep(args.port, args.text, args.voice, args.reps)
     return 0
 
 

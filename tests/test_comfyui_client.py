@@ -16,6 +16,7 @@ from src.comfyui_client import ComfyUIError
 _PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 _CKPT = "flux1-dev-fp8.safetensors"
 _BASE = "http://127.0.0.1:8188"
+_SPEC = cc.ModelSpec(workflow="flux1", ckpt_name=_CKPT)
 
 
 class _FakeResponse:
@@ -155,7 +156,7 @@ def test_checkpoint_name_requires_a_path():
 
 def test_generate_image_returns_bytes_and_media_type(monkeypatch):
     _install(monkeypatch, _FakeClient(history_sequence=[_done_record()]))
-    out = cc.generate_image("a red apple", base_url=_BASE, ckpt_name=_CKPT)
+    out = cc.generate_image("a red apple", base_url=_BASE, spec=_SPEC)
     assert out["image_bytes"] == _PNG
     assert out["media_type"] == "image/png"
     assert "pid-1" in out["result_text"]
@@ -166,7 +167,7 @@ def test_generate_image_polls_until_history_populates(monkeypatch):
     to keep polling rather than treat it as a failure."""
     client = _install(monkeypatch, _FakeClient(
         history_sequence=[{}, {}, _done_record()]))
-    out = cc.generate_image("x", base_url=_BASE, ckpt_name=_CKPT, timeout_s=5)
+    out = cc.generate_image("x", base_url=_BASE, spec=_SPEC, timeout_s=5)
     assert out["image_bytes"] == _PNG
     history_polls = [c for c in client.calls if "/history/" in c[1]]
     assert len(history_polls) == 3
@@ -174,7 +175,7 @@ def test_generate_image_polls_until_history_populates(monkeypatch):
 
 def test_generate_image_sends_workflow_to_prompt_endpoint(monkeypatch):
     client = _install(monkeypatch, _FakeClient(history_sequence=[_done_record()]))
-    cc.generate_image("a red apple", base_url=_BASE, ckpt_name=_CKPT)
+    cc.generate_image("a red apple", base_url=_BASE, spec=_SPEC)
     method, url, kwargs = client.calls[0]
     assert method == "POST" and url.endswith("/prompt")
     body = kwargs["json"]
@@ -191,7 +192,7 @@ def test_generate_image_falls_back_to_extension_for_media_type(monkeypatch):
         view_response=_FakeResponse(
             content=_PNG, headers={"content-type": "application/octet-stream"}),
     ))
-    out = cc.generate_image("x", base_url=_BASE, ckpt_name=_CKPT)
+    out = cc.generate_image("x", base_url=_BASE, spec=_SPEC)
     assert out["media_type"] == "image/jpeg"
 
 
@@ -200,7 +201,7 @@ def test_generate_image_falls_back_to_extension_for_media_type(monkeypatch):
 def test_unreachable_backend_raises(monkeypatch):
     _install(monkeypatch, _FakeClient(raise_on_post=OSError("connection refused")))
     with pytest.raises(ComfyUIError, match="unreachable"):
-        cc.generate_image("x", base_url=_BASE, ckpt_name=_CKPT)
+        cc.generate_image("x", base_url=_BASE, spec=_SPEC)
 
 
 def test_rejected_workflow_surfaces_node_errors(monkeypatch):
@@ -210,7 +211,7 @@ def test_rejected_workflow_surfaces_node_errors(monkeypatch):
                    "node_errors": {"checkpoint": "ckpt_name not in list"}},
     )))
     with pytest.raises(ComfyUIError, match="node_errors"):
-        cc.generate_image("x", base_url=_BASE, ckpt_name="missing.safetensors")
+        cc.generate_image("x", base_url=_BASE, spec=cc.ModelSpec(workflow="flux1", ckpt_name="missing.safetensors"))
 
 
 def test_execution_error_is_reported_with_node_detail(monkeypatch):
@@ -229,13 +230,13 @@ def test_execution_error_is_reported_with_node_detail(monkeypatch):
         }
     }]))
     with pytest.raises(ComfyUIError, match="KSampler.*CUDA out of memory"):
-        cc.generate_image("x", base_url=_BASE, ckpt_name=_CKPT)
+        cc.generate_image("x", base_url=_BASE, spec=_SPEC)
 
 
 def test_finished_with_no_image_raises(monkeypatch):
     _install(monkeypatch, _FakeClient(history_sequence=[_done_record(images=[])]))
     with pytest.raises(ComfyUIError, match="no image output"):
-        cc.generate_image("x", base_url=_BASE, ckpt_name=_CKPT)
+        cc.generate_image("x", base_url=_BASE, spec=_SPEC)
 
 
 def test_timeout_names_the_deadline(monkeypatch):
@@ -243,7 +244,7 @@ def test_timeout_names_the_deadline(monkeypatch):
     not the same error as an unreachable backend."""
     _install(monkeypatch, _FakeClient(history_sequence=[]))
     with pytest.raises(ComfyUIError, match="did not finish"):
-        cc.generate_image("x", base_url=_BASE, ckpt_name=_CKPT, timeout_s=0.05)
+        cc.generate_image("x", base_url=_BASE, spec=_SPEC, timeout_s=0.05)
 
 
 def test_view_failure_raises(monkeypatch):
@@ -252,7 +253,7 @@ def test_view_failure_raises(monkeypatch):
         view_response=_FakeResponse(status_code=404, content=b""),
     ))
     with pytest.raises(ComfyUIError, match="could not fetch"):
-        cc.generate_image("x", base_url=_BASE, ckpt_name=_CKPT)
+        cc.generate_image("x", base_url=_BASE, spec=_SPEC)
 
 
 # --- upscale + refine tail (#497) ----------------------------------------
@@ -325,7 +326,7 @@ def test_generate_samples_natively_then_upscales_for_4k(monkeypatch):
     """The whole point of the two-stage path: 4K must NOT be sampled natively.
     Sampling at 8.3 MP is a quality cliff, not just a slow one."""
     client = _install(monkeypatch, _FakeClient(history_sequence=[_done_record()]))
-    out = cc.generate_image("x", base_url=_BASE, ckpt_name=_CKPT,
+    out = cc.generate_image("x", base_url=_BASE, spec=_SPEC,
                             width=3840, height=2160)
     posted = client.calls[0][2]["json"]["prompt"]
     latent = posted[cc._LATENT]["inputs"]
@@ -338,7 +339,7 @@ def test_generate_samples_natively_then_upscales_for_4k(monkeypatch):
 
 def test_generate_keeps_native_sizes_single_stage(monkeypatch):
     client = _install(monkeypatch, _FakeClient(history_sequence=[_done_record()]))
-    out = cc.generate_image("x", base_url=_BASE, ckpt_name=_CKPT,
+    out = cc.generate_image("x", base_url=_BASE, spec=_SPEC,
                             width=1024, height=1024)
     posted = client.calls[0][2]["json"]["prompt"]
     assert cc._UPSCALE not in posted
@@ -350,7 +351,7 @@ def test_refine_is_ignored_for_a_native_size(monkeypatch):
     """Nothing to refine without an upscale — the flag must not silently add
     a second sampling pass and double the cost of an ordinary request."""
     client = _install(monkeypatch, _FakeClient(history_sequence=[_done_record()]))
-    cc.generate_image("x", base_url=_BASE, ckpt_name=_CKPT,
+    cc.generate_image("x", base_url=_BASE, spec=_SPEC,
                       width=1024, height=1024, refine=True)
     posted = client.calls[0][2]["json"]["prompt"]
     assert cc._REFINE_SAMPLER not in posted
@@ -454,7 +455,7 @@ def test_generate_routes_by_spec_workflow(monkeypatch):
 def test_generate_without_spec_still_uses_flux1(monkeypatch):
     """Back-compat for the pre-#498 call shape."""
     client = _install(monkeypatch, _FakeClient(history_sequence=[_done_record()]))
-    cc.generate_image("x", base_url=_BASE, ckpt_name=_CKPT)
+    cc.generate_image("x", base_url=_BASE, spec=_SPEC)
     posted = client.calls[0][2]["json"]["prompt"]
     assert posted[cc._CKPT]["inputs"]["ckpt_name"] == _CKPT
 
@@ -476,7 +477,7 @@ def test_both_workflows_share_one_timeout_budget(monkeypatch):
                       spec=cc.ModelSpec(workflow="flux2", **_F2))
     assert seen["timeout"] == cc.DEFAULT_TIMEOUT_S
 
-    cc.generate_image("x", base_url=_BASE, ckpt_name=_CKPT)
+    cc.generate_image("x", base_url=_BASE, spec=_SPEC)
     assert seen["timeout"] == cc.DEFAULT_TIMEOUT_S
 
 
