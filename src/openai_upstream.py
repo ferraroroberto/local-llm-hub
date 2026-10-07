@@ -33,7 +33,7 @@ from typing import Any, Dict, Iterator, List, Optional
 
 import httpx
 
-from .http_client import get_sync_client
+from .http_client import DEFAULT_UPSTREAM_TIMEOUT_S, get_sync_client
 
 
 class UpstreamError(RuntimeError):
@@ -212,7 +212,7 @@ def call_openai_chat(
     *,
     max_tokens: Optional[int] = None,
     temperature: Optional[float] = None,
-    timeout: float = 600.0,
+    timeout: float = DEFAULT_UPSTREAM_TIMEOUT_S,
     extra: Optional[Dict[str, Any]] = None,
     headers: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
@@ -243,7 +243,7 @@ def call_openai_chat_stream(
     *,
     max_tokens: Optional[int] = None,
     temperature: Optional[float] = None,
-    timeout: float = 600.0,
+    timeout: float = DEFAULT_UPSTREAM_TIMEOUT_S,
     extra: Optional[Dict[str, Any]] = None,
     headers: Optional[Dict[str, str]] = None,
 ) -> Iterator[str]:

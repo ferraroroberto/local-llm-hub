@@ -30,6 +30,14 @@ export function urlWithToken(path) {
 }
 
 // --------------------------------------------------------------- fetch
+// Thrown by api() on a 401 after the login overlay is shown. Callers that
+// have nothing more to do (the overlay already told the user) test it with
+// isAuthError(exc) instead of matching the message text.
+export class AuthRequiredError extends Error {
+  constructor() { super('auth required'); this.name = 'AuthRequiredError'; }
+}
+export function isAuthError(exc) { return exc instanceof AuthRequiredError; }
+
 export async function api(path, opts) {
   opts = opts || {};
   const headers = new Headers(opts.headers || {});
@@ -38,7 +46,7 @@ export async function api(path, opts) {
   const res = await fetch(path, Object.assign({}, opts, { headers }));
   if (res.status === 401) {
     showLogin();
-    throw new Error('auth required');
+    throw new AuthRequiredError();
   }
   return res;
 }

@@ -8,7 +8,7 @@
  */
 
 import { els, state, MACHINES_POLL_MS } from './state.js';
-import { jsonApi, postJson, api, toast, escapeHtml, fmtClock, shortGpu, fmtGbValue } from './api.js';
+import { jsonApi, postJson, api, toast, escapeHtml, fmtClock, shortGpu, fmtGbValue, isAuthError } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { openMachinesTerminal, wireMachinesTerminal } from './machines_terminal.js';
 import { openDiagnostics, wireDiagnostics, refreshDiagnosticsChip } from './diagnostics.js';
@@ -31,7 +31,7 @@ export async function fetchMachinesStatus() {
     // repainting from its own (cheap) read.
     refreshDiagnosticsChip();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     if (state.machinesStatus) {
       // Good data exists from an earlier fetch — stale, not error (design.md:
       // preserve + label last-known content, disable freshness-sensitive
@@ -426,7 +426,7 @@ async function downloadRdp(id, displayName) {
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
     toast('Downloading ' + filename, 'good');
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     toast('Could not fetch the Remote Desktop file for ' + displayName + '.', 'error');
   }
 }
@@ -445,7 +445,7 @@ async function wakeMachine(id, displayName) {
     renderMachinesList();
     fetchMachinesStatus();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     // The wake endpoint returns a clean, user-safe detail (no-MAC / clean send
     // failure), so surface it directly; fall back to a sanitized line if the
     // throw carried no message.

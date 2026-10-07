@@ -18,11 +18,11 @@ from fastapi.responses import Response, StreamingResponse
 from src.host_profile import hub_port
 from src.http_client import get_async_client
 from src import server_systemone
+from src.model_reachability import reachability_by_id
 from src.model_registry import enabled_models, resolve as resolve_model
 from src.tts_engines import capabilities_for_engine
 
 from ._helpers import IDENTITY_ENCODING
-from .models import list_models_for_admin
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -149,16 +149,10 @@ async def playground_image_models() -> Dict[str, Any]:
 @router.get("/api/playground/tts_models")
 async def playground_tts_models() -> Dict[str, Any]:
     """List configured TTS backends, runtime state, and UI capabilities."""
-    runtime = await list_models_for_admin()
-    reachable_by_id = {
-        row.get("id"): bool(row.get("reachable"))
-        for row in runtime.get("models", [])
-        if isinstance(row, dict)
-    }
+    tts_models = [m for m in enabled_models() if m.backend == "tts"]
+    reachable_by_id = await reachability_by_id(tts_models)
     rows: List[Dict[str, Any]] = []
-    for m in enabled_models():
-        if m.backend != "tts":
-            continue
+    for m in tts_models:
         rows.append(
             {
                 "id": m.id,

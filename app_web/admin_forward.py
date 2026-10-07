@@ -16,6 +16,8 @@ from typing import Any, Dict, Optional
 import httpx
 from fastapi import HTTPException
 
+from src.http_client import get_async_client
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,8 +39,9 @@ async def forward_admin_request(
     """
     url = f"{base_url}{path}"
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.request(method, url, headers=headers or {}, **kwargs)
+        r = await get_async_client().request(
+            method, url, headers=headers or {}, timeout=30.0, **kwargs
+        )
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"{unreachable_detail}: {exc}")
     try:

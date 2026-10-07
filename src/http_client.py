@@ -35,6 +35,11 @@ import httpx
 _LIMITS = httpx.Limits(max_keepalive_connections=32, keepalive_expiry=60.0)
 # Generous default — real per-call timeouts are passed on each request.
 _DEFAULT_TIMEOUT = 300.0
+# How long one chat-completion call to an upstream (Claude/Gemini CLI, a local
+# llama-server) may run before the hub gives up: ten minutes covers a cold
+# on-demand model load plus a long generation. The same budget
+# ``comfyui_client.DEFAULT_TIMEOUT_S`` uses for a cold image generation.
+DEFAULT_UPSTREAM_TIMEOUT_S = 600.0
 
 _async_client: Optional[httpx.AsyncClient] = None
 _sync_client: Optional[httpx.Client] = None

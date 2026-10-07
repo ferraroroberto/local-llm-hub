@@ -17,6 +17,7 @@ from src import remote_stats
 from src import server_systemone
 from src.host_profile import all_hosts, get_host, resolve as resolve_host
 from src.model_failover import effective_owner
+from src.model_reachability import local_reachability
 from src.model_registry import (
     SPAWNABLE_BACKENDS,
     Model,
@@ -215,18 +216,7 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
     # HTTP probe at a port that isn't bound.
     listening = await asyncio.to_thread(snapshot_listening_pids)
 
-    async def _probe_reach(m: Model) -> bool:
-        if m.backend == "claude" or m.backend == "gemini":
-            # Subscription-backed — always "live" if the hub itself
-            # answered, which the caller already knows it did.
-            return True
-        if not m.port or m.port not in listening:
-            # Port isn't bound → definitely not reachable; skip the
-            # 1-second-per-dead-backend HTTP probe.
-            return False
-        return await asyncio.to_thread(bp.is_reachable, m, 0.4)
-
-    reach_results = await asyncio.gather(*(_probe_reach(m) for m in local_models))
+    reach_results = await local_reachability(local_models, listening)
 
     async def _probe_device(m: Model, reachable: bool) -> Optional[str]:
         # TTS backends resolve a real device (cuda/cpu/mps) at load time and

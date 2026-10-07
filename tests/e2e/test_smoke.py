@@ -336,3 +336,16 @@ def test_live_requests_stream_rolls_forward(page, admin_url):
     assert counts_after[marker_b] == 1, (
         f"marker_b duplicated after SSE reconnect: {counts_after}"
     )
+
+
+def test_auth_error_is_a_typed_contract(page, admin_url):
+    """api() signals a 401 with ``AuthRequiredError``; callers test it with
+    ``isAuthError`` and never match the message text (#708)."""
+    page.goto(admin_url, wait_until="domcontentloaded")
+    got = page.evaluate(
+        """() => import('/admin/static/api.js').then(m => [
+            m.isAuthError(new m.AuthRequiredError()),
+            m.isAuthError(new Error('auth required')),
+        ])"""
+    )
+    assert got == [True, False]

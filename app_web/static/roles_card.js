@@ -14,7 +14,7 @@
  */
 
 import { els } from './state.js';
-import { jsonApi, escapeHtml } from './api.js';
+import { jsonApi, escapeHtml, isAuthError } from './api.js';
 import { setTab } from './tabs.js';
 
 // -------------------------------------------------------------- formatting
@@ -98,7 +98,7 @@ async function loadRolesCard() {
     if (els.rolesSections) els.rolesSections.hidden = false;
     setStatus('');
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     setStatus('Could not load role/placement data.');
   }
 }

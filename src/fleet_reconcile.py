@@ -53,6 +53,7 @@ from typing import Any, Dict, List
 
 import httpx
 
+from .http_client import get_async_client
 from .wake_on_lan import WakeOnLanError, send_wake
 
 logger = logging.getLogger(__name__)
@@ -99,11 +100,11 @@ async def _remote_model_action(host_id: str, base: str, model_id: str, action: s
     counts as ``ok``.
     """
     try:
-        async with httpx.AsyncClient(timeout=_PEER_TIMEOUT_S) as client:
-            r = await client.post(
-                f"{base}/admin/api/models/{model_id}/{action}",
-                headers=_peer_headers(host_id),
-            )
+        r = await get_async_client().post(
+            f"{base}/admin/api/models/{model_id}/{action}",
+            headers=_peer_headers(host_id),
+            timeout=_PEER_TIMEOUT_S,
+        )
     except httpx.HTTPError as exc:
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
     return {"ok": r.status_code < 400 or r.status_code == 409, "status": r.status_code}

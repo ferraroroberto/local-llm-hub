@@ -44,6 +44,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from .http_client import DEFAULT_UPSTREAM_TIMEOUT_S
 from .server_common import safe_span, set_span_attrs, start_span
 
 logger = logging.getLogger(__name__)
@@ -285,24 +286,35 @@ def _parse_picker(rendered: str) -> Tuple[List[str], int]:
     return labels, current
 
 
-def _switch_model(exe: str, target: str, timeout: float = 120.0) -> None:
+# Waits inside `_switch_model`'s interactive agy session, in seconds. agy is a
+# full-screen TUI started fresh under a ConPTY each time, so the first one covers
+# its cold start; the rest bound a single UI transition so a wedged picker
+# fails the call instead of hanging it.
+_UI_READY_TIMEOUT_S = 50.0       # TUI up and showing "for shortcuts" (or a trust prompt)
+_TRUST_PROMPT_TIMEOUT_S = 30.0   # main UI after accepting the folder-trust dialog
+_PICKER_OPEN_TIMEOUT_S = 25.0    # `/model` picker rendered
+_MODEL_TOAST_TIMEOUT_S = 15.0    # "Model set to ..." confirmation (may not appear)
+
+
+def _switch_model(exe: str, target: str) -> None:
     """Switch `agy`'s globally-selected model to ``target`` via `/model`."""
     pty = _Pty([exe, "--dangerously-skip-permissions"])
     try:
         hit = pty.wait_for(
-            ["for shortcuts", "trust this folder", "trust the contents"], 50)
+            ["for shortcuts", "trust this folder", "trust the contents"],
+            _UI_READY_TIMEOUT_S)
         if hit is None:
             raise GeminiCLIError("agy interactive UI did not become ready")
         if "trust" in hit:
             # Folder-trust dialog: default highlight is "Yes, I trust".
             pty.write("\r")
-            if pty.wait_for(["for shortcuts"], 30) is None:
+            if pty.wait_for(["for shortcuts"], _TRUST_PROMPT_TIMEOUT_S) is None:
                 raise GeminiCLIError("agy did not reach main UI after trust prompt")
 
         pty.write("/model")
         time.sleep(0.8)
         pty.write("\r")
-        if pty.wait_for(["Switch Model"], 25) is None:
+        if pty.wait_for(["Switch Model"], _PICKER_OPEN_TIMEOUT_S) is None:
             raise GeminiCLIError("agy `/model` picker did not open")
         time.sleep(0.6)
 
@@ -336,7 +348,7 @@ def _switch_model(exe: str, target: str, timeout: float = 120.0) -> None:
         pty.write("\r")
         # The confirmation toast reads "Model set to <label>". Selecting
         # the already-current model may not toast — tolerate that.
-        pty.wait_for(["Model set to", target], 15)
+        pty.wait_for(["Model set to", target], _MODEL_TOAST_TIMEOUT_S)
         logger.info("ℹ️ agy model switched to %s", target)
     finally:
         try:
@@ -416,7 +428,7 @@ def call_gemini(
     model: Optional[str] = None,
     system: Optional[str] = None,
     attachments: Optional[Sequence[Path]] = None,
-    timeout: float = 600.0,
+    timeout: float = DEFAULT_UPSTREAM_TIMEOUT_S,
 ) -> Dict[str, Any]:
     """Invoke `agy` and return an envelope matching the Claude shape.
 

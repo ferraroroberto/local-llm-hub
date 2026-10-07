@@ -23,6 +23,7 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
 
+from .http_client import DEFAULT_UPSTREAM_TIMEOUT_S
 from .no_window import NO_WINDOW
 from .server_common import set_span_attrs, start_span
 
@@ -103,7 +104,7 @@ def call_claude(
     model: Optional[str] = None,
     system: Optional[str] = None,
     attachments: Optional[Sequence[Path]] = None,
-    timeout: float = 600.0,
+    timeout: float = DEFAULT_UPSTREAM_TIMEOUT_S,
 ) -> Dict[str, Any]:
     """Invoke `claude -p --output-format json` and return the parsed envelope.
 
@@ -183,7 +184,7 @@ def call_claude_stream(
     model: Optional[str] = None,
     system: Optional[str] = None,
     attachments: Optional[Sequence[Path]] = None,
-    timeout: float = 600.0,
+    timeout: float = DEFAULT_UPSTREAM_TIMEOUT_S,
 ) -> Iterator[Dict[str, Any]]:
     """Yield the JSON-lines records emitted by Claude Code's stream mode.
 
