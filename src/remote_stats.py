@@ -283,13 +283,6 @@ def locate(host: HostProfile) -> Optional[str]:
     return addr
 
 
-def reachable(host: HostProfile) -> bool:
-    """Boolean face of :func:`locate` — kept because "is the box on?" is the
-    question most callers ask; the address that answered only matters to the
-    #396 dial/badge paths."""
-    return locate(host) is not None
-
-
 def connection_flaky(host: HostProfile) -> Optional[bool]:
     """True when the most recent successful liveness probe for ``host`` only
     answered on the #333 warm-up retry (the first pass missed cleanly) — a

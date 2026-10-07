@@ -425,11 +425,6 @@ def set_baseline(run_id: str) -> None:
         conn.execute("UPDATE runs SET is_baseline = 1 WHERE run_id = ?", (run_id,))
 
 
-def set_note(run_id: str, note: str) -> None:
-    with connect() as conn:
-        conn.execute("UPDATE runs SET note = ? WHERE run_id = ?", (note[:500], run_id))
-
-
 def delete_run(run_id: str) -> None:
     """Delete a run and (via ON DELETE CASCADE) every row it produced."""
     with connect() as conn:

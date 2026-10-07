@@ -184,14 +184,14 @@ def test_locate_finds_tailnet_only_peer(monkeypatch):
     down."""
     _probe_stub(monkeypatch, alive={_TS})
     assert remote_stats.locate(_peer()) == _TS
-    assert remote_stats.reachable(_peer()) is True
+    assert remote_stats.locate(_peer()) is not None
 
 
 def test_locate_none_when_every_path_dead(monkeypatch):
     _probe_stub(monkeypatch, alive=set())
     monkeypatch.setattr(remote_stats.time, "sleep", lambda *_: None)
     assert remote_stats.locate(_peer()) is None
-    assert remote_stats.reachable(_peer()) is False
+    assert remote_stats.locate(_peer()) is None
 
 
 # ------------------------------------------------- consumers ride the resolver
