@@ -292,6 +292,58 @@ def _otel_delta_records(records: List[UsageRecord]) -> List[UsageRecord]:
     return out
 
 
+_COST_FIELDS = ("input_cost", "output_cost", "cache_read_cost")
+
+
+def _blank_counts(with_cost: bool = False) -> dict:
+    counts = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "reasoning_output_tokens": 0,
+        "requests": 0,
+    }
+    if with_cost:
+        counts.update({f: 0.0 for f in _COST_FIELDS})
+    return counts
+
+
+def _add_record(acc: dict, r: UsageRecord, with_cost: bool = False) -> None:
+    """Fold one record's token counts (and, optionally, its equivalent API
+    cost) into ``acc``."""
+    acc["input_tokens"] += r.input_tokens
+    acc["output_tokens"] += r.output_tokens
+    acc["cache_creation_tokens"] += r.cache_creation_tokens
+    acc["cache_read_tokens"] += r.cache_read_tokens
+    acc["reasoning_output_tokens"] += r.reasoning_output_tokens
+    acc["requests"] += r.requests
+    if with_cost:
+        for field, cost in zip(_COST_FIELDS, record_costs(r)):
+            acc[field] += cost
+
+
+def _group(records, key_fn, head_fn, *, with_cost: bool = False) -> dict:
+    """Accumulate ``records`` into one row per ``key_fn(record)``.
+
+    A row opens with ``head_fn(first record)`` (its identifying fields), then
+    the token counts, then the cost fields when ``with_cost``. The one place a
+    rollup change lands, so no breakdown can drift from the others.
+    """
+    groups: dict = {}
+    for r in records:
+        key = key_fn(r)
+        row = groups.get(key)
+        if row is None:
+            row = groups[key] = {**head_fn(r), **_blank_counts(with_cost)}
+        _add_record(row, r, with_cost)
+    return groups
+
+
+def _by_requests(groups: dict) -> list:
+    return sorted(groups.values(), key=lambda x: x["requests"], reverse=True)
+
+
 def get_summary(period: str = "today", vendor: str = "all") -> dict:
     """Return a summary dict consumed by the Cld tab.
 
@@ -332,103 +384,46 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
     today = today_utc()
     since = period_since(period)
 
-    # ---- helpers ----
-    def blank_counts() -> dict:
-        return {
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cache_creation_tokens": 0,
-            "cache_read_tokens": 0,
-            "reasoning_output_tokens": 0,
-            "requests": 0,
-        }
-
-    def add_record(acc: dict, r: UsageRecord) -> None:
-        acc["input_tokens"] += r.input_tokens
-        acc["output_tokens"] += r.output_tokens
-        acc["cache_creation_tokens"] += r.cache_creation_tokens
-        acc["cache_read_tokens"] += r.cache_read_tokens
-        acc["reasoning_output_tokens"] += r.reasoning_output_tokens
-        acc["requests"] += r.requests
-
     def in_period(r: UsageRecord) -> bool:
         return since is None or r.ts.astimezone(timezone.utc).date() >= since
 
+    period_records = [r for r in records if in_period(r)]
+
     # ---- totals for the requested period (with equivalent API cost) ----
-    totals = blank_counts()
-    cost_acc = {"input_cost": 0.0, "output_cost": 0.0, "cache_read_cost": 0.0}
-    for r in records:
-        if in_period(r):
-            add_record(totals, r)
-            ic, oc, crc = record_costs(r)
-            cost_acc["input_cost"] += ic
-            cost_acc["output_cost"] += oc
-            cost_acc["cache_read_cost"] += crc
-    totals.update(cost_acc)
+    totals = _blank_counts(with_cost=True)
+    for r in period_records:
+        _add_record(totals, r, with_cost=True)
 
     # ---- daily buckets (always last MAX_DAILY_DAYS calendar days) ----
-    daily_map: Dict[date, dict] = {}
-    for r in records:
-        d = r.ts.astimezone(timezone.utc).date()
-        if d not in daily_map:
-            daily_map[d] = {"date": d.isoformat(), **blank_counts()}
-        add_record(daily_map[d], r)
-
+    daily_map = _group(
+        records,
+        lambda r: r.ts.astimezone(timezone.utc).date(),
+        lambda r: {"date": r.ts.astimezone(timezone.utc).date().isoformat()},
+    )
     sorted_days = sorted(daily_map.keys(), reverse=True)
     daily_list = [daily_map[d] for d in sorted_days[:MAX_DAILY_DAYS]]
 
     # ---- per-model breakdown (period-scoped) ----
-    model_map: Dict[str, dict] = {}
-    for r in records:
-        if not in_period(r):
-            continue
-        label = model_display(r.model)
-        if label not in model_map:
-            model_map[label] = {"model": label, **blank_counts()}
-        add_record(model_map[label], r)
-    by_model = sorted(
-        model_map.values(), key=lambda x: x["requests"], reverse=True
-    )
+    by_model = _by_requests(_group(
+        period_records,
+        lambda r: model_display(r.model),
+        lambda r: {"model": model_display(r.model)},
+    ))
 
     # ---- per-project breakdown (period-scoped) ----
-    proj_map: Dict[str, dict] = {}
-    for r in records:
-        if not in_period(r):
-            continue
-        key = r.project_key
-        if key not in proj_map:
-            proj_map[key] = {
-                "project_key": key,
-                "project": r.project_name,
-                **blank_counts(),
-            }
-        add_record(proj_map[key], r)
-    by_project = sorted(
-        proj_map.values(), key=lambda x: x["requests"], reverse=True
-    )
+    by_project = _by_requests(_group(
+        period_records,
+        lambda r: r.project_key,
+        lambda r: {"project_key": r.project_key, "project": r.project_name},
+    ))
 
     # ---- per-vendor breakdown (period-scoped, with equivalent API cost) ----
-    vendor_map: Dict[str, dict] = {}
-    for r in records:
-        if not in_period(r):
-            continue
-        row = vendor_map.get(r.vendor)
-        if row is None:
-            row = vendor_map[r.vendor] = {
-                "vendor": r.vendor,
-                **blank_counts(),
-                "input_cost": 0.0,
-                "output_cost": 0.0,
-                "cache_read_cost": 0.0,
-            }
-        add_record(row, r)
-        ic, oc, crc = record_costs(r)
-        row["input_cost"] += ic
-        row["output_cost"] += oc
-        row["cache_read_cost"] += crc
-    by_vendor = sorted(
-        vendor_map.values(), key=lambda x: x["requests"], reverse=True
-    )
+    by_vendor = _by_requests(_group(
+        period_records,
+        lambda r: r.vendor,
+        lambda r: {"vendor": r.vendor},
+        with_cost=True,
+    ))
 
     # ---- recent sessions (always all-time, newest first) ----
     session_map: Dict[Tuple[str, str], dict] = {}
@@ -442,10 +437,10 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
                 "model": r.model,
                 "first_ts": r.ts.isoformat(),
                 "last_ts": r.ts.isoformat(),
-                **blank_counts(),
+                **_blank_counts(),
             }
         s = session_map[k]
-        add_record(s, r)
+        _add_record(s, r)
         if r.ts.isoformat() < s["first_ts"]:
             s["first_ts"] = r.ts.isoformat()
         if r.ts.isoformat() > s["last_ts"]:

@@ -30,6 +30,7 @@ import httpx
 
 from src import remote_stats
 from src.host_profile import HostProfile
+from src.http_client import get_async_client
 
 logger = logging.getLogger(__name__)
 
@@ -86,8 +87,7 @@ async def terminal_status() -> Dict[str, Any]:
     (see :func:`create_ssh_session`)."""
     base = session_host_base()
     try:
-        async with httpx.AsyncClient(timeout=_PROBE_TIMEOUT_S) as client:
-            r = await client.get(f"{base}/healthz")
+        r = await get_async_client().get(f"{base}/healthz", timeout=_PROBE_TIMEOUT_S)
         if r.status_code < 500:
             return {"available": True, "reason": "", "session_host": base}
         return {"available": False, "reason": f"session-host HTTP {r.status_code}", "session_host": base}
@@ -125,8 +125,9 @@ async def create_ssh_session(
     }
     base = session_host_base()
     try:
-        async with httpx.AsyncClient(timeout=_CREATE_TIMEOUT_S) as client:
-            r = await client.post(f"{base}/sessions", json=payload)
+        r = await get_async_client().post(
+            f"{base}/sessions", json=payload, timeout=_CREATE_TIMEOUT_S
+        )
     except Exception as exc:  # noqa: BLE001 — network / connection
         logger.warning("⚠️ ssh session create failed: %s", exc)
         return {"ok": False, "session_id": None, "error": "session-host not reachable"}

@@ -12,7 +12,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, fmtTok, fmtCost, tokPair, escapeHtml, renderTable, toastPending } from './api.js';
+import { jsonApi, fmtTok, fmtCost, tokPair, escapeHtml, renderTable, toastPending, isAuthError } from './api.js';
 
 // ---------------------------------------------------------------------------
 // Chart constants (issue #50)
@@ -192,7 +192,7 @@ async function fetchSummary(ctl, gen) {
     return 'ok';
   } catch (exc) {
     if (ctl.signal.aborted || (exc && exc.name === 'AbortError') || gen !== _gen) return 'aborted';
-    if (String(exc.message) === 'auth required') return 'auth';
+    if (isAuthError(exc)) return 'auth';
     const reason = exc && exc.message ? String(exc.message) : 'unknown error';
     setLoadError(reason);
     return reason;
@@ -272,7 +272,7 @@ async function fetchCopilotBilling() {
     const body = await jsonApi('/admin/api/code/copilot/billing');
     renderCopilotBilling(body);
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     renderCopilotBilling({ available: false, reason: 'error fetching data', daily: [] });
   }
 }

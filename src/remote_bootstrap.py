@@ -34,10 +34,9 @@ import os
 import time
 from typing import Any, Dict, Optional
 
-import httpx
-
 from . import remote_stats
 from .host_profile import get_host, hub_port
+from .http_client import get_async_client
 from .ssh_exec import run_ssh
 
 logger = logging.getLogger(__name__)
@@ -110,15 +109,15 @@ async def _poll_health(host_id: str) -> Dict[str, Any]:
     base = f"http://{address}:{hub_port()}"
     deadline = time.monotonic() + _HEALTH_POLL_TIMEOUT_S
     last_error = ""
-    async with httpx.AsyncClient(timeout=3.0) as client:
-        while time.monotonic() < deadline:
-            try:
-                r = await client.get(f"{base}/health")
-                if r.status_code < 500:
-                    return {"reachable": True, "address": base}
-            except Exception as exc:  # noqa: BLE001
-                last_error = f"{type(exc).__name__}: {exc}"
-            await asyncio.sleep(_HEALTH_POLL_INTERVAL_S)
+    client = get_async_client()
+    while time.monotonic() < deadline:
+        try:
+            r = await client.get(f"{base}/health", timeout=3.0)
+            if r.status_code < 500:
+                return {"reachable": True, "address": base}
+        except Exception as exc:  # noqa: BLE001
+            last_error = f"{type(exc).__name__}: {exc}"
+        await asyncio.sleep(_HEALTH_POLL_INTERVAL_S)
     return {"reachable": False, "address": base, "error": last_error or "timed out"}
 
 

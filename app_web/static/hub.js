@@ -4,7 +4,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, renderCounterTable, shortGpu, modelLabel, applyListFilter } from './api.js';
+import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, renderCounterTable, shortGpu, modelLabel, applyListFilter, isAuthError } from './api.js';
 import { langfuseTraceUrl, fetchTelemetryHealth } from './telemetry.js';
 import { icon } from './_vendored/icons/icons.js';
 
@@ -17,7 +17,7 @@ export async function fetchHubStatus() {
     if (els.hubUptime) els.hubUptime.textContent = fmtUptime(body.uptime_s);
     setHubLive('good', 'up');
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     setHubLive('danger', 'unreachable');
   }
 }
@@ -235,7 +235,7 @@ export async function fetchServicesStatus() {
     state.services = body;
     renderServices();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     // Probe error itself — render an "unreachable" state. `probeFailed`
     // tells renderServices() this isn't a real launchable=false verdict
     // (we never got far enough to check the install path), so it must

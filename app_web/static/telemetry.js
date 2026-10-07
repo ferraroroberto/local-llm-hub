@@ -10,7 +10,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, fmtTok, fmtCost, tokPair, renderCounterTable, renderTable, modelLabel, modelLabelText, applyListFilter } from './api.js';
+import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, fmtTok, fmtCost, tokPair, renderCounterTable, renderTable, modelLabel, modelLabelText, applyListFilter, isAuthError } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 
 const HEALTH_POLL_MS = 8000;
@@ -29,7 +29,7 @@ export async function fetchTelemetryHealth() {
     state.telHealth = body;
     renderHealth(body);
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     setHealthDot('danger', 'unreachable');
   }
 }
@@ -98,7 +98,7 @@ export async function fetchClaudeCodeUsage() {
     state.telCcSummary = body;
     renderClaudeCodeUsage(body);
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
   }
 }
 

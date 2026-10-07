@@ -30,6 +30,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, conint
 
 from src.claude_code_otel import get_usage_summary as _claude_code_otel_summary
+from src.http_client import get_async_client
 from src.hub_observability import OBS, _rec_to_dict
 from src.observability import (
     hash_prompts_enabled,
@@ -97,6 +98,7 @@ async def _resolve_project_id(client: httpx.AsyncClient) -> str:
         r = await client.get(
             f"{_langfuse_host()}/api/public/projects",
             headers={"Authorization": auth},
+            timeout=_HEALTH_TIMEOUT_S,
         )
         if r.status_code != 200:
             return _note_project_id_failure(f"HTTP {r.status_code} from /api/public/projects")
@@ -145,11 +147,13 @@ async def telemetry_health() -> Dict[str, Any]:
     project_id = ""
     if not sdk_disabled:
         try:
-            async with httpx.AsyncClient(timeout=_HEALTH_TIMEOUT_S) as client:
-                r = await client.get(f"{_langfuse_host()}/api/public/health")
-                langfuse_reachable = r.status_code < 500
-                if langfuse_reachable and auth_configured:
-                    project_id = await _resolve_project_id(client)
+            client = get_async_client()
+            r = await client.get(
+                f"{_langfuse_host()}/api/public/health", timeout=_HEALTH_TIMEOUT_S
+            )
+            langfuse_reachable = r.status_code < 500
+            if langfuse_reachable and auth_configured:
+                project_id = await _resolve_project_id(client)
         except Exception as exc:  # noqa: BLE001
             langfuse_error = f"{type(exc).__name__}: {exc}"
 
@@ -295,11 +299,11 @@ async def telemetry_trace_detail(trace_id: str) -> Dict[str, Any]:
     auth = langfuse_basic_auth()
     if auth:
         try:
-            async with httpx.AsyncClient(timeout=_HEALTH_TIMEOUT_S * 2) as client:
-                r = await client.get(
-                    f"{_langfuse_host()}/api/public/traces/{tid}",
-                    headers={"Authorization": auth},
-                )
+            r = await get_async_client().get(
+                f"{_langfuse_host()}/api/public/traces/{tid}",
+                headers={"Authorization": auth},
+                timeout=_HEALTH_TIMEOUT_S * 2,
+            )
             if r.status_code == 200:
                 body = r.json() or {}
                 # Langfuse v3 trace shape: top-level `input` / `output`

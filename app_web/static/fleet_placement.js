@@ -18,7 +18,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, escapeHtml, fmtGb, fmtGbValue } from './api.js';
+import { jsonApi, escapeHtml, fmtGb, fmtGbValue, isAuthError } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { emptyStateEl } from './_vendored/empty-state/empty-state.js';
 
@@ -30,7 +30,7 @@ export async function fetchFleetPlacement() {
     state.fleetPlacementUpdated = Date.now();
     renderFleetPlacement();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     // Good data from an earlier fetch → stale (keep + label it), else error.
     state.fleetPlacementState = state.fleetPlacement ? 'stale' : 'error';
     renderFleetPlacement();

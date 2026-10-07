@@ -12,7 +12,7 @@
  */
 
 import { els, state } from './state.js';
-import { jsonApi, postJson, putJson, api, toast, escapeHtml } from './api.js';
+import { jsonApi, postJson, putJson, api, toast, escapeHtml, isAuthError } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { setSwitch } from './_vendored/switch/switch.js';
 
@@ -68,7 +68,7 @@ async function fetchDiagnosticsStatus() {
     state.diagStatus = body;
     state.diagDataState = 'ready';
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     state.diagDataState = state.diagStatus ? 'stale' : 'error';
   }
   renderDiagnostics();
@@ -79,7 +79,7 @@ async function fetchRuns() {
     const body = await jsonApi('/admin/api/diagnostics/runs?limit=50');
     state.diagRuns = body.runs || [];
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     state.diagRuns = state.diagRuns || [];
   }
   renderDiagnostics();
@@ -99,7 +99,7 @@ async function fetchSummary(runId) {
     state.diagDrift = drift;
     state.diagSummaryState = 'ready';
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     state.diagSummaryState = 'error';
   }
   renderDiagnostics();
@@ -419,7 +419,7 @@ async function startCapture() {
     await postJson('/admin/api/diagnostics/start', payload);
     toast('Capture started.', 'good');
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     toast('Could not start the capture.', 'error');
   }
   await fetchDiagnosticsStatus();
@@ -435,7 +435,7 @@ async function snapshot() {
     await fetchRuns();
     await fetchSummary(body.run_id);
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     toast('Snapshot failed.', 'error');
   }
   await fetchDiagnosticsStatus();
@@ -446,7 +446,7 @@ async function stopCapture() {
     await postJson('/admin/api/diagnostics/stop', {});
     toast('Capture stopped.', 'good');
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     toast('Could not stop the capture.', 'error');
   }
   await fetchDiagnosticsStatus();
@@ -462,7 +462,7 @@ async function markBaseline() {
     await fetchRuns();
     await fetchSummary(runId);
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     toast('Could not set the baseline.', 'error');
   }
 }
@@ -485,7 +485,7 @@ async function deleteRun() {
     state.diagSummary = null;
     await fetchRuns();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     toast('Could not delete that run.', 'error');
   }
 }
@@ -505,7 +505,7 @@ async function download(path, filename) {
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
     toast('Downloading ' + filename, 'good');
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     toast('Could not download that file.', 'error');
   }
 }
@@ -524,7 +524,7 @@ async function saveSettings(overrides) {
     state.diagStatus = Object.assign({}, state.diagStatus, { settings: body.settings });
     toast('Settings saved.', 'good');
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
     toast('Could not save settings.', 'error');
   }
   renderDiagnostics();
@@ -574,7 +574,7 @@ export async function refreshDiagnosticsChip() {
     else if ((runs.runs || []).length) state.diagRuns[0] = runs.runs[0];
     state.diagDataState = 'ready';
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthError(exc)) return;
   }
   updateCardChip();
 }

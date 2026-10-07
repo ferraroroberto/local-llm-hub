@@ -623,6 +623,49 @@ def test_messages_http_disconnect_finishes_on_demand_stream(monkeypatch):
     assert lease.finished
 
 
+def test_chat_completions_http_disconnect_finishes_on_demand_stream(monkeypatch):
+    """The /v1/chat/completions passthrough needs the same disconnect cleanup
+    as /v1/messages (#708): a dropped client must still release the lease."""
+
+    class Raw:
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            return 'data: {"choices":[{"delta":{"content":"more"}}]}\n\n'
+
+    class Lease:
+        def __init__(self) -> None:
+            self.finished = False
+
+        def start(self):
+            return self
+
+        def finish(self) -> None:
+            self.finished = True
+
+    lease = Lease()
+    monkeypatch.setattr(
+        server_common_mod, "ensure_backend_ready_or_503", lambda model: None
+    )
+    monkeypatch.setattr(server_mod, "call_openai_chat_stream", lambda *a, **k: Raw())
+    monkeypatch.setattr(server_mod._on_demand, "tracking", lambda *a, **k: lease)
+    request = server_mod.ChatCompletionRequest(
+        model="qwen3.5-4b",
+        stream=True,
+        messages=[{"role": "user", "content": "hi"}],
+    )
+    response = server_mod._stream_openai_passthrough(
+        server_mod._resolve(request.model), request, client_id="test"
+    )
+    # Starlette does not close a sync iterator on disconnect by itself (see
+    # _ClosingStreamingResponse); this route must carry the same guard.
+    assert isinstance(response, server_mod._ClosingStreamingResponse)
+
+    asyncio.run(_disconnect_after_first_body(response))
+    assert lease.finished
+
+
 def test_claude_stream_timeout_has_distinct_error_and_kills(monkeypatch):
     process = _FakeClaudeProcess("")
 

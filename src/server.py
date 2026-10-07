@@ -863,7 +863,7 @@ def _stream_openai_passthrough(
         "Connection": "keep-alive",
         "X-Accel-Buffering": "no",
     }
-    return StreamingResponse(
+    return _ClosingStreamingResponse(
         event_stream(),
         media_type="text/event-stream",
         headers=headers,

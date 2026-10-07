@@ -185,13 +185,10 @@ def test_playground_speak_streaming_forwards_chunks(monkeypatch):
 
 
 def test_tts_models_expose_runtime_state_and_capabilities(monkeypatch):
-    async def _runtime():
-        return {"models": [
-            {"id": "piper", "reachable": True},
-            {"id": "kokoro", "reachable": False},
-        ]}
+    async def _reachability(models):
+        return {"piper": True, "kokoro": False}
 
-    monkeypatch.setattr(playground_router, "list_models_for_admin", _runtime)
+    monkeypatch.setattr(playground_router, "reachability_by_id", _reachability)
     client = TestClient(server_mod.app)
     response = client.get("/admin/api/playground/tts_models")
     assert response.status_code == 200, response.text

@@ -19,7 +19,7 @@
  */
 
 import { els } from './state.js';
-import { jsonApi, urlWithToken } from './api.js';
+import { jsonApi, urlWithToken, isAuthError } from './api.js';
 
 let currentTerm = null;
 let currentWs = null;
@@ -126,7 +126,7 @@ export async function openMachinesTerminal(id, displayName) {
   try {
     status = await jsonApi('/admin/api/machines/terminal/status');
   } catch (exc) {
-    if (String(exc.message) === 'auth required') { els.machinesTerminalDialog.close(); return; }
+    if (isAuthError(exc)) { els.machinesTerminalDialog.close(); return; }
     showUnavailable('Could not check terminal availability.');
     return;
   }
