@@ -42,7 +42,7 @@ an OS child contains it with the fleet-wide Windows job-object helpers in
 ## The TTS registry rows ([config/models.yaml](../config/models.yaml))
 
 ```yaml
-piper:                          # auto-loaded default (startup: eager on tower, #430)
+piper:                          # auto-loaded default (startup: eager, #430)
   display_name: piper-tts
   aliases: ["audio_speech"]     # the role alias clients should address
   backend: tts
@@ -82,8 +82,8 @@ kokoro:                         # on demand — low-footprint comparison model
   args: ["--device", "auto"]
 ```
 
-All TTS rows are enabled on `tower` only; the role lives at
-`roles.audio.speech.model_id: piper`. Piper is the auto-loaded default because
+Current per-host enablement lives in [config/models.yaml](../config/models.yaml)
+alone; the role lives at `roles.audio.speech.model_id: piper`. Piper is the auto-loaded default because
 it measures sub-second for short assistant phrases. Orpheus is the expressive
 on-demand alternate, Chatterbox is kept for its tone dial / voice cloning, and
 Kokoro is the tiny ONNX comparison model whose current Windows ONNX path is not
@@ -99,7 +99,7 @@ the fast option.
 
 | area | change |
 | ---- | ------ |
-| `config/models.yaml` | TTS rows (`piper`, `chatterbox`, `orpheus`, `kokoro`) on `tower`; `roles.audio.speech` points at `piper` |
+| `config/models.yaml` | TTS rows (`piper`, `chatterbox`, `orpheus`, `kokoro`); `roles.audio.speech` points at `piper` |
 | `src/model_registry.py` | `+tts_engine` field |
 | `src/tts_engines/` | Piper + Chatterbox + Orpheus + Kokoro engines, one module each, behind one common interface (`common.py`) |
 | `src/tts_server.py` | new — FastAPI shim (`/v1/audio/speech`, `/health`) |
@@ -338,7 +338,8 @@ synthesis path can only be exercised on a TTS-enabled box:
 
 ```bat
 .venv\Scripts\python -m src.install --fix
-tray.bat --restart                         :: chatterbox auto-loads on :8092
+tray.bat --restart                         :: piper auto-loads; chatterbox stays on-demand
+launchers\run_model.bat chatterbox         :: start chatterbox on :8092 (not autostarted)
 .venv\Scripts\python scripts\smoke_test.py :: synth probe for reachable TTS rows
 ```
 

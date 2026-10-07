@@ -116,31 +116,29 @@ regardless (see [Multi-host: the Mac Mini](#multi-host-the-mac-mini)):
   ~13.4 GB of tower's VRAM for the voice path between uses.
 - **`whisper-large-v3-turbo`** — `whisper-server`
   ([ggerganov/whisper.cpp](https://github.com/ggerganov/whisper.cpp))
-  running [ggml-large-v3-turbo.bin](https://huggingface.co/ggerganov/whisper.cpp),
-  **owned by the `gaming` satellite** since #323 — the tower runs no whisper
-  backend of its own in the normal case. Reach it identically from any
-  machine: POST to *this* hub's `:8000/v1/audio/transcriptions` and the
-  request is served locally or proxied to the owning host, landing in the
-  observability ring either way. It carries the repo's first production
-  failover chain (`hosts: [gaming, mac-mini-m4, {id: tower, cpu: true}]`), so
-  the tower is the degraded CPU last rung rather than the daily owner. Fills
-  the `audio_transcribe` role — as its *fallback*; parakeet on the Mac Mini is
-  the primary. Ownership, ports, and the chain live in
-  [`config/models.yaml`](config/models.yaml); the topology is walked through
-  under [Multi-host: the Mac Mini](#multi-host-the-mac-mini) below. On a host
+  running [ggml-large-v3-turbo.bin](https://huggingface.co/ggerganov/whisper.cpp).
+  Reach it identically from any machine: POST to *this* hub's
+  `:8000/v1/audio/transcriptions` and the request is served locally or
+  proxied to the owning host, landing in the observability ring either way.
+  It carries the repo's first production failover chain, so a degraded CPU
+  rung can stand in for the daily owner. Fills the `audio_transcribe` role —
+  as its *fallback*; parakeet on the Mac Mini is the primary. Ownership,
+  ports, and the chain live in [`config/models.yaml`](config/models.yaml)
+  alone; the topology mechanism is walked through under
+  [Multi-host: the Mac Mini](#multi-host-the-mac-mini) below. On a host
   that actually runs the backend you can also POST straight to its `:8090` for
   lower overhead (skipping the ring); that port is a shared mutual-exclusion
   lock with `E:\automation\automation\audio\transcribe_voice`.
 - **`whisper-medium-translate`** — sibling whisper-server running
-  `ggml-medium.bin` on CPU, **also owned by `gaming`** (moved off the tower in
-  #370). Same OpenAI-compatible `/v1/audio/transcriptions` shape; supports
-  `task=translate` (turbo is transcription-only — its decoder distill
-  drops translation). Eager-loaded (~1.5 GB RAM, 0 MB VRAM, always ready).
-  Fills the `audio_translate` role; address it through this hub's
+  `ggml-medium.bin` on CPU. Same OpenAI-compatible `/v1/audio/transcriptions`
+  shape; supports `task=translate` (turbo is transcription-only — its decoder
+  distill drops translation). Eager-loaded (~1.5 GB RAM, 0 MB VRAM, always
+  ready). Fills the `audio_translate` role; address it through this hub's
   `:8000/v1/audio/translations`. A lazy-load mode is also available —
   add `startup: on_demand` + `idle_unload_minutes` to the row (the same
   generic mechanism `whisper-vanilla` below uses, #530) — for hosts that
-  need to reclaim RAM when translate is rare.
+  need to reclaim RAM when translate is rare. Current host placement lives
+  in [`config/models.yaml`](config/models.yaml).
 - **`whisper-vanilla`** — the same `ggml-large-v3-turbo.bin` as the turbo
   row, configured for **unbiased language auto-detection**. The escape
   hatch for callers transcribing general multilingual audio (e.g. Spanish
@@ -156,8 +154,9 @@ regardless (see [Multi-host: the Mac Mini](#multi-host-the-mac-mini)):
   flag, so dropping the glossary alone is not enough. A caller that sends
   its own `language` always wins. Lazy-loaded (`startup: on_demand`,
   spawn-on-request via `src/on_demand.py`, idle-unload after 5 min, #530)
-  so it costs no VRAM when idle, and **owned by `gaming`** alongside the
-  other two whisper slots (#370). See issue #128.
+  so it costs no VRAM when idle. Host placement lives in
+  [`config/models.yaml`](config/models.yaml) alongside the other two
+  whisper slots. See issue #128.
 - **`piper-tts`** — fast local text-to-speech (the inverse of whisper),
   served by the in-repo FastAPI shim [src/tts_server.py](src/tts_server.py)
   on `127.0.0.1:8096`. OpenAI-compatible `POST /v1/audio/speech`. POST to
@@ -179,10 +178,9 @@ regardless (see [Multi-host: the Mac Mini](#multi-host-the-mac-mini)):
   reference runtime (vLLM) has no usable Windows build, so the shim runs the
   GGUF on the vendored `llama-server` (loopback `:18093`) and decodes its
   audio tokens with the SNAC codec **on CPU** (`--device cpu`, #422 — measured
-  faster than GPU SNAC on the 5060 Ti and ~1 GB VRAM cheaper; the llama child
-  stays fully on GPU). Owned by **tower** with the gaming satellite as
-  degraded fallback (`hosts: [tower, gaming]`, #422 — the 1070 renders at
-  0.71x real-time, tower sustains 1.84x). Address explicitly as
+  faster than GPU SNAC and cheaper on VRAM; the llama child stays fully on
+  GPU). Primary host plus degraded fallback chain live in
+  [`config/models.yaml`](config/models.yaml) (#422). Address explicitly as
   `model="orpheus-tts"` when expressiveness matters more than latency.
 - **`kokoro-tts`** — low-footprint Kokoro-82M TTS on `127.0.0.1:8095`, served
   by the same [src/tts_server.py](src/tts_server.py) OpenAI-compatible
@@ -335,10 +333,10 @@ Two Claude Code entry points drive the refresh:
   then edits `config/models.yaml` + writes a launcher pair + (optionally)
   shells out to `scripts/download_models.py`.
 
-To browse a run interactively, open
-`docs/frontier/runs/LATEST/frontier.html` in a browser — it's a
-standalone interactive chart, no admin UI involved. To act on a run,
-run `/swap-model` from Claude Code.
+To browse a run interactively, open `GET /admin/frontier` (the admin SPA
+footer's 📈 Frontier link), or the standalone chart directly at
+`docs/frontier/runs/<date>/frontier.html`. To act on a run, run
+`/swap-model` from Claude Code.
 
 Side-by-side technical specs + docs links for all active models live in
 [docs/model-comparison.md](docs/model-comparison.md). The latest research
@@ -504,49 +502,35 @@ own hub can equally proxy to a Windows-owned model.
 Today this powers the `mac-mini-m4` host (Apple M4; address in
 `config/machines.local.yaml`):
 
-- **`qwen3.5-9b`** — moved here from `tower` (see
-  [Demoted candidates](#demoted-candidates-kept-defined-not-in-active-rotation)
-  above); same `llama-server`, just running on the Mac.
+- **`qwen3.5-9b`** — same `llama-server`, reachable transparently from any
+  host via the proxy mechanism above regardless of which machine currently
+  runs it.
 - **`parakeet-tdt-0.6b-v3`** — NVIDIA Parakeet TDT 0.6B v3 (running the
   Parakeet Ultra checkpoint since #640) on the Apple Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio)
   (CoreML), served by the vendored Swift worker in `mac/parakeet-worker/`
-  + `src/parakeet_server.py`. The **`audio_transcribe` role primary** since
-  #350 (a latency/placement call, not an accuracy one): a plain
-  `/v1/audio/transcriptions` call with no `model` lands here, and fails over
-  to whisper-turbo when parakeet is down (#348). It is faster than
+  + `src/parakeet_server.py`. Fills the **`audio_transcribe` role** on hosts
+  that set it primary (a latency call, not an accuracy one, #350): a plain
+  `/v1/audio/transcriptions` call with no `model` lands here when it is, and
+  fails over to whisper-turbo when parakeet is down (#348). It is faster than
   whisper-turbo but drops the "Claude Code" wake phrase and mangles "YOLO"
   (a vocabulary-rescorer fix was disproven, #401), so callers that need that
   jargon send `model=whisper` explicitly. Full measurement + trade-off
   writeup:
   [docs/parakeet-asr-evaluation.md](docs/parakeet-asr-evaluation.md).
 
-The same pattern powers the **`gaming`** satellite (Ryzen 9 5900X, GTX 1070
-8 GB, headless Ubuntu, address in `config/machines.local.yaml` — #323), which
-owns the whisper STT trio moved off the tower, so tower carries no whisper
-backends at all:
+The same cross-host proxy mechanism applies to any other satellite host
+added to `config/machines.local.yaml` — whichever STT/TTS rows it owns
+reach every other hub through the pattern above. voice-transcriber retains
+its own local `:8090` escape-hatch spawner for transport failures.
 
-- **`whisper-large-v3-turbo`** — the transcribe role's *fallback* (parakeet on
-  the Mac stays primary); CUDA-built whisper-server for `sm_61`, ~9.1 RTFx
-  there vs ~33.6 on the tower's 5060 Ti — slower, but a failover path, not the
-  daily-dictation primary.
-- **`whisper-medium-translate`** and **`whisper-vanilla`** — both live on
-  gaming alongside `whisper`. `translate` stays CPU-only (0 MB VRAM);
-  `vanilla` is GPU/lazy (~2000 MB when resident). voice-transcriber retains
-  its own local `:8090` escape-hatch spawner for transport failures.
-- **`orpheus-tts`** — runs on tower: the 1070 synthesizes at 0.71x
-  real-time with the GPU pegged (measured 2026-07-25), starving every
-  streamed playback, so gaming stays second in orpheus's
-  `hosts: [tower, gaming]` chain as the degraded-but-up fallback and keeps
-  the weights staged and the id in `enabled:`.
+A host's estimated VRAM footprint is the sum of its resident rows' `vram_mb`
+(`config/models.yaml`, #375) against its own ceiling. The fleet-placement
+grid's own static estimate is lower by default: `startup: on_demand` rows
+only join a host's sum while actually running, not as a standing
+worst-case reservation — see "On-demand model lifecycle" below.
 
-Gaming's estimated VRAM footprint with the whisper trio resident: whisper
-2000 + whisper_translate 0 + whisper_vanilla 2000 = 4000 MB (plus orpheus
-2200 MB only while acting as failover tenant), against an 8192 MB ceiling
-(`vram_mb` in `config/models.yaml`, #375) — comfortably under. The
-fleet-placement grid's own static estimate is lower by default: `startup:
-on_demand` rows (whisper_vanilla, gemma4_26b, …) only join a host's sum
-while actually running, not as a standing worst-case reservation — see
-"On-demand model lifecycle" below.
+Current host ownership for every row above — which machine runs what, and
+any failover chain — is [`config/models.yaml`](config/models.yaml)'s alone.
 
 The Windows hub's admin UI Services card shows a live reachability pill for
 every other hub-running peer (mac-mini-m4, gaming — any future satellite
@@ -1313,7 +1297,8 @@ the active rotation: Qwen 3.5 4B (~2.6 GB), Gemma 4 26B-A4B IQ4_XS
 (~13.4 GB), whisper-large-v3-turbo (~1.62 GB), whisper-medium for
 translate (~1.5 GB), plus Gemma 4 E4B (~5 GB) kept as the
 agentic_light fallback, plus the llama.cpp + whisper.cpp CUDA
-binaries under `vendor/`. On the Mac mini it's Qwen only.
+binaries under `vendor/`. Other hosts' `enabled:` lists vary — see
+[config/models.yaml](config/models.yaml) for current per-host placement.
 
 The demoted candidate `glm-4.5-air` is in the registry but **not** in
 any host's `enabled:` list, so the installer ignores it. To bring it up

@@ -81,8 +81,8 @@ The brief itself lives in the skill
 research-prompt document, so cadence, weights, and structure have exactly
 one owner.
 
-`report.md` and `frontier.html` are opened directly — there is no admin
-UI viewer for them.
+`report.md` is opened directly; `frontier.html` is also served at
+`GET /admin/frontier` (the admin SPA footer's 📈 Frontier link points there).
 
 ## The `roles:` section in `config/models.yaml`
 
