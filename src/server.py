@@ -103,7 +103,6 @@ from .observability import (
     genai_meters,
     init_otel,
     instrument_fastapi_app,
-    record_genai_metrics,
     set_genai_payload,
     set_genai_request_attrs,
     set_genai_response_attrs,
@@ -114,6 +113,7 @@ from .server_common import (
     ensure_backend_ready_or_503 as _ensure_backend_ready,
     record_first_token as _record_first_token,
     record_last_token as _record_last_token,
+    record_route_metrics,
     resolve_model_or_400 as _resolve,
     stash_trace_id_on_ctx as _stash_trace_id_on_ctx,
 )
@@ -534,12 +534,12 @@ def _stream_anthropic_response(
             except Exception:  # noqa: BLE001
                 prompt_preview = ""
             set_genai_payload(span, prompt_preview, state.text)
-            record_genai_metrics(
+            record_route_metrics(
+                start_ns,
                 model=req.model,
                 backend=model.backend,
                 route="/v1/messages",
                 client_id=client_id,
-                duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
                 input_tokens=state.input_tokens,
                 output_tokens=state.output_tokens,
                 error_type=error_type,
@@ -599,12 +599,12 @@ def messages(req: MessagesRequest, request: Request) -> Response:
                 start_ns=start_ns,
             )
         except HTTPException as exc:
-            record_genai_metrics(
+            record_route_metrics(
+                start_ns,
                 model=req.model,
                 backend=model.backend,
                 route="/v1/messages",
                 client_id=client_id,
-                duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
                 error_type=f"http_{exc.status_code}",
             )
             raise
@@ -622,9 +622,10 @@ def messages(req: MessagesRequest, request: Request) -> Response:
             raise HTTPException(status_code=500, detail=f"unknown backend {model.backend!r}")
     except HTTPException as exc:
         error_type = f"http_{exc.status_code}"
-        record_genai_metrics(
+        record_route_metrics(
+            start_ns,
             model=req.model, backend=model.backend, route="/v1/messages",
-            client_id=client_id, duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
+            client_id=client_id,
             error_type=error_type,
         )
         raise
@@ -659,9 +660,10 @@ def messages(req: MessagesRequest, request: Request) -> Response:
         if block.get("type") == "text"
     )
     set_genai_payload(span, prompt_preview, completion_preview)
-    record_genai_metrics(
+    record_route_metrics(
+        start_ns,
         model=req.model, backend=model.backend, route="/v1/messages",
-        client_id=client_id, duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
+        client_id=client_id,
         input_tokens=int(u["input_tokens"]), output_tokens=int(u["output_tokens"]),
     )
     logger.info(
@@ -848,10 +850,10 @@ def _stream_openai_passthrough(
             yield "data: [DONE]\n\n"
         finally:
             track.finish()
-            record_genai_metrics(
+            record_route_metrics(
+                start_ns,
                 model=req.model, backend=model.backend,
                 route="/v1/chat/completions", client_id=client_id,
-                duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
                 input_tokens=usage_in, output_tokens=usage_out,
                 error_type=error_type,
             )
@@ -960,10 +962,10 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
                 finish_reason=str(env.get("stop_reason") or ""),
             )
             set_genai_payload(span, prompt, text)
-            record_genai_metrics(
+            record_route_metrics(
+                start_ns,
                 model=req.model, backend=model.backend,
                 route="/v1/chat/completions", client_id=client_id,
-                duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
                 input_tokens=in_t, output_tokens=out_t,
             )
             return JSONResponse(_wrap_as_openai(
@@ -1010,10 +1012,10 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
             except Exception:  # noqa: BLE001
                 completion_text = ""
             set_genai_payload(span, _flatten_openai_prompt(req.messages), completion_text)
-            record_genai_metrics(
+            record_route_metrics(
+                start_ns,
                 model=req.model, backend=model.backend,
                 route="/v1/chat/completions", client_id=client_id,
-                duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
                 input_tokens=in_t, output_tokens=out_t,
             )
             # Passthrough of upstream response (already OpenAI-shape), with
@@ -1025,10 +1027,10 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
         raise HTTPException(status_code=500, detail=f"unknown backend {model.backend!r}")
     finally:
         if error_type:
-            record_genai_metrics(
+            record_route_metrics(
+                start_ns,
                 model=req.model, backend=model.backend,
                 route="/v1/chat/completions", client_id=client_id,
-                duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
                 error_type=error_type,
             )
 

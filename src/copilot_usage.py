@@ -52,6 +52,7 @@ from src.usage_common import (
     FileStats,
     UsageRecord,
     encode_project_key,
+    iter_jsonl,
     load_cached,
     parse_iso_ts,
     project_pretty,
@@ -121,43 +122,35 @@ def _parse_cli_events_file(path: Path, cwd: Optional[str]) -> List[UsageRecord]:
 
     records: List[UsageRecord] = []
     try:
-        with path.open(encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if obj.get("type") != "session.shutdown":
-                    continue
+        for obj in iter_jsonl(path):
+            if obj.get("type") != "session.shutdown":
+                continue
 
-                data = obj.get("data") or {}
-                session_id = data.get("sessionId") or path.parent.name
-                ts = parse_iso_ts(obj.get("timestamp"))
-                model_metrics = data.get("modelMetrics") or {}
-                for model, metrics in model_metrics.items():
-                    if not isinstance(metrics, dict):
-                        continue
-                    usage = metrics.get("usage") or {}
-                    nano_aiu = metrics.get("totalNanoAiu") or 0
-                    records.append(
-                        UsageRecord(
-                            session_id=session_id,
-                            project_key=key,
-                            project_name=project_name,
-                            model=model,
-                            ts=ts,
-                            input_tokens=int(usage.get("inputTokens") or 0),
-                            output_tokens=int(usage.get("outputTokens") or 0),
-                            cache_creation_tokens=int(usage.get("cacheWriteTokens") or 0),
-                            cache_read_tokens=int(usage.get("cacheReadTokens") or 0),
-                            reasoning_output_tokens=int(usage.get("reasoningTokens") or 0),
-                            vendor="copilot",
-                            credits_usd=nano_aiu / 1e9 / 100,
-                        )
+            data = obj.get("data") or {}
+            session_id = data.get("sessionId") or path.parent.name
+            ts = parse_iso_ts(obj.get("timestamp"))
+            model_metrics = data.get("modelMetrics") or {}
+            for model, metrics in model_metrics.items():
+                if not isinstance(metrics, dict):
+                    continue
+                usage = metrics.get("usage") or {}
+                nano_aiu = metrics.get("totalNanoAiu") or 0
+                records.append(
+                    UsageRecord(
+                        session_id=session_id,
+                        project_key=key,
+                        project_name=project_name,
+                        model=model,
+                        ts=ts,
+                        input_tokens=int(usage.get("inputTokens") or 0),
+                        output_tokens=int(usage.get("outputTokens") or 0),
+                        cache_creation_tokens=int(usage.get("cacheWriteTokens") or 0),
+                        cache_read_tokens=int(usage.get("cacheReadTokens") or 0),
+                        reasoning_output_tokens=int(usage.get("reasoningTokens") or 0),
+                        vendor="copilot",
+                        credits_usd=nano_aiu / 1e9 / 100,
                     )
+                )
     except OSError as exc:
         _log.warning("⚠️ copilot_usage: cannot read %s: %s", path, exc)
     return records
@@ -288,17 +281,8 @@ def _parse_vscode_chat_file(path: Path, project_key: Optional[str]) -> List[Usag
     key = project_key or "vscode"
     project_name = project_pretty(key) if project_key else "(unknown)"
 
-    lines: List[dict] = []
     try:
-        with path.open(encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    lines.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
+        lines: List[dict] = list(iter_jsonl(path))
     except OSError as exc:
         _log.warning("⚠️ copilot_usage: cannot read %s: %s", path, exc)
         return []

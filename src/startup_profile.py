@@ -34,10 +34,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+from .atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -136,10 +137,7 @@ def save_startup_profile(data: Dict[str, Any], path: Optional[str] = None) -> St
     """Validate, atomically write, and invalidate the load cache."""
     target = Path(path) if path else DEFAULT_PROFILE_PATH
     clean = normalize_profile(data)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(json.dumps(clean.as_dict(), indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, target)
+    atomic_write_text(target, json.dumps(clean.as_dict(), indent=2) + "\n")
     _PROFILE_CACHE.pop(str(target), None)
     logger.info(
         "💾 Saved startup profile (docker=%s langfuse=%s agentsview=%s)",

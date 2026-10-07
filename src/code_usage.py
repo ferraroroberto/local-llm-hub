@@ -33,7 +33,6 @@ time-series/period-comparison bucketing in ``usage_charts.py``.
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -44,6 +43,7 @@ from src.usage_common import (
     FileStats,
     UsageRecord,
     encode_project_key,
+    iter_jsonl,
     load_cached,
     model_display,
     parse_iso_ts,
@@ -76,47 +76,39 @@ def _parse_jsonl_file(path: Path, project_key: str) -> List[UsageRecord]:
     """Parse one JSONL file and return usage records."""
     records: List[UsageRecord] = []
     try:
-        with path.open(encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
+        for obj in iter_jsonl(path):
 
-                if obj.get("type") != "assistant":
-                    continue
+            if obj.get("type") != "assistant":
+                continue
 
-                msg = obj.get("message") or {}
-                usage = msg.get("usage") or {}
-                if not usage:
-                    continue
+            msg = obj.get("message") or {}
+            usage = msg.get("usage") or {}
+            if not usage:
+                continue
 
-                # Timestamp — fall back gracefully.
-                ts = parse_iso_ts(obj.get("timestamp", ""))
+            # Timestamp — fall back gracefully.
+            ts = parse_iso_ts(obj.get("timestamp", ""))
 
-                model = msg.get("model") or "unknown"
-                session_id = obj.get("sessionId") or str(path.stem)
+            model = msg.get("model") or "unknown"
+            session_id = obj.get("sessionId") or str(path.stem)
 
-                records.append(
-                    UsageRecord(
-                        session_id=session_id,
-                        project_key=project_key,
-                        project_name=project_pretty(project_key),
-                        model=model,
-                        ts=ts,
-                        input_tokens=int(usage.get("input_tokens") or 0),
-                        output_tokens=int(usage.get("output_tokens") or 0),
-                        cache_creation_tokens=int(
-                            usage.get("cache_creation_input_tokens") or 0
-                        ),
-                        cache_read_tokens=int(
-                            usage.get("cache_read_input_tokens") or 0
-                        ),
-                    )
+            records.append(
+                UsageRecord(
+                    session_id=session_id,
+                    project_key=project_key,
+                    project_name=project_pretty(project_key),
+                    model=model,
+                    ts=ts,
+                    input_tokens=int(usage.get("input_tokens") or 0),
+                    output_tokens=int(usage.get("output_tokens") or 0),
+                    cache_creation_tokens=int(
+                        usage.get("cache_creation_input_tokens") or 0
+                    ),
+                    cache_read_tokens=int(
+                        usage.get("cache_read_input_tokens") or 0
+                    ),
                 )
+            )
     except OSError as exc:
         _log.warning("⚠️ code_usage: cannot read %s: %s", path, exc)
     return records

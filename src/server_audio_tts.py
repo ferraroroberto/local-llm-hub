@@ -23,7 +23,7 @@ from .model_registry import Model
 from .remote_proxy import remote_base_url
 from .server_audio_asr import router
 from .server_audio_common import _audio_upstream_error, _remote_audio_headers
-from .server_common import current_otel_span, ensure_backend_ready_or_503, safe_span, stash_trace_id_on_ctx
+from .server_common import current_otel_span, ensure_backend_ready_or_503, set_span_attrs, stash_trace_id_on_ctx
 
 logger = logging.getLogger(__name__)
 
@@ -98,13 +98,12 @@ async def audio_speech(request: Request) -> Response:
         ctx.backend = "tts"
 
     span = current_otel_span()
-    if span is not None and hasattr(span, "set_attribute"):
-        with safe_span("tts_attrs"):
-            span.set_attribute("gen_ai.system", "tts")
-            span.set_attribute("gen_ai.operation.name", "audio_speech")
-            if model_name:
-                span.set_attribute("gen_ai.request.model", model_name)
-            span.set_attribute("tts.port", int(port))
+    set_span_attrs(span, "tts_attrs", {
+        "gen_ai.system": "tts",
+        "gen_ai.operation.name": "audio_speech",
+        "gen_ai.request.model": model_name or None,
+        "tts.port": int(port),
+    })
     stash_trace_id_on_ctx(ctx, span)
 
     upstream_url = f"{remote}/v1/audio/speech" if remote else f"http://127.0.0.1:{port}/v1/audio/speech"

@@ -22,10 +22,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+from .atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -89,10 +90,7 @@ def load_fleet_maintenance(path: Optional[str] = None) -> Dict[str, Dict[str, An
 
 def _save(data: Dict[str, Dict[str, Any]], path: Optional[str] = None) -> None:
     target = Path(path) if path else DEFAULT_MAINTENANCE_PATH
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, target)
+    atomic_write_text(target, json.dumps(data, indent=2) + "\n")
     _MAINTENANCE_CACHE.pop(str(target), None)
 
 

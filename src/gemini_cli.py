@@ -44,7 +44,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from .server_common import safe_span, start_span
+from .server_common import safe_span, set_span_attrs, start_span
 
 logger = logging.getLogger(__name__)
 
@@ -435,11 +435,10 @@ def call_gemini(
     exe = _resolve_agy()
 
     with start_span("local_llm_hub.gemini_cli", "gemini_cli.invoke") as span:
-        if span is not None and hasattr(span, "set_attribute"):
-            with safe_span("gemini_cli.invoke"):
-                if model:
-                    span.set_attribute("gemini_cli.model", model)
-                span.set_attribute("gemini_cli.attachments", len(attachments or []))
+        set_span_attrs(span, "gemini_cli.invoke", {
+            "gemini_cli.model": model or None,
+            "gemini_cli.attachments": len(attachments or []),
+        })
 
         with _LOCK:
             model_switched = bool(model and model != _current_model)
@@ -473,10 +472,10 @@ def call_gemini(
             reply = _print_call(
                 exe, full_prompt, run_cwd, timeout, add_dirs=add_dirs or None)
 
-        if span is not None and hasattr(span, "set_attribute"):
-            with safe_span("gemini_cli.invoke"):
-                span.set_attribute("gemini_cli.reply_bytes", len(reply))
-                span.set_attribute("gemini_cli.model_switched", model_switched)
+        set_span_attrs(span, "gemini_cli.invoke", {
+            "gemini_cli.reply_bytes": len(reply),
+            "gemini_cli.model_switched": model_switched,
+        })
 
     return {
         "type": "result",
@@ -526,10 +525,10 @@ def call_gemini_image(
         timeout = 600.0 if editing else 300.0
 
     with start_span("local_llm_hub.gemini_cli", "gemini_cli.image") as span:
-        if span is not None and hasattr(span, "set_attribute"):
-            with safe_span("gemini_cli.image"):
-                span.set_attribute("gemini_cli.model", _IMAGE_HOST_MODEL)
-                span.set_attribute("gemini_cli.image_editing", editing)
+        set_span_attrs(span, "gemini_cli.image", {
+            "gemini_cli.model": _IMAGE_HOST_MODEL,
+            "gemini_cli.image_editing": editing,
+        })
 
         with _LOCK:
             if _IMAGE_HOST_MODEL != _current_model:
@@ -580,10 +579,10 @@ def call_gemini_image(
                 f"(reply: {reply[:200]!r})"
             )
 
-        if span is not None and hasattr(span, "set_attribute"):
-            with safe_span("gemini_cli.image"):
-                span.set_attribute("gemini_cli.image_bytes", len(image_bytes))
-                span.set_attribute("gemini_cli.image_media_type", media_type)
+        set_span_attrs(span, "gemini_cli.image", {
+            "gemini_cli.image_bytes": len(image_bytes),
+            "gemini_cli.image_media_type": media_type,
+        })
 
     return {
         "image_bytes": image_bytes,

@@ -21,13 +21,32 @@ it moved here as :func:`period_since` / :func:`today_utc` in #471.
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 _log = logging.getLogger(__name__)
+
+
+def iter_jsonl(path: Path) -> Iterator[Any]:
+    """Yield each decoded JSON line of ``path``, skipping blank and corrupt lines.
+
+    The one JSONL read loop every vendor parser shares. Undecodable bytes are
+    replaced rather than raised. ``OSError`` from opening or reading
+    propagates, so a caller's ``except OSError`` still sees an unreadable file.
+    """
+    with path.open(encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
 
 
 @dataclass

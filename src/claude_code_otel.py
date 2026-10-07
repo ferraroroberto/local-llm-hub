@@ -56,7 +56,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from src.usage_common import model_display, period_since
+from src.usage_common import iter_jsonl, model_display, period_since
 
 _log = logging.getLogger(__name__)
 
@@ -208,26 +208,21 @@ def _load_points() -> List[UsagePoint]:
 
     points: List[UsagePoint] = []
     try:
-        with _DATA_FILE.open("r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                    points.append(
-                        UsagePoint(
-                            ts=datetime.fromisoformat(row["ts"]),
-                            metric=row["metric"],
-                            model=row["model"],
-                            query_source=row["query_source"],
-                            token_type=row.get("token_type"),
-                            value=float(row["value"]),
-                            project=row.get("project"),
-                        )
+        for row in iter_jsonl(_DATA_FILE):
+            try:
+                points.append(
+                    UsagePoint(
+                        ts=datetime.fromisoformat(row["ts"]),
+                        metric=row["metric"],
+                        model=row["model"],
+                        query_source=row["query_source"],
+                        token_type=row.get("token_type"),
+                        value=float(row["value"]),
+                        project=row.get("project"),
                     )
-                except Exception:  # noqa: BLE001
-                    continue
+                )
+            except Exception:  # noqa: BLE001
+                continue
     except OSError:
         return []
 

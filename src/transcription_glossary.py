@@ -27,11 +27,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+
+from .atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -198,12 +199,9 @@ def save_glossary(data: Dict[str, Any], path: Optional[str] = None) -> Dict[str,
     """
     target = Path(path) if path else DEFAULT_GLOSSARY_PATH
     clean = normalize_glossary(data)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(
-        json.dumps(clean, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    atomic_write_text(
+        target, json.dumps(clean, indent=2, ensure_ascii=False) + "\n"
     )
-    os.replace(tmp, target)
     load_rules.cache_clear()
     logger.info(
         "💾 Saved transcription glossary (%d replacements, %d boost terms)",

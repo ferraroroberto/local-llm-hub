@@ -44,7 +44,7 @@ from .server_audio_common import (
 from .server_common import (
     current_otel_span,
     ensure_backend_ready_or_503,
-    safe_span,
+    set_span_attrs,
     stash_trace_id_on_ctx,
 )
 
@@ -475,13 +475,13 @@ async def _forward_to_candidate(
     port = target.port
     remote = remote_base_url(target)
 
-    if span is not None and hasattr(span, "set_attribute"):
-        with safe_span("whisper_attrs"):
-            span.set_attribute("gen_ai.system", "whisper")
-            span.set_attribute("gen_ai.operation.name", default_role)
-            span.set_attribute("gen_ai.request.model", requested)
-            span.set_attribute("whisper.port", int(port))
-            span.set_attribute("whisper.model_id", target.id)
+    set_span_attrs(span, "whisper_attrs", {
+        "gen_ai.system": "whisper",
+        "gen_ai.operation.name": default_role,
+        "gen_ai.request.model": requested,
+        "whisper.port": int(port),
+        "whisper.model_id": target.id,
+    })
     stash_trace_id_on_ctx(ctx, span)
 
     base = remote if remote else f"http://127.0.0.1:{port}"
@@ -530,10 +530,10 @@ async def _forward_to_candidate(
     if ctx is not None:
         ctx.served_model = served_model
         ctx.served_host = served_host
-    if span is not None and hasattr(span, "set_attribute"):
-        with safe_span("whisper_served"):
-            span.set_attribute("gen_ai.response.model", served_model)
-            span.set_attribute("hub.served_host", served_host)
+    set_span_attrs(span, "whisper_served", {
+        "gen_ai.response.model": served_model,
+        "hub.served_host": served_host,
+    })
 
     # Apply the committed transcription glossary (issue #90) to a 200 transcript
     # before returning. Deterministic literal fixes (e.g. "cloud code" →
