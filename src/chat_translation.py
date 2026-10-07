@@ -1045,4 +1045,9 @@ def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
         temperature=req.temperature,
         extra=extra,
     )
-    return openai_to_anthropic_envelope(raw)
+    try:
+        return openai_to_anthropic_envelope(raw)
+    except UpstreamError as e:
+        # A malformed tool call is an upstream fault, same as the 502 that
+        # call_openai_upstream applies to the request itself.
+        raise HTTPException(status_code=502, detail=str(e))

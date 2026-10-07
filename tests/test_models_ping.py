@@ -185,3 +185,24 @@ def test_ping_transport_error_is_a_status_zero_envelope(monkeypatch):
     assert body["status"] == 0
     assert body["error"] == "hub unreachable"
     assert body["latency_ms"] >= 0
+
+
+def test_ping_latency_excludes_client_construction(monkeypatch):
+    """latency_ms is the backend's response time: building the httpx client
+    (~0.26 s of SSL context on the reference box, #165) happens before the
+    clock starts (#710)."""
+    import time
+
+    class _SlowToBuildClient:
+        def __init__(self, *a, **k):
+            time.sleep(0.25)
+
+        is_closed = False
+
+        async def post(self, url, **kwargs):
+            return _FakePingResp()
+
+    monkeypatch.setattr(httpx, "AsyncClient", _SlowToBuildClient)
+    resp = _admin_client().post("/api/models/whisper/ping")
+    assert resp.status_code == 200
+    assert resp.json()["latency_ms"] < 150

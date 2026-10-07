@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import logging
 import subprocess
-import sys
 import time
+from pathlib import Path
 from typing import Optional
 
 import psutil
@@ -19,6 +19,8 @@ import psutil
 from .no_window import NO_WINDOW
 
 logger = logging.getLogger(__name__)
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 _NVIDIA_SMI_TIMEOUT_S = 3.0
 
@@ -45,13 +47,14 @@ def cpu_stats() -> dict[str, float]:
 
 
 def disk_stats() -> dict[str, float]:
-    """Return usage of the system drive as {used_gb, total_gb, percent}.
+    """Return usage of the drive the hub lives on as {used_gb, total_gb, percent}.
 
-    Probes the OS root (``C:\\`` on Windows, ``/`` elsewhere) — the drive
-    the hub and model weights live on, which is the one worth surfacing on
-    the machine card. Swallows errors to an empty dict so a probe failure
-    never breaks the dashboard poll (same contract as the other probes)."""
-    root = "C:\\" if sys.platform == "win32" else "/"
+    Probes the anchor of the project root (the checkout's own drive, e.g. ``E:``
+    on the tower; ``/`` on POSIX) — the drive the hub and model weights live
+    on, which is the one worth surfacing on the machine card. Swallows errors
+    to an empty dict so a probe failure never breaks the dashboard poll (same
+    contract as the other probes)."""
+    root = _PROJECT_ROOT.anchor
     try:
         du = psutil.disk_usage(root)
     except OSError as exc:
