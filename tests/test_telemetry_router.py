@@ -150,3 +150,72 @@ def test_response_carries_x_trace_id_when_otel_disabled():
     # the regression we want to avoid is a malformed empty value.
     if "x-trace-id" in r.headers:
         assert len(r.headers["x-trace-id"]) > 0
+
+
+# ------------------------------------------- project-id resolution logging (#707)
+
+
+class _FakeProjectsClient:
+    def __init__(self, response=None, error=None):
+        self._response, self._error = response, error
+
+    async def get(self, url, **kwargs):
+        if self._error is not None:
+            raise self._error
+        return self._response
+
+
+class _FakeProjectsResponse:
+    def __init__(self, status_code, payload):
+        self.status_code = status_code
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+def _resolve(client, monkeypatch):
+    import asyncio
+
+    from app_web.routers import telemetry
+
+    telemetry._reset_project_id_cache_for_tests()
+    monkeypatch.setattr(telemetry, "langfuse_basic_auth", lambda: "Basic x")
+    return telemetry, asyncio.run(telemetry._resolve_project_id(client))
+
+
+def test_project_id_failures_are_logged_once_per_reason(monkeypatch, caplog):
+    with caplog.at_level("INFO"):
+        telemetry, pid = _resolve(
+            _FakeProjectsClient(_FakeProjectsResponse(401, {})), monkeypatch
+        )
+        assert pid == ""
+        assert any("HTTP 401" in r.getMessage() for r in caplog.records)
+
+        caplog.clear()
+        import asyncio
+
+        asyncio.run(telemetry._resolve_project_id(
+            _FakeProjectsClient(_FakeProjectsResponse(401, {}))
+        ))
+        assert not caplog.records  # same reason on the next poll: no repeat
+
+        for client, needle in (
+            (_FakeProjectsClient(_FakeProjectsResponse(200, {"data": []})), "project list empty"),
+            (_FakeProjectsClient(_FakeProjectsResponse(200, {"data": [{}]})), "no id"),
+            (_FakeProjectsClient(error=RuntimeError("conn reset")), "conn reset"),
+        ):
+            caplog.clear()
+            assert asyncio.run(telemetry._resolve_project_id(client)) == ""
+            assert any(needle in r.getMessage() for r in caplog.records), needle
+    telemetry._reset_project_id_cache_for_tests()
+
+
+def test_project_id_success_is_cached(monkeypatch):
+    telemetry, pid = _resolve(
+        _FakeProjectsClient(_FakeProjectsResponse(200, {"data": [{"id": "p1"}]})),
+        monkeypatch,
+    )
+    assert pid == "p1"
+    assert telemetry._CACHED_PROJECT_ID == "p1"
+    telemetry._reset_project_id_cache_for_tests()
