@@ -549,7 +549,11 @@ async def _forward_to_candidate(
                 out_content = apply_to_response(
                     upstream.content, upstream.headers.get("content-type"), rules,
                 )
-        except Exception:  # noqa: BLE001 — never let post-processing fail the proxy
+        except Exception as exc:  # noqa: BLE001 — never let post-processing fail the proxy
+            logger.warning(
+                "⚠️ transcription glossary not applied, returning the raw transcript: %s: %s",
+                type(exc).__name__, exc,
+            )
             out_content = upstream.content
 
     # Drop the peer hub's own X-Hub-* trio from the passthrough: this hub

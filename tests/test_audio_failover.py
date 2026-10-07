@@ -620,3 +620,25 @@ def test_local_backend_headers_are_not_trusted_as_peer_answers(monkeypatch, writ
     assert req.state.obs_ctx.served_model == "wa"
     assert req.state.obs_ctx.served_host == "pc"
     assert resp.headers["x-hub-served-model"] == "wa"
+
+
+def test_glossary_failure_is_logged_and_raw_transcript_returned(
+    monkeypatch, write_config, caplog
+):
+    """A broken glossary must not fail the proxy (#707) — but it must say so."""
+    _two_whisper_config(write_config, monkeypatch, transcribe={"model_id": "wa"})
+
+    def boom():
+        raise ValueError("bad rules file")
+
+    monkeypatch.setattr(transcription_glossary, "load_rules", boom)
+    monkeypatch.setattr(
+        server_audio_asr, "get_async_client",
+        lambda: _FakeClient(lambda url, kwargs: _FakeResp(200, b'{"text":"raw"}')))
+    with caplog.at_level("WARNING", logger=server_audio_asr.logger.name):
+        resp = _proxy(_FakeReq())
+    assert resp.body == b'{"text":"raw"}'
+    assert any(
+        "glossary not applied" in r.getMessage() and "bad rules file" in r.getMessage()
+        for r in caplog.records
+    )

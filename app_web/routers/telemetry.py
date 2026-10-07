@@ -54,6 +54,25 @@ _TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 # Set to "" when keys are missing or the lookup failed; we retry next health probe.
 _PROJECT_ID_LOCK = threading.Lock()
 _CACHED_PROJECT_ID: Optional[str] = None
+# Last logged failure reason. The health probe retries every SPA poll while
+# the project id is unresolved, so a repeating failure logs once, not per poll.
+_LAST_PROJECT_ID_FAILURE: str = ""
+
+
+def _note_project_id_failure(reason: str, level: int = logging.WARNING) -> str:
+    """Log why project-id resolution failed (once per distinct reason) and
+    return "" so callers can ``return _note_project_id_failure(...)``."""
+    global _LAST_PROJECT_ID_FAILURE
+    with _PROJECT_ID_LOCK:
+        changed = reason != _LAST_PROJECT_ID_FAILURE
+        _LAST_PROJECT_ID_FAILURE = reason
+    if changed:
+        logger.log(
+            level,
+            "⚠️ Langfuse project id unresolved (%s) — trace deep-links fall back to /trace/<id>",
+            reason,
+        )
+    return ""
 
 
 def _langfuse_host() -> str:
@@ -80,26 +99,28 @@ async def _resolve_project_id(client: httpx.AsyncClient) -> str:
             headers={"Authorization": auth},
         )
         if r.status_code != 200:
-            return ""
+            return _note_project_id_failure(f"HTTP {r.status_code} from /api/public/projects")
         body = r.json()
         # Response shape: {"data": [{"id": "...", "name": "..."}, ...]}
         items = body.get("data") if isinstance(body, dict) else None
         if not items:
-            return ""
+            return _note_project_id_failure("project list empty", logging.INFO)
         pid = (items[0] or {}).get("id") or ""
-        if pid:
-            with _PROJECT_ID_LOCK:
-                _CACHED_PROJECT_ID = pid
+        if not pid:
+            return _note_project_id_failure("first project has no id")
+        with _PROJECT_ID_LOCK:
+            _CACHED_PROJECT_ID = pid
         return pid
-    except Exception:  # noqa: BLE001
-        return ""
+    except Exception as exc:  # noqa: BLE001
+        return _note_project_id_failure(f"{type(exc).__name__}: {exc}")
 
 
 def _reset_project_id_cache_for_tests() -> None:
     """Tests-only — wipe the cached project_id."""
-    global _CACHED_PROJECT_ID
+    global _CACHED_PROJECT_ID, _LAST_PROJECT_ID_FAILURE
     with _PROJECT_ID_LOCK:
         _CACHED_PROJECT_ID = None
+        _LAST_PROJECT_ID_FAILURE = ""
 
 
 # ---------------------------------------------------------------- health
