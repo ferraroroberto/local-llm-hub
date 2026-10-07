@@ -129,7 +129,6 @@ def test_compute_flags_denied_ports_and_partial_memory(db):
     assert cov["proc_mem"]["status"] == "partial"
     assert cov["proc_mem"] == {"status": "partial", "readable": 1, "total": 2}
     assert coverage.is_degraded(cov)
-    assert set(coverage.blind_collectors(cov)) == {"ports", "proc_mem", "proc_cpu"}
 
 
 def test_compute_is_clean_when_everything_readable(db):
@@ -138,7 +137,6 @@ def test_compute_is_clean_when_everything_readable(db):
     assert cov["ports"]["status"] == "ok"
     assert cov["proc_mem"]["status"] == "ok"
     assert not coverage.is_degraded(cov)
-    assert coverage.blind_collectors(cov) == []
 
 
 def test_apple_silicon_marks_gpu_unsupported(db, monkeypatch):

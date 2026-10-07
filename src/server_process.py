@@ -78,9 +78,6 @@ def lan_ip() -> Optional[str]:
         s.close()
 
 
-def lan_url() -> Optional[str]:
-    ip = lan_ip()
-    return f"http://{ip}:{PORT}" if ip else None
 
 
 def is_reachable(timeout: float = 1.5) -> bool:

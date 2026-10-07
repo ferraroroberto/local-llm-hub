@@ -25,7 +25,7 @@ export never drift apart.
 from __future__ import annotations
 
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from . import store
 
@@ -98,11 +98,6 @@ def is_degraded(coverage: Dict[str, Any]) -> bool:
     """True if any collector was blind — the verdict must not read as a plain
     ``healthy`` while this holds."""
     return any((c or {}).get("status") in _BLIND for c in (coverage or {}).values())
-
-
-def blind_collectors(coverage: Dict[str, Any]) -> List[str]:
-    return [name for name, c in (coverage or {}).items()
-            if (c or {}).get("status") in _BLIND]
 
 
 def collector_status(coverage: Dict[str, Any], collector: str) -> str:
