@@ -16,6 +16,7 @@ from src import config_write
 from src import remote_stats
 from src import server_systemone
 from src.host_profile import all_hosts, get_host, resolve as resolve_host
+from src.http_client import get_async_client
 from src.model_failover import effective_owner
 from src.model_reachability import local_reachability
 from src.model_registry import (
@@ -506,10 +507,12 @@ async def _timed_probe(
     """
     import httpx
 
+    # The pooled client exists before the clock starts, so latency_ms is the
+    # backend's response time and not the ~0.26 s an httpx client costs to build.
+    client = get_async_client()
     t0 = time.monotonic_ns()
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            r = await client.post(url, **post_kwargs)
+        r = await client.post(url, timeout=timeout, **post_kwargs)
     except httpx.HTTPError as exc:
         return {
             "ok": False,

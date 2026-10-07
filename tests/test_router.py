@@ -537,3 +537,32 @@ def test_messages_gemini_signed_out_agy_is_502_and_ring_error(monkeypatch):
     newest = OBS.recent_errors(limit=1)[0]
     assert newest["path"] == "/v1/messages"
     assert newest["status"] == 502
+
+
+def test_messages_malformed_tool_call_arguments_is_a_502(monkeypatch):
+    """The buffered openai path must map a bad tool call to a 502 like every
+    other upstream fault, not leak an unhandled 500 (#710)."""
+    bad = _fake_openai_response("")
+    bad["choices"][0]["message"] = {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [{
+            "id": "call_1",
+            "type": "function",
+            "function": {"name": "lookup", "arguments": "{not json"},
+        }],
+    }
+    monkeypatch.setattr(
+        chat_translation_mod, "call_openai_chat", lambda *a, **k: bad
+    )
+    client = TestClient(server_mod.app, raise_server_exceptions=False)
+    r = client.post(
+        "/v1/messages",
+        json={
+            "model": "qwen3.5-4b",
+            "max_tokens": 64,
+            "messages": [{"role": "user", "content": "ping"}],
+        },
+    )
+    assert r.status_code == 502, r.text
+    assert "unparseable arguments" in r.text
