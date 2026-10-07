@@ -91,25 +91,6 @@ chatterbox), not piper. Orpheus on the GTX 1070 runs at ~0.5× real time
 (a 7 s utterance takes ~12.6 s), acceptable for on-demand expressive speech but
 not for anything interactive.
 
-## Placement recommendation
-
-Data-backed, superseding the pre-benchmark guess. Static `host:` targets:
-
-| Model | Recommended host | Rationale |
-| --- | --- | --- |
-| `agentic_heavy` / `agentic_light` | **tower** | GPU-hungry; the box being reserved |
-| **piper** (`audio_speech`, HA voice) | **tower** (stay) | CPU — zero GPU cost, fastest option; moving it to an edge buys nothing until the mac/Linux piper installer exists, and even then only for locality |
-| **whisper-vanilla + whisper-translate** | **gaming** | low-frequency, non-latency-critical (Spanish notes, ES→EN); the ~2× slowdown is irrelevant here and it frees tower VRAM |
-| **whisper-turbo** (accurate dictation) | **gaming** | **No tower VRAM headroom** — agentic-heavy (~13 GB) + agentic-light fill the 16 GB card, so a GPU whisper can't co-reside on the tower. It lives on gaming (19× RT — imperceptible for dictation); interim reliability rides gaming stability + the #342 fallback (a last-resort CPU-whisper on the tower, which costs no VRAM). Migrate in earnest once gaming is multi-day stable |
-| **orpheus** (expressive TTS) | **gaming** (stay) | GPU engine, so moving it off tower is what actually frees GPU; 0.5× real time is fine for on-demand expressive speech |
-| **parakeet** | **mac** — selectable, not default | ANE speed is excellent (65× RT, sub-second) and suits HA voice commands; the dropped wake phrase + higher domain WER keep it a fast opt-in, not the accurate default. The ready-but-hangs wedge that blocked it is now fixed |
-| kokoro / chatterbox | tower, on-demand | low-priority comparison options; kokoro's Windows ONNX path is slow |
-
-Net effect: **tower keeps only the agentic GPU load + CPU piper**; the GPU-TTS
-(orpheus) and the low-frequency STT (vanilla/translate) move to gaming; parakeet
-stays a mac-side opt-in. This frees the tower GPU for the agentic lanes without
-regressing the fast HA-voice path (piper stays put and stays instant).
-
 ## Findings / caveats
 
 1. **Gaming stability — cautiously positive, not yet proven.** An earlier
