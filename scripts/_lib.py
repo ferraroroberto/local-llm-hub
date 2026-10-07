@@ -4,7 +4,8 @@
 GitHub release archive, extract it into a ``vendor/`` directory, and
 collapse a single-subdir extraction — near line-for-line duplicates before
 this module existed (issue #195). Consolidated here so a fix to the
-download/extract/flatten logic lands once instead of twice.
+release-fetch/download/extract/flatten logic and the Linux CUDA build hint
+lands once instead of twice.
 
 Not a package ``__init__`` — a plain sibling module. Each install script
 inserts its own directory onto ``sys.path`` before importing this (works
@@ -15,7 +16,9 @@ dispatch).
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import shutil
 import subprocess
 import sys
@@ -54,6 +57,53 @@ def detect_cuda_arch() -> str:
     except Exception:  # noqa: BLE001 — best-effort probe
         pass
     return ""
+
+
+def fetch_release(url: str) -> dict:
+    """GET a GitHub releases API ``url`` and return the decoded JSON."""
+    log.info("querying %s ...", url)
+    req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.load(r)
+
+
+def server_binary(vendor_dir: Path, stem: str) -> Path:
+    """``<vendor_dir>/<stem>[.exe]`` — the vendored server binary's path."""
+    return vendor_dir / (f"{stem}.exe" if sys.platform == "win32" else stem)
+
+
+def linux_cuda_build_hint(
+    *,
+    name: str,
+    git_url: str,
+    binary: str,
+    vendor_dir: Path,
+    ref: str = "",
+    extra_cmake_flags: str = "",
+) -> str:
+    """A reproducible from-source CUDA build recipe for a Linux satellite.
+
+    Upstream ships no prebuilt Linux CUDA server binary for either project;
+    gaming's sm_61 build was compiled by hand (#368). Rather than ship an
+    untested automated compile, surface the exact commands with the arch
+    defaulted to this host's detected GPU (override via
+    ``LOCAL_LLM_HUB_CUDA_ARCH``). ``ref`` pins a git tag to clone;
+    ``extra_cmake_flags`` is appended (with a leading space) to the configure
+    line. The automated build itself remains a deliberate follow-up.
+    """
+    arch = os.environ.get("LOCAL_LLM_HUB_CUDA_ARCH") or detect_cuda_arch() or "61"
+    src = f"/tmp/{name}"
+    branch = f"--branch {ref} " if ref else ""
+    return (
+        f"no prebuilt {name} asset for Linux — build from source with CUDA.\n"
+        f"target GPU arch: sm_{arch} (override via LOCAL_LLM_HUB_CUDA_ARCH). "
+        "Reproducible build (run on the satellite; not yet automated — #368):\n"
+        f"  git clone {branch}--depth 1 {git_url} {src}\n"
+        f"  cmake -S {src} -B {src}/build "
+        f"-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES={arch}{extra_cmake_flags}\n"
+        f"  cmake --build {src}/build --config Release -j --target {binary}\n"
+        f"  cp {src}/build/bin/{binary} {vendor_dir}/"
+    )
 
 
 def download(url: str, dest: Path) -> None:
@@ -99,3 +149,21 @@ def flatten_if_nested(target: Path) -> None:
         for child in inner.iterdir():
             shutil.move(str(child), str(target / child.name))
         inner.rmdir()
+
+
+def lift_into(src_dir: Path, dest_dir: Path) -> None:
+    """Move every child of ``src_dir`` up into ``dest_dir``, overwriting.
+
+    For archives that extract the server binary into a ``build/bin/`` or
+    ``bin/`` subdirectory: the whole directory travels so sibling DLLs and
+    dylibs stay next to the binary.
+    """
+    log.info("flattening %s -> %s", src_dir, dest_dir)
+    for child in list(src_dir.iterdir()):
+        target = dest_dir / child.name
+        if target.exists():
+            if target.is_dir():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+        shutil.move(str(child), str(target))

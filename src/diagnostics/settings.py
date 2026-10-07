@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+from ..atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -99,10 +100,7 @@ def save_settings(data: Dict[str, Any]) -> DiagnosticsSettings:
     """Validate, atomically write, invalidate the cache."""
     target = _target()
     clean = normalize(data)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(json.dumps(clean.as_dict(), indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, target)
+    atomic_write_text(target, json.dumps(clean.as_dict(), indent=2) + "\n")
     _cache.pop(str(target), None)
     logger.info(
         "💾 Saved diagnostics settings (retention=%dd scheduled=%s every %.0fh)",

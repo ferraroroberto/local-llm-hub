@@ -46,11 +46,12 @@ from .comfyui_client import (
 from .gemini_cli import GeminiCLIError, call_gemini_image
 from .image_sizes import DEFAULT_SIZE, ImageSizeError, parse_size
 from .model_registry import Model
-from .observability import record_genai_metrics, set_genai_request_attrs
+from .observability import set_genai_request_attrs
 from .remote_proxy import remote_base_url
 from .server_common import (
     client_id_from,
     current_otel_span,
+    record_route_metrics,
     resolve_model_or_400,
     stash_trace_id_on_ctx,
 )
@@ -205,10 +206,10 @@ def images_generations(req: ImagesGenerationRequest, request: Request) -> JSONRe
             # is deliberately not forwarded here (docs/image-generation.md).
             out = call_gemini_image(req.prompt)
     except (GeminiCLIError, ComfyUIError) as e:
-        record_genai_metrics(
+        record_route_metrics(
+            start_ns,
             model=req.model, backend=model.backend,
             route="/v1/images/generations", client_id=client_id,
-            duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
             error_type=("comfyui_error" if isinstance(e, ComfyUIError)
                         else "gemini_cli_error"),
         )
@@ -217,19 +218,19 @@ def images_generations(req: ImagesGenerationRequest, request: Request) -> JSONRe
         # _generate_via_comfyui's own 503s (remote-owned row, backend never
         # became ready) — record them before they propagate so a failed
         # on-demand load is visible in the ring rather than silently absent.
-        record_genai_metrics(
+        record_route_metrics(
+            start_ns,
             model=req.model, backend=model.backend,
             route="/v1/images/generations", client_id=client_id,
-            duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
             error_type=f"http_{e.status_code}",
         )
         raise
 
     b64 = base64.b64encode(out["image_bytes"]).decode("ascii")
-    record_genai_metrics(
+    record_route_metrics(
+        start_ns,
         model=req.model, backend=model.backend,
         route="/v1/images/generations", client_id=client_id,
-        duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
     )
     logger.info(
         "<- image bytes=%d media=%s backend=%s",
@@ -318,10 +319,10 @@ async def images_edits(
                 call_gemini_image, prompt, reference_image=tmp_path
             )
         except GeminiCLIError as e:
-            record_genai_metrics(
+            record_route_metrics(
+                start_ns,
                 model=model, backend=resolved.backend,
                 route="/v1/images/edits", client_id=client_id,
-                duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
                 error_type="gemini_cli_error",
             )
             raise HTTPException(status_code=502, detail=str(e))
@@ -333,10 +334,10 @@ async def images_edits(
                 pass
 
     b64 = base64.b64encode(out["image_bytes"]).decode("ascii")
-    record_genai_metrics(
+    record_route_metrics(
+        start_ns,
         model=model, backend=resolved.backend,
         route="/v1/images/edits", client_id=client_id,
-        duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
     )
     logger.info(
         "<- edited image bytes=%d media=%s", len(out["image_bytes"]),

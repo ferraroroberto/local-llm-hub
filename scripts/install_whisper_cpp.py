@@ -13,27 +13,27 @@ Idempotent: if the binary already runs, exits fast.
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 import platform
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
-import urllib.request
 from pathlib import Path
 from typing import List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _lib import (  # noqa: E402
     InstallError,
-    detect_cuda_arch,
     download,
     extract,
+    fetch_release,
     flatten_if_nested,
+    linux_cuda_build_hint,
+    lift_into,
     no_window_flags,
+    server_binary,
 )
 
 log = logging.getLogger(__name__)
@@ -57,8 +57,7 @@ WIN_CUDA_PREFS = ["cublas-12.4.0", "cublas-12.2.0", "cublas-11.8.0"]
 
 
 def _server_binary() -> Path:
-    name = "whisper-server.exe" if sys.platform == "win32" else "whisper-server"
-    return VENDOR_DIR / name
+    return server_binary(VENDOR_DIR, "whisper-server")
 
 
 def _upstream_server_names() -> List[str]:
@@ -93,25 +92,15 @@ def already_installed() -> bool:
 
 
 def _linux_cuda_build_hint() -> str:
-    """A reproducible from-source CUDA build recipe for a Linux satellite.
-
-    Upstream ships no prebuilt Linux CUDA whisper-server; gaming's sm_61 build
-    was compiled by hand (#368). Rather than an untested automated compile,
-    surface the exact commands with the arch defaulted to this host's detected
-    GPU (override via ``LOCAL_LLM_HUB_CUDA_ARCH``). Pinned tag matches the
-    Windows/macOS vendored line. The automated build itself is a follow-up.
-    """
-    arch = os.environ.get("LOCAL_LLM_HUB_CUDA_ARCH") or detect_cuda_arch() or "61"
-    return (
-        "no prebuilt whisper.cpp asset for Linux — build from source with CUDA.\n"
-        f"target GPU arch: sm_{arch} (override via LOCAL_LLM_HUB_CUDA_ARCH). "
-        "Reproducible build (run on the satellite; not yet automated — #368):\n"
-        f"  git clone --branch {PINNED_TAG} --depth 1 "
-        "https://github.com/ggml-org/whisper.cpp /tmp/whisper.cpp\n"
-        "  cmake -S /tmp/whisper.cpp -B /tmp/whisper.cpp/build "
-        f"-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES={arch} -DWHISPER_BUILD_SERVER=ON\n"
-        "  cmake --build /tmp/whisper.cpp/build --config Release -j --target whisper-server\n"
-        f"  cp /tmp/whisper.cpp/build/bin/whisper-server {VENDOR_DIR}/"
+    """Upstream ships no prebuilt Linux CUDA whisper-server (#368). The pinned
+    tag matches the Windows/macOS vendored line."""
+    return linux_cuda_build_hint(
+        name="whisper.cpp",
+        git_url=WHISPER_CPP_GIT_URL,
+        binary="whisper-server",
+        vendor_dir=VENDOR_DIR,
+        ref=PINNED_TAG,
+        extra_cmake_flags=" -DWHISPER_BUILD_SERVER=ON",
     )
 
 
@@ -224,13 +213,6 @@ def _run_build_step(cmd: List[str], *, cwd: Optional[Path] = None, timeout: int)
         raise InstallError(f"build step failed: {' '.join(cmd)}\n{tail}")
 
 
-def _fetch_release() -> dict:
-    log.info("querying %s ...", RELEASES_URL)
-    req = urllib.request.Request(RELEASES_URL, headers={"Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.load(r)
-
-
 def _purge_vendor() -> None:
     """Remove the existing vendored tree so a forced reinstall lands clean.
 
@@ -302,17 +284,8 @@ def _normalise_binary_name() -> None:
         for candidate in VENDOR_DIR.rglob(candidate_name):
             # Lift the entire bin directory up alongside the expected path,
             # so sibling DLLs (cudart, whisper.dll, ggml.dll, ...) travel with it.
-            src_dir = candidate.parent
-            if src_dir != VENDOR_DIR:
-                log.info("flattening %s -> %s", src_dir, VENDOR_DIR)
-                for child in list(src_dir.iterdir()):
-                    target = VENDOR_DIR / child.name
-                    if target.exists():
-                        if target.is_dir():
-                            shutil.rmtree(target)
-                        else:
-                            target.unlink()
-                    shutil.move(str(child), str(target))
+            if candidate.parent != VENDOR_DIR:
+                lift_into(candidate.parent, VENDOR_DIR)
             src = VENDOR_DIR / candidate_name
             if src.exists() and src != want:
                 log.info("renaming %s -> %s", src.name, want.name)
@@ -342,7 +315,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             raise InstallError(
                 f"only darwin arm64 is supported; this is {platform.machine()}"
             )
-        release = _fetch_release()
+        release = fetch_release(RELEASES_URL)
         tag = release.get("tag_name", "?")
         asset = _find_macos_asset(release)
         VENDOR_DIR.mkdir(parents=True, exist_ok=True)
@@ -369,7 +342,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         log.info("installed: %s", _server_binary())
         return 0
 
-    release = _fetch_release()
+    release = fetch_release(RELEASES_URL)
     tag = release.get("tag_name", "?")
     assets = _pick_assets(release)
     log.info("release %s: picking %d asset(s)", tag, len(assets))

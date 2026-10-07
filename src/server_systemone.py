@@ -47,12 +47,16 @@ from fastapi.responses import JSONResponse, Response
 from .http_client import get_async_client
 from .observability import (
     hash_prompts_enabled,
-    record_genai_metrics,
     set_genai_payload,
     set_genai_request_attrs,
     set_genai_response_attrs,
 )
-from .server_common import client_id_from, current_otel_span, stash_trace_id_on_ctx
+from .server_common import (
+    client_id_from,
+    current_otel_span,
+    record_route_metrics,
+    stash_trace_id_on_ctx,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -165,9 +169,9 @@ async def systemone(request: Request) -> Response:
     start_ns = time.monotonic_ns()
 
     def _metrics(error_type: str = "", in_tok: int = 0, out_tok: int = 0) -> None:
-        record_genai_metrics(
+        record_route_metrics(
+            start_ns,
             model=model, backend=BACKEND, route=ROUTE, client_id=client_id,
-            duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
             input_tokens=in_tok, output_tokens=out_tok, error_type=error_type,
         )
 

@@ -29,13 +29,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import threading
 import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from src.atomic_write import atomic_write_text
 from src.usage_common import UsageRecord
 
 logger = logging.getLogger(__name__)
@@ -105,13 +105,11 @@ def _save_locked() -> None:
     global _dirty, _last_save
     try:
         _HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
-        tmp = _HISTORY_PATH.with_suffix(".json.tmp")
         payload = {
             "updated": datetime.now(tz=timezone.utc).isoformat(),
             "entries": _entries or {},
         }
-        tmp.write_text(json.dumps(payload) + "\n", encoding="utf-8")
-        os.replace(tmp, _HISTORY_PATH)
+        atomic_write_text(_HISTORY_PATH, json.dumps(payload) + "\n")
         _dirty = False
         _last_save = time.time()
     except OSError as exc:

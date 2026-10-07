@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import secrets
 import threading
 import time
@@ -34,6 +33,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .atomic_write import atomic_write_text
 from .webapp_config import WebappConfig
 
 logger = logging.getLogger(__name__)
@@ -139,12 +139,9 @@ class WebAuthnGate:
         return list(raw.get("devices") or [])
 
     def _save_devices(self, devices: List[Dict[str, Any]]) -> None:
-        self._devices_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._devices_path.with_suffix(".json.tmp")
-        tmp.write_text(
-            json.dumps({"devices": devices}, indent=2), encoding="utf-8"
+        atomic_write_text(
+            self._devices_path, json.dumps({"devices": devices}, indent=2)
         )
-        os.replace(tmp, self._devices_path)
 
     def list_devices(self) -> List[Dict[str, Any]]:
         return [

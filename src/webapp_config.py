@@ -20,12 +20,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode, urlparse, urlunparse
+
+from .atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -120,9 +121,7 @@ def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
         "cors_allow_origins": cfg.cors_allow_origins,
     }
 
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    os.replace(tmp, target)
+    atomic_write_text(target, json.dumps(payload, indent=2))
     logger.info(f"💾 Saved webapp_config to {target}")
     return target
 

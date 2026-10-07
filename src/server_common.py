@@ -13,11 +13,12 @@ from __future__ import annotations
 import logging
 import time
 from contextlib import contextmanager, nullcontext
-from typing import Any, Iterator, Optional
+from typing import Any, Iterator, Mapping, Optional
 
 from fastapi import HTTPException, Request
 
 from .model_registry import Model, enabled_models, resolve as resolve_model
+from .observability import record_genai_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,46 @@ def safe_span(label: str = "span") -> Iterator[None]:
         yield
     except Exception as exc:  # noqa: BLE001 — telemetry is best-effort
         logger.warning("⚠️ span telemetry (%s) failed: %s", label, exc)
+
+
+def set_span_attrs(span: Any, label: str, attrs: Mapping[str, Any]) -> None:
+    """Set ``attrs`` on ``span`` best-effort, skipping ``None`` values.
+
+    The one home for the ``span is not None and hasattr(span, "set_attribute")``
+    guard + :func:`safe_span` pair the CLI wrappers and audio proxies used to
+    each repeat. Falsy-but-meaningful values (``0``, ``False``) are kept; only
+    ``None`` is dropped, so callers pass ``model or None`` to omit an empty
+    string.
+    """
+    if span is None or not hasattr(span, "set_attribute"):
+        return
+    with safe_span(label):
+        for key, value in attrs.items():
+            if value is not None:
+                span.set_attribute(key, value)
+
+
+def record_route_metrics(
+    start_ns: int,
+    *,
+    model: str,
+    backend: str,
+    route: str,
+    client_id: str,
+    **kwargs: Any,
+) -> None:
+    """:func:`record_genai_metrics` with ``duration_ms`` derived from ``start_ns``.
+
+    ``kwargs`` forwards ``input_tokens`` / ``output_tokens`` / ``error_type``.
+    """
+    record_genai_metrics(
+        model=model,
+        backend=backend,
+        route=route,
+        client_id=client_id,
+        duration_ms=(time.monotonic_ns() - start_ns) / 1e6,
+        **kwargs,
+    )
 
 
 def record_first_token(span: Any, start_ns: int) -> int:

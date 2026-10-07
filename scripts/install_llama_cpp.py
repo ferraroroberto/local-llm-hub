@@ -12,25 +12,24 @@ llama-server[.exe] --version already works, it exits fast.
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 import platform
-import shutil
 import subprocess
 import sys
-import urllib.request
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _lib import (  # noqa: E402
     InstallError,
-    detect_cuda_arch,
     download,
     extract,
+    fetch_release,
     flatten_if_nested,
+    linux_cuda_build_hint,
+    lift_into,
     no_window_flags,
+    server_binary,
 )
 
 log = logging.getLogger(__name__)
@@ -45,8 +44,7 @@ WIN_CUDA_PREFS = ["cuda-13.1", "cuda-12.4"]
 
 
 def _server_binary() -> Path:
-    name = "llama-server.exe" if sys.platform == "win32" else "llama-server"
-    return VENDOR_DIR / name
+    return server_binary(VENDOR_DIR, "llama-server")
 
 
 def already_installed() -> bool:
@@ -63,32 +61,13 @@ def already_installed() -> bool:
 
 
 def _linux_cuda_build_hint() -> str:
-    """A reproducible from-source CUDA build recipe for a Linux satellite.
-
-    Upstream ships **no** prebuilt Linux CUDA binary, and gaming's sm_61
-    build was compiled by hand (#368). Rather than ship an untested automated
-    compile, surface the exact reproducible commands with the arch defaulted to
-    this host's detected GPU (override via ``LOCAL_LLM_HUB_CUDA_ARCH``). The
-    automated build itself remains a deliberate follow-up.
-    """
-    arch = os.environ.get("LOCAL_LLM_HUB_CUDA_ARCH") or detect_cuda_arch() or "61"
-    return (
-        "no prebuilt llama.cpp asset for Linux — build from source with CUDA.\n"
-        f"target GPU arch: sm_{arch} (override via LOCAL_LLM_HUB_CUDA_ARCH). "
-        "Reproducible build (run on the satellite; not yet automated — #368):\n"
-        "  git clone --depth 1 https://github.com/ggml-org/llama.cpp /tmp/llama.cpp\n"
-        "  cmake -S /tmp/llama.cpp -B /tmp/llama.cpp/build "
-        f"-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES={arch}\n"
-        "  cmake --build /tmp/llama.cpp/build --config Release -j --target llama-server\n"
-        f"  cp /tmp/llama.cpp/build/bin/llama-server {VENDOR_DIR}/"
+    """Upstream ships **no** prebuilt Linux CUDA llama-server (#368)."""
+    return linux_cuda_build_hint(
+        name="llama.cpp",
+        git_url="https://github.com/ggml-org/llama.cpp",
+        binary="llama-server",
+        vendor_dir=VENDOR_DIR,
     )
-
-
-def _fetch_release() -> dict:
-    log.info("querying %s ...", RELEASES_URL)
-    req = urllib.request.Request(RELEASES_URL, headers={"Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.load(r)
 
 
 def _pick_assets(release: dict) -> List[dict]:
@@ -144,7 +123,7 @@ def main() -> int:
         # above; reaching here means it's missing and must be compiled.
         raise InstallError(_linux_cuda_build_hint())
 
-    release = _fetch_release()
+    release = fetch_release(RELEASES_URL)
     tag = release.get("tag_name", "?")
     assets = _pick_assets(release)
     log.info("release %s: picking %d asset(s)", tag, len(assets))
@@ -164,18 +143,8 @@ def main() -> int:
         # Some zips extract into a `build/bin/` or `bin/` subdirectory.
         for candidate in VENDOR_DIR.rglob(bin_path.name):
             # Move the entire bin directory up next to llama-server.exe.
-            src_dir = candidate.parent
-            if src_dir == VENDOR_DIR:
-                break
-            log.info("flattening %s -> %s", src_dir, VENDOR_DIR)
-            for child in list(src_dir.iterdir()):
-                target = VENDOR_DIR / child.name
-                if target.exists():
-                    if target.is_dir():
-                        shutil.rmtree(target)
-                    else:
-                        target.unlink()
-                shutil.move(str(child), str(target))
+            if candidate.parent != VENDOR_DIR:
+                lift_into(candidate.parent, VENDOR_DIR)
             break
 
     if not already_installed():

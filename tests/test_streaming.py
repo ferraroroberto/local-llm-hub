@@ -757,7 +757,7 @@ def test_chat_completions_streaming_usage_populated_from_trailing_frame(monkeypa
         recorded["input_tokens"] = input_tokens
         recorded["output_tokens"] = output_tokens
 
-    monkeypatch.setattr(server_mod, "record_genai_metrics", fake_record)
+    monkeypatch.setattr(server_common_mod, "record_genai_metrics", fake_record)
 
     client = TestClient(server_mod.app)
     with client.stream(

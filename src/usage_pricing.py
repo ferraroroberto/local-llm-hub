@@ -21,30 +21,18 @@ _log = logging.getLogger(__name__)
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
 
 # Anthropic API list prices (USD per million tokens), keyed by model family.
-# Loaded once from config/claude_pricing.json; this dict is the fallback used
-# when that file is missing or unreadable, so cost display degrades gracefully.
+# Loaded once from config/claude_pricing.json — the single source of truth. A
+# missing or unreadable file logs a warning and prices at zero (unknown), which
+# ``record_costs`` already treats as "no fabricated cost".
 _PRICING_PATH: Path = _PROJECT_ROOT / "config" / "claude_pricing.json"
-_PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
-    "Fable":  {"input": 10.0, "output": 50.0, "cache_write": 12.50, "cache_read": 1.00},
-    "Opus":   {"input": 5.0, "output": 25.0, "cache_write": 6.25, "cache_read": 0.50},
-    "Sonnet": {"input": 3.0, "output": 15.0, "cache_write": 3.75, "cache_read": 0.30},
-    "Haiku":  {"input": 1.0, "output": 5.0,  "cache_write": 1.25, "cache_read": 0.10},
-}
 
 # OpenAI API list prices (USD per million tokens), keyed by display model id
 # (what model_display returns for a Codex model, e.g. "GPT-5.5").  Used to
 # show the equivalent metered-API cost of host-side Codex usage.  Loaded once
-# from config/openai_pricing.json; this dict is the fallback when that file is
-# missing or unreadable.  Codex's cached_input tokens are a *subset* of input
-# (not additive), so the cost path prices the non-cached remainder at "input"
-# and the cached portion at "cached_input".
+# from config/openai_pricing.json.  Codex's cached_input tokens are a *subset*
+# of input (not additive), so the cost path prices the non-cached remainder at
+# "input" and the cached portion at "cached_input".
 _OPENAI_PRICING_PATH: Path = _PROJECT_ROOT / "config" / "openai_pricing.json"
-_OPENAI_PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
-    "GPT-5.6-SOL": {"input": 5.0,  "cached_input": 0.50, "output": 30.0},
-    "GPT-5.5":     {"input": 5.0,  "cached_input": 0.50, "output": 30.0},
-    "GPT-5.5 Pro": {"input": 30.0, "cached_input": 0.0,  "output": 180.0},
-    "GPT-5.4":     {"input": 2.5,  "cached_input": 0.25, "output": 15.0},
-}
 
 # Gemini API list prices in USD per million tokens, keyed by family (what
 # gemini_family collapses an AGY model name to).  Used to show the
@@ -52,11 +40,6 @@ _OPENAI_PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
 # against Google list prices, same idea as Codex vs OpenAI.  AGY cache reads
 # are reported separately/additively (Claude-style), priced at "cache_read".
 _GEMINI_PRICING_PATH: Path = _PROJECT_ROOT / "config" / "gemini_pricing.json"
-_GEMINI_PRICING_FALLBACK: Dict[str, Dict[str, float]] = {
-    "pro":        {"input": 2.0,  "output": 12.0, "cache_read": 0.20},
-    "flash":      {"input": 0.30, "output": 2.50, "cache_read": 0.03},
-    "flash-lite": {"input": 0.10, "output": 0.40, "cache_read": 0.01},
-}
 
 # Memoized price tables, keyed by cache slot ("claude" / "openai" / "gemini");
 # populated lazily by ``_load_priced_table``.
@@ -66,7 +49,6 @@ _priced_table_cache: Dict[str, Dict[str, Dict[str, float]]] = {}
 def _load_priced_table(
     path: Path,
     top_key: str,
-    fallback: Dict[str, Dict[str, float]],
     cache_slot: str,
 ) -> Dict[str, Dict[str, float]]:
     """Return a per-family/per-model price table, loaded once from config and cached.
@@ -74,14 +56,15 @@ def _load_priced_table(
     Shared loader for the Claude/OpenAI/Gemini pricing tables (each used to
     carry its own near-identical ~35-line copy differing only in the config
     path, the JSON top-level key, and which cache slot to memoize into).
-    Falls back to ``fallback`` when ``path`` is missing or malformed, so the
-    cost display never hard-fails on a fresh checkout.
+    When ``path`` is missing or malformed the table is empty (a warning is
+    logged): every model then prices at zero rather than at a stale copy of
+    the rates, so the cost display never hard-fails and never lies.
     """
     cached = _priced_table_cache.get(cache_slot)
     if cached is not None:
         return cached
 
-    pricing: Dict[str, Dict[str, float]] = dict(fallback)
+    pricing: Dict[str, Dict[str, float]] = {}
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         table = raw.get(top_key) or {}
@@ -93,7 +76,7 @@ def _load_priced_table(
             }
     except (OSError, ValueError, TypeError) as exc:
         _log.warning(
-            "⚠️ usage_pricing: using fallback pricing (%s unreadable): %s",
+            "⚠️ usage_pricing: pricing unavailable, costs read as zero (%s unreadable): %s",
             path, exc,
         )
     _priced_table_cache[cache_slot] = pricing
@@ -102,12 +85,12 @@ def _load_priced_table(
 
 def load_pricing() -> Dict[str, Dict[str, float]]:
     """Return the per-family Claude price table, loaded once from config and cached."""
-    return _load_priced_table(_PRICING_PATH, "families", _PRICING_FALLBACK, "claude")
+    return _load_priced_table(_PRICING_PATH, "families", "claude")
 
 
 def load_openai_pricing() -> Dict[str, Dict[str, float]]:
     """Return the per-model OpenAI price table, loaded once and cached."""
-    return _load_priced_table(_OPENAI_PRICING_PATH, "models", _OPENAI_PRICING_FALLBACK, "openai")
+    return _load_priced_table(_OPENAI_PRICING_PATH, "models", "openai")
 
 
 def gemini_family(model: str) -> str:
@@ -132,7 +115,7 @@ def gemini_family(model: str) -> str:
 
 def load_gemini_pricing() -> Dict[str, Dict[str, float]]:
     """Return the per-family Gemini price table, loaded once and cached."""
-    return _load_priced_table(_GEMINI_PRICING_PATH, "families", _GEMINI_PRICING_FALLBACK, "gemini")
+    return _load_priced_table(_GEMINI_PRICING_PATH, "families", "gemini")
 
 
 def record_costs(r: "UsageRecord") -> Tuple[float, float, float]:

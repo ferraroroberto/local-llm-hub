@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from .no_window import NO_WINDOW
-from .server_common import safe_span, start_span
+from .server_common import set_span_attrs, start_span
 
 logger = logging.getLogger(__name__)
 
@@ -119,12 +119,11 @@ def call_claude(
     )
 
     with start_span("local_llm_hub.claude_cli", "claude_cli.invoke") as span:
-        if span is not None and hasattr(span, "set_attribute"):
-            with safe_span("claude_cli.invoke"):
-                span.set_attribute("claude_cli.argv_hash", _argv_hash(args))
-                if model:
-                    span.set_attribute("claude_cli.model", model)
-                span.set_attribute("claude_cli.attachments", len(attachments or []))
+        set_span_attrs(span, "claude_cli.invoke", {
+            "claude_cli.argv_hash": _argv_hash(args),
+            "claude_cli.model": model or None,
+            "claude_cli.attachments": len(attachments or []),
+        })
         try:
             # Suppress the Windows Terminal window that would otherwise spawn
             # for every request when the hub itself is running under pythonw
@@ -152,10 +151,10 @@ def call_claude(
                 f"claude -p timed out after {timeout:g}s"
             ) from e
 
-        if span is not None and hasattr(span, "set_attribute"):
-            with safe_span("claude_cli.invoke"):
-                span.set_attribute("claude_cli.exit_code", int(proc.returncode))
-                span.set_attribute("claude_cli.stderr_bytes", len(proc.stderr or ""))
+        set_span_attrs(span, "claude_cli.invoke", {
+            "claude_cli.exit_code": int(proc.returncode),
+            "claude_cli.stderr_bytes": len(proc.stderr or ""),
+        })
 
         if proc.returncode != 0:
             raise ClaudeCLIError(
@@ -212,13 +211,12 @@ def call_claude_stream(
     # OTel context token from a different context raises. Trace process launch
     # here; the route-level span owns the full streamed request lifetime.
     with start_span("local_llm_hub.claude_cli", "claude_cli.launch") as span:
-        if span is not None and hasattr(span, "set_attribute"):
-            with safe_span("claude_cli.launch"):
-                span.set_attribute("claude_cli.argv_hash", _argv_hash(args))
-                if model:
-                    span.set_attribute("claude_cli.model", model)
-                span.set_attribute("claude_cli.attachments", len(attachments or []))
-                span.set_attribute("claude_cli.streaming", True)
+        set_span_attrs(span, "claude_cli.launch", {
+            "claude_cli.argv_hash": _argv_hash(args),
+            "claude_cli.model": model or None,
+            "claude_cli.attachments": len(attachments or []),
+            "claude_cli.streaming": True,
+        })
         try:
             proc = subprocess.Popen(
                 args,
