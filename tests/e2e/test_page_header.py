@@ -67,3 +67,20 @@ def test_labelled_otel_button_keeps_every_header_inside_the_phone_width(page, ad
         assert edges["stub"] is None or edges["stub"] >= 60, (
             f"{pane}: context line squeezed to {edges['stub']}px"
         )
+
+
+_PAINT = """els => els.map(el => {
+    const s = getComputedStyle(el);
+    return [s.backgroundColor, s.borderTopWidth];
+})"""
+
+
+def test_header_toggles_and_dialog_close_are_unpainted_glyphs(page, admin_url):
+    """They are .icon-button's (project-scaffolding#339): a glyph on nothing at rest."""
+    page.goto(admin_url, wait_until="load")
+    page.wait_for_selector("#paneHub .home-head", state="visible", timeout=5000)
+    toggles = page.locator("#paneHub .home-head .home-toggle")
+    closes = page.locator(".detail-close")
+    assert toggles.count() == 2 and closes.count() >= 4
+    for paint in toggles.evaluate_all(_PAINT) + closes.evaluate_all(_PAINT):
+        assert paint == ["rgba(0, 0, 0, 0)", "0px"]
