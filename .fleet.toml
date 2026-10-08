@@ -97,7 +97,7 @@ range-tab     = { src = "app/webapp/static/_vendored/range-tab", sha = "7e1433c7
 select-native = { src = "app/webapp/static/_vendored/select-native", sha = "7e1433c70cac1bdcdbd160e874d3f486ba9e2a08", dest = "app_web/static/_vendored/select-native" }
 switch        = { src = "app/webapp/static/_vendored/switch", sha = "7e1433c70cac1bdcdbd160e874d3f486ba9e2a08", dest = "app_web/static/_vendored/switch" }
 text-size     = { src = "app/webapp/static/_vendored/text-size", sha = "8f89563a959dbf05bb368a230e9b898a9cae2291", dest = "app_web/static/_vendored/text-size" }
-icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "28c3e2c09a6bdc224a2188dfd2abcea2d99744f7", dest = "app_web/static/_vendored/icon-button" }
+icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "aa820f1215151087588433f290cd2ba55b34658d", dest = "app_web/static/_vendored/icon-button" }
 
 # Accepted /design-review exceptions: a failing rubric rule listed here is
 # filed under "## Accepted" in the design-review issue, never under Findings.
