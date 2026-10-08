@@ -5,7 +5,6 @@ Endpoints (all under /admin/api/hub):
   * POST /stop              — graceful shutdown (the page will then 502)
   * POST /restart           — spawn a watchdog that respawns ``src.server``
   * GET  /log/tail          — SSE stream of root-logger lines
-  * GET  /log/recent        — non-SSE seed (last N lines)
   * GET  /stats             — 5-minute ring of RAM/CPU/GPU samples (sparklines)
   * GET  /requests/stream   — SSE stream of every routed /v1/* request
   * GET  /requests/recent   — non-SSE seed (last N records)
@@ -148,11 +147,6 @@ async def hub_restart() -> Dict[str, Any]:
 
 
 # ----------------------------------------------------------------- log tail
-
-@router.get("/api/hub/log/recent")
-async def log_recent(limit: int = 400) -> Dict[str, Any]:
-    return {"lines": HUB_LOG.lines(limit=max(1, min(limit, 2000)))}
-
 
 @router.get("/api/hub/log/tail")
 async def log_tail(request: Request) -> StreamingResponse:

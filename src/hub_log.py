@@ -33,7 +33,6 @@ _POLLING_NOISE_PATHS = (
     "/admin/api/hub/stats",
     "/admin/api/hub/requests/recent",
     "/admin/api/hub/errors/recent",
-    "/admin/api/hub/log/recent",
     "/admin/api/models",
     "/admin/api/install/status",
     "/admin/api/version",
