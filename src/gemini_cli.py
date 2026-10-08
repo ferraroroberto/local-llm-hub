@@ -68,9 +68,23 @@ _catalogue: Optional[List[str]] = None
 # Google's Imagen, exposed as an agentic tool reachable from any Gemini text
 # session. We host it inside the cheapest/fastest text model (the current
 # gemini_flash row); the choice does not affect the image model used.
-# Verified: issue #114 spike. Kept in sync with gemini_flash's display_name
-# in config/models.yaml (#442 remapped the picker row itself).
-_IMAGE_HOST_MODEL = "Gemini 3.6 Flash"
+# Verified: issue #114 spike. The picker label is read from the gemini_flash
+# registry row at call time (#708), so a picker remap in config/models.yaml
+# (#442, #629) is followed with no second edit here.
+_IMAGE_HOST_MODEL_ID = "gemini_flash"
+
+
+def _image_host_model() -> str:
+    """Picker label of the model that hosts the image tool (the registry's
+    ``gemini_flash`` row)."""
+    from .model_registry import resolve_any
+
+    row = resolve_any(_IMAGE_HOST_MODEL_ID)
+    if row is None:
+        raise GeminiCLIError(
+            f"image host model {_IMAGE_HOST_MODEL_ID!r} is not in config/models.yaml"
+        )
+    return row.display_name
 
 # Magic-byte signatures → media type. `agy` saves the artifact under whatever
 # name we ask, but the bytes may be a different format than the extension
@@ -509,7 +523,7 @@ def call_gemini_image(
 
     `agy` has no image model in its `/model` picker — image generation is an
     agentic tool (Google Imagen) reachable from an ordinary Gemini text
-    session. This drives that path: it hosts the tool in ``_IMAGE_HOST_MODEL``
+    session. This drives that path: it hosts the tool in :func:`_image_host_model`
     (switching the globally-persisted model first if needed, same serialized
     contract as :func:`call_gemini`), runs a print-mode prompt that asks the
     model to produce the image and save it into a throwaway working dir, then
@@ -532,20 +546,21 @@ def call_gemini_image(
     """
     global _current_model
     exe = _resolve_agy()
+    host_model = _image_host_model()
     editing = reference_image is not None
     if timeout is None:
         timeout = 600.0 if editing else 300.0
 
     with start_span("local_llm_hub.gemini_cli", "gemini_cli.image") as span:
         set_span_attrs(span, "gemini_cli.image", {
-            "gemini_cli.model": _IMAGE_HOST_MODEL,
+            "gemini_cli.model": host_model,
             "gemini_cli.image_editing": editing,
         })
 
         with _LOCK:
-            if _IMAGE_HOST_MODEL != _current_model:
-                _switch_model(exe, _IMAGE_HOST_MODEL)
-                _current_model = _IMAGE_HOST_MODEL
+            if host_model != _current_model:
+                _switch_model(exe, host_model)
+                _current_model = host_model
 
             workdir = Path(tempfile.mkdtemp(prefix="hub_imggen_"))
             try:
