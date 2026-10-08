@@ -28,7 +28,7 @@ class Model:
     # model (agy's built-in Imagen tool), routed through
     # POST /v1/images/generations rather than the text chat paths. There is
     # no picker entry for it — the image tool is hosted inside an ordinary
-    # Gemini text session (see src/gemini_cli._IMAGE_HOST_MODEL).
+    # Gemini text session (see src/gemini_cli._image_host_model).
     image_gen: bool = False
     # For backend == "tts" (engine "tts-server"): which synthesis engine
     # the shim loads — chatterbox, kokoro, orpheus, piper. See src/tts_engines/.

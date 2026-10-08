@@ -386,3 +386,21 @@ def test_print_call_prose_mentioning_errors_is_an_answer(monkeypatch, reply):
     _fake_pty_replying(monkeypatch, reply)
 
     assert gemini_cli._print_call("/fake/agy", "hello", None, 600.0) == reply
+
+
+def test_image_host_model_tracks_registry_row(monkeypatch):
+    """#708: the image tool is hosted in the registry's gemini_flash row,
+    not a hand-synced literal that drifts when the picker row is remapped."""
+    from src import model_registry
+
+    row = model_registry.resolve_any("gemini_flash")
+    assert row is not None
+    assert gemini_cli._image_host_model() == row.display_name
+
+    captured = {}
+    _stub_calls(monkeypatch, captured, reply="no image, sorry")
+    monkeypatch.setattr(
+        gemini_cli, "_image_host_model", lambda: "Gemini 9.9 Flash")
+    with pytest.raises(gemini_cli.GeminiCLIError):
+        gemini_cli.call_gemini_image("a cat")
+    assert captured["switches"] == ["Gemini 9.9 Flash"]
