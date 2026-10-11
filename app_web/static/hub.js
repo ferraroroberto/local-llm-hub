@@ -538,7 +538,8 @@ function renderServices() {
 /* The Langfuse sheet: the OTel pane's stack health, same values. */
 function langfuseHealth() {
   const h = state.telHealth;
-  if (!h) return { text: 'unreachable', tone: 'danger' };
+  if (state.telHealthFailed) return { text: 'unreachable', tone: 'danger' };
+  if (!h) return { text: 'checking…', tone: '' };
   if (!h.otel_enabled) return { text: 'OTel disabled', tone: 'attention' };
   if (h.langfuse_reachable) return { text: 'live', tone: '' };
   return { text: 'Langfuse offline', tone: 'danger' };

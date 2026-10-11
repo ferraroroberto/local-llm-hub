@@ -38,6 +38,7 @@ export const state = {
 
   // Telemetry tab — its own state slice (issue #4).
   telHealth: null,
+  telHealthFailed: false,  // the last health read failed: "unreachable" on the pane and the Hub Langfuse sheet (#738)
   telCounters: [],
   telTraces: [],
   telStreamCtl: null,

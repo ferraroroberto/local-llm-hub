@@ -27,9 +27,11 @@ export async function fetchTelemetryHealth() {
   try {
     const body = await jsonApi('/admin/api/telemetry/health');
     state.telHealth = body;
+    state.telHealthFailed = false;
     renderHealth(body);
   } catch (exc) {
     if (isAuthError(exc)) return;
+    state.telHealthFailed = true;
     setHealthDot('danger', 'unreachable');
   }
 }
