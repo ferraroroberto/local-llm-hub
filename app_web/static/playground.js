@@ -73,7 +73,13 @@ function renderPlayHeadLine() {
     });
   }
   const fact = MODE_LABEL[playMode] + (n ? ' · ' + n + (n === 1 ? ' model' : ' models') : '');
-  setHeadLine(el, parts, fact);
+  if (parts.length) { setHeadLine(el, parts, fact); return; }
+  // Nothing wrong: a plain subtitle, not a live line, so on a phone it yields
+  // to the Traces button and the OTel pane stays one tap away (#740; Step 6
+  // retires the button).
+  el.classList.remove('head-line');
+  el.textContent = fact;
+  el.title = fact;
 }
 
 /* Each result card shows a one-line placeholder until its mode has produced
