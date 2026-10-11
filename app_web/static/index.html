@@ -81,115 +81,47 @@
   </nav>
 
   <main class="app">
-    <section id="paneHub" class="pane" role="tabpanel" aria-labelledby="tabHub">
-      <!-- Page header: the vendored home-head (_vendored/home-head) — title, one context
-           line, and the theme toggle pinned right. -->
+    <section id="paneHub" class="pane" role="tabpanel" aria-labelledby="tabHub" data-wide="cols">
+      <!-- Page header: the vendored home-head (_vendored/home-head) — title, the live
+           header line (rows.js setHeadLine: a down service, the error count, an
+           unreachable hub; else the uptime), and the theme toggle pinned right. -->
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>Hub</span>
-        <span id="hubLiveStatus" class="status hub-live-status" aria-live="polite"><span class="dot"></span><span id="hubLiveStatusText">checking…</span></span>
+        <span id="hubHeadLine" class="status head-line" role="status" aria-live="polite">Reading hub…</span>
         <button type="button" class="ghost-btn home-otel" data-open-tab="telemetry" aria-label="Open traces and usage" title="Open traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Traces</button>
         <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
 
-      <!-- Hub card: heading first (J-04, #647), then PID + Uptime (one line), sparklines. -->
-      <section class="card">
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-server"></use></svg>This hub</h2>
-        </div>
-        <div class="hub-meta-row">
-          <span><span>PID</span><code id="hubPid">—</code></span>
-          <span><span>Uptime</span><span id="hubUptime">—</span></span>
-        </div>
-        <div class="sparklines" id="hubSparklines"></div>
-      </section>
+      <!-- Two columns on a wide window (rows.css .wide-cols): glance, services and
+           health on the left, the Activity feed on the right. One column on a phone. -->
+      <div class="hub-cols wide-cols">
+        <div class="hub-col">
+          <!-- Glance (#738): "is the hub serving, is anything failing" — requests,
+               errors and median latency since hub start (the hub keeps no hourly
+               history, so it says which window), one load sparkline whose series
+               the control below swaps, and the process line. -->
+          <section class="card hub-glance" id="hubGlance">
+            <div class="card-header">
+              <h2><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg>Serving</h2>
+              <span id="hubWindow" class="muted hub-window">since start</span>
+            </div>
+            <div class="hub-figures" aria-live="polite">
+              <div class="hub-figure"><span class="hub-figure-value" id="hubReqCount">—</span><span class="hub-figure-label">Requests</span></div>
+              <div class="hub-figure"><span class="hub-figure-value" id="hubErrCount">—</span><span class="hub-figure-label">Errors</span></div>
+              <div class="hub-figure"><span class="hub-figure-value" id="hubP50">—</span><span class="hub-figure-label">Median</span></div>
+            </div>
+            <div class="sparklines" id="hubSparklines"></div>
+            <div class="segmented hub-series" id="hubSeries" role="group" aria-label="Load history to show"></div>
+            <p class="hub-proc muted">Process <code id="hubPid">—</code> · up <span id="hubUptime">—</span></p>
+          </section>
 
-      <!-- Services: Docker + Langfuse status with one-click launch (issue #27) -->
-      <section class="card" id="servicesCard">
-        <div class="card-header">
-          <div class="hub-title-block">
-            <h2><svg class="icon" aria-hidden="true"><use href="#i-layers"></use></svg>Services</h2>
-            <span id="servicesOverall" class="hub-live-status" aria-live="polite">
-              <span class="dot"></span>
-              <span id="servicesOverallText">checking…</span>
-            </span>
-          </div>
-        </div>
-        <div class="services-rows">
-          <div class="services-row">
-            <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-container"></use></svg>Docker</span>
-            <span id="dockerStatus" class="hub-live-status">
-              <span class="dot"></span><span id="dockerStatusText">—</span>
-            </span>
-            <span id="dockerDetail" class="muted small services-detail"></span>
-            <span class="services-actions">
-              <button id="dockerStartBtn" type="button" class="ghost-btn" hidden title="Start" aria-label="Start Docker Desktop"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
-              <button id="dockerStopBtn" type="button" class="ghost-btn" hidden title="Stop" aria-label="Stop Docker Desktop"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
-            </span>
-          </div>
-          <div class="services-row">
-            <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Langfuse</span>
-            <span id="langfuseStatus" class="hub-live-status">
-              <span class="dot"></span><span id="langfuseStatusText">—</span>
-            </span>
-            <span id="langfuseDetail" class="muted small services-detail"></span>
-            <span class="services-actions">
-              <button id="langfuseStartBtn" type="button" class="ghost-btn" hidden title="Start" aria-label="Start Langfuse"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
-              <button id="langfuseStopBtn" type="button" class="ghost-btn" hidden title="Stop" aria-label="Stop Langfuse"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
-            </span>
-          </div>
-          <div class="services-row">
-            <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>AgentsView</span>
-            <span id="agentsviewStatus" class="hub-live-status">
-              <span class="dot"></span><span id="agentsviewStatusText">—</span>
-            </span>
-            <span id="agentsviewDetail" class="muted small services-detail"></span>
-            <span class="services-actions">
-              <button id="agentsviewStartBtn" type="button" class="ghost-btn" hidden title="Start" aria-label="Start AgentsView"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
-              <button id="agentsviewStopBtn" type="button" class="ghost-btn" hidden title="Stop" aria-label="Stop AgentsView"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
-            </span>
-          </div>
-          <!-- Peer rows (#372): one per hub-running peer (mac-mini-m4, gaming,
-               any future satellite), rendered by hub.js's renderPeerRows()
-               from /admin/api/services/status's `peers` list — generalized
-               from the old hardcoded single Mac Mini row. -->
-          <div id="peerRows"></div>
-        </div>
-        <div class="card-actions" id="servicesActions" hidden>
-          <button id="servicesLaunchBtn" type="button" class="button-primary launch-btn"><svg class="icon" aria-hidden="true"><use href="#i-rocket"></use></svg>Launch Docker + Langfuse</button>
-        </div>
-        <p id="servicesHint" class="muted small" style="margin: 6px 0 0;" hidden></p>
-      </section>
-
-      <!-- Model decisions (#373): role -> model assignments + a per-host
-           placement summary. Folded by default and fetched only when
-           expanded — mirrors app-launcher's System Map lazy-load discipline
-           (a folded, homepage-visible, low-noise card), adapted for small
-           live JSON instead of a static image. Links to the Models tab's
-           Fleet summary card rather than duplicating it. -->
-      <details class="card card--collapsible" id="rolesCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-boxes"></use></svg>
-            <h3 class="collapse-title">Model decisions</h3>
-            <span class="collapse-count">roles &amp; placement</span>
-          </span>
-          <span class="collapse-chevron" aria-hidden="true">›</span>
-        </summary>
-        <div class="collapse-body">
-          <p id="rolesStatus" class="muted small" hidden></p>
-          <!-- Shown once the first fetch lands: no bare headings over empty lists (J-09, #647). -->
-          <div id="rolesSections" hidden>
-            <h4 class="opt-group-title">Roles</h4>
-            <ul id="rolesList" class="startup-list" aria-label="Role to model assignments"></ul>
-            <h4 class="opt-group-title">Placement</h4>
-            <ul id="rolesPlacementList" class="startup-list" aria-label="Per-host placement summary"></ul>
-          </div>
-          <div class="card-actions">
-            <button id="rolesViewPlacementBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg>View memory on Models</button>
-          </div>
-        </div>
-      </details>
+          <!-- Services as exceptions (#738): healthy services fold into one row
+               that opens the services sheet; a stopped or failing one is its own
+               row with Start. -->
+          <section class="card action-list" id="servicesCard" aria-label="Services">
+            <ul id="servicesList" class="action-rows"></ul>
+          </section>
 
       <!-- Health & install — vendored disclosure card (_vendored/disclosure) -->
       <details class="card card--collapsible" id="installCard">
@@ -210,76 +142,35 @@
         </div>
       </details>
 
-      <!-- Diagnostic surfaces (#215): four vendored disclosure cards
-           (_vendored/disclosure), folded by default — same pattern as
-           Health & install. The density toggle + compact tabbed pane are gone. -->
-      <details class="card card--collapsible">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>
-            <h3 class="collapse-title">Live requests</h3>
-            <span id="liveRequestsBadge" class="collapse-count">0</span>
-          </span>
-          <span class="collapse-chevron" aria-hidden="true">›</span>
-        </summary>
-        <div class="collapse-body">
-          <input id="liveRequestsFilter" type="search" class="list-filter" placeholder="Filter requests" aria-label="Filter live requests" autocomplete="off">
-          <ul id="liveRequestsList" class="card-list dense" aria-label="Live request stream"></ul>
+        </div>
+
+        <div class="hub-col">
+          <!-- Activity (#738): live requests, errors and traces in one feed of
+               shared rows. Requests · Errors are true alternatives; a row with a
+               trace opens its preview, thumbs score and Langfuse link. -->
+          <section class="card action-list" id="activityCard" aria-labelledby="activityTitle">
+            <div class="glance-head">
+              <h2 id="activityTitle"><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Activity</h2>
+              <button type="button" class="icon-button info-button" data-info="hub-activity" aria-haspopup="dialog" aria-label="About activity" title="About activity"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></button>
+            </div>
+            <div class="activity-tools">
+              <div class="segmented" id="activityScope" role="group" aria-label="Which activity to list">
+                <button type="button" class="segmented-item" aria-pressed="true" data-scope="requests">Requests</button>
+                <button type="button" class="segmented-item" aria-pressed="false" data-scope="errors">Errors</button>
+              </div>
+              <input id="liveRequestsFilter" type="search" class="list-filter" placeholder="Filter requests" aria-label="Filter activity" autocomplete="off">
+            </div>
+            <ul id="liveRequestsList" class="action-rows activity-list" aria-label="Live requests"></ul>
           <div id="liveRequestsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No requests yet — the ring fills as clients call the hub.</p><button type="button" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
-          <p class="muted small" style="margin: 8px 0 0;">Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and don't show here.</p>
+            <ul id="recentErrorsList" class="action-rows activity-list" aria-label="Recent errors" hidden></ul>
+          <div id="recentErrorsEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-circle-check"></use></svg><p class="empty-state-message">No failed requests yet — a failure shows here the moment a client gets a non-2xx answer.</p><button type="button" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
+            <ul class="action-rows activity-links">
+              <li class="action-row"><button type="button" class="action-row-main" id="byModelOpenBtn" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-column"></use></svg></span><span class="action-row-text"><span class="action-row-title">By model</span><span class="action-row-meta" id="byModelMeta">Requests, errors and latency per backend</span></span></button></li>
+              <li class="action-row"><button type="button" class="action-row-main" id="logOpenBtn" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-scroll-text"></use></svg></span><span class="action-row-text"><span class="action-row-title">Server log</span><span class="action-row-meta">The hub's own log, live</span></span></button></li>
+            </ul>
+          </section>
         </div>
-      </details>
-
-      <details class="card card--collapsible">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>
-            <h3 class="collapse-title">Counters</h3>
-            <span class="collapse-count">since hub start</span>
-          </span>
-          <span class="collapse-chevron" aria-hidden="true">›</span>
-        </summary>
-        <div class="collapse-body">
-          <div class="counters-wrap">
-            <table id="countersTable" class="counters">
-              <thead><tr><th>Backend</th><th>Requests</th><th>Errors</th><th>Median</th><th>Slowest 5%</th><th>Tokens in/out</th></tr></thead>
-              <tbody></tbody>
-            </table>
-          </div>
-          <p class="muted small" style="margin: 8px 0 0;">Resets on hub restart. Audio calls posted directly to <code>:8090</code> / <code>:8091</code> bypass the hub and aren't counted.</p>
-        </div>
-      </details>
-
-      <details class="card card--collapsible">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>
-            <h3 class="collapse-title">Errors</h3>
-            <span id="recentErrorsBadge" class="collapse-count">0</span>
-          </span>
-          <span class="collapse-chevron" aria-hidden="true">›</span>
-        </summary>
-        <div class="collapse-body">
-          <ul id="recentErrorsList" class="card-list dense" aria-label="Recent errors"></ul>
-          <div id="recentErrorsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-circle-check"></use></svg><p class="empty-state-message">No failed requests yet — a failure shows here the moment a client gets a non-2xx answer.</p><button type="button" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
-        </div>
-      </details>
-
-      <details class="card card--collapsible">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
-            <h3 class="collapse-title">Log</h3>
-          </span>
-          <span class="collapse-chevron" aria-hidden="true">›</span>
-        </summary>
-        <div class="collapse-body">
-          <div class="logpane-actions">
-            <button id="hubLogPauseBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-pause"></use></svg>Pause</button>
-          </div>
-          <pre id="hubLog" class="logpane" aria-label="Hub server log"></pre>
-        </div>
-      </details>
+      </div>
     </section>
 
     <section id="paneModels" class="pane" hidden role="tabpanel" data-wide="split">
@@ -973,6 +864,137 @@
       <div class="detail-actions">
         <button type="button" class="detail-save-btn button-primary danger" id="machinesConfirmBtn">Confirm</button>
       </div>
+    </div>
+  </dialog>
+
+  <!-- Hub sheets (#738). Services: every service row with Start / Stop, the
+       Launch primary and the hint. Langfuse: the OTel health the OTel pane shows.
+       Trace: one request's preview, thumbs score and Langfuse link. By model:
+       the per-backend counters. Server log: the live tail. -->
+  <dialog class="detail-dialog" id="servicesSheet" aria-labelledby="servicesSheetTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="servicesSheetTitle">Services</h2>
+        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+        <div class="services-rows">
+          <div class="services-row">
+            <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-container"></use></svg>Docker</span>
+            <span id="dockerStatus" class="hub-live-status">
+              <span class="dot"></span><span id="dockerStatusText">—</span>
+            </span>
+            <span id="dockerDetail" class="muted small services-detail"></span>
+            <span class="services-actions">
+              <button id="dockerStartBtn" type="button" class="ghost-btn" hidden title="Start" aria-label="Start Docker Desktop"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
+              <button id="dockerStopBtn" type="button" class="ghost-btn" hidden title="Stop" aria-label="Stop Docker Desktop"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
+            </span>
+          </div>
+          <div class="services-row">
+            <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Langfuse</span>
+            <span id="langfuseStatus" class="hub-live-status">
+              <span class="dot"></span><span id="langfuseStatusText">—</span>
+            </span>
+            <span id="langfuseDetail" class="muted small services-detail"></span>
+            <span class="services-actions">
+              <button id="langfuseStartBtn" type="button" class="ghost-btn" hidden title="Start" aria-label="Start Langfuse"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
+              <button id="langfuseStopBtn" type="button" class="ghost-btn" hidden title="Stop" aria-label="Stop Langfuse"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
+            </span>
+          </div>
+          <div class="services-row">
+            <span class="services-label"><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>AgentsView</span>
+            <span id="agentsviewStatus" class="hub-live-status">
+              <span class="dot"></span><span id="agentsviewStatusText">—</span>
+            </span>
+            <span id="agentsviewDetail" class="muted small services-detail"></span>
+            <span class="services-actions">
+              <button id="agentsviewStartBtn" type="button" class="ghost-btn" hidden title="Start" aria-label="Start AgentsView"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
+              <button id="agentsviewStopBtn" type="button" class="ghost-btn" hidden title="Stop" aria-label="Stop AgentsView"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
+            </span>
+          </div>
+        </div>
+      <div class="sheet-row langfuse-link-row">
+        <svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>
+        <span class="sheet-row-label">Langfuse and OTel</span>
+        <span class="sheet-row-value" id="langfuseHealthValue">—</span>
+        <button type="button" class="button-tint" id="langfuseSheetOpenBtn" aria-haspopup="dialog">Details</button>
+      </div>
+      <p id="servicesHint" class="muted sheet-meta" hidden></p>
+      <div class="detail-actions" id="servicesActions" hidden>
+        <button id="servicesLaunchBtn" type="button" class="button-primary launch-btn"><svg class="icon" aria-hidden="true"><use href="#i-rocket"></use></svg>Launch Docker + Langfuse</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="detail-dialog" id="langfuseSheet" aria-labelledby="langfuseSheetTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="langfuseSheetTitle">Langfuse</h2>
+        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <dl class="sheet-pairs">
+        <dt>Health</dt><dd id="hubOtelHealth">—</dd>
+        <dt>OTel</dt><dd id="hubOtelState">—</dd>
+        <dt>PII mode</dt><dd id="hubOtelHash">—</dd>
+        <dt>Endpoint</dt><dd id="hubOtelEndpoint">—</dd>
+      </dl>
+      <p id="hubOtelOfflineHint" class="muted sheet-meta" hidden>
+        Langfuse stack offline — run <code>start_langfuse.bat</code>, open
+        the Langfuse UI (button below),
+        create a project, copy the keys into <code>.env</code>, then restart the hub.
+      </p>
+      <div class="detail-actions">
+        <a id="hubOpenLangfuse" class="button-tint launch-btn" href="#" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg>Open Langfuse UI</a>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="detail-dialog" id="traceSheet" aria-labelledby="traceSheetTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="traceSheetTitle">Request</h2>
+        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div id="traceSheetBody"></div>
+    </div>
+  </dialog>
+
+  <dialog class="detail-dialog wide-dialog" id="byModelSheet" aria-labelledby="byModelSheetTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="byModelSheetTitle">By model</h2>
+        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <p id="hubByModelSummary" class="sheet-meta">—</p>
+      <div class="counters-wrap">
+        <table id="countersTable" class="counters">
+          <thead><tr><th>Backend</th><th>Requests</th><th>Errors</th><th>Median</th><th>Slowest 5%</th><th>Tokens in/out</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="muted sheet-meta">The window resets on hub restart; open Langfuse for long-window analytics.</p>
+    </div>
+  </dialog>
+
+  <dialog class="detail-dialog wide-dialog" id="logSheet" aria-labelledby="logSheetTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="logSheetTitle">Server log</h2>
+        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div class="logpane-actions">
+        <button id="hubLogPauseBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-pause"></use></svg>Pause</button>
+      </div>
+      <pre id="hubLog" class="logpane" aria-label="Hub server log"></pre>
     </div>
   </dialog>
 

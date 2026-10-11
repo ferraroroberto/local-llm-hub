@@ -316,6 +316,10 @@ def seed_demo_activity() -> None:
             backend="openai" if "chat/completions" in path else "claude",
             status=status, latency_ms=latency, in_tok=tin, out_tok=tout,
             client="127.0.0.1", error_detail=err,
+            # An invented trace id, so the Activity row opens its trace sheet
+            # (#738); the instance has no Langfuse, so the preview shows its
+            # offline fallback.
+            trace_id="%032x" % (0xdec0de00 + i),
         ))
 
 

@@ -47,8 +47,8 @@ export async function fetchModels() {
 }
 
 /* Roles (role → model) — read with the fleet summary on tab open, so each
- * model's sheet names the roles it serves (the Hub card keeps them until
- * Step 3). Never polled. */
+ * model's sheet names the roles it serves (their one home since #738 removed
+ * the Hub card). Never polled. */
 export async function fetchRoles() {
   try {
     state.roles = await jsonApi('/admin/api/roles');

@@ -225,12 +225,25 @@ def test_hub_tab_phone_screenshot(page, admin_url, browser_name):
     page.goto(admin_url, wait_until="domcontentloaded")
     page.wait_for_selector("#paneHub", state="visible", timeout=5000)
     # Let the first poll settle so the snapshot reflects the populated
-    # UI rather than the "checking…" placeholder in the Hub card header.
+    # UI rather than the "Reading hub…" placeholder in the header line.
     page.wait_for_function(
-        "document.getElementById('hubLiveStatusText') && "
-        "document.getElementById('hubLiveStatusText').textContent.indexOf('checking') === -1",
+        "document.getElementById('hubHeadLine').textContent.indexOf('Reading') === -1"
+        " && document.getElementById('hubReqCount').textContent !== '—'",
         timeout=8000,
     )
+    # Hub opens on the glance (#738): numbers first, the window they cover
+    # named, and no permanent green "up" anywhere in the header.
+    first = page.evaluate(
+        "() => document.querySelector('#paneHub .hub-col > .card').id"
+    )
+    assert first == "hubGlance", first
+    assert page.locator("#hubReqCount").text_content().strip().isdigit()
+    assert "since start" in page.locator("#hubWindow").text_content()
+    head = page.locator("#hubHeadLine")
+    assert head.locator("[data-tone='success']").count() == 0
+    assert head.text_content().strip().lower() != "up"
+    # Peer-hub rows and the Model decisions card left Hub (Steps 1 and 2).
+    assert page.locator("#paneHub #peerRows, #paneHub #rolesCard").count() == 0
     _snapshot(page, "hub-390x844", browser_name)
 
 

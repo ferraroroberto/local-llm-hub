@@ -27,14 +27,29 @@ def test_hub_load_tiles_stack_under_a_heading(page, admin_url):
     page.goto(admin_url, wait_until="domcontentloaded")
     page.wait_for_selector("#hubSparklines .sparkline", state="visible", timeout=5000)
 
-    first_card = page.locator("#paneHub .home-head + section.card")
+    first_card = page.locator("#paneHub .hub-col > section.card").first
+    assert first_card.get_attribute("id") == "hubGlance"
     assert first_card.locator(":scope > .card-header h2").count() == 1, (
         "the first Hub card should open on a heading, not on the PID/uptime line"
     )
 
-    got = page.evaluate(_SIDE_BY_SIDE, "#hubSparklines .sparkline")
-    assert got["count"] >= 2, got
-    assert got["sideBySide"] == 0, f"Hub load tiles share a row on a phone: {got}"
+    # One load sparkline (#738); its series control carries every current
+    # figure, and a tap swaps the history it draws.
+    assert page.locator("#hubSparklines .sparkline").count() == 1
+    series = page.locator("#hubSeries .segmented-item")
+    series.first.wait_for(state="visible", timeout=5000)
+    assert series.count() >= 2
+    ram = page.locator('#hubSeries .segmented-item[data-series="ram"]')
+    ram.click()
+    page.wait_for_function(
+        "document.querySelector('#hubSparklines .sparkline-label').textContent.startsWith('RAM')",
+        timeout=3000,
+    )
+    assert page.locator('#hubSeries .segmented-item[data-series="ram"]').get_attribute("aria-pressed") == "true"
+
+    # The glance figures share one row: three numbers, never stacked tiles.
+    got = page.evaluate(_SIDE_BY_SIDE, "#hubGlance .hub-figure")
+    assert got["count"] == 3, got
 
 
 def test_code_counters_stack_on_a_phone(page, admin_url):

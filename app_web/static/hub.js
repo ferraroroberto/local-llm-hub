@@ -1,32 +1,48 @@
-/* Hub tab — status card, services, install panel, live request stream,
- * counters, errors, log tail. The four diagnostic surfaces are vendored
- * disclosure cards, folded by default (#215).
+/* Hub tab (glance + services as exceptions + one Activity feed since #738).
+ *
+ * The tab answers "is the hub serving, and is anything failing" first:
+ *   - the glance card: requests, errors and median latency since hub start
+ *     (the hub keeps no hourly history, so it names its window), one load
+ *     sparkline whose series a segmented control swaps, and the process line;
+ *   - services as exceptions: healthy Docker / Langfuse / AgentsView fold
+ *     into one row that opens the services sheet; a stopped or failing one is
+ *     its own row with Start. The Langfuse sheet carries the OTel health the
+ *     OTel pane shows (state, PII mode, endpoint, health, Open Langfuse UI,
+ *     offline hint);
+ *   - one Activity feed of shared rows (rows.js) over the hub request stream,
+ *     Requests or Errors; a row with a trace opens its sheet: the prompt and
+ *     completion preview, a thumbs score and the Langfuse link (the OTel
+ *     pane's trace functions, same helpers). By model (the per-backend
+ *     counters + summary) and the server log open from the feed's foot.
+ * Health & install stays a folded card here until Step 6 moves it.
  */
 
 import { els, state } from './state.js';
-import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, renderCounterTable, shortGpu, modelLabel, applyListFilter, isAuthError } from './api.js';
-import { langfuseTraceUrl, fetchTelemetryHealth } from './telemetry.js';
+import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, renderCounterTable, shortGpu, modelLabelText, applyListFilter, isAuthError, tokPair } from './api.js';
+import { langfuseTraceUrl, langfuseUiBase, fetchTelemetryHealth, hydrateDetailPanel, postFeedback } from './telemetry.js';
 import { icon } from './_vendored/icons/icons.js';
+import { row, chip, setHeadLine, defineInfo } from './rows.js';
 
-// --------------------------------------------------------- status / urls
+defineInfo('hub-activity', 'About activity',
+  '<p>Every request that passes through this hub: the most recent 50 here, the errors among them '
+  + 'under Errors. By model counts every request since the hub started, per backend; the counts '
+  + 'reset when the hub restarts.</p>'
+  + '<p>Audio posted straight to the speech servers on <code>:8090</code> / <code>:8091</code> '
+  + 'bypasses the hub, so it is neither listed nor counted.</p>');
+
+// --------------------------------------------------------- status / uptime
 export async function fetchHubStatus() {
   try {
     const body = await jsonApi('/admin/api/hub/status');
     state.status = body;
+    state.hubStatusOk = true;
     if (els.hubPid) els.hubPid.textContent = body.pid || '—';
     if (els.hubUptime) els.hubUptime.textContent = fmtUptime(body.uptime_s);
-    setHubLive('good', 'up');
   } catch (exc) {
     if (isAuthError(exc)) return;
-    setHubLive('danger', 'unreachable');
+    state.hubStatusOk = false;
   }
-}
-
-function setHubLive(kind, text) {
-  if (!els.hubLiveStatus) return;
-  els.hubLiveStatus.classList.remove('good', 'warn', 'danger');
-  if (kind) els.hubLiveStatus.classList.add(kind);
-  if (els.hubLiveStatusText) els.hubLiveStatusText.textContent = text;
+  renderHeadLine();
 }
 
 function fmtUptime(seconds) {
@@ -35,23 +51,78 @@ function fmtUptime(seconds) {
   if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + Math.floor(seconds % 60) + 's';
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  return h + 'h ' + m + 'm';
+  if (h < 48) return h + 'h ' + m + 'm';
+  return Math.floor(h / 24) + 'd ' + (h % 24) + 'h';
 }
 
-// --------------------------------------------------------- counters
+function fmtMs(ms) {
+  if (ms == null || !Number.isFinite(ms)) return '—';
+  return ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : Math.round(ms) + ' ms';
+}
+
+/* The header line: what is wrong now (an unreachable hub, a down service, the
+ * errors in the feed — the same list the Errors view draws), else the uptime. */
+function renderHeadLine() {
+  const el = els.hubHeadLine;
+  if (!el) return;
+  if (state.hubStatusOk === null) { setHeadLine(el, [], 'Reading hub…'); return; }
+  const parts = [];
+  if (state.hubStatusOk === false) parts.push({ text: 'Hub unreachable', tone: 'danger' });
+  serviceRows().filter(function (s) { return s.failing; }).forEach(function (s) {
+    parts.push({ text: s.name + ' down', tone: s.key === 'agentsview' ? 'attention' : 'danger' });
+  });
+  const errs = (state.recentErrors || []).length;
+  if (errs) parts.push({ text: errs + (errs === 1 ? ' error' : ' errors'), tone: 'attention' });
+  const up = state.status && Number.isFinite(state.status.uptime_s) ? 'Up ' + fmtUptime(state.status.uptime_s) : 'Serving';
+  setHeadLine(el, parts, up);
+}
+
+// --------------------------------------------------------- glance + By model
+/* One read feeds both the glance and the By model sheet: the per-backend
+ * counters and their summary since hub start (the OTel leaderboard's source
+ * too — one table, not two). A failed read never shows zeros. */
 export async function fetchCounters() {
   try {
-    const body = await jsonApi('/admin/api/hub/counters');
+    const body = await jsonApi('/admin/api/telemetry/metrics');
+    state.hubMetrics = body;
     state.counters = body.counters || [];
-    renderCounters();
-  } catch (_) { /* ignore */ }
+    state.hubMetricsOk = true;
+  } catch (exc) {
+    if (isAuthError(exc)) return;
+    state.hubMetricsOk = false;
+  }
+  renderGlance();
+  renderByModel();
 }
 
-function renderCounters() {
+function renderGlance() {
+  const s = (state.hubMetrics && state.hubMetrics.summary) || null;
+  const ok = state.hubMetricsOk === true && s;
+  if (els.hubReqCount) els.hubReqCount.textContent = ok ? String(s.requests) : '—';
+  if (els.hubErrCount) {
+    els.hubErrCount.textContent = ok ? String(s.errors) : '—';
+    els.hubErrCount.dataset.tone = ok && s.errors ? 'attention' : '';
+  }
+  if (els.hubP50) els.hubP50.textContent = ok ? fmtMs(s.p50_ms) : '—';
+  if (els.hubWindow) {
+    els.hubWindow.textContent = ok
+      ? 'since start · ' + fmtUptime(s.since_uptime_s)
+      : (state.hubMetricsOk === false ? 'since start · not confirmed' : 'since start · reading…');
+  }
+}
+
+function renderByModel() {
   renderCounterTable(els.countersTable, state.counters);
+  const s = (state.hubMetrics && state.hubMetrics.summary) || null;
+  const text = state.hubMetricsOk === true && s
+    ? s.requests + ' req · ' + (s.requests ? ((s.errors / s.requests) * 100).toFixed(1) : '0.0') + '% err · since '
+      + fmtUptime(s.since_uptime_s)
+    : (state.hubMetricsOk === false ? 'Not confirmed — the counters could not be read.' : 'Reading…');
+  if (els.hubByModelSummary) els.hubByModelSummary.textContent = text;
+  if (els.byModelMeta) els.byModelMeta.textContent = text;
 }
 
-// --------------------------------------------------------- live requests
+// --------------------------------------------------------- activity feed
 function prependRequest(rec) {
   // Dedup by ts. The SSE seed (20 most-recent records) is re-sent every
   // time the EventSource (re)connects — and the browser auto-reconnects
@@ -69,72 +140,110 @@ function prependRequest(rec) {
   if (rec.status >= 400 && !isDup(state.recentErrors)) {
     state.recentErrors = [rec].concat(state.recentErrors).slice(0, 50);
     renderErrors();
+    renderHeadLine();
   }
 }
 
-// A trace deep-link should only render when clicking it would actually
-// reach a Langfuse trace: the hub itself up, Docker up, and Langfuse
-// reachable. Otherwise the link would land on a connection error — so we
-// hide it (the row still shows tokens, just no `trace` affordance). Same
-// signals the Services card uses (issue #27).
-function traceLinkReady() {
-  const svc = state.services || {};
-  const docker = svc.docker || {};
-  const lf = svc.langfuse || {};
-  return !!state.status && docker.running === true && lf.reachable === true;
+/* Route-specific one-liner (e.g. "3 questions" on /v1/systemone, #611). */
+function activityMeta(r, withError) {
+  const bits = [];
+  if (withError && r.error_detail) bits.push(String(r.error_detail).slice(0, 80));
+  if (r.backend) bits.push(r.backend);
+  if (r.in_tok || r.out_tok) bits.push(tokPair(r.in_tok, r.out_tok) + ' tok');
+  if (r.detail) bits.push(r.detail);
+  return bits.join(' · ');
+}
+
+/* One request on the shared row: the model first, status and latency, the
+ * meta, the clock last (J-10, #647). A failure's status is its chip; a row
+ * with a trace opens the trace sheet, one without does nothing on tap. */
+function activityRow(r, withError) {
+  const failed = r.status >= 400;
+  const hasTrace = !!r.trace_id;
+  return row({
+    cls: 'activity-row' + (hasTrace ? '' : ' is-static'),
+    attrs: ' data-ts="' + escapeHtml(String(r.ts)) + '"',
+    title: modelLabelText(r, '(no model)'),
+    lead: fmtMs(r.latency_ms),
+    chips: failed ? [{ text: String(r.status), tone: r.status >= 500 ? 'danger' : 'attention' }] : [],
+    meta: activityMeta(r, withError),
+    mainAttrs: hasTrace ? ' data-act="trace" aria-haspopup="dialog"' : ' tabindex="-1"',
+    trail: '<span class="action-row-trail activity-clock">' + escapeHtml(fmtClock(r.ts) || '—') + '</span>',
+  });
 }
 
 function renderRequests() {
   const items = state.liveRequests || [];
-  const traceUp = traceLinkReady();
   const list = els.liveRequestsList;
   if (!list) return;
-  if (els.liveRequestsBadge) els.liveRequestsBadge.textContent = items.length;
-  if (els.liveRequestsEmpty) els.liveRequestsEmpty.hidden = items.length > 0;
-  list.innerHTML = '';
-  items.forEach(function (r) {
-    const li = document.createElement('li');
-    const cls = r.status >= 500 ? 'err' : r.status >= 400 ? 'warn' : 'ok';
-    // Identical deep-link to the Telemetry tab: shared langfuseTraceUrl()
-    // derives the client-reachable Langfuse host (Tailscale/LAN/localhost
-    // transparent) + project_id, opened in a new tab. Only shown when the
-    // stack is up (see traceLinkReady).
-    const traceCol = (r.trace_id && traceUp)
-      ? ('<a href="' + langfuseTraceUrl(r.trace_id) + '" target="_blank" rel="noopener" title="' + escapeHtml(r.trace_id) + '">trace</a>')
-      : '';
-    // The model leads and the clock trails (J-10, #647): a row's key fact first.
-    li.innerHTML =
-      '<span class="req-name">' + modelLabel(r, '(no model)') + ' <span class="muted">' + escapeHtml(r.backend || '') + detailSuffix(r) + '</span></span>' +
-      '<span class="req-status ' + cls + '">' + r.status + ' · ' + r.latency_ms + ' ms</span>' +
-      '<span class="muted">' + (r.in_tok || 0) + ' / ' + (r.out_tok || 0) + ' tok ' + traceCol + '</span>' +
-      '<span class="muted req-clock">' + fmtClock(r.ts) + '</span>';
-    list.appendChild(li);
-  });
+  list.innerHTML = items.map(function (r) { return activityRow(r, false); }).join('');
+  renderActivityChrome();
   applyListFilter(els.liveRequestsFilter, list);
-}
-
-/* Route-specific one-liner (e.g. "3 questions" on /v1/systemone, #611),
- * appended after the backend in both request lists; '' when absent. */
-function detailSuffix(r) {
-  return r.detail ? ' · ' + escapeHtml(r.detail) : '';
 }
 
 function renderErrors() {
   const items = state.recentErrors || [];
   const list = els.recentErrorsList;
   if (!list) return;
-  if (els.recentErrorsBadge) els.recentErrorsBadge.textContent = items.length;
-  if (els.recentErrorsEmpty) els.recentErrorsEmpty.hidden = items.length > 0;
-  list.innerHTML = '';
-  items.forEach(function (r) {
-    const li = document.createElement('li');
-    li.innerHTML =
-      '<span class="req-name">' + modelLabel(r, '(no model)') + ' <span class="muted">' + escapeHtml(r.backend || '') + detailSuffix(r) + '</span></span>' +
-      '<span class="req-status err">' + r.status + '</span>' +
-      '<span class="muted">' + escapeHtml((r.error_detail || '').slice(0, 80)) + '</span>' +
-      '<span class="muted req-clock">' + fmtClock(r.ts) + '</span>';
-    list.appendChild(li);
-  });
+  list.innerHTML = items.map(function (r) { return activityRow(r, true); }).join('');
+  renderActivityChrome();
+  applyListFilter(els.liveRequestsFilter, list);
+}
+
+/* The scope control, which list shows, its empty state and the filter's
+ * placeholder — the count's one home (design.md action-row). */
+function renderActivityChrome() {
+  const errorsView = state.activityScope === 'errors';
+  const reqs = (state.liveRequests || []).length;
+  const errs = (state.recentErrors || []).length;
+  if (els.liveRequestsList) els.liveRequestsList.hidden = errorsView;
+  if (els.recentErrorsList) els.recentErrorsList.hidden = !errorsView;
+  if (els.liveRequestsEmpty) els.liveRequestsEmpty.hidden = errorsView || reqs > 0;
+  if (els.recentErrorsEmpty) els.recentErrorsEmpty.hidden = !errorsView || errs > 0;
+  if (els.activityScope) {
+    els.activityScope.querySelectorAll('.segmented-item').forEach(function (b) {
+      b.setAttribute('aria-pressed', String((b.dataset.scope === 'errors') === errorsView));
+    });
+  }
+  if (els.liveRequestsFilter) {
+    els.liveRequestsFilter.placeholder = errorsView
+      ? 'Filter ' + errs + (errs === 1 ? ' error' : ' errors') + '…'
+      : 'Filter ' + reqs + (reqs === 1 ? ' request' : ' requests') + '…';
+  }
+}
+
+function findRecord(ts) {
+  const all = (state.liveRequests || []).concat(state.recentErrors || []);
+  return all.find(function (r) { return String(r.ts) === String(ts); });
+}
+
+/* A request's sheet: its facts, the prompt and completion preview (with the
+ * fallback message while Langfuse is offline), a thumbs score and the
+ * Langfuse link — the OTel pane's trace functions, its own helpers. */
+function openTrace(r) {
+  if (!r || !r.trace_id || !els.traceSheet) return;
+  els.traceSheetTitle.textContent = modelLabelText(r, '(no model)');
+  const pairs = [
+    ['Status', String(r.status)], ['Latency', fmtMs(r.latency_ms)],
+    ['Tokens', tokPair(r.in_tok, r.out_tok)], ['Backend', r.backend || '—'],
+    ['Time', fmtClock(r.ts) || '—'],
+  ];
+  els.traceSheetBody.innerHTML = '<div class="sheet-section" data-trace-id="' + escapeHtml(r.trace_id) + '">'
+    + '<dl class="sheet-pairs">' + pairs.map(function (p) {
+      return '<dt>' + escapeHtml(p[0]) + '</dt><dd>' + escapeHtml(p[1]) + '</dd>';
+    }).join('') + '</dl>'
+    + (r.error_detail ? '<p class="sheet-meta trace-error">' + escapeHtml(String(r.error_detail).slice(0, 280)) + '</p>' : '')
+    + '</div>'
+    + '<div class="sheet-section"><div class="tel-trace-detail"><span class="muted">Loading…</span></div></div>'
+    + '<div class="sheet-section trace-actions"><span class="icon-button-group">'
+    + '<button type="button" class="icon-button tel-thumb" data-thumbs="1" aria-label="Thumbs up" title="Thumbs up">' + icon('thumbs-up') + '</button>'
+    + '<button type="button" class="icon-button tel-thumb" data-thumbs="-1" aria-label="Thumbs down" title="Thumbs down">' + icon('thumbs-down') + '</button>'
+    + '</span>'
+    + '<a class="button-tint tel-deeplink" target="_blank" rel="noopener" href="' + escapeHtml(langfuseTraceUrl(r.trace_id)) + '">'
+    + icon('external-link') + '<span>Open in Langfuse</span></a>'
+    + '</div>';
+  if (!els.traceSheet.open) els.traceSheet.showModal();
+  hydrateDetailPanel(els.traceSheetBody.querySelector('.tel-trace-detail'), r.trace_id);
 }
 
 // --------------------------------------------------------- log tail
@@ -194,13 +303,13 @@ function renderInstall(body) {
     });
   }
   checks.forEach(function (c) {
-    const row = document.createElement('div');
-    row.className = 'install-row install-' + c.status;
+    const r = document.createElement('div');
+    r.className = 'install-row install-' + c.status;
     const glyph = c.status === 'ok' ? icon('circle-check')
       : c.status === 'warn' ? icon('triangle-alert')
       : c.status === 'missing' ? icon('circle-help')
       : icon('circle-x');
-    row.innerHTML =
+    r.innerHTML =
       '<span class="install-glyph">' + glyph + '</span>' +
       '<span class="install-label">' + escapeHtml(c.label) + '</span>' +
       '<span class="install-detail muted small">' + escapeHtml(c.detail || '') + '</span>';
@@ -222,43 +331,94 @@ function renderInstall(body) {
           btn.innerHTML = icon('wrench') + 'Retry';
         }
       });
-      row.appendChild(btn);
+      r.appendChild(btn);
     }
-    els.installRows.appendChild(row);
+    els.installRows.appendChild(r);
   });
 }
 
-// --------------------------------------------------------- services card (issue #27)
+// --------------------------------------------------------- services (issue #27)
 export async function fetchServicesStatus() {
   try {
     const body = await jsonApi('/admin/api/services/status');
     state.services = body;
-    renderServices();
   } catch (exc) {
     if (isAuthError(exc)) return;
     // Probe error itself — render an "unreachable" state. `probeFailed`
     // tells renderServices() this isn't a real launchable=false verdict
     // (we never got far enough to check the install path), so it must
-    // not show the "Docker Desktop install not found" hint — that would
-    // be a fabricated claim about install state from a fetch failure.
+    // not show the "Docker Desktop install not found" hint.
     state.services = { docker: { running: false, error: String(exc.message || exc) },
                        langfuse: { reachable: false, error: '' },
                        launchable: false, platform: '', probeFailed: true };
-    renderServices();
   }
+  renderServices();
 }
 
-function setStatusPill(rootEl, textEl, kind, text) {
-  if (!rootEl) return;
-  rootEl.classList.remove('good', 'warn', 'danger');
-  if (kind) rootEl.classList.add(kind);
-  if (textEl) textEl.textContent = text;
+/* The three services as facts: whether each counts as failing (down when it
+ * should be up; AgentsView only when it is enabled and installed) and whether
+ * it can be started from here. */
+function serviceRows() {
+  const body = state.services;
+  if (!body) return [];
+  const docker = body.docker || {};
+  const lf = body.langfuse || {};
+  const av = body.agentsview || {};
+  const avEnabled = !!av.host;
+  return [
+    { key: 'docker', name: 'Docker', glyph: 'container', failing: !docker.running,
+      canStart: !!(body.launchable && !docker.running) },
+    { key: 'langfuse', name: 'Langfuse', glyph: 'radio', failing: !lf.reachable, canStart: !lf.reachable },
+    { key: 'agentsview', name: 'AgentsView', glyph: 'code',
+      failing: avEnabled && av.installed !== false && !av.reachable,
+      canStart: !!(avEnabled && !av.reachable && av.installed) },
+  ];
 }
 
-/* A Services row's detail is a raw error or version line (#647, J-10). A short
- * one stays inline; a long one is a one-line, ellipsised disclosure whose full
- * text opens in place, so a row reads in two lines whatever the error says.
- * Nothing is dropped, and the summary is a native, keyboard-reachable toggle. */
+const SERVICE_BUSY = { docker: 'dockerBusy', langfuse: 'langfuseBusy', agentsview: 'agentsviewBusy' };
+
+function renderServiceRows() {
+  const list = els.servicesList;
+  if (!list) return;
+  const rows = serviceRows();
+  if (!rows.length) {
+    list.innerHTML = row({ cls: 'services-summary', glyph: 'layers', title: 'Services', lead: 'Checking…',
+      mainAttrs: ' data-act="services" aria-haspopup="dialog"' });
+    return;
+  }
+  const failing = rows.filter(function (s) { return s.failing; });
+  const html = failing.map(function (s) {
+    const busy = !!state[SERVICE_BUSY[s.key]];
+    return row({
+      cls: 'service-row',
+      attrs: ' data-svc="' + s.key + '"',
+      glyph: s.glyph,
+      badge: 'down',
+      title: s.name,
+      lead: 'Down',
+      meta: s.key === 'langfuse' ? 'traces and previews unavailable' : '',
+      mainAttrs: ' data-act="' + (s.key === 'langfuse' ? 'langfuse' : 'services') + '" aria-haspopup="dialog"',
+      verb: s.canStart ? {
+        attrs: ' data-act="svc-start" aria-label="Start ' + s.name + '"',
+        label: busy ? 'Starting…' : 'Start', glyph: 'play', disabled: busy,
+      } : null,
+    });
+  });
+  const up = rows.length - failing.length;
+  html.push(row({
+    cls: 'services-summary',
+    glyph: 'layers',
+    title: 'Services',
+    lead: failing.length ? up + ' of ' + rows.length + ' up' : 'All up',
+    meta: rows.map(function (s) { return s.name; }).join(' · '),
+    mainAttrs: ' data-act="services" aria-haspopup="dialog"',
+  }));
+  list.innerHTML = html.join('');
+}
+
+/* A Services sheet row's detail is a raw error or version line (#647, J-10).
+ * A short one stays inline; a long one is a one-line, ellipsised disclosure
+ * whose full text opens in place. Nothing is dropped. */
 const DETAIL_INLINE_MAX = 40;
 
 function longDetailHtml(text) {
@@ -267,13 +427,22 @@ function longDetailHtml(text) {
     + icon('chevron-down') + '</summary></details>';
 }
 
-// Re-rendering on every poll must not snap an open disclosure shut, so a static
-// row only rewrites its detail when the text changed.
+// Re-rendering on every poll must not snap an open disclosure shut, so a row
+// only rewrites its detail when the text changed.
 function setDetail(el, text) {
   if (!el || el.dataset.detail === text) return;
   el.dataset.detail = text;
   if (text.length > DETAIL_INLINE_MAX) el.innerHTML = longDetailHtml(text);
   else el.textContent = text;
+}
+
+/* A sheet row's state in words: a healthy service is plain text, never a
+ * coloured dot (design.md: success is never a status); only a failure tones. */
+function setStatusPill(rootEl, textEl, kind, text) {
+  if (!rootEl) return;
+  rootEl.classList.remove('good', 'warn', 'danger');
+  if (kind) rootEl.classList.add(kind);
+  if (textEl) textEl.textContent = text;
 }
 
 function renderServices() {
@@ -282,15 +451,12 @@ function renderServices() {
   const docker = body.docker || {};
   const lf = body.langfuse || {};
 
-  const dockerKind = docker.running ? 'good' : 'danger';
-  const dockerLabel = docker.running ? 'up' : 'down';
-  setStatusPill(els.dockerStatus, els.dockerStatusText, dockerKind, dockerLabel);
+  setStatusPill(els.dockerStatus, els.dockerStatusText, docker.running ? '' : 'danger', docker.running ? 'up' : 'down');
   setDetail(els.dockerDetail, docker.running
     ? (docker.server_version ? 'engine ' + docker.server_version : '')
     : (docker.error || ''));
   // Start/Stop (#284) — only offered where launch_docker_desktop() actually
-  // knows how (same `launchable` gate the combined Launch button already
-  // uses: win32 + a found Docker Desktop install).
+  // knows how (win32 + a found Docker Desktop install).
   if (els.dockerStartBtn) {
     els.dockerStartBtn.hidden = !(body.launchable && !docker.running);
     els.dockerStartBtn.disabled = state.dockerBusy;
@@ -300,13 +466,8 @@ function renderServices() {
     els.dockerStopBtn.disabled = state.dockerBusy;
   }
 
-  // Langfuse: "up" when reachable, "partial" when Docker is up but Langfuse
-  // isn't (containers starting / never launched), "down" otherwise.
-  let lfKind = 'danger';
-  let lfLabel = 'down';
-  if (lf.reachable) { lfKind = 'good'; lfLabel = 'up'; }
-  else if (docker.running) { lfKind = 'warn'; lfLabel = 'down'; }
-  setStatusPill(els.langfuseStatus, els.langfuseStatusText, lfKind, lfLabel);
+  setStatusPill(els.langfuseStatus, els.langfuseStatusText,
+    lf.reachable ? '' : (docker.running ? 'warn' : 'danger'), lf.reachable ? 'up' : 'down');
   setDetail(els.langfuseDetail, lf.reachable ? '' : (lf.error || ''));
   if (els.langfuseStartBtn) {
     els.langfuseStartBtn.hidden = lf.reachable;
@@ -317,16 +478,15 @@ function renderServices() {
     els.langfuseStopBtn.disabled = state.langfuseBusy;
   }
 
-  // AgentsView (#280): optional external indexer feeding the Code tab's
-  // AGY vendor. "not installed" is a warn, not a danger — the hub is fully
-  // functional without it.
+  // AgentsView (#280): optional external indexer feeding the Code tab's AGY
+  // vendor; disabled or not installed is a plain fact, not a failure.
   const av = body.agentsview || {};
   const avEnabled = !!av.host;
   let avKind = 'danger';
   let avLabel = 'down';
-  if (av.reachable) { avKind = 'good'; avLabel = 'up'; }
-  else if (!avEnabled) { avKind = 'warn'; avLabel = 'disabled'; }
-  else if (av.installed === false) { avKind = 'warn'; avLabel = 'not installed'; }
+  if (av.reachable) { avKind = ''; avLabel = 'up'; }
+  else if (!avEnabled) { avKind = ''; avLabel = 'disabled'; }
+  else if (av.installed === false) { avKind = ''; avLabel = 'not installed'; }
   setStatusPill(els.agentsviewStatus, els.agentsviewStatusText, avKind, avLabel);
   setDetail(els.agentsviewDetail, av.reachable
     ? (av.version ? av.version : '')
@@ -340,28 +500,13 @@ function renderServices() {
     els.agentsviewStopBtn.disabled = state.agentsviewBusy;
   }
 
-  // Peer rows (#179, generalized #372): the pills don't factor into the
-  // overall status/launch-button logic above — each tells its own peer's
-  // story. See renderPeerRows() below.
-  renderPeerRows();
-
-  // Overall pill summarises both.
-  let overallKind = 'good';
-  let overallText = 'all up';
-  if (!docker.running && !lf.reachable) { overallKind = 'danger'; overallText = 'both down'; }
-  else if (!docker.running) { overallKind = 'danger'; overallText = 'docker down'; }
-  else if (!lf.reachable) { overallKind = 'warn'; overallText = 'langfuse down'; }
-  else if (avEnabled && !av.reachable) { overallKind = 'warn'; overallText = 'agentsview down'; }
-  setStatusPill(els.servicesOverall, els.servicesOverallText, overallKind, overallText);
-
   // Launch button + hint visibility.
   const anyDown = !docker.running || !lf.reachable;
   const showActions = anyDown && body.launchable && !state.servicesLaunching;
   if (els.servicesActions) els.servicesActions.hidden = !(anyDown && body.launchable);
   if (els.servicesHint) {
     if (body.probeFailed) {
-      // Status probe itself failed — we don't know the install state,
-      // so surface the real error instead of guessing.
+      // Status probe itself failed — we don't know the install state.
       els.servicesHint.textContent = 'Status check failed: ' + (docker.error || 'unknown error') + '.';
       els.servicesHint.hidden = false;
     } else if (anyDown && !body.launchable) {
@@ -381,6 +526,38 @@ function renderServices() {
     els.servicesLaunchBtn.innerHTML = state.servicesLaunching
       ? 'Launching… (up to ~90s)'
       : icon('rocket') + 'Launch Docker + Langfuse';
+  }
+  renderServiceRows();
+  renderLangfuseSheet();
+  renderHeadLine();
+  // Request rows and the trace link both depend on whether Langfuse answers.
+  renderRequests();
+  renderErrors();
+}
+
+/* The Langfuse sheet: the OTel pane's stack health, same values. */
+function langfuseHealth() {
+  const h = state.telHealth;
+  if (!h) return { text: 'unreachable', tone: 'danger' };
+  if (!h.otel_enabled) return { text: 'OTel disabled', tone: 'attention' };
+  if (h.langfuse_reachable) return { text: 'live', tone: '' };
+  return { text: 'Langfuse offline', tone: 'danger' };
+}
+
+function renderLangfuseSheet() {
+  const h = state.telHealth || {};
+  const health = langfuseHealth();
+  [els.hubOtelHealth, els.langfuseHealthValue].forEach(function (el) {
+    if (!el) return;
+    el.textContent = health.text;
+    if (health.tone) el.dataset.tone = health.tone; else delete el.dataset.tone;
+  });
+  if (els.hubOtelState) els.hubOtelState.textContent = state.telHealth ? (h.otel_enabled ? 'on' : 'off') : '—';
+  if (els.hubOtelHash) els.hubOtelHash.textContent = state.telHealth ? (h.hash_prompts ? 'hashed' : 'raw') : '—';
+  if (els.hubOtelEndpoint) els.hubOtelEndpoint.textContent = h.otel_endpoint || '—';
+  if (els.hubOpenLangfuse) els.hubOpenLangfuse.href = langfuseUiBase();
+  if (els.hubOtelOfflineHint) {
+    els.hubOtelOfflineHint.hidden = !state.telHealth || !!h.langfuse_reachable || !h.otel_enabled;
   }
 }
 
@@ -407,89 +584,10 @@ async function onServicesLaunchClick() {
   }
 }
 
-// Peer rows (#179, generalized #372): one row per hub-running peer, driven
-// by the `peers` list on /admin/api/services/status — never hardcoded (was
-// issue #245's original point for the single Mac Mini row; still holds for
-// N peers). Renders like machines.js's renderMachineCard()/onMachinesListClick
-// — an innerHTML template + one delegated click listener on the container —
-// rather than binding a listener per row, since the row count varies.
-function renderPeerRows() {
-  const container = els.peerRows;
-  if (!container) return;
-  const peers = (state.services && state.services.peers) || [];
-  // A re-render must keep a peer's opened detail open (#647).
-  const opened = [...container.querySelectorAll('.services-row')]
-    .filter(function (r) { return r.querySelector('details[open]'); })
-    .map(function (r) { return r.dataset.hostId; });
-  container.innerHTML = peers.map(renderPeerRow).join('');
-  container.querySelectorAll('.services-row').forEach(function (r) {
-    const d = r.querySelector('details');
-    if (d && opened.indexOf(r.dataset.hostId) !== -1) d.open = true;
-  });
-}
-
-function renderPeerRow(peer) {
-  const busy = !!(state.peerBusyIds && state.peerBusyIds[peer.host_id]);
-  const kind = peer.reachable ? 'good' : 'danger';
-  const label = peer.reachable ? 'up' : 'down';
-  // git_sha_match is null until both sides answer; only warn on an explicit
-  // false, never on "haven't compared yet" (#181).
-  const outOfSync = peer.reachable && peer.git_sha_match === false;
-  const detail = !peer.reachable
-    ? ((peer.error || '').length > DETAIL_INLINE_MAX ? longDetailHtml(peer.error) : escapeHtml(peer.error || ''))
-    : outOfSync
-      ? '<span class="badge warn">out of sync</span> ' +
-        escapeHtml(peer.remote_git_sha || '?') + ' vs ' + escapeHtml(peer.local_git_sha || '?')
-      : '';
-  // Wake/Sync: mirrors the Docker/Langfuse launch-button pattern — one
-  // action visible at a time depending on reachability.
-  const wakeHtml = busy ? 'Waking…' : icon('play') + 'Wake';
-  const syncHtml = busy ? 'Syncing…' : icon('refresh-cw') + 'Sync';
-  return '<div class="services-row" data-host-id="' + escapeHtml(peer.host_id) + '">'
-    + '<span class="services-label">' + icon('signal') + escapeHtml(peer.display_name || peer.host_id) + '</span>'
-    + '<span class="hub-live-status ' + kind + '"><span class="dot"></span><span>' + label + '</span></span>'
-    + '<span class="muted small services-detail">' + detail + '</span>'
-    + '<button type="button" class="ghost-btn" data-action="bootstrap"' + (peer.reachable ? ' hidden' : '') + (busy ? ' disabled' : '') + '>' + wakeHtml + '</button>'
-    + '<button type="button" class="ghost-btn" data-action="sync"' + (peer.reachable ? '' : ' hidden') + (busy ? ' disabled' : '') + '>' + syncHtml + '</button>'
-    + '</div>';
-}
-
-function onPeerRowsClick(ev) {
-  const btn = ev.target.closest('button[data-action]');
-  if (!btn || btn.disabled) return;
-  const row = btn.closest('.services-row');
-  const hostId = row && row.dataset ? row.dataset.hostId : '';
-  if (!hostId) return;
-  const action = btn.dataset.action; // 'bootstrap' | 'sync'
-  onPeerAction(hostId, action, action === 'bootstrap' ? 'woken up' : 'synced');
-}
-
-async function onPeerAction(hostId, action, pastTense) {
-  if (state.peerBusyIds && state.peerBusyIds[hostId]) return;
-  state.peerBusyIds = Object.assign({}, state.peerBusyIds);
-  state.peerBusyIds[hostId] = true;
-  renderPeerRows();
-  const peers = (state.services && state.services.peers) || [];
-  const found = peers.find(function (p) { return p.host_id === hostId; });
-  const label = (found && found.display_name) || hostId;
-  try {
-    await postJson('/admin/api/hosts/' + hostId + '/' + action, {});
-    toast(label + ' ' + pastTense, 'good');
-  } catch (exc) {
-    toast(label + ' ' + action + ' failed: ' + (exc.message || exc), 'error');
-  } finally {
-    const nextBusy = Object.assign({}, state.peerBusyIds);
-    delete nextBusy[hostId];
-    state.peerBusyIds = nextBusy;
-    await fetchServicesStatus();
-  }
-}
-
 // One start/stop action on a service row: busy flag → re-render → POST →
 // {ok, steps}-driven toast → clear the flag and refresh (#284). AgentsView,
-// Docker Desktop and Langfuse all ride this one helper (#470 — AgentsView
-// kept its own hand-rolled copy when #284 generalized the shape). `busyKey`
-// is the `state` flag the row's buttons read to disable themselves.
+// Docker Desktop and Langfuse all ride this one helper (#470). `busyKey` is
+// the `state` flag the row's buttons read to disable themselves.
 async function onServiceAction(label, busyKey, path, verb, doneLabel) {
   if (state[busyKey]) return;
   state[busyKey] = true;
@@ -512,37 +610,103 @@ async function onServiceAction(label, busyKey, path, verb, doneLabel) {
 
 // AgentsView's start endpoint is `/launch`, not `/start` — hence the full
 // path per action rather than a shared prefix + verb.
-function onAgentsviewStartClick() {
-  return onServiceAction('AgentsView', 'agentsviewBusy',
-    '/admin/api/services/agentsview/launch', 'start', 'started');
-}
-function onAgentsviewStopClick() {
-  return onServiceAction('AgentsView', 'agentsviewBusy',
-    '/admin/api/services/agentsview/stop', 'stop', 'stopped');
+const SERVICE_ACTIONS = {
+  agentsview: {
+    start: function () { return onServiceAction('AgentsView', 'agentsviewBusy', '/admin/api/services/agentsview/launch', 'start', 'started'); },
+    stop: function () { return onServiceAction('AgentsView', 'agentsviewBusy', '/admin/api/services/agentsview/stop', 'stop', 'stopped'); },
+  },
+  docker: {
+    start: function () { return onServiceAction('Docker', 'dockerBusy', '/admin/api/services/docker/start', 'start', 'started'); },
+    stop: function () { return onServiceAction('Docker', 'dockerBusy', '/admin/api/services/docker/stop', 'stop', 'stopped'); },
+  },
+  langfuse: {
+    start: function () { return onServiceAction('Langfuse', 'langfuseBusy', '/admin/api/services/langfuse/start', 'start', 'started'); },
+    stop: function () { return onServiceAction('Langfuse', 'langfuseBusy', '/admin/api/services/langfuse/stop', 'stop', 'stopped'); },
+  },
+};
+
+function openSheet(dlg) {
+  if (dlg && !dlg.open) dlg.showModal();
 }
 
-// Docker Desktop + Langfuse individual start/stop (#284) — complementing
-// (not replacing) the combined "Launch Docker + Langfuse" recovery button.
-function onDockerStartClick() {
-  return onServiceAction('Docker', 'dockerBusy', '/admin/api/services/docker/start', 'start', 'started');
-}
-function onDockerStopClick() {
-  return onServiceAction('Docker', 'dockerBusy', '/admin/api/services/docker/stop', 'stop', 'stopped');
-}
-function onLangfuseStartClick() {
-  return onServiceAction('Langfuse', 'langfuseBusy', '/admin/api/services/langfuse/start', 'start', 'started');
-}
-function onLangfuseStopClick() {
-  return onServiceAction('Langfuse', 'langfuseBusy', '/admin/api/services/langfuse/stop', 'stop', 'stopped');
-}
-
-// --------------------------------------------------------- wire buttons
+// --------------------------------------------------------- wiring
 export function wireHub() {
   if (els.liveRequestsFilter) {
     els.liveRequestsFilter.addEventListener('input', function () {
-      applyListFilter(els.liveRequestsFilter, els.liveRequestsList);
+      applyListFilter(els.liveRequestsFilter, state.activityScope === 'errors' ? els.recentErrorsList : els.liveRequestsList);
     });
   }
+  if (els.activityScope) {
+    els.activityScope.addEventListener('click', function (ev) {
+      const seg = ev.target.closest('.segmented-item');
+      if (!seg) return;
+      state.activityScope = seg.dataset.scope;
+      renderActivityChrome();
+      applyListFilter(els.liveRequestsFilter, state.activityScope === 'errors' ? els.recentErrorsList : els.liveRequestsList);
+    });
+  }
+  [els.liveRequestsList, els.recentErrorsList].forEach(function (list) {
+    if (!list) return;
+    list.addEventListener('click', function (ev) {
+      const main = ev.target.closest('[data-act="trace"]');
+      if (!main) return;
+      const li = main.closest('.activity-row');
+      openTrace(findRecord(li && li.dataset.ts));
+    });
+  });
+  if (els.traceSheetBody) {
+    els.traceSheetBody.addEventListener('click', function (ev) {
+      const thumb = ev.target.closest('.tel-thumb');
+      if (!thumb) return;
+      const holder = els.traceSheetBody.querySelector('[data-trace-id]');
+      if (holder) postFeedback(holder.dataset.traceId, parseInt(thumb.dataset.thumbs || '0', 10));
+    });
+  }
+  if (els.servicesList) {
+    els.servicesList.addEventListener('click', function (ev) {
+      const btn = ev.target.closest('[data-act]');
+      if (!btn || btn.disabled) return;
+      const act = btn.dataset.act;
+      if (act === 'svc-start') {
+        const key = btn.closest('[data-svc]').dataset.svc;
+        if (SERVICE_ACTIONS[key]) SERVICE_ACTIONS[key].start();
+      } else if (act === 'langfuse') {
+        renderLangfuseSheet();
+        openSheet(els.langfuseSheet);
+      } else if (act === 'services') {
+        openSheet(els.servicesSheet);
+      }
+    });
+  }
+  if (els.langfuseSheetOpenBtn) {
+    els.langfuseSheetOpenBtn.addEventListener('click', function () {
+      renderLangfuseSheet();
+      openSheet(els.langfuseSheet);
+    });
+  }
+  if (els.byModelOpenBtn) els.byModelOpenBtn.addEventListener('click', function () { openSheet(els.byModelSheet); });
+  if (els.logOpenBtn) {
+    els.logOpenBtn.addEventListener('click', function () {
+      openSheet(els.logSheet);
+      if (els.hubLog) els.hubLog.scrollTop = els.hubLog.scrollHeight;
+    });
+  }
+  // Every Hub sheet closes through its × (data-close-dialog).
+  document.querySelectorAll('[data-close-dialog]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const dlg = btn.closest('dialog');
+      if (dlg) dlg.close();
+    });
+  });
+  if (els.hubSeries) {
+    els.hubSeries.addEventListener('click', function (ev) {
+      const seg = ev.target.closest('.segmented-item');
+      if (!seg) return;
+      state.hubSeries = seg.dataset.series;
+      drawSparklines();
+    });
+  }
+
   function togglePause() {
     state.logPaused = !state.logPaused;
     if (els.hubLogPauseBtn) {
@@ -585,30 +749,17 @@ export function wireHub() {
     });
   }
 
-  if (els.servicesLaunchBtn) {
-    els.servicesLaunchBtn.addEventListener('click', onServicesLaunchClick);
-  }
-  if (els.peerRows) {
-    els.peerRows.addEventListener('click', onPeerRowsClick);
-  }
-  if (els.agentsviewStartBtn) {
-    els.agentsviewStartBtn.addEventListener('click', onAgentsviewStartClick);
-  }
-  if (els.agentsviewStopBtn) {
-    els.agentsviewStopBtn.addEventListener('click', onAgentsviewStopClick);
-  }
-  if (els.dockerStartBtn) {
-    els.dockerStartBtn.addEventListener('click', onDockerStartClick);
-  }
-  if (els.dockerStopBtn) {
-    els.dockerStopBtn.addEventListener('click', onDockerStopClick);
-  }
-  if (els.langfuseStartBtn) {
-    els.langfuseStartBtn.addEventListener('click', onLangfuseStartClick);
-  }
-  if (els.langfuseStopBtn) {
-    els.langfuseStopBtn.addEventListener('click', onLangfuseStopClick);
-  }
+  if (els.servicesLaunchBtn) els.servicesLaunchBtn.addEventListener('click', onServicesLaunchClick);
+  [['agentsview', els.agentsviewStartBtn, els.agentsviewStopBtn],
+   ['docker', els.dockerStartBtn, els.dockerStopBtn],
+   ['langfuse', els.langfuseStartBtn, els.langfuseStopBtn]].forEach(function (t) {
+    if (t[1]) t[1].addEventListener('click', SERVICE_ACTIONS[t[0]].start);
+    if (t[2]) t[2].addEventListener('click', SERVICE_ACTIONS[t[0]].stop);
+  });
+
+  renderActivityChrome();
+  renderGlance();
+  renderHeadLine();
 
   // Sparklines: lightweight inline-SVG renderer driven by /admin/api/hub/stats.
   setInterval(function () {
@@ -616,43 +767,57 @@ export function wireHub() {
     renderSparklines();
   }, 2500);
 
-  // Services card — Docker + Langfuse status. Cheaper than the sparkline
-  // sweep (two small probes, each capped at 2 s) so 5 s is plenty.
-  // Also refresh telemetry health here so the live-request trace links can
-  // resolve Langfuse's project_id without the user first visiting the
-  // Telemetry tab — the deep-link URL is then byte-identical across tabs.
+  // Services + telemetry health every 5 s: two small probes, and the health
+  // feeds the Langfuse sheet and every trace link's project id.
   setInterval(function () {
     if (state.tab !== 'hub') return;
     if (state.servicesLaunching) return;
     fetchServicesStatus().catch(function () {});
-    fetchTelemetryHealth().catch(function () {});
+    fetchTelemetryHealth().then(renderLangfuseSheet).catch(function () {});
   }, 5000);
 }
 
+// --------------------------------------------------------- the glance sparkline
+let lastStats = null;
+
+const SERIES = [
+  { key: 'cpu', label: 'CPU', value: function (s) { return s.cpu && s.cpu.percent; }, hist: 'cpu_percent' },
+  { key: 'gpu', label: 'GPU', gpu: true, value: function (s, g) { return g && g.util_percent; }, hist: 'gpu0_util_percent' },
+  { key: 'ram', label: 'RAM', value: function (s) { return s.ram && s.ram.percent; }, hist: 'ram_percent' },
+  { key: 'vram', label: 'VRAM', gpu: true, value: function (s, g) { return g && g.vram_percent; }, hist: 'gpu0_vram_percent' },
+];
+
 export async function renderSparklines() {
-  let stats;
   try {
-    stats = await jsonApi('/admin/api/hub/stats');
-  } catch (_) { return; }
+    lastStats = await jsonApi('/admin/api/hub/stats');
+  } catch (_) { /* keep the last reading */ }
+  drawSparklines();
+}
+
+/* One sparkline for the chosen series; the control above it carries all four
+ * current figures, so every history stays one tap away. */
+function drawSparklines() {
   const container = els.hubSparklines;
   if (!container) return;
-  container.innerHTML = '';
-  const history = stats.history || [];
+  const stats = lastStats || {};
   const g0 = stats.gpus && stats.gpus.length ? stats.gpus[0] : null;
-  // Utilization tiles on top, memory tiles on bottom (#288).
-  const groups = [
-    { label: 'CPU', value: stats.cpu && stats.cpu.percent, series: history.map(function (h) { return h.cpu_percent; }) },
-  ];
-  if (g0) {
-    groups.push({ label: 'GPU util', value: g0.util_percent, series: history.map(function (h) { return h.gpu0_util_percent; }) });
+  const available = SERIES.filter(function (s) { return !s.gpu || g0; });
+  let current = available.find(function (s) { return s.key === state.hubSeries; }) || available[0];
+  state.hubSeries = current.key;
+  if (els.hubSeries) {
+    els.hubSeries.innerHTML = available.map(function (s) {
+      const v = lastStats ? s.value(stats, g0) : null;
+      return '<button type="button" class="segmented-item" data-series="' + s.key + '" aria-pressed="'
+        + (s === current) + '">' + s.label + ' ' + (Number.isFinite(v) ? Math.round(v) + '%' : '—') + '</button>';
+    }).join('');
   }
-  groups.push({ label: 'RAM', value: stats.ram && stats.ram.percent, series: history.map(function (h) { return h.ram_percent; }) });
-  if (g0) {
-    groups.push({ label: 'VRAM ' + shortGpu(g0.name), value: g0.vram_percent, series: history.map(function (h) { return h.gpu0_vram_percent; }) });
-  }
-  groups.forEach(function (g) {
-    container.appendChild(buildSparkline(g));
-  });
+  const history = stats.history || [];
+  const label = current.key === 'vram' && g0 ? 'VRAM ' + shortGpu(g0.name) : (current.key === 'gpu' ? 'GPU util' : current.label);
+  container.replaceChildren(buildSparkline({
+    label: label,
+    value: lastStats ? current.value(stats, g0) : null,
+    series: history.map(function (h) { return h[current.hist]; }),
+  }));
 }
 
 function buildSparkline(g) {
@@ -671,18 +836,14 @@ function buildSparkline(g) {
     });
   }
   // Energy-tab chart look (#215): a 2px accent line over a translucent
-  // accent area (fill closed down to the baseline). Both pull from the live
-  // --accent token so the tiles re-theme for free.
+  // accent area (fill closed down to the baseline).
   const area = path ? path + 'L' + w + ',' + h + ' L0,' + h + ' Z' : '';
   root.innerHTML =
     '<div class="sparkline-label"><span>' + escapeHtml(g.label) + '</span>' +
     '<span>' + (Number.isFinite(g.value) ? Math.round(g.value) + '%' : '—') + '</span></div>' +
-    '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
+    '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true">' +
     (area ? '<path d="' + area + '" fill="color-mix(in srgb, var(--accent) 18%, transparent)" stroke="none"/>' : '') +
     (path ? '<path d="' + path + '" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>' : '') +
     '</svg>';
   return root;
 }
-
-
-/* escapeHtml / fmtClock live in api.js (sibling dedup, #211). */

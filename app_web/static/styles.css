@@ -684,6 +684,70 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
   .sparkline svg { height: 48px; }
 }
 
+/* ---------- Hub tab (#738) ----------
+ * Glance + services on the left, the Activity feed on the right on a wide
+ * window (rows.css .wide-cols); one column below it. The glance's figures are
+ * numbers first; the process line stays here until Step 6 moves it. */
+.hub-cols, .hub-col { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+.hub-window { font-size: var(--font-caption); text-align: right; }
+.hub-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); }
+.hub-figure { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hub-figure-value {
+  font-size: var(--font-heading-lg);
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hub-figure-value[data-tone="attention"] { color: var(--attention-text); }
+.hub-figure-label { font-size: var(--font-caption); color: var(--muted); }
+.hub-series { margin-top: 10px; flex-wrap: wrap; }
+.hub-series .segmented-item { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hub-proc { margin: 10px 0 0; font-size: var(--font-body-sm); }
+.activity-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px 14px;
+}
+.activity-tools .list-filter { flex: 1 1 180px; min-width: 0; margin: 0; }
+.activity-list:empty { display: none; }
+.activity-row.is-static .action-row-main { cursor: default; }
+.activity-clock {
+  flex: none;
+  padding: 0 14px 0 4px;
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+}
+.activity-links { border-top: 1px solid var(--line-muted); }
+/* The thumbs sit in the vendored .icon-button-group (their hit areas touch, never
+ * overlap); the gutter keeps the group's expansion clear of the Langfuse link. */
+.sheet-section.trace-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap); }
+.trace-actions .button-tint { min-height: var(--row-sm); padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; }
+.trace-error { color: var(--danger-text); overflow-wrap: anywhere; }
+/* A healthy service in the services sheet is plain words: no dot at all
+ * (design.md: success is never a status colour). */
+#servicesSheet .hub-live-status:not(.warn):not(.danger) .dot { display: none; }
+#servicesSheet .services-rows { margin-bottom: 10px; }
+/* In a sheet the rows are the content, not a dense card's side facts: body-sm. */
+#servicesSheet .hub-live-status,
+#servicesSheet .services-detail { font-size: var(--font-body-sm); }
+/* The By model table reads at body-sm where the sheet has room; the phone keeps
+ * the caption size so its six columns fit without scrolling (#215). */
+@media (min-width: 521px) {
+  #byModelSheet .counters,
+  #byModelSheet .counters thead th { font-size: var(--font-body-sm); }
+}
+.wide-dialog { width: min(760px, 96vw); }
+@media (min-width: 1100px) and (pointer: fine) {
+  /* Hub is a declared wide view ([design] wide_views): its two columns span
+   * the width right of the rail. */
+  .app:has(> .pane[data-wide="cols"]:not([hidden])) { max-width: none; margin: 0; }
+  .hub-cols.wide-cols { display: grid; align-items: start; }
+}
+
 /* ---------- Models tab (#737) ----------
  * Rows are the shared row (rows.js on the vendored action-row), grouped by
  * the host serving them under an overline header. The memory glance's rows
@@ -1219,11 +1283,6 @@ summary.opt-group-title {
   border-bottom: 1px solid var(--line-muted);
 }
 .services-row:last-child { border-bottom: 0; }
-/* Peer rows (#372) render into this anchor via innerHTML — `display:
- * contents` keeps it out of the flex box model so its .services-row
- * children lay out as direct siblings of the static Docker/Langfuse/
- * AgentsView rows above, with the same gap rhythm. */
-#peerRows { display: contents; }
 .services-detail {
   word-break: break-word;
   min-width: 0;
@@ -1381,15 +1440,13 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
  * .roles-row-value: without a matching font-size their anonymous line box is
  * struck at the inherited body size, seating the caption-sized text below
  * the label's baseline (#436) — block .fleet-model-line values never had
- * the problem. Scoped to the fleet card; the roles card keeps its own
- * rhythm. */
+ * the problem. Scoped to the fleet card. */
 .fleet-host .roles-row-value { font-size: var(--font-caption); }
 
-/* ---------- Model decisions card — role/placement summary rows (#373) ----------
- * Same .startup-row/.startup-list rhythm as the Startup + Fleet placement
- * cards; only the right-hand value column is new (those two cards put a
- * switch there instead of text). Right-aligned, allowed to wrap onto a
- * second line for a long fallback/placed-models list rather than overflow. */
+/* ---------- placement value column (#373; the Models memory sheet since #737) ----------
+ * Same .startup-row/.startup-list rhythm as the Startup card; only the
+ * right-hand value column is new. Right-aligned, allowed to wrap onto a
+ * second line for a long placed-models list rather than overflow. */
 .roles-row-value {
   text-align: right;
   min-width: 0;

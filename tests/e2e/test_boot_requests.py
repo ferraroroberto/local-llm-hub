@@ -16,7 +16,7 @@ def test_boot_does_not_wait_on_live_probe_endpoints(page, admin_url):
     page.goto(admin_url, wait_until="load")
     page.wait_for_selector("#paneHub .home-head", state="visible", timeout=5000)
     page.wait_for_function(
-        "document.getElementById('hubLiveStatusText').textContent.indexOf('checking') === -1",
+        "document.getElementById('hubHeadLine').textContent.indexOf('Reading') === -1",
         timeout=8000,
     )
     boot = [u for u in seen if any(u.endswith(s.split("/admin")[1]) for s in _SLOW)]
