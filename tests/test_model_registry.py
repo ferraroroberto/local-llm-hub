@@ -596,3 +596,28 @@ def test_desired_model_ids_excludes_on_demand_rows(monkeypatch, write_config):
     assert model_registry.desired_model_ids() == ["qwen"]
     assert model_registry.desired_placement() == {"pc": ["qwen"]}
 
+
+
+def test_shipped_claude_rows_keep_previous_version_ids_as_aliases():
+    """Callers pinned to a raw old Claude id keep resolving (#733).
+
+    Repointing a ``claude_*`` row's ``display_name`` to a newer model drops the
+    old id from ``resolve()``; each row therefore carries its previous version
+    ids as extra aliases so those callers get the newest model, not an error.
+    Runs against the committed (placement-pinned) ``config/models.yaml``.
+    """
+    old_ids = {
+        "claude-haiku-4-5": "claude_haiku",
+        "claude-sonnet-4-6": "claude_sonnet",
+        "claude-opus-4-8": "claude_opus",
+        "claude-fable-5": "claude_fable",
+    }
+    for old_id, row_id in old_ids.items():
+        model = model_registry.resolve(old_id)
+        assert model is not None, f"{old_id} no longer resolves"
+        assert model.id == row_id
+        assert model.display_name != old_id
+
+    # One /v1/models entry per row: the old ids are aliases, not extra rows.
+    claude_rows = [m for m in model_registry.enabled_models() if m.backend == "claude"]
+    assert len({m.id for m in claude_rows}) == len(claude_rows)
