@@ -26,7 +26,8 @@ def test_boot_does_not_wait_on_live_probe_endpoints(page, admin_url):
     page.click("#paneHub .home-settings")
     page.click('#settingsDialog .settings-link[data-settings="health"] .action-row-main')
     page.wait_for_function(
-        "document.getElementById('installSummary').textContent.indexOf('checks') !== -1",
+        # A count, not the initial "not checked" (which also says "check").
+        "/\\d+ checks?/.test(document.getElementById('installSummary').textContent)",
         timeout=15000,
     )
 
