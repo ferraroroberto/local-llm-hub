@@ -4,5 +4,5 @@
   "max_tokens": 60000,
   "min_count": 2,
   "use_llm": true,
-  "llm_model": "claude-haiku-4-5"
+  "llm_model": "claude-haiku-5-5"
 }

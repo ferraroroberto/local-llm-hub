@@ -41,7 +41,7 @@ _DEFAULTS: Dict[str, Any] = {
     "max_tokens": 60000,
     "min_count": 2,
     "use_llm": True,
-    "llm_model": "claude-haiku-4-5",
+    "llm_model": "claude-haiku-5-5",
 }
 
 # Common words that are capitalised at sentence start but are not domain

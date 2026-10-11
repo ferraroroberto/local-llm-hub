@@ -155,7 +155,7 @@ def test_mine_suggestions_heuristics_only(monkeypatch):
     monkeypatch.setattr(dm, "load_miner_config", lambda path=None: {
         "voice_transcriber_base_url": "https://x",
         "default_days": 5, "max_tokens": 1000, "min_count": 2,
-        "use_llm": False, "llm_model": "claude-haiku-4-5",
+        "use_llm": False, "llm_model": "claude-haiku-5-5",
     })
 
     async def _fake_fetch(base, days, budget):
@@ -177,7 +177,7 @@ def test_mine_suggestions_llm_failure_falls_back(monkeypatch):
     monkeypatch.setattr(dm, "load_miner_config", lambda path=None: {
         "voice_transcriber_base_url": "https://x",
         "default_days": 7, "max_tokens": 1000, "min_count": 2,
-        "use_llm": True, "llm_model": "claude-haiku-4-5",
+        "use_llm": True, "llm_model": "claude-haiku-5-5",
     })
 
     async def _fake_fetch(base, days, budget):

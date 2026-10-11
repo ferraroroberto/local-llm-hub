@@ -46,8 +46,8 @@ sequenceDiagram
     participant W as claude_cli.call_claude
     participant K as claude -p CLI
 
-    C->>F: POST /v1/messages<br/>{model:"claude-haiku-4-5", messages, ...}
-    F->>R: resolve("claude-haiku-4-5")
+    C->>F: POST /v1/messages<br/>{model:"claude-haiku-5-5", messages, ...}
+    F->>R: resolve("claude-haiku-5-5")
     R-->>F: Model(backend="claude")
     F->>T: _run_claude_backend(model, req)
     T->>T: _flatten_messages()<br/>_system_to_text()
