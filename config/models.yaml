@@ -218,22 +218,22 @@ models:
   # claude-haiku-5 (or whatever's next), only `display_name` needs
   # updating and clients keep working unchanged.
   claude_haiku:
-    display_name: claude-haiku-4-5
+    display_name: claude-haiku-5-5
     backend: claude
     aliases: ["claude_haiku"]
 
   claude_sonnet:
-    display_name: claude-sonnet-4-6
+    display_name: claude-sonnet-5-5
     backend: claude
     aliases: ["claude_sonnet"]
 
   claude_opus:
-    display_name: claude-opus-4-8
+    display_name: claude-opus-5-5
     backend: claude
     aliases: ["claude_opus"]
 
   claude_fable:
-    display_name: claude-fable-5
+    display_name: claude-fable-5-1
     backend: claude
     aliases: ["claude_fable"]
 

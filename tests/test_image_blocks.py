@@ -66,7 +66,7 @@ def test_claude_path_writes_image_and_passes_to_cli(monkeypatch):
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "messages": [{
             "role": "user",
             "content": [
@@ -103,7 +103,7 @@ def test_claude_path_temp_dir_cleaned_up_after_call(monkeypatch):
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "messages": [{
             "role": "user",
             "content": [
@@ -163,7 +163,7 @@ def test_multiple_images_extracted_in_order(monkeypatch):
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "messages": [{
             "role": "user",
             "content": [
@@ -194,7 +194,7 @@ def test_url_image_falls_back_to_text_reference(monkeypatch):
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "messages": [{
             "role": "user",
             "content": [
@@ -263,7 +263,7 @@ def test_bad_base64_returns_400(monkeypatch):
     )
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "messages": [{
             "role": "user",
             "content": [
@@ -290,7 +290,7 @@ def test_no_images_skips_temp_dir(monkeypatch):
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "messages": [{"role": "user", "content": "no images here"}],
     })
     assert r.status_code == 200
@@ -347,7 +347,7 @@ def test_claude_path_pdf_temp_dir_cleaned_up_after_call(monkeypatch):
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "messages": [{
             "role": "user",
             "content": [
@@ -375,7 +375,7 @@ def test_url_document_falls_back_to_text_reference(monkeypatch):
 
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "messages": [{
             "role": "user",
             "content": [
@@ -400,7 +400,7 @@ def test_bad_pdf_base64_returns_400(monkeypatch):
     )
     client = TestClient(server_mod.app)
     r = client.post("/v1/messages", json={
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "messages": [{
             "role": "user",
             "content": [

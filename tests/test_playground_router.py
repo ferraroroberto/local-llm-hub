@@ -75,7 +75,7 @@ def test_playground_pdf_builds_document_block(monkeypatch):
     client = TestClient(server_mod.app)
     r = client.post(
         "/admin/api/playground/send",
-        data={"model": "claude-haiku-4-5", "prompt": "summarize", "max_tokens": "64"},
+        data={"model": "claude-haiku-5-5", "prompt": "summarize", "max_tokens": "64"},
         files={"attachment": ("report.pdf", _TINY_PDF, "application/pdf")},
     )
     assert r.status_code == 200, r.text
@@ -90,7 +90,7 @@ def test_playground_image_still_builds_image_block(monkeypatch):
     client = TestClient(server_mod.app)
     r = client.post(
         "/admin/api/playground/send",
-        data={"model": "claude-haiku-4-5", "prompt": "describe", "max_tokens": "64"},
+        data={"model": "claude-haiku-5-5", "prompt": "describe", "max_tokens": "64"},
         files={"attachment": ("pic.png", _PNG, "image/png")},
     )
     assert r.status_code == 200, r.text
@@ -104,7 +104,7 @@ def test_playground_json_builds_document_block(monkeypatch):
     client = TestClient(server_mod.app)
     r = client.post(
         "/admin/api/playground/send",
-        data={"model": "claude-haiku-4-5", "prompt": "what's in here?",
+        data={"model": "claude-haiku-5-5", "prompt": "what's in here?",
               "max_tokens": "64"},
         files={"attachment": ("data.json", b'{"k": 1}', "application/json")},
     )
@@ -119,7 +119,7 @@ def test_playground_no_attachment_is_text_only(monkeypatch):
     client = TestClient(server_mod.app)
     r = client.post(
         "/admin/api/playground/send",
-        data={"model": "claude-haiku-4-5", "prompt": "hi", "max_tokens": "64"},
+        data={"model": "claude-haiku-5-5", "prompt": "hi", "max_tokens": "64"},
     )
     assert r.status_code == 200, r.text
     content = captured["payload"]["messages"][0]["content"]

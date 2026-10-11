@@ -45,7 +45,7 @@ def test_messages_single_turn(monkeypatch):
     r = client.post(
         "/v1/messages",
         json={
-            "model": "claude-haiku-4-5",
+            "model": "claude-haiku-5-5",
             "max_tokens": 64,
             "system": "Answer in one word.",
             "messages": [{"role": "user", "content": "Capital of France?"}],
@@ -56,12 +56,12 @@ def test_messages_single_turn(monkeypatch):
     assert body["type"] == "message"
     assert body["role"] == "assistant"
     assert body["content"] == [{"type": "text", "text": "Paris"}]
-    assert body["model"] == "claude-haiku-4-5"
+    assert body["model"] == "claude-haiku-5-5"
     assert body["stop_reason"] == "end_turn"
     assert body["usage"]["output_tokens"] == 7
     assert seen["prompt"] == "Capital of France?"
     assert seen["system"] == "Answer in one word."
-    assert seen["model"] == "claude-haiku-4-5"
+    assert seen["model"] == "claude-haiku-5-5"
 
 
 def test_messages_multi_turn_flattens(monkeypatch):
@@ -77,7 +77,7 @@ def test_messages_multi_turn_flattens(monkeypatch):
     r = client.post(
         "/v1/messages",
         json={
-            "model": "claude-haiku-4-5",
+            "model": "claude-haiku-5-5",
             "max_tokens": 64,
             "messages": [
                 {"role": "user", "content": "hi"},
@@ -103,7 +103,7 @@ def test_messages_empty_list_returns_400(monkeypatch):
     r = client.post(
         "/v1/messages",
         json={
-            "model": "claude-haiku-4-5",
+            "model": "claude-haiku-5-5",
             "max_tokens": 64,
             "messages": [],
         },
@@ -131,7 +131,7 @@ def test_messages_cli_error_returns_502(monkeypatch):
     r = client.post(
         "/v1/messages",
         json={
-            "model": "claude-haiku-4-5",
+            "model": "claude-haiku-5-5",
             "max_tokens": 64,
             "messages": [{"role": "user", "content": "hi"}],
         },

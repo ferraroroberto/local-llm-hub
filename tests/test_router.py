@@ -112,7 +112,7 @@ def test_list_models_includes_enabled():
     ids = {entry["id"] for entry in r.json()["data"]}
     assert "qwen3.5-4b" in ids
     # Claude rows + their stable aliases.
-    assert "claude-haiku-4-5" in ids
+    assert "claude-haiku-5-5" in ids
     assert "claude_haiku" in ids
     assert "claude_sonnet" in ids
     assert "claude_opus" in ids
@@ -186,7 +186,7 @@ def test_messages_routes_gemini_alias(monkeypatch):
 
 
 def test_messages_routes_claude_alias(monkeypatch):
-    """`claude_sonnet` alias resolves to display_name `claude-sonnet-4-6`."""
+    """`claude_sonnet` alias resolves to display_name `claude-sonnet-5-5`."""
     captured = {}
 
     def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
@@ -209,7 +209,7 @@ def test_messages_routes_claude_alias(monkeypatch):
     )
     assert r.status_code == 200
     # Alias → CLI receives the real model version, not the alias.
-    assert captured["model"] == "claude-sonnet-4-6"
+    assert captured["model"] == "claude-sonnet-5-5"
 
 
 def test_chat_completions_routes_gemini(monkeypatch):
@@ -258,7 +258,7 @@ def test_chat_completions_multi_turn_flattens_same_as_messages(monkeypatch):
     r = client.post(
         "/v1/chat/completions",
         json={
-            "model": "claude-haiku-4-5",
+            "model": "claude-haiku-5-5",
             "messages": [
                 {"role": "system", "content": "Be brief."},
                 {"role": "user", "content": "hi"},
@@ -293,7 +293,7 @@ def test_chat_completions_single_turn_unwraps_like_messages(monkeypatch):
     r = client.post(
         "/v1/chat/completions",
         json={
-            "model": "claude-haiku-4-5",
+            "model": "claude-haiku-5-5",
             "messages": [{"role": "user", "content": "Capital of France?"}],
         },
     )
@@ -322,7 +322,7 @@ def test_chat_completions_refuses_image_url_instead_of_dropping_it(monkeypatch):
     r = client.post(
         "/v1/chat/completions",
         json={
-            "model": "claude-haiku-4-5",
+            "model": "claude-haiku-5-5",
             "messages": [{
                 "role": "user",
                 "content": [
@@ -343,7 +343,7 @@ def test_chat_completions_refuses_image_url_instead_of_dropping_it(monkeypatch):
     ("model", "backend_attr", "filename", "file_data", "expected_suffix"),
     [
         (
-            "claude-haiku-4-5",
+            "claude-haiku-5-5",
             "call_claude",
             "../../report.docx",
             base64.b64encode(b"tiny pdf").decode(),
@@ -432,7 +432,7 @@ def test_chat_completions_rejects_unsupported_or_invalid_file(
     r = TestClient(server_mod.app).post(
         "/v1/chat/completions",
         json={
-            "model": "claude-haiku-4-5",
+            "model": "claude-haiku-5-5",
             "messages": [{
                 "role": "user",
                 "content": [{"type": "file", "file": file_payload}],
@@ -463,7 +463,7 @@ def test_chat_completions_still_accepts_all_text_parts(monkeypatch):
     r = client.post(
         "/v1/chat/completions",
         json={
-            "model": "claude-haiku-4-5",
+            "model": "claude-haiku-5-5",
             "messages": [{
                 "role": "user",
                 "content": [

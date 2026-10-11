@@ -36,7 +36,7 @@ def _messages(client: TestClient, headers=None):
     # under test. Keeps the test off any real backend.
     return client.post(
         "/v1/messages",
-        json={"model": "claude-haiku-4-5", "max_tokens": 16, "messages": []},
+        json={"model": "claude-haiku-5-5", "max_tokens": 16, "messages": []},
         headers=headers or {},
     )
 

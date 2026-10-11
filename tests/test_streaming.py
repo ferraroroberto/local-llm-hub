@@ -341,7 +341,7 @@ def test_messages_claude_streaming_http_contract(monkeypatch):
     assert deltas == ["Hello ", "Claude"]
     assert captured == {
         "prompt": "hi",
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "system": "Be terse",
     }
     record = next(

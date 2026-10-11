@@ -35,7 +35,7 @@ def _client() -> TestClient:
 def _empty_messages_request(client: TestClient):
     return client.post(
         "/v1/messages",
-        json={"model": "claude-haiku-4-5", "max_tokens": 16, "messages": []},
+        json={"model": "claude-haiku-5-5", "max_tokens": 16, "messages": []},
     )
 
 
@@ -96,7 +96,7 @@ def test_messages_502_maps_to_api_error(monkeypatch):
     r = _client().post(
         "/v1/messages",
         json={
-            "model": "claude-haiku-4-5",
+            "model": "claude-haiku-5-5",
             "max_tokens": 16,
             "messages": [{"role": "user", "content": "hi"}],
         },
@@ -181,7 +181,7 @@ def test_anthropic_sdk_raises_typed_error_with_envelope():
         max_retries=0,
     )
     with pytest.raises(anthropic.BadRequestError) as excinfo:
-        sdk.messages.create(model="claude-haiku-4-5", max_tokens=16, messages=[])
+        sdk.messages.create(model="claude-haiku-5-5", max_tokens=16, messages=[])
 
     exc = excinfo.value
     assert exc.status_code == 400
