@@ -32,6 +32,16 @@ def _peer_identity(config_with_example_identity):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _no_peer_hub_probe(monkeypatch):
+    """A reachable hub-running peer's card also probes its hub (#736); keep
+    that hermetic by default. Tests about the hub block override it."""
+    async def _unreachable_hub(host_id):
+        return {"reachable": False, "local_git_sha": None, "remote_git_sha": None, "git_sha_match": None}
+
+    monkeypatch.setattr(mc.remote_stats, "peer_health", _unreachable_hub)
+
+
 def _client() -> TestClient:
     return TestClient(server_mod.app)
 
@@ -296,6 +306,66 @@ def test_probe_machine_this_machine_unchanged(monkeypatch):
         "reboot": False, "shutdown": False, "rdp": False, "ssh_terminal": False, "wake": False,
     }
     assert card["network"] is None and card["flaky"] is None  # (#397) scoped to peers only
+
+
+# --------------------------------------------- peer-hub facts on a card (#736)
+
+
+def test_probe_machine_hub_peer_carries_build_identity_without_error_text(monkeypatch):
+    """A reachable peer that runs its own hub gets a `hub` block (reachability
+    + both build ids) so the Machines tab can own Sync and the out-of-sync
+    state; the probe's raw error string never reaches the card."""
+    async def _reachable(host):
+        return host.address
+
+    async def _fake_collect(host):
+        return {"uptime_seconds": 42}
+
+    async def _fake_health(host_id):
+        return {"reachable": True, "error": "RawError: detail", "address": "http://x",
+                "local_git_sha": "aaa1111", "remote_git_sha": "bbb2222", "git_sha_match": False}
+
+    monkeypatch.setattr(mc.remote_stats, "located_address", _reachable)
+    monkeypatch.setattr(mc.remote_stats, "collect", _fake_collect)
+    monkeypatch.setattr(mc.remote_stats, "peer_health", _fake_health)
+    card = _run(mc._probe_machine(get_host("mac-mini-m4"), "tower"))
+    assert card["runs_hub"] is True
+    assert card["hub"] == {"reachable": True, "git_sha_match": False,
+                           "local_git_sha": "aaa1111", "remote_git_sha": "bbb2222"}
+
+
+def test_probe_machine_down_hub_peer_reports_hub_down_without_probing(monkeypatch):
+    """A powered-off hub peer reports its hub down (bootstrap stays offered)
+    and never spends a probe on a box nothing answers on."""
+    async def _unreachable(host):
+        return None
+
+    async def _no_health(host_id):
+        raise AssertionError("peer_health must not run for an unreachable machine")
+
+    monkeypatch.setattr(mc.remote_stats, "located_address", _unreachable)
+    monkeypatch.setattr(mc.remote_stats, "peer_health", _no_health)
+    card = _run(mc._probe_machine(get_host("mac-mini-m4"), "tower"))
+    assert card["hub"] == {"reachable": False, "git_sha_match": None,
+                           "local_git_sha": None, "remote_git_sha": None}
+
+
+def test_probe_machine_managed_only_peer_has_no_hub_block(monkeypatch):
+    """A machine that runs no hub of its own (openclaw) carries `hub: None`."""
+    async def _reachable(host):
+        return host.address
+
+    async def _fake_collect(host):
+        return {"uptime_seconds": 42}
+
+    async def _no_health(host_id):
+        raise AssertionError("peer_health must not run for a machine without a hub")
+
+    monkeypatch.setattr(mc.remote_stats, "located_address", _reachable)
+    monkeypatch.setattr(mc.remote_stats, "collect", _fake_collect)
+    monkeypatch.setattr(mc.remote_stats, "peer_health", _no_health)
+    card = _run(mc._probe_machine(get_host("openclaw"), "tower"))
+    assert card["runs_hub"] is False and card["hub"] is None
 
 
 # ------------------------------------------------------------------------ RDP

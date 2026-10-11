@@ -67,6 +67,13 @@ def test_labelled_otel_button_keeps_every_header_inside_the_phone_width(page, ad
         assert edges["stub"] is None or edges["stub"] >= 60, (
             f"{pane}: context line squeezed to {edges['stub']}px"
         )
+    # A live header line (rows.js setHeadLine, #736) is never the line the
+    # phone drops: Machines names its state on the phone too, on one line.
+    line = page.locator("#machinesHeadLine")
+    assert line.is_visible(), "the Machines header line is hidden on a phone"
+    assert page.evaluate(
+        "() => getComputedStyle(document.getElementById('machinesHeadLine')).whiteSpace"
+    ) == "nowrap"
 
 
 _PAINT = """els => els.map(el => {

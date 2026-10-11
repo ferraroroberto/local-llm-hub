@@ -1,102 +1,17 @@
-/* Machines tab (issue #309) — a card per machine (this host + reachable
- * peers): live status dot, stats dashboard, action rail, plus a destructive-
- * action confirm dialog and an in-browser SSH terminal overlay.
+/* Machines tab (issue #309; rows + sheet since #736) — one shared row per
+ * machine (rows.js / rows.css on the vendored action-row), a sheet (phone)
+ * or detail pane (wide window) per machine, the destructive-action confirm
+ * dialog and the in-browser SSH terminal overlay.
  *
- * Reuses existing patterns rather than inventing new ones: .card /
- * .card-header / .hub-title-block / .hub-live-status (hub.js), .hub-meta-row
- * (role/uptime/Tailscale line), .ghost-btn / .ghost-btn.danger (the action
- * rail), and the vendored .empty-state / .detail-dialog (modal) shells. The
- * genuinely new pieces are the uniform horizontal stat gauges (CPU/RAM/GPU/
- * disk), the card list gap, the equal 4-up/2×2 action grid, and the terminal
- * overlay.
+ * What stays here is Machines-only: the gauges inside the sheet, the confirm
+ * body, the terminal overlay and the Diagnostics dialog.
  */
 
-.machines-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
-}
-
-/* Stale cards keep rendering their last-known content (design.md "stale"
- * state) but read as slightly inert while a background refresh is failing. */
-.machine-card.is-stale { opacity: 0.72; }
-
-/* Card title (#408): truncate to one line on narrow/mobile viewports
- * instead of wrapping into the status badge. .hub-title-block is already
- * `min-width: 0` (styles.css); the h2 itself also needs it since it's a
- * flex item, and the status badge needs flex-shrink: 0 so it's never the
- * thing that gets squeezed. */
-.machine-card .hub-title-block h2 {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.machine-card .hub-title-block .hub-live-status { flex-shrink: 0; }
-
-/* "self" status — the host you're looking at right now: an accent tint
- * reads as "home base", distinct from the good/warn/danger status trio
- * (.hub-live-status is the generic hub.js component; this is its one new
- * modifier). */
-.hub-live-status.accent { color: var(--accent); }
-.hub-live-status.accent .dot { background: var(--accent); }
-
-/* "via tailnet" (#396) — the peer is only reachable through its Tailscale
- * name, i.e. the wired LAN path is silently dead. Attention-toned so the
- * degraded route reads as a warning, not just another capability chip. */
-.machine-via-tailnet { color: var(--attention); }
-
-/* Connection type / MAC / signal-health chips (#397) — same meta-row rhythm
- * as the tailnet badge above. "Wired" and a healthy Wi-Fi reading are plain
- * capability chips (default muted text, no color override); only a
- * Fair/Weak signal or a flagged-flaky link earns the attention tone, so the
- * row stays quiet until there's actually something to notice. */
-.machine-net-signal-weak { color: var(--attention); }
-.machine-net-flaky { color: var(--attention); }
-.machine-mac, .machine-ip { font-variant-numeric: tabular-nums; }
-
-/* Role / Uptime / IP·MAC lines under the header — same rhythm as the Hub
- * card's PID/Uptime row (.hub-meta-row is a generic, unscoped rule). Each
- * meta line uses this class on its own now (#408 split the old single
- * wrapping bag into fixed, separate rows), so it still reads as one quiet
- * caption block even though it's several `<p>`s. */
-.machine-meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  align-items: baseline;
-  font-size: var(--font-caption);
-  margin: 0 0 8px;
-}
-
-/* Connection row (#408): wired/Wi-Fi on the left, Tailscale/flaky-link
- * status right-aligned on the same line — a dedicated space-between row
- * (not the wrapping .machine-meta-row bag) so the right side never
- * wrap-folds onto its own line regardless of content length. */
-.machine-conn-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 10px;
-  font-size: var(--font-caption);
-  margin: 0 0 8px;
-}
-.machine-conn-left, .machine-conn-right {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 10px;
-  min-width: 0;
-}
-.machine-conn-right { flex-shrink: 0; }
-
-/* Stats — a uniform column of horizontal gauges (CPU / RAM / GPU / disk),
- * every gauge the same size, one per line so it reads identically on the
- * phone and desktop. This host and every reachable peer render through the
- * same block (uptime is the meta-row line above, not a gauge). */
+/* Gauges — CPU / RAM / GPU / disk, one per line on a phone, two columns in
+ * the wide detail pane (.wide-cols). The track is the meter's (design.md
+ * `meter`: 6px, neutral-soft), the fill a state signal: accent while
+ * healthy, attention past 75%, danger past 90%. */
 .machine-stats {
-  margin-top: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line-muted);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -107,14 +22,14 @@
   justify-content: space-between;
   align-items: baseline;
   gap: 8px;
-  font-size: var(--font-caption);
+  font-size: var(--font-body-sm);
 }
 .gauge-label { color: var(--muted); font-weight: 600; }
 .gauge-value { color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
 .gauge-track {
-  height: 8px;
-  border-radius: 9999px;
-  background: var(--card-off);
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--neutral-soft);
   overflow: hidden;
 }
 .gauge-fill {
@@ -123,51 +38,10 @@
   background: var(--accent);
   transition: width 0.3s ease;
 }
-/* Resource-pressure state (design.md: status colors signal state). */
 .gauge[data-level="warn"] .gauge-fill { background: var(--attention); }
 .gauge[data-level="high"] .gauge-fill { background: var(--danger); }
 @media (prefers-reduced-motion: reduce) {
   .gauge-fill { transition: none; }
-}
-
-/* Action rail — the same four actions on every card (Terminal · Remote ·
- * Reboot · Shut down), equal-size cells: 4-up on desktop, 2×2 on a phone. An
- * unsupported action is disabled (shaded), never omitted, so the grid is
- * identical across machines. */
-.machine-actions {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-top: 12px;
-}
-.machine-action {
-  min-width: 0;            /* equal grid cells — never grow past the track */
-  min-height: 44px;       /* hit-target floor */
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-.machine-action > span { overflow: hidden; text-overflow: ellipsis; }
-/* Shaded = unavailable: the one flat disabled recipe (design.md
- * button-disabled), so a disabled danger button never reads as an active
- * red one and all four line up as equals. */
-.machine-action:disabled {
-  background: var(--card-off);
-  border-color: var(--line);
-  color: var(--muted);
-  cursor: default;
-}
-.machine-action:disabled .icon { opacity: 0.9; }
-/* Wake-on-LAN: the single action a powered-off machine can take, so it spans
- * the full rail on its own row below the (disabled) up-only actions rather
- * than sitting as a fifth unequal cell. Still the shared ghost action recipe
- * (.machine-action) — non-danger, no new tokens. */
-.machine-action--wake { grid-column: 1 / -1; }
-/* 2×2 on coarse pointers / narrow viewports. */
-@media (pointer: coarse), (max-width: 560px) {
-  .machine-actions { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ---------- confirm dialog (reboot / shutdown) ----------
@@ -225,48 +99,9 @@
 }
 
 /* ---------- diagnostics (issue #315) ----------
- * The this-machine card's drill-in entry row plus the capture/runs/settings
- * dialog. Reuses the same shells as the rest of this tab (.detail-dialog,
- * .hub-live-status, .gauge-track, .empty-state, the vendored .toggle switch);
- * what is new here is the entry row, the run list, and the data tables. */
-
-/* Entry row: a full-width disclosure-style row (design.md list-row rhythm),
- * label left, state chip + chevron right. 52px = rows.md, the same closed
- * height as a disclosure so it lines up with the rest of the card stack. */
-.diag-entry {
-  width: 100%;
-  min-height: 52px;
-  margin-top: 12px;
-  padding: 0 4px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  background: transparent;
-  border: 0;
-  border-top: 1px solid var(--line-muted);
-  color: var(--ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  text-align: left;
-}
-.diag-entry-main { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
-.diag-entry-chevron { color: var(--muted); flex-shrink: 0; }
-.diag-entry:hover { color: var(--accent); }
-.diag-entry [data-diag-chip] { margin-left: auto; }
-
-/* Footnote a peer card shows instead of the .diag-entry button — same
- * top-border rhythm as the row it replaces, tight browser-default-free
- * margins so it reads as one compact line, not a stray paragraph. */
-.diag-hint {
-  margin: 12px 0 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--line-muted);
-}
-
-/* (The verdict chip reuses .hub-live-status good/warn/danger as-is — all
- * three steps already exist in styles.css.) */
+ * The capture/runs/settings dialog. Its entry is the shared Diagnostics row
+ * under the machine list (#736, rows.js); what is here is the dialog's run
+ * list and data tables. */
 
 /* Dialog: read-heavy rather than an editor, but it does NOT re-plumb the
  * vendored shell's scrolling.

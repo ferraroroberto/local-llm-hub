@@ -81,6 +81,8 @@ export const state = {
   machinesErrorMsg: '',     // sanitized message for the error empty-state
   machinesBusyIds: {},      // machine id -> true while a reboot/shutdown POST is in flight
   machinesRecheckIds: {},   // machine id -> true while a fresh status re-check is pending
+  machinesHubBusyIds: {},   // machine id -> true while a peer-hub bootstrap/sync POST is in flight (#736)
+  machinesSelectedId: null, // machine whose sheet / wide detail pane is open (#736)
 
   // Diagnostics drill-in (issue #315)
   diagStatus: null,         // last /admin/api/diagnostics/status payload
@@ -310,8 +312,14 @@ export const els = {
   machinesError: document.getElementById('machinesError'),
   machinesErrorMsg: document.getElementById('machinesErrorMsg'),
   machinesRetryBtn: document.getElementById('machinesRetryBtn'),
-  machinesStaleNote: document.getElementById('machinesStaleNote'),
+  machinesHeadLine: document.getElementById('machinesHeadLine'),
   machinesList: document.getElementById('machinesList'),
+  machinesDiagCard: document.getElementById('machinesDiagCard'),
+  machinesDetail: document.getElementById('machinesDetail'),
+  machineSheet: document.getElementById('machineSheet'),
+  machineSheetTitle: document.getElementById('machineSheetTitle'),
+  machineSheetBody: document.getElementById('machineSheetBody'),
+  machineSheetCloseBtn: document.getElementById('machineSheetCloseBtn'),
   machinesConfirmDialog: document.getElementById('machinesConfirmDialog'),
   machinesConfirmTitle: document.getElementById('machinesConfirmTitle'),
   machinesConfirmCloseBtn: document.getElementById('machinesConfirmCloseBtn'),
