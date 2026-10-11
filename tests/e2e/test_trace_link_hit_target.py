@@ -1,9 +1,12 @@
-"""The Hub's per-request ``trace`` link is a real 44px target (#647, TOUCH-01).
+"""A Hub request's trace is a real 44px target and keeps every OTel function (#647, TOUCH-01; #738).
 
-The link sat inline in the token cell at 26x16 px, so on any Hub with Langfuse
-up and a few requests listed most of the screen's controls were under the
-44px floor. Stubs the live-request stream and the services status so the links
-render, then measures them on a phone and on desktop.
+The link once sat inline in the token cell at 26x16 px. Since #738 the whole
+Activity row is the target: it opens the request's trace sheet, which carries
+the OTel pane's trace functions: the prompt and completion preview (its
+fallback message while Langfuse is offline), a thumbs up and a thumbs down
+score, and the open-in-Langfuse link. Stubs the live-request stream, the trace
+detail and the feedback endpoint, then measures and drives them on a phone and
+on desktop.
 """
 
 from __future__ import annotations
@@ -40,35 +43,57 @@ def test_trace_links_are_44px_targets_that_never_overlap(page, admin_url, viewpo
         lambda route: route.fulfill(
             status=200, content_type="application/json", body=json.dumps(_SERVICES)),
     )
-    # The rows render a link only once the services status has said Langfuse is
-    # up, so the first connection carries nothing and EventSource's reconnect
-    # (retry: 200) brings the requests after the status has landed.
     frames = "".join(f"data: {json.dumps(_request(i))}\n\n" for i in range(3))
-    calls = []
-
-    def stream(route):
-        calls.append(1)
-        body = ":open\nretry: 200\n\n" + (frames if len(calls) > 1 else "")
-        route.fulfill(status=200, content_type="text/event-stream", body=body)
-
-    page.route("**/admin/api/hub/requests/stream*", stream)
-    page.goto(admin_url, wait_until="domcontentloaded")
-    page.wait_for_function(
-        "document.getElementById('dockerStatusText').textContent === 'up'", timeout=10000
+    page.route(
+        "**/admin/api/hub/requests/stream*",
+        lambda route: route.fulfill(
+            status=200, content_type="text/event-stream", body=":open\nretry: 60000\n\n" + frames),
     )
-    # The list lives in a collapsed card; the review walk opens such disclosures.
-    page.evaluate("document.getElementById('liveRequestsList').closest('details').open = true")
-    page.wait_for_selector("#liveRequestsList li a", state="visible", timeout=10000)
+    # Langfuse offline: the detail endpoint answers without the bodies.
+    page.route(
+        "**/admin/api/telemetry/trace/*",
+        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps({
+            "trace_id": "trace-0001-abcdef", "langfuse": {"available": False}})),
+    )
+    scores = []
+
+    def feedback(route):
+        scores.append(route.request.post_data_json["thumbs"])
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    page.route("**/admin/api/trace/*/feedback", feedback)
+    page.goto(admin_url, wait_until="domcontentloaded")
+    page.wait_for_selector('#liveRequestsList [data-act="trace"]', state="visible", timeout=10000)
 
     rects = page.evaluate(
-        """() => [...document.querySelectorAll('#liveRequestsList li a')].map(a => {
+        """() => [...document.querySelectorAll('#liveRequestsList [data-act="trace"]')].map(a => {
             const r = a.getBoundingClientRect();
             return { w: r.width, h: r.height, top: r.top, bottom: r.bottom };
         })"""
     )
     assert len(rects) == 3, rects
     for r in rects:
-        assert r["w"] >= 44 and r["h"] >= 44, f"trace link is {r['w']}x{r['h']}: {rects}"
+        assert r["w"] >= 44 and r["h"] >= 44, f"trace target is {r['w']}x{r['h']}: {rects}"
     ordered = sorted(rects, key=lambda r: r["top"])
     for a, b in zip(ordered, ordered[1:]):
-        assert a["bottom"] <= b["top"] + 0.5, f"trace links overlap: {ordered}"
+        assert a["bottom"] <= b["top"] + 0.5, f"trace targets overlap: {ordered}"
+
+    # The trace sheet: preview fallback, both scores, the Langfuse link.
+    page.locator('#liveRequestsList [data-act="trace"]').first.click()
+    sheet = page.locator("#traceSheet[open]")
+    sheet.wait_for(timeout=3000)
+    page.wait_for_function(
+        "(document.querySelector('#traceSheet .tel-trace-detail')?.innerText || '').includes('Langfuse stack offline')",
+        timeout=5000,
+    )
+    sheet.locator('.tel-thumb[data-thumbs="1"]').click()
+    sheet.locator('.tel-thumb[data-thumbs="-1"]').click()
+    for _ in range(30):
+        if len(scores) >= 2:
+            break
+        page.wait_for_timeout(100)
+    assert scores == [1, -1], scores
+    link = sheet.locator("a.tel-deeplink")
+    assert "trace-0002-abcdef" in link.get_attribute("href")
+    box = link.bounding_box()
+    assert box["height"] >= 44, box

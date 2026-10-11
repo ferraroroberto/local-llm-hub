@@ -1,17 +1,15 @@
-"""End-to-end tests for the Hub tab's "Model decisions" card (issue #373).
+"""Model decisions left Hub for Models (issue #373; moved by #737, removed by #738).
 
-Route-intercepts both backing endpoints so the render is deterministic and no
+Route-intercepts every backing endpoint so the render is deterministic and no
 real peer probe (fleet-placement's per-host TCP liveness check) ever runs —
 same discipline as ``test_fleet_placement_tab.py``. The API contract itself
 has its own unit tests in ``tests/test_roles_router.py``.
 
 What this locks in:
-  * the card is folded by default and fetches nothing until expanded (no
-    background poll — mirrors the System Map lazy-load pattern);
-  * expanding it renders one row per configured role and one row per fleet
-    host;
-  * "View fleet summary" jumps to the Models tab and opens the existing
-    Fleet summary card instead of duplicating it here.
+  * Hub carries no Model decisions card and fetches neither roles nor
+    placement (the old card was folded and lazy; now there is nothing to load);
+  * the roles reach each model's sheet on Models, a fallback marked as one;
+  * the placement reaches the Models memory glance, one row per fleet host.
 """
 
 from __future__ import annotations
@@ -43,89 +41,70 @@ FAKE_PLACEMENT = {
     ],
 }
 
+# Two running models, so the default Running scope lists both.
+FAKE_MODELS = {
+    "models": [
+        {
+            "id": model_id, "display_name": name, "backend": "llama", "port": port,
+            "aliases": [], "controllable": True, "ownership": "ours", "pid": 4242,
+            "reachable": True, "host": "tower",
+        }
+        for model_id, name, port in (("qwen35_4b", "Qwen3.5 4B", 8082), ("whisper", "Whisper Turbo", 8090))
+    ],
+}
 
-def _install_routes(page):
-    def roles_handler(route):
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(FAKE_ROLES))
 
-    def placement_handler(route):
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(FAKE_PLACEMENT))
-
-    page.route("**/admin/api/roles", roles_handler)
-    page.route("**/admin/api/fleet-placement", placement_handler)
+def _fulfil(body):
+    return lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
 
-def test_roles_card_folded_by_default_no_fetch(page, admin_url):
-    """Collapsed on load; neither backing endpoint is called until expanded."""
+def test_hub_has_no_roles_card_and_fetches_neither(page, admin_url):
     calls = []
 
-    def roles_handler(route):
-        calls.append(1)
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(FAKE_ROLES))
+    def counted(body):
+        def handler(route):
+            calls.append(route.request.url)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        return handler
 
-    page.route("**/admin/api/roles", roles_handler)
-
+    page.route("**/admin/api/roles", counted(FAKE_ROLES))
+    page.route("**/admin/api/fleet-placement", counted(FAKE_PLACEMENT))
     page.goto(admin_url, wait_until="load")
-    page.wait_for_selector("#rolesCard", state="attached", timeout=5000)
-    assert page.eval_on_selector("#rolesCard", "el => el.open") is False
+    page.wait_for_selector("#hubGlance", state="visible", timeout=5000)
     page.wait_for_timeout(300)  # give any accidental eager fetch a chance to fire
-    assert calls == [], "the roles card must not fetch while collapsed"
+    assert page.locator("#rolesCard").count() == 0
+    assert calls == [], f"Hub fetched {calls}"
 
 
-def test_roles_card_renders_on_expand(page, admin_url):
-    _install_routes(page)
+def test_roles_reach_the_model_sheet_on_models(page, admin_url):
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.route("**/admin/api/models", _fulfil(FAKE_MODELS))
+    page.route("**/admin/api/roles", _fulfil(FAKE_ROLES))
+    page.route("**/admin/api/fleet-placement", _fulfil(FAKE_PLACEMENT))
     page.goto(admin_url, wait_until="load")
-    page.eval_on_selector("#rolesCard", "el => { el.open = true; }")
+    page.click("#tabModels")
 
-    page.wait_for_selector("#rolesList .startup-row", state="visible", timeout=10000)
-    roles_rows = page.locator("#rolesList .startup-row")
-    assert roles_rows.count() == 2
-    assert "Qwen3.5 4B" in roles_rows.nth(0).inner_text()
-    # dotted audio.transcribe role renders with its fallback chain visible
-    assert "fallback: whisper" in roles_rows.nth(1).inner_text().lower()
+    expected = {"qwen35_4b": "Agentic Light", "whisper": "Audio · Transcribe (fallback)"}
+    for model_id, role in expected.items():
+        row = page.locator(f'#modelsList .model-row[data-id="{model_id}"] .action-row-main')
+        row.wait_for(state="visible", timeout=10000)
+        row.click()
+        sheet = page.locator("#modelSheet[open]")
+        sheet.wait_for(timeout=5000)
+        page.wait_for_function(
+            "(t) => (document.querySelector('#modelSheet[open]')?.innerText || '').includes(t)",
+            arg=role, timeout=5000,
+        )
+        page.click("#modelSheetCloseBtn")
 
-    placement_rows = page.locator("#rolesPlacementList .startup-row")
-    assert placement_rows.count() == 1
-    assert "Tower" in placement_rows.first.inner_text()
-    assert "whisper" in placement_rows.first.inner_text().lower()
 
-
-def test_view_placement_button_jumps_to_models_tab(page, admin_url):
-    _install_routes(page)
+def test_placement_reaches_the_models_memory_glance(page, admin_url):
+    page.route("**/admin/api/roles", _fulfil(FAKE_ROLES))
+    page.route("**/admin/api/fleet-placement", _fulfil(FAKE_PLACEMENT))
     page.goto(admin_url, wait_until="load")
-    page.eval_on_selector("#rolesCard", "el => { el.open = true; }")
-    page.wait_for_selector("#rolesList .startup-row", state="visible", timeout=10000)
-
-    page.click("#rolesViewPlacementBtn")
-    page.wait_for_selector("#paneModels", state="visible", timeout=5000)
-    # The jump lands on the Models memory glance (#737), which holds what the
-    # old Fleet summary card did (per machine: running, loadable, capacity).
+    page.click("#tabModels")
     page.wait_for_selector("#modelsMemoryCard", state="visible", timeout=5000)
-
-
-def test_roles_card_shows_no_bare_headings_while_loading(page, admin_url):
-    """J-09 (#647): while the first fetch is in flight the card shows one
-    "Loading…" line, not the Roles / Placement headings over empty lists."""
-    held = []
-    released = []
-
-    def hold(route):
-        if released:
-            route.fulfill(status=200, content_type="application/json", body=json.dumps(
-                FAKE_ROLES if route.request.url.endswith("/roles") else FAKE_PLACEMENT))
-        else:
-            held.append(route)
-
-    page.route("**/admin/api/roles", hold)
-    page.route("**/admin/api/fleet-placement", hold)
-    page.goto(admin_url, wait_until="load")
-    page.eval_on_selector("#rolesCard", "el => { el.open = true; }")
-    page.wait_for_selector("#rolesStatus", state="visible", timeout=5000)
-    assert page.locator("#rolesCard .opt-group-title:visible").count() == 0
-
-    released.append(True)
-    for route in held:
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(
-            FAKE_ROLES if route.request.url.endswith("/roles") else FAKE_PLACEMENT))
-    page.wait_for_selector("#rolesList .startup-row", state="visible", timeout=10000)
-    assert page.locator("#rolesCard .opt-group-title:visible").count() == 2
+    page.wait_for_function(
+        "(document.getElementById('modelsMemoryList')?.innerText || '').includes('Tower')",
+        timeout=10000,
+    )

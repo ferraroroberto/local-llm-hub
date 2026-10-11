@@ -26,7 +26,7 @@ export const state = {
   tab: 'hub',
   status: null,           // /admin/api/hub/status payload
   models: [],             // /admin/api/models payload
-  counters: [],           // rows from /admin/api/hub/counters
+  counters: [],           // per-backend rows from /admin/api/telemetry/metrics
   liveRequests: [],       // ring synced from SSE stream
   recentErrors: [],
   logPaused: false,
@@ -38,6 +38,7 @@ export const state = {
 
   // Telemetry tab — its own state slice (issue #4).
   telHealth: null,
+  telHealthFailed: false,  // the last health read failed: "unreachable" on the pane and the Hub Langfuse sheet (#738)
   telCounters: [],
   telTraces: [],
   telStreamCtl: null,
@@ -54,7 +55,11 @@ export const state = {
   // Services card — Docker + Langfuse status (issue #27).
   services: null,
   servicesLaunching: false,
-  peerBusyIds: {},   // host_id -> true while that peer's wake/sync is in flight (#181, generalized #372)
+  hubSeries: 'cpu',       // which load history the Hub glance sparkline shows (#738)
+  activityScope: 'requests', // Hub Activity: 'requests' | 'errors' (#738)
+  hubMetrics: null,       // last /admin/api/telemetry/metrics payload (glance + By model, #738)
+  hubMetricsOk: null,     // null before the first read; false after a failed one (glance says "not confirmed")
+  hubStatusOk: null,      // null until the first status read; false when the hub did not answer
   agentsviewBusy: false,   // AgentsView start/stop in flight (#280, #284)
   dockerBusy: false,   // Docker Desktop start/stop in flight (#284)
   langfuseBusy: false,   // Langfuse stack start/stop in flight (#284)
@@ -122,8 +127,6 @@ export const els = {
 
   // Hub card — live status indicator lives inside the card header
   // (replaces the old always-on status strip).
-  hubLiveStatus: document.getElementById('hubLiveStatus'),
-  hubLiveStatusText: document.getElementById('hubLiveStatusText'),
   // One theme toggle per pane header (the vendored home-head).
   themeToggleBtns: Array.from(document.querySelectorAll('.theme-toggle')),
   hubPid: document.getElementById('hubPid'),
@@ -131,8 +134,6 @@ export const els = {
   hubSparklines: document.getElementById('hubSparklines'),
 
   // Services card — Docker + Langfuse (issue #27)
-  servicesOverall: document.getElementById('servicesOverall'),
-  servicesOverallText: document.getElementById('servicesOverallText'),
   dockerStatus: document.getElementById('dockerStatus'),
   dockerStatusText: document.getElementById('dockerStatusText'),
   dockerDetail: document.getElementById('dockerDetail'),
@@ -148,8 +149,35 @@ export const els = {
   agentsviewDetail: document.getElementById('agentsviewDetail'),
   agentsviewStartBtn: document.getElementById('agentsviewStartBtn'),
   agentsviewStopBtn: document.getElementById('agentsviewStopBtn'),
-  peerRows: document.getElementById('peerRows'),
   servicesActions: document.getElementById('servicesActions'),
+  // Hub (#738): header line, glance, services rows, activity, sheets
+  hubHeadLine: document.getElementById('hubHeadLine'),
+  hubWindow: document.getElementById('hubWindow'),
+  hubReqCount: document.getElementById('hubReqCount'),
+  hubErrCount: document.getElementById('hubErrCount'),
+  hubP50: document.getElementById('hubP50'),
+  hubSeries: document.getElementById('hubSeries'),
+  servicesList: document.getElementById('servicesList'),
+  servicesSheet: document.getElementById('servicesSheet'),
+  langfuseSheet: document.getElementById('langfuseSheet'),
+  langfuseSheetOpenBtn: document.getElementById('langfuseSheetOpenBtn'),
+  langfuseHealthValue: document.getElementById('langfuseHealthValue'),
+  hubOtelHealth: document.getElementById('hubOtelHealth'),
+  hubOtelState: document.getElementById('hubOtelState'),
+  hubOtelHash: document.getElementById('hubOtelHash'),
+  hubOtelEndpoint: document.getElementById('hubOtelEndpoint'),
+  hubOtelOfflineHint: document.getElementById('hubOtelOfflineHint'),
+  hubOpenLangfuse: document.getElementById('hubOpenLangfuse'),
+  activityScope: document.getElementById('activityScope'),
+  traceSheet: document.getElementById('traceSheet'),
+  traceSheetTitle: document.getElementById('traceSheetTitle'),
+  traceSheetBody: document.getElementById('traceSheetBody'),
+  byModelSheet: document.getElementById('byModelSheet'),
+  byModelOpenBtn: document.getElementById('byModelOpenBtn'),
+  byModelMeta: document.getElementById('byModelMeta'),
+  hubByModelSummary: document.getElementById('hubByModelSummary'),
+  logSheet: document.getElementById('logSheet'),
+  logOpenBtn: document.getElementById('logOpenBtn'),
   servicesLaunchBtn: document.getElementById('servicesLaunchBtn'),
   servicesHint: document.getElementById('servicesHint'),
 
@@ -159,14 +187,12 @@ export const els = {
   installFixAllBtn: document.getElementById('installFixAllBtn'),
   installRefreshBtn: document.getElementById('installRefreshBtn'),
 
-  // Diagnostic disclosure cards (Live / Counters / Errors / Log — #215)
+  // Activity feed (#738): requests, errors, the By model counters table
   liveRequestsList: document.getElementById('liveRequestsList'),
   liveRequestsFilter: document.getElementById('liveRequestsFilter'),
-  liveRequestsBadge: document.getElementById('liveRequestsBadge'),
   liveRequestsEmpty: document.getElementById('liveRequestsEmpty'),
   countersTable: document.getElementById('countersTable'),
   recentErrorsList: document.getElementById('recentErrorsList'),
-  recentErrorsBadge: document.getElementById('recentErrorsBadge'),
   recentErrorsEmpty: document.getElementById('recentErrorsEmpty'),
   hubLog: document.getElementById('hubLog'),
   hubLogPauseBtn: document.getElementById('hubLogPauseBtn'),
@@ -189,14 +215,6 @@ export const els = {
 
   // Fleet placement (issue #354): the memory glance's stale note (#737)
   fleetPlacementStaleNote: document.getElementById('fleetPlacementStaleNote'),
-
-  // Model decisions card (issue #373) — Hub tab, role → model + placement
-  rolesCard: document.getElementById('rolesCard'),
-  rolesStatus: document.getElementById('rolesStatus'),
-  rolesSections: document.getElementById('rolesSections'),
-  rolesList: document.getElementById('rolesList'),
-  rolesPlacementList: document.getElementById('rolesPlacementList'),
-  rolesViewPlacementBtn: document.getElementById('rolesViewPlacementBtn'),
 
   // Playground
   playgroundModel: document.getElementById('playgroundModel'),

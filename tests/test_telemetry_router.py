@@ -219,3 +219,18 @@ def test_project_id_success_is_cached(monkeypatch):
     assert pid == "p1"
     assert telemetry._CACHED_PROJECT_ID == "p1"
     telemetry._reset_project_id_cache_for_tests()
+
+
+def test_overall_p50_is_none_before_traffic_then_the_median():
+    """The Hub glance's latency figure (#738): None before any request, so
+    the SPA says "not confirmed" instead of a made-up zero; then the median
+    over every backend's samples."""
+    from src.hub_observability import Observatory, RequestRecord
+
+    obs = Observatory()
+    assert obs.overall_p50_ms() is None
+    for i, ms in enumerate((100.0, 300.0, 200.0)):
+        obs.record_request(RequestRecord(ts=float(i), path="/v1/messages",
+                                         model="demo-a" if i else "demo-b", status=200, latency_ms=ms))
+    assert obs.overall_p50_ms() == 200.0
+    assert "p50_ms" in _client().get("/admin/api/telemetry/metrics").json()["summary"]

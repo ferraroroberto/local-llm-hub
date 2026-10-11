@@ -536,10 +536,10 @@ worst-case reservation — see "On-demand model lifecycle" below.
 Current host ownership for every row above — which machine runs what, and
 any failover chain — is [`config/models.yaml`](config/models.yaml)'s alone.
 
-The Windows hub's admin UI Services card shows a live reachability pill for
-every other hub-running peer (mac-mini-m4, gaming — any future satellite
-with a non-empty `enabled:` list appears automatically, #372) alongside
-Docker/Langfuse. Cross-host auth reuses `extra_allowlist` in
+The admin UI's **Machines** tab shows every other hub-running peer's own hub
+(mac-mini-m4, gaming — any future satellite with a non-empty `enabled:` list
+appears automatically, #372) in each machine's sheet (#736; the Hub tab's
+Services card carried these rows until #738). Cross-host auth reuses `extra_allowlist` in
 `config/webapp_config.json` (per-machine, not committed) — each host's LAN
 IP is allowlisted on the other, the same bypass the bearer-token middleware
 already grants loopback callers.
@@ -564,14 +564,14 @@ For the case where the Mac's hub is fully dead (crashed before
 (`~/.ssh/local-llm-hub-remote-ctl`, path in `.env`'s
 `LOCAL_LLM_HUB_SSH_KEY`) — the Mac's `authorized_keys` restricts that key
 to `mac/bin/hub-remote-ctl.sh`, which only allows two verbs
-(`bootstrap` / `sync`), no general shell. The Services card renders one row
-per hub-running peer (#372 generalized this from a hardcoded Mac-Mini-only
-row); each gets a **Wake** button (visible when unreachable →
+(`bootstrap` / `sync`), no general shell. The Machines tab renders one row
+per machine (#372 generalized the peer row from a hardcoded Mac-Mini-only
+row); each hub-running peer gets a **Wake** button (visible when unreachable →
 `POST /admin/api/hosts/<host-id>/bootstrap`) and a **Sync** button (visible
 when reachable → `.../sync`, which `git pull --ff-only`s that peer's
 checkout before restarting it — the Linux dispatcher, `linux/bin/hub-remote-ctl.sh`,
 gives `gaming` the same two verbs since #368). An **out-of-sync** badge
-appears on a peer's pill when the two hubs' `git_sha` (from
+appears on a peer's row when the two hubs' `git_sha` (from
 `/admin/api/version`) differ — `sync` is the fix.
 
 Automatic peer wake/sync on the tower's own boot is not a separate
@@ -900,6 +900,35 @@ command="/home/<user>/local-llm-hub/linux/bin/hub-remote-ctl.sh",no-port-forward
 the repo lives at `~/local-llm-hub` — the same convention the Mac dispatcher
 uses.
 
+### Hub tab
+
+The **Hub** tab is where the admin lands, and it answers *is the hub serving,
+and is anything failing?* first (#738):
+
+- **Glance.** Requests, errors and median latency **since hub start** (the
+  hub keeps no hourly history, so the card names its window; a failed read
+  says *not confirmed*, never zero), one load sparkline whose series a
+  CPU · GPU · RAM · VRAM control swaps (each with its current figure), and
+  the process id and uptime.
+- **Services as exceptions.** Docker, Langfuse and AgentsView fold into one
+  row while all are up; a stopped or failing one is its own row with
+  **Start**, and the header line names it. The row opens the **Services**
+  sheet: every service with Start / Stop and its detail, **Launch Docker +
+  Langfuse**, and the **Langfuse** sheet with the OTel state, PII mode,
+  endpoint, stack health, **Open Langfuse UI** and the offline setup hint.
+- **Activity.** One feed of request rows (model first, status and latency,
+  backend · tokens · detail, clock last), **Requests · Errors**, with a
+  filter. A row with a trace opens its sheet: the prompt and completion
+  preview (or the offline fallback), a thumbs up / down score and **Open in
+  Langfuse**. **By model** opens the per-backend counters with their summary
+  line; **Server log** opens the live tail with Pause. The ⓘ explains the
+  window and the audio calls that bypass the hub.
+- **Health & install** stays a folded card here until it moves to Settings.
+
+On a wide window (1100px+, mouse) the glance and services sit left of the
+Activity feed; a phone shows one column. The model roles and placement live
+on the Models tab (#737).
+
 ### Machines console
 
 The **Machines** tab turns the hub into a fleet machine console — one place
@@ -1227,7 +1256,7 @@ local-llm-hub/
 │                             #   hub.js + models.js + startup.js + fleet_placement.js +
 │                             #   playground.js + playground_jev.js + code_usage.js/.css +
 │                             #   diagnostics.js + glossary.js + machines.js/.css +
-│                             #   machines_terminal.js + roles_card.js + telemetry.js/.css +
+│                             #   machines_terminal.js + rows.js/.css + telemetry.js/.css +
 │                             #   styles.css +
 │                             #   manifest.webmanifest + icon-*.png/favicon.ico (generated
 │                             #   by scripts/gen_icons.py, committed)
@@ -2175,7 +2204,7 @@ subprocesses, no wrapper around any binary, no impact on the running CLIs:
   AgentsView knows about are deliberately not surfaced (curated map in
   `agentsview_usage.py`). Polled over HTTP, never from raw files; the hub
   runs fully without it. AgentsView appears in the Hub tab's **Services**
-  card and the Models tab's **Service startup** toggles — the hub launches it at
+  sheet and the Models tab's **Service startup** toggles — the hub launches it at
   startup when toggled on (exe from `.venv-agentsview/`, `AGENTSVIEW_EXE`,
   or PATH). Setup and behaviour:
   [docs/code-usage-agentsview.md](docs/code-usage-agentsview.md).

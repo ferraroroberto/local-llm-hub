@@ -27,9 +27,11 @@ export async function fetchTelemetryHealth() {
   try {
     const body = await jsonApi('/admin/api/telemetry/health');
     state.telHealth = body;
+    state.telHealthFailed = false;
     renderHealth(body);
   } catch (exc) {
     if (isAuthError(exc)) return;
+    state.telHealthFailed = true;
     setHealthDot('danger', 'unreachable');
   }
 }
@@ -236,7 +238,7 @@ function renderTraces() {
   applyListFilter(els.telTracesFilter, list);
 }
 
-async function hydrateDetailPanel(target, traceId) {
+export async function hydrateDetailPanel(target, traceId) {
   let body;
   try {
     body = await jsonApi('/admin/api/telemetry/trace/' + encodeURIComponent(traceId));
@@ -269,7 +271,7 @@ function stringifyPayload(value) {
   catch (_) { return String(value); }
 }
 
-function langfuseUiBase() {
+export function langfuseUiBase() {
   // Pick the host the user's browser can actually reach Langfuse at.
   //
   //   1. If an explicit LANGFUSE_PUBLIC_URL is configured, use it
@@ -302,7 +304,7 @@ export function langfuseTraceUrl(traceId) {
 }
 
 // --------------------------------------------------------- feedback
-async function postFeedback(traceId, value) {
+export async function postFeedback(traceId, value) {
   try {
     await postJson('/admin/api/trace/' + encodeURIComponent(traceId) + '/feedback', {
       thumbs: value,
