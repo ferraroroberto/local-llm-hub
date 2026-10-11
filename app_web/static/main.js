@@ -11,7 +11,7 @@ import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams
 import { wireModels, fetchModels, fetchRoles } from './models.js';
 import { wireStartupProfile, fetchStartupProfile } from './startup.js';
 import { fetchFleetPlacement } from './fleet_placement.js';
-import { wirePlayground, fetchPlaygroundModels, fetchTtsModels, fetchImageModels } from './playground.js';
+import { wirePlayground, wirePlayModes, setPlayMode, fetchPlaygroundModels, fetchTtsModels, fetchImageModels } from './playground.js';
 import { wireJev, fetchJevInfo } from './playground_jev.js';
 import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls, fetchTelemetryHealth } from './telemetry.js';
 import { wireCodeUsage, startCodeUsagePolls, stopCodeUsagePolls, restyleCodeUsageCharts } from './code_usage.js';
@@ -87,6 +87,7 @@ async function boot() {
   wireModels();
   wireStartupProfile();
   wirePlayground();
+  wirePlayModes();
   wireJev();
   wireTelemetry();
   wireCodeUsage();
@@ -132,7 +133,11 @@ async function boot() {
   wireTabs();
   // Header buttons that open a destination which is not in the bottom bar.
   document.querySelectorAll('[data-open-tab]').forEach(function (btn) {
-    btn.addEventListener('click', function () { setTab(btn.dataset.openTab); });
+    btn.addEventListener('click', function () {
+      // "Send a test request" lands on the Playground's Chat (#740).
+      if (btn.dataset.openTab === 'playground') setPlayMode('chat');
+      setTab(btn.dataset.openTab);
+    });
   });
 
   await Promise.allSettled([fetchVersion(), fetchAllData()]);

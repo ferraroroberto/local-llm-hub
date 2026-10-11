@@ -10,6 +10,7 @@
 
 import { els } from './state.js';
 import { jsonApi, postJson, toast } from './api.js';
+import { setModeModels } from './playground.js';
 
 // The vendor quickstart (docs.typesafe.ai/api.md) — one question of each type.
 const SAMPLE_STATE = 'Help! My payouts have been failing for 3 days.';
@@ -40,6 +41,7 @@ export async function fetchJevInfo() {
   try {
     const body = await jsonApi('/admin/api/playground/systemone_info');
     els.jevModel.innerHTML = '';
+    setModeModels('decide', (body.models || []).length);
     (body.models || []).forEach(function (id) {
       const opt = document.createElement('option');
       opt.value = id;

@@ -693,8 +693,8 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
  * Glance + services on the left, the Activity feed on the right on a wide
  * window (rows.css .wide-cols); one column below it. The glance's figures are
  * numbers first; the process line stays here until Step 6 moves it. */
-/* Code (#739) shares the two-column shape. */
-.hub-cols, .hub-col, .code-cols, .code-col { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+/* Code (#739) and Playground (#740) share the two-column shape. */
+.hub-cols, .hub-col, .code-cols, .code-col, .play-cols, .play-col { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
 .hub-window { font-size: var(--font-caption); text-align: right; }
 .hub-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); }
 .hub-figure { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -748,11 +748,25 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 .detail-dialog .counters thead th { font-size: var(--font-body-sm); }
 .wide-dialog { width: min(760px, 96vw); }
 @media (min-width: 1100px) and (pointer: fine) {
-  /* Hub and Code are declared wide views ([design] wide_views): their two
-   * columns span the width right of the rail. */
+  /* Hub, Code and Playground are declared wide views ([design] wide_views):
+   * their two columns span the width right of the rail. */
   .app:has(> .pane[data-wide="cols"]:not([hidden])) { max-width: none; margin: 0; }
-  .hub-cols.wide-cols, .code-cols.wide-cols { display: grid; align-items: start; }
+  .hub-cols.wide-cols, .code-cols.wide-cols, .play-cols.wide-cols { display: grid; align-items: start; }
 }
+
+/* ---------- Playground (#740) ----------
+ * One composer: the mode switch spans the column, then the active mode's
+ * composer and its result (side by side on a wide window). */
+.play-mode { display: flex; width: 100%; }
+.play-mode .segmented-item { flex: 1; }
+.play-result-empty { margin: 0; font-size: var(--font-body-sm); }
+/* The composer's labels, section titles and helper lines (field notes, the
+ * privacy line, status lines) read at body-sm: on a form they are part of
+ * what you read, not side facts. */
+#panePlayground .small,
+#panePlayground .opt-stack > label,
+#panePlayground .opt-group-title { font-size: var(--font-body-sm); }
+.play-result > :first-child + * { margin-top: 0; }
 
 /* ---------- Models tab (#737) ----------
  * Rows are the shared row (rows.js on the vendored action-row), grouped by

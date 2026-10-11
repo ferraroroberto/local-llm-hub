@@ -1,10 +1,120 @@
-/* Playground tab — stacked label/input pairs, More-options details,
- * segmented max-tokens with a numeric override, full-width Send.
+/* Playground tab — one composer with Chat, Image, Speech and Decide (#740):
+ * stacked label/input pairs, rare parameters under More options, segmented
+ * max-tokens with a numeric override, full-width Send. Each mode owns its
+ * composer card and its result card; the switch only shows and hides them,
+ * so a request in flight keeps running and every mode keeps its last result.
  */
 
-import { els, state } from './state.js';
+import { els, state, PLAYGROUND_MODE_KEY } from './state.js';
 import { api, jsonApi, toast } from './api.js';
 import { setSwitch } from './_vendored/switch/switch.js';
+import { setHeadLine } from './rows.js';
+
+const PLAY_MODES = ['chat', 'image', 'speech', 'decide'];
+const MODE_LABEL = { chat: 'Chat', image: 'Image', speech: 'Speech', decide: 'Decide' };
+// What each mode can run: null until its model list is read, then the count of
+// usable models (a stopped voice model is not usable).
+const modeModels = { chat: null, image: null, speech: null, decide: null };
+let playMode = 'chat';
+
+function readStoredMode() {
+  try {
+    const stored = localStorage.getItem(PLAYGROUND_MODE_KEY);
+    return PLAY_MODES.indexOf(stored) !== -1 ? stored : 'chat';
+  } catch (_) { return 'chat'; }   // private mode / blocked storage: Chat
+}
+
+/* Show one mode: its switch segment, its composer and its result. Nothing
+ * else is touched, so another mode's request and result live on. */
+export function setPlayMode(mode) {
+  if (PLAY_MODES.indexOf(mode) === -1) mode = 'chat';
+  playMode = mode;
+  if (els.playMode) {
+    els.playMode.querySelectorAll('.segmented-item').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+    });
+  }
+  document.querySelectorAll('#panePlayground .play-composer, #panePlayground .play-result').forEach(function (card) {
+    card.hidden = card.dataset.mode !== mode;
+  });
+  try { localStorage.setItem(PLAYGROUND_MODE_KEY, mode); } catch (_) { /* private mode */ }
+  renderPlayHeadLine();
+}
+
+/* A mode with no usable backend says so in the header line while it is
+ * shown; one with no backend configured at all also shows its empty state in
+ * place of the form. `configured` defaults to `count` (a stopped voice model
+ * is configured but not usable, so its form stays). */
+export function setModeModels(mode, count, configured) {
+  modeModels[mode] = count;
+  if (configured === undefined) configured = count;
+  const none = mode === 'image' ? els.imageNone : mode === 'speech' ? els.ttsNone : null;
+  const card = mode === 'image' ? els.imageCard : mode === 'speech' ? els.ttsCard : null;
+  if (none && card) {
+    const empty = configured === 0;
+    none.hidden = !empty;
+    Array.prototype.forEach.call(card.children, function (child) {
+      if (child !== none && !child.classList.contains('card-header')) child.hidden = empty;
+    });
+  }
+  renderPlayHeadLine();
+}
+
+function renderPlayHeadLine() {
+  const el = els.playHeadLine;
+  if (!el) return;
+  const n = modeModels[playMode];
+  const parts = [];
+  if (n === 0) {
+    parts.push({
+      text: playMode === 'image' ? 'No image model' : playMode === 'speech' ? 'No voice model running'
+        : playMode === 'decide' ? 'No decision model' : 'No chat model',
+      tone: 'attention',
+    });
+  }
+  const fact = MODE_LABEL[playMode] + (n ? ' · ' + n + (n === 1 ? ' model' : ' models') : '');
+  if (parts.length) { setHeadLine(el, parts, fact); return; }
+  // Nothing wrong: a plain subtitle, not a live line, so on a phone it yields
+  // to the Traces button and the OTel pane stays one tap away (#740; Step 6
+  // retires the button).
+  el.classList.remove('head-line');
+  el.textContent = fact;
+  el.title = fact;
+}
+
+/* Each result card shows a one-line placeholder until its mode has produced
+ * something (a status line, a reply, an image, audio or answers). */
+function wireResultPlaceholders() {
+  document.querySelectorAll('#panePlayground .play-result').forEach(function (card) {
+    const placeholder = card.querySelector('[data-empty]');
+    if (!placeholder) return;
+    const sync = function () {
+      const filled = Array.prototype.some.call(card.children, function (child) {
+        if (child === placeholder || child.hidden) return false;
+        if (child.tagName === 'IMG' || child.tagName === 'AUDIO') return true;
+        if (child.querySelector('img:not([hidden]), audio:not([hidden])')) return true;
+        return child.textContent.trim() !== '';
+      });
+      if (placeholder.hidden !== filled) placeholder.hidden = filled;
+    };
+    new MutationObserver(function (records) {
+      if (records.every(function (r) { return r.target === placeholder; })) return;
+      sync();
+    }).observe(card, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'src'] });
+    sync();
+  });
+}
+
+export function wirePlayModes() {
+  if (els.playMode) {
+    els.playMode.addEventListener('click', function (ev) {
+      const seg = ev.target.closest('.segmented-item');
+      if (seg) setPlayMode(seg.dataset.mode);
+    });
+  }
+  wireResultPlaceholders();
+  setPlayMode(readStoredMode());
+}
 
 let ttsModels = [];
 let lastTtsSample = '';
@@ -13,6 +123,7 @@ export async function fetchPlaygroundModels() {
   try {
     const body = await jsonApi('/admin/api/playground/models');
     const models = body.models || [];
+    setModeModels('chat', models.length);
     if (!els.playgroundModel) return;
     els.playgroundModel.innerHTML = '';
     models.forEach(function (m) {
@@ -35,8 +146,8 @@ export async function fetchImageModels() {
     imageModels = models;
     imageSizes = body.sizes || [];
     if (!els.imageModel) return;
-    // No image-generation backend on this host → hide the whole card.
-    if (els.imageCard) els.imageCard.hidden = models.length === 0;
+    // No image-generation backend on this host → the mode says so (#740).
+    setModeModels('image', models.length);
     els.imageModel.innerHTML = '';
     models.forEach(function (m) {
       const opt = document.createElement('option');
@@ -125,8 +236,8 @@ export async function fetchTtsModels() {
     ttsModels = models;
     if (!els.ttsModel) return;
     els.ttsModel.innerHTML = '';
-    // No TTS backend configured on this host → hide the whole card.
-    if (els.ttsCard) els.ttsCard.hidden = models.length === 0;
+    // No TTS backend on this host, or none running → the mode says so (#740).
+    setModeModels('speech', models.filter(function (m) { return m.reachable; }).length, models.length);
     models.forEach(function (m) {
       const opt = document.createElement('option');
       opt.value = m.id;

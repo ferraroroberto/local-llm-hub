@@ -240,263 +240,260 @@
          data-wide="split"); the phone uses #modelSheet instead. -->
     <aside id="modelsDetail" class="card wide-detail" aria-label="Model detail"></aside>
 
-    <section id="panePlayground" class="pane" hidden role="tabpanel">
-      <!-- Page header: the vendored home-head (_vendored/home-head) — title, one context
-           line, and the theme toggle pinned right. -->
+    <section id="panePlayground" class="pane" hidden role="tabpanel" data-wide="cols">
+      <!-- Page header: the vendored home-head (_vendored/home-head) — title, the
+           header line (rows.js setHeadLine: a mode whose backend is missing or
+           stopped; else the mode in use), and the theme toggle pinned right. -->
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>Playground</span>
-        <span class="status">Try a model through the hub</span>
+        <span id="playHeadLine" class="status" role="status" aria-live="polite">Chat</span>
         <button type="button" class="ghost-btn home-otel" data-open-tab="telemetry" aria-label="Open traces and usage" title="Open traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Traces</button>
         <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
-      <!-- The four testers are vendored disclosure cards, folded by default,
-           so one opens at a time by choice (#217). -->
-      <details class="card card--collapsible">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>
-            <h3 class="collapse-title">Playground</h3>
-          </span>
-          <span class="collapse-chevron" aria-hidden="true">›</span>
-        </summary>
-        <div class="collapse-body">
 
-        <div class="opt-stack">
-          <label for="playgroundModel">Model</label>
-          <select id="playgroundModel" aria-label="Model"></select>
-        </div>
+      <!-- One composer (#740): the four modes are true alternatives, so one
+           segmented switch; the last mode is remembered on this device
+           (llmhub.playground.mode). -->
+      <div id="playMode" class="segmented play-mode" role="group" aria-label="Playground mode">
+        <button type="button" class="segmented-item" data-mode="chat" aria-pressed="true">Chat</button>
+        <button type="button" class="segmented-item" data-mode="image" aria-pressed="false">Image</button>
+        <button type="button" class="segmented-item" data-mode="speech" aria-pressed="false">Speech</button>
+        <button type="button" class="segmented-item" data-mode="decide" aria-pressed="false">Decide</button>
+      </div>
 
-        <div class="opt-stack">
-          <label for="playgroundSystem">System</label>
-          <textarea id="playgroundSystem" rows="2" placeholder="optional system prompt"></textarea>
-        </div>
-
-        <div class="opt-stack">
-          <label for="playgroundPrompt">Prompt</label>
-          <textarea id="playgroundPrompt" rows="6" placeholder="Hello"></textarea>
-        </div>
-
-        <div class="opt-stack">
-          <label for="playgroundAttachment">Attachment <span class="muted small">(image / PDF / text — claude &amp; gemini only)</span></label>
-          <div class="file-row">
-            <button id="playgroundAttachmentBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
-            <span id="playgroundAttachmentName" class="file-name muted small">No file selected</span>
-            <input id="playgroundAttachment" type="file" hidden aria-label="Attach a file — image, PDF, or any text/data file (claude/gemini only)">
-          </div>
-        </div>
-
-        <details class="opt-stack" id="playgroundMore">
-          <summary class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
-
-          <div class="opt-stack">
-            <label>Max tokens</label>
-            <div class="maxtokens-row">
-              <div id="playgroundMaxTokensSeg" class="segmented stretch" role="tablist" aria-label="Max tokens preset">
-                <button type="button" data-value="256">256</button>
-                <button type="button" data-value="512" class="active">512</button>
-                <button type="button" data-value="2048">2048</button>
-                <button type="button" data-value="8192">8192</button>
-              </div>
-              <input id="playgroundMaxTokens" type="number" min="1" max="32000" value="512" aria-label="Max tokens override">
+      <!-- Composer left, result right on a wide window (the geometry proposed on
+           #740); one column below it. Each mode owns its composer and its result,
+           so a switch never cancels a request or shows another mode's result. -->
+      <div class="play-cols wide-cols">
+        <div class="play-col">
+          <section class="card play-composer" id="chatCard" data-mode="chat" aria-label="Chat">
+            <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>Chat</h2></div>
+            <div class="opt-stack">
+              <label for="playgroundModel">Model</label>
+              <select id="playgroundModel" aria-label="Model"></select>
             </div>
-          </div>
-        </details>
 
-        <div class="playground-send-row">
-          <button id="playgroundSendBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Send</button>
-          <button id="playgroundClearBtn" type="button" class="ghost-btn">Clear</button>
+            <div class="opt-stack">
+              <label for="playgroundPrompt">Prompt</label>
+              <textarea id="playgroundPrompt" rows="6" placeholder="Hello"></textarea>
+            </div>
+
+            <details class="opt-stack" id="playgroundMore">
+              <summary class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
+
+              <div class="opt-stack">
+                <label for="playgroundSystem">System</label>
+                <textarea id="playgroundSystem" rows="2" placeholder="optional system prompt"></textarea>
+              </div>
+
+              <div class="opt-stack">
+                <label for="playgroundAttachment">Attachment <span class="muted small">(image / PDF / text — claude &amp; gemini only)</span></label>
+                <div class="file-row">
+                  <button id="playgroundAttachmentBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
+                  <span id="playgroundAttachmentName" class="file-name muted small">No file selected</span>
+                  <input id="playgroundAttachment" type="file" hidden aria-label="Attach a file — image, PDF, or any text/data file (claude/gemini only)">
+                </div>
+              </div>
+
+              <div class="opt-stack">
+                <label>Max tokens</label>
+                <div class="maxtokens-row">
+                  <div id="playgroundMaxTokensSeg" class="segmented stretch" role="tablist" aria-label="Max tokens preset">
+                    <button type="button" data-value="256">256</button>
+                    <button type="button" data-value="512" class="active">512</button>
+                    <button type="button" data-value="2048">2048</button>
+                    <button type="button" data-value="8192">8192</button>
+                  </div>
+                  <input id="playgroundMaxTokens" type="number" min="1" max="32000" value="512" aria-label="Max tokens override">
+                </div>
+              </div>
+            </details>
+
+            <div class="playground-send-row">
+              <button id="playgroundSendBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Send</button>
+              <button id="playgroundClearBtn" type="button" class="ghost-btn">Clear</button>
+            </div>
+          </section>
+          <section class="card play-composer" id="imageCard" data-mode="image" aria-label="Image" hidden>
+            <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>Image</h2></div>
+            <div id="imageNone" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-image"></use></svg><p class="empty-state-message">No image model is configured on this hub.</p></div>
+            <div class="opt-stack">
+              <label for="imageModel">Model</label>
+              <select id="imageModel" aria-label="Image model"></select>
+              <p id="imageModelNote" class="muted small" style="margin: 4px 0 0;"></p>
+            </div>
+
+            <div class="opt-stack">
+              <label for="imagePrompt">Prompt</label>
+              <textarea id="imagePrompt" rows="4" placeholder="a red apple on a white background"></textarea>
+            </div>
+
+            <div class="opt-stack">
+              <label for="imageSize">Size</label>
+              <select id="imageSize" aria-label="Image size"></select>
+              <p id="imageSizeNote" class="muted small" style="margin: 4px 0 0;"></p>
+            </div>
+
+            <details class="opt-stack" id="imageMore">
+              <summary class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
+
+              <div class="opt-stack" id="imageRefineRow" hidden>
+                <div class="opt-switch-row">
+                  <span>Refine after upscaling <span class="muted small">(second low-detail pass adds real detail instead of interpolated pixels — roughly doubles the time)</span></span>
+                  <button type="button" id="imageRefine" class="toggle" role="switch" aria-checked="false" aria-label="Refine after upscaling"><span class="knob"></span><span class="toggle-label">OFF</span></button>
+                </div>
+              </div>
+
+              <div class="opt-stack">
+                <label for="imageAttachment">Reference image <span class="muted small">(optional — edits the upload instead of generating; slow &amp; experimental, can take minutes)</span></label>
+                <div class="file-row">
+                  <button id="imageAttachmentBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
+                  <span id="imageAttachmentName" class="file-name muted small">No file selected</span>
+                  <input id="imageAttachment" type="file" accept="image/*" hidden aria-label="Reference image to edit (optional)">
+                </div>
+                <p id="imageEditNote" class="muted small" style="margin: 4px 0 0;"></p>
+              </div>
+
+            </details>
+
+            <div class="playground-send-row">
+              <button id="imageGenBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Generate</button>
+              <button id="imageClearBtn" type="button" class="ghost-btn">Clear</button>
+            </div>
+          </section>
+          <section class="card play-composer" id="ttsCard" data-mode="speech" aria-label="Speech" hidden>
+            <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Speech</h2></div>
+            <div id="ttsNone" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-volume-2"></use></svg><p class="empty-state-message">No voice model is configured on this hub.</p></div>
+            <div class="opt-stack">
+              <label for="ttsModel">Voice model</label>
+              <select id="ttsModel" aria-label="TTS model"></select>
+              <p id="ttsAvailability" class="muted small" role="status" aria-live="polite"></p>
+            </div>
+
+            <div class="opt-stack">
+              <label for="ttsInput">Text</label>
+              <textarea id="ttsInput" rows="4" placeholder="Hey, listen to this."></textarea>
+            </div>
+
+            <div class="opt-stack">
+              <label for="ttsLanguage">Language</label>
+              <select id="ttsLanguage" aria-label="Language"></select>
+            </div>
+
+            <div class="opt-stack">
+              <label for="ttsVoice">Voice</label>
+              <select id="ttsVoice" aria-label="Voice"></select>
+            </div>
+
+            <div class="opt-stack" id="ttsStreamGroup">
+              <div class="opt-switch-row">
+                <span>Stream <span class="muted small">(play as it synthesizes when supported; off = buffered clip with a player)</span></span>
+                <button type="button" id="ttsStream" class="toggle on" role="switch" aria-checked="true" aria-label="Stream audio"><span class="knob"></span><span class="toggle-label">ON</span></button>
+              </div>
+            </div>
+
+            <details class="opt-stack" id="ttsMore">
+              <summary class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
+
+              <div class="opt-stack">
+                <label for="ttsFormat">Format</label>
+                <select id="ttsFormat" aria-label="Response format">
+                  <option value="wav" selected>wav</option>
+                  <option value="mp3">mp3</option>
+                  <option value="flac">flac</option>
+                  <option value="opus">opus</option>
+                  <option value="pcm">pcm</option>
+                </select>
+                <p class="muted small">Streaming always plays raw PCM audio; the other formats apply to full responses.</p>
+              </div>
+
+              <div class="opt-stack" id="ttsSpeedGroup" hidden>
+                <label for="ttsSpeed">Speed · <span id="ttsSpeedVal">1.0</span>×</label>
+                <input id="ttsSpeed" type="range" min="0.5" max="2" step="0.05" value="1" aria-label="Speed">
+              </div>
+
+              <div class="opt-stack" id="ttsExaggerationGroup" hidden>
+                <label for="ttsExaggeration">Exaggeration <span class="muted small">(Chatterbox tone dial)</span> · <span id="ttsExaggerationVal">0.5</span></label>
+                <input id="ttsExaggeration" type="range" min="0" max="1" step="0.05" value="0.5" aria-label="Exaggeration">
+              </div>
+
+              <div class="opt-stack" id="ttsCfgWeightGroup" hidden>
+                <label for="ttsCfgWeight">CFG weight <span class="muted small">(pacing)</span> · <span id="ttsCfgWeightVal">0.5</span></label>
+                <input id="ttsCfgWeight" type="range" min="0" max="1" step="0.05" value="0.5" aria-label="CFG weight">
+              </div>
+            </details>
+
+            <div class="playground-send-row">
+              <button id="ttsSpeakBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Speak</button>
+            </div>
+          </section>
+          <section class="card play-composer" id="jevCard" data-mode="decide" aria-label="Decide" hidden>
+            <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-circle-help"></use></svg>Decide</h2></div>
+            <p class="jev-privacy muted small"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg><span>Sent to <code>api.typesafe.ai</code>, a third-party API hosted in the US — don't paste private content.</span></p>
+            <p id="jevKeyNote" class="muted small" role="status" aria-live="polite" hidden></p>
+
+            <div class="opt-stack">
+              <label for="jevModel">Model</label>
+              <select id="jevModel" aria-label="Decision model"></select>
+            </div>
+
+            <div class="opt-stack">
+              <label for="jevState">State <span class="muted small">(the content being judged)</span></label>
+              <textarea id="jevState" rows="3"></textarea>
+            </div>
+
+            <div class="opt-stack">
+              <label for="jevQuestions">Questions</label>
+              <textarea id="jevQuestions" class="jev-json" rows="12" spellcheck="false"></textarea>
+              <p class="muted small">One entry per question. Each has a type: yes/no (<code>noul</code>), <code>choice</code> or <code>score</code>.</p>
+              <p id="jevJsonError" class="jev-json-error small" role="alert" hidden></p>
+            </div>
+
+            <div class="playground-send-row">
+              <button id="jevEvalBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Evaluate</button>
+              <button id="jevResetBtn" type="button" class="ghost-btn">Reset sample</button>
+            </div>
+          </section>
         </div>
-        <p id="playgroundLatency" class="muted small" style="margin: 8px 0 0;"></p>
+        <div class="play-col">
+          <section class="card play-result" id="chatResult" data-mode="chat" aria-label="Chat result" aria-live="polite">
+            <p class="play-result-empty muted" data-empty>The reply shows here.</p>
+            <p id="playgroundLatency" class="muted small" style="margin: 8px 0 0;"></p>
 
-        <h3 class="opt-group-title">Reply</h3>
-        <pre id="playgroundReply" class="logpane" aria-label="Model reply"></pre>
-        <h3 class="opt-group-title">Usage</h3>
-        <div id="playgroundUsage" class="kv-grid usage"></div>
+            <h3 class="opt-group-title">Reply</h3>
+            <pre id="playgroundReply" class="logpane" aria-label="Model reply"></pre>
+            <h3 class="opt-group-title">Usage</h3>
+            <div id="playgroundUsage" class="kv-grid usage"></div>
+          </section>
+          <section class="card play-result" id="imageResult" data-mode="image" aria-label="Image result" aria-live="polite" hidden>
+            <p class="play-result-empty muted" data-empty>The image shows here.</p>
+            <p id="imageLatency" class="muted small" style="margin: 8px 0 0;"></p>
+
+            <img id="imagePreview" alt="Generated image" style="max-width: 100%; margin-top: 10px; border-radius: 8px;" hidden>
+            <div class="playground-send-row" id="imageDownloadRow" hidden style="margin-top: 10px;">
+              <a id="imageDownload" class="ghost-btn primary" download="generated.png" role="button"><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Download</a>
+            </div>
+          </section>
+          <section class="card play-result" id="ttsResult" data-mode="speech" aria-label="Speech result" aria-live="polite" hidden>
+            <p class="play-result-empty muted" data-empty>The audio plays here.</p>
+            <p id="ttsLatency" class="muted small" style="margin: 8px 0 0;"></p>
+
+            <audio id="ttsAudio" controls style="width: 100%; margin-top: 10px;" hidden></audio>
+          </section>
+          <section class="card play-result" id="jevResult" data-mode="decide" aria-label="Decide result" aria-live="polite" hidden>
+            <p class="play-result-empty muted" data-empty>The answers show here.</p>
+            <p id="jevLatency" class="muted small" style="margin: 8px 0 0;"></p>
+
+            <div id="jevResults" hidden>
+              <h3 class="opt-group-title">Answers <span id="jevServedModel" class="muted small"></span></h3>
+              <div id="jevAnswers" class="jev-answers"></div>
+              <h3 class="opt-group-title">Usage</h3>
+              <div id="jevUsage" class="kv-grid usage"></div>
+            </div>
+          </section>
         </div>
-      </details>
-
-      <details class="card card--collapsible" id="imageCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>
-            <h3 class="collapse-title">Image generation</h3>
-          </span>
-          <span class="collapse-chevron" aria-hidden="true">›</span>
-        </summary>
-        <div class="collapse-body">
-
-        <div class="opt-stack">
-          <label for="imageModel">Model</label>
-          <select id="imageModel" aria-label="Image model"></select>
-          <p id="imageModelNote" class="muted small" style="margin: 4px 0 0;"></p>
-        </div>
-
-        <div class="opt-stack">
-          <label for="imagePrompt">Prompt</label>
-          <textarea id="imagePrompt" rows="4" placeholder="a red apple on a white background"></textarea>
-        </div>
-
-        <div class="opt-stack">
-          <label for="imageSize">Size</label>
-          <select id="imageSize" aria-label="Image size"></select>
-          <p id="imageSizeNote" class="muted small" style="margin: 4px 0 0;"></p>
-        </div>
-
-        <div class="opt-stack" id="imageRefineRow" hidden>
-          <div class="opt-switch-row">
-            <span>Refine after upscaling <span class="muted small">(second low-detail pass adds real detail instead of interpolated pixels — roughly doubles the time)</span></span>
-            <button type="button" id="imageRefine" class="toggle" role="switch" aria-checked="false" aria-label="Refine after upscaling"><span class="knob"></span><span class="toggle-label">OFF</span></button>
-          </div>
-        </div>
-
-        <div class="opt-stack">
-          <label for="imageAttachment">Reference image <span class="muted small">(optional — edits the upload instead of generating; slow &amp; experimental, can take minutes)</span></label>
-          <div class="file-row">
-            <button id="imageAttachmentBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
-            <span id="imageAttachmentName" class="file-name muted small">No file selected</span>
-            <input id="imageAttachment" type="file" accept="image/*" hidden aria-label="Reference image to edit (optional)">
-          </div>
-          <p id="imageEditNote" class="muted small" style="margin: 4px 0 0;"></p>
-        </div>
-
-        <div class="playground-send-row">
-          <button id="imageGenBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Generate</button>
-          <button id="imageClearBtn" type="button" class="ghost-btn">Clear</button>
-        </div>
-        <p id="imageLatency" class="muted small" style="margin: 8px 0 0;"></p>
-
-        <img id="imagePreview" alt="Generated image" style="max-width: 100%; margin-top: 10px; border-radius: 8px;" hidden>
-        <div class="playground-send-row" id="imageDownloadRow" hidden style="margin-top: 10px;">
-          <a id="imageDownload" class="ghost-btn primary" download="generated.png" role="button"><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Download</a>
-        </div>
-        </div>
-      </details>
-
-      <details class="card card--collapsible" id="ttsCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>
-            <h3 class="collapse-title">Text-to-speech</h3>
-          </span>
-          <span class="collapse-chevron" aria-hidden="true">›</span>
-        </summary>
-        <div class="collapse-body">
-
-        <div class="opt-stack">
-          <label for="ttsModel">Voice model</label>
-          <select id="ttsModel" aria-label="TTS model"></select>
-          <p id="ttsAvailability" class="muted small" role="status" aria-live="polite"></p>
-        </div>
-
-        <div class="opt-stack">
-          <label for="ttsInput">Text</label>
-          <textarea id="ttsInput" rows="4" placeholder="Hey, listen to this."></textarea>
-        </div>
-
-        <div class="opt-stack">
-          <label for="ttsLanguage">Language</label>
-          <select id="ttsLanguage" aria-label="Language"></select>
-        </div>
-
-        <div class="opt-stack">
-          <label for="ttsVoice">Voice</label>
-          <select id="ttsVoice" aria-label="Voice"></select>
-        </div>
-
-        <div class="opt-stack" id="ttsStreamGroup">
-          <div class="opt-switch-row">
-            <span>Stream <span class="muted small">(play as it synthesizes when supported; off = buffered clip with a player)</span></span>
-            <button type="button" id="ttsStream" class="toggle on" role="switch" aria-checked="true" aria-label="Stream audio"><span class="knob"></span><span class="toggle-label">ON</span></button>
-          </div>
-        </div>
-
-        <details class="opt-stack" id="ttsMore">
-          <summary class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
-
-          <div class="opt-stack">
-            <label for="ttsFormat">Format</label>
-            <select id="ttsFormat" aria-label="Response format">
-              <option value="wav" selected>wav</option>
-              <option value="mp3">mp3</option>
-              <option value="flac">flac</option>
-              <option value="opus">opus</option>
-              <option value="pcm">pcm</option>
-            </select>
-            <p class="muted small">Streaming always plays raw PCM audio; the other formats apply to full responses.</p>
-          </div>
-
-          <div class="opt-stack" id="ttsSpeedGroup" hidden>
-            <label for="ttsSpeed">Speed · <span id="ttsSpeedVal">1.0</span>×</label>
-            <input id="ttsSpeed" type="range" min="0.5" max="2" step="0.05" value="1" aria-label="Speed">
-          </div>
-
-          <div class="opt-stack" id="ttsExaggerationGroup" hidden>
-            <label for="ttsExaggeration">Exaggeration <span class="muted small">(Chatterbox tone dial)</span> · <span id="ttsExaggerationVal">0.5</span></label>
-            <input id="ttsExaggeration" type="range" min="0" max="1" step="0.05" value="0.5" aria-label="Exaggeration">
-          </div>
-
-          <div class="opt-stack" id="ttsCfgWeightGroup" hidden>
-            <label for="ttsCfgWeight">CFG weight <span class="muted small">(pacing)</span> · <span id="ttsCfgWeightVal">0.5</span></label>
-            <input id="ttsCfgWeight" type="range" min="0" max="1" step="0.05" value="0.5" aria-label="CFG weight">
-          </div>
-        </details>
-
-        <div class="playground-send-row">
-          <button id="ttsSpeakBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Speak</button>
-        </div>
-        <p id="ttsLatency" class="muted small" style="margin: 8px 0 0;"></p>
-
-        <audio id="ttsAudio" controls style="width: 100%; margin-top: 10px;" hidden></audio>
-        </div>
-      </details>
-
-      <!-- TypeSafe Jev decision tester (#611): typed questions in, per-option
-           probabilities + confidence out, via the hub's /v1/systemone. -->
-      <details class="card card--collapsible" id="jevCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-circle-help"></use></svg>
-            <h3 class="collapse-title">Decision questions</h3>
-          </span>
-          <span class="collapse-chevron" aria-hidden="true">›</span>
-        </summary>
-        <div class="collapse-body">
-
-        <p class="jev-privacy muted small"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg><span>Sent to <code>api.typesafe.ai</code>, a third-party API hosted in the US — don't paste private content.</span></p>
-        <p id="jevKeyNote" class="muted small" role="status" aria-live="polite" hidden></p>
-
-        <div class="opt-stack">
-          <label for="jevModel">Model</label>
-          <select id="jevModel" aria-label="Decision model"></select>
-        </div>
-
-        <div class="opt-stack">
-          <label for="jevState">State <span class="muted small">(the content being judged)</span></label>
-          <textarea id="jevState" rows="3"></textarea>
-        </div>
-
-        <div class="opt-stack">
-          <label for="jevQuestions">Questions</label>
-          <textarea id="jevQuestions" class="jev-json" rows="12" spellcheck="false"></textarea>
-          <p class="muted small">One entry per question. Each has a type: yes/no (<code>noul</code>), <code>choice</code> or <code>score</code>.</p>
-          <p id="jevJsonError" class="jev-json-error small" role="alert" hidden></p>
-        </div>
-
-        <div class="playground-send-row">
-          <button id="jevEvalBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Evaluate</button>
-          <button id="jevResetBtn" type="button" class="ghost-btn">Reset sample</button>
-        </div>
-        <p id="jevLatency" class="muted small" style="margin: 8px 0 0;"></p>
-
-        <div id="jevResults" hidden>
-          <h3 class="opt-group-title">Answers <span id="jevServedModel" class="muted small"></span></h3>
-          <div id="jevAnswers" class="jev-answers"></div>
-          <h3 class="opt-group-title">Usage</h3>
-          <div id="jevUsage" class="kv-grid usage"></div>
-        </div>
-        </div>
-      </details>
+      </div>
     </section>
 
     <section id="paneTelemetry" class="pane" hidden role="tabpanel">

@@ -69,7 +69,8 @@ def test_telemetry_tab_phone_screenshot(page, admin_url, browser_name):
     page.set_viewport_size(PHONE_VIEWPORT)
     page.goto(admin_url, wait_until="domcontentloaded")
     # On a phone a header with a live line (Hub since #738) drops Traces; the
-    # OTel pane stays one tap away from a static header until Step 6.
+    # OTel pane stays one tap away from a header with nothing to report (the
+    # Playground's, #740) until Step 6.
     page.click("#tabPlayground")
     page.click("#panePlayground [data-open-tab=telemetry]")
     page.wait_for_selector("#paneTelemetry", state="visible", timeout=3000)
