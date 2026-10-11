@@ -118,7 +118,34 @@ def test_toast_stacks_above_mobile_navigation(page, admin_url):
     assert toast_z > 120, "toast must clear the floating nav's z-index: 120"
 
 
+_BLOCK_MODE_STORAGE = """
+(() => {
+  const get = Storage.prototype.getItem, set = Storage.prototype.setItem;
+  Storage.prototype.getItem = function (k) {
+    if (k === 'llmhub.playground.mode') throw new Error('blocked');
+    return get.call(this, k);
+  };
+  Storage.prototype.setItem = function (k, v) {
+    if (k === 'llmhub.playground.mode') throw new Error('blocked');
+    return set.call(this, k, v);
+  };
+})();
+"""
+
+
+def _shown_mode(page):
+    return page.evaluate(
+        "() => [...document.querySelectorAll('#panePlayground .play-composer')]"
+        ".filter(c => !c.hidden).map(c => c.dataset.mode)"
+    )
+
+
 def test_playground_tab(page, admin_url):
+    """One composer (#740): Chat on a first visit, the last mode remembered
+    across a reload, and a request in flight survives a mode switch, its
+    result shown only in its own mode."""
+    held = []
+    page.route("**/admin/api/playground/send", lambda route: held.append(route))
     page.goto(admin_url, wait_until="load")
     page.click("#tabPlayground")
     page.wait_for_selector("#panePlayground", state="visible", timeout=3000)
@@ -129,6 +156,45 @@ def test_playground_tab(page, admin_url):
         "document.getElementById('playgroundModel').options.length > 0",
         timeout=10000,
     )
+    # A usable form on the first screen, no folded testers.
+    assert _shown_mode(page) == ["chat"]
+    assert page.locator("#panePlayground details.card--collapsible").count() == 0
+    assert page.locator("#playgroundPrompt").is_visible()
+
+    # A chat request in flight keeps running across a switch to Image.
+    page.fill("#playgroundPrompt", "An invented test prompt.")
+    page.click("#playgroundSendBtn")
+    page.wait_for_function("() => true")
+    for _ in range(60):
+        if held:
+            break
+        page.wait_for_timeout(50)
+    assert held, "the chat request never left"
+    page.click('#playMode [data-mode="image"]')
+    assert _shown_mode(page) == ["image"]
+    held[0].fulfill(status=200, content_type="application/json",
+                    body='{"text": "An invented reply.", "usage": {}}')
+    page.wait_for_function(
+        "document.getElementById('playgroundReply').textContent === 'An invented reply.'", timeout=5000)
+    assert "An invented reply." not in page.locator("#imageResult").inner_text()
+    page.click('#playMode [data-mode="chat"]')
+    assert page.locator("#playgroundReply").is_visible()
+
+    # The last mode survives a reload; a blocked storage falls back to Chat.
+    page.click('#playMode [data-mode="speech"]')
+    page.reload(wait_until="load")
+    page.click("#tabPlayground")
+    assert _shown_mode(page) == ["speech"]
+    assert page.locator('#playMode [data-mode="speech"]').get_attribute("aria-pressed") == "true"
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.add_init_script(_BLOCK_MODE_STORAGE)
+    page.reload(wait_until="load")
+    page.click("#tabPlayground")
+    assert _shown_mode(page) == ["chat"]
+    page.click('#playMode [data-mode="image"]')
+    assert _shown_mode(page) == ["image"]
+    assert errors == [], errors
 
 
 def test_playground_tts_capability_selectors(page, admin_url):
@@ -184,7 +250,7 @@ def test_playground_tts_capability_selectors(page, admin_url):
     )
     page.goto(admin_url, wait_until="load")
     page.click("#tabPlayground")
-    page.locator("#ttsCard").evaluate("element => { element.open = true; }")
+    page.click('#playMode [data-mode="speech"]')
     page.locator("#ttsMore").evaluate("element => { element.open = true; }")
     page.wait_for_function("document.getElementById('ttsModel').options.length === 3")
 
@@ -266,6 +332,16 @@ def test_playground_tab_phone_screenshot(page, admin_url, browser_name):
         timeout=10000,
     )
     _snapshot(page, "playground-390x844", browser_name)
+    # Decide shows its third-party privacy line without a tap, at phone width
+    # and on a wide window, in both themes (#740).
+    page.click('#playMode [data-mode="decide"]')
+    for viewport in (PHONE_VIEWPORT, {"width": 1280, "height": 800}):
+        page.set_viewport_size(viewport)
+        for theme in ("light", "dark"):
+            page.evaluate("t => { document.documentElement.dataset.theme = t; }", theme)
+            privacy = page.locator("#jevCard .jev-privacy")
+            assert privacy.is_visible(), (viewport, theme)
+            assert "third-party" in privacy.inner_text()
 
 
 def test_live_requests_stream_rolls_forward(page, admin_url):

@@ -15,6 +15,8 @@ export const TAB_KEY = 'llmhub.tab';
 /* Models tab "Active only" filter — persisted like Plugs' show-hidden
  * toggle in home-automation (#266). */
 export const MODELS_ACTIVE_ONLY_KEY = 'llmhub.models.activeOnly';
+// The Playground's last mode on this device (#740): chat | image | speech | decide.
+export const PLAYGROUND_MODE_KEY = 'llmhub.playground.mode';
 
 export const STATUS_POLL_MS = 4000;
 export const COUNTERS_POLL_MS = 4000;
@@ -234,6 +236,10 @@ export const els = {
   playgroundUsage: document.getElementById('playgroundUsage'),
   // Playground — image generation / editing tester (issue #114)
   imageCard: document.getElementById('imageCard'),
+  imageNone: document.getElementById('imageNone'),
+  // Playground composer (#740): the mode switch and the header line
+  playMode: document.getElementById('playMode'),
+  playHeadLine: document.getElementById('playHeadLine'),
   imageModel: document.getElementById('imageModel'),
   imageModelNote: document.getElementById('imageModelNote'),
   imagePrompt: document.getElementById('imagePrompt'),
@@ -274,6 +280,7 @@ export const els = {
   ttsLatency: document.getElementById('ttsLatency'),
   ttsAudio: document.getElementById('ttsAudio'),
   ttsCard: document.getElementById('ttsCard'),
+  ttsNone: document.getElementById('ttsNone'),
   // Playground — TypeSafe Jev decision tester (issue #611)
   jevKeyNote: document.getElementById('jevKeyNote'),
   jevModel: document.getElementById('jevModel'),

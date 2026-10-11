@@ -48,7 +48,7 @@ Subscription-backed cloud routes (no GPU, no API keys, no Cloud project):
   in the observability ring like other traffic. Editing is also available
   (`POST /v1/images/edits`, multipart image+prompt) but is slow and
   procedural — see [docs/image-generation.md](docs/image-generation.md).
-  Both are testable from the admin Playground's image card.
+  Both are testable from the admin Playground's Image mode.
 - **`flux1_local`** (alias `flux`) — the same `POST /v1/images/generations`
   contract, served **entirely locally** by **FLUX.1 [dev]** (fp8) on ComfyUI,
   on tower's RTX 5060 Ti. Additive rather than a replacement for
@@ -1965,9 +1965,21 @@ cloning, and the Orpheus GGUF caveat are in [docs/add-tts.md](docs/add-tts.md).
 An explicit unknown model or voice returns HTTP 400; only omitted fields use
 the configured defaults.
 
-The admin Playground lists every configured voice model, marks stopped models,
-and filters language and voice choices to the selected engine. It also shows
-only controls the engine supports. The language selector is UI metadata: calls
+The admin Playground's Speech mode lists every configured voice model, marks
+stopped models, and filters language and voice choices to the selected engine.
+It also shows only controls the engine supports.
+
+**Playground layout (#740).** The Playground is one composer with a **Chat ·
+Image · Speech · Decide** switch; the last mode is remembered on the device
+(`llmhub.playground.mode`, Chat on a first visit or when storage is blocked),
+and "Send a test request" on Hub always lands on Chat. Each mode keeps its
+primary fields on the face (model and prompt or text; for Speech also language,
+voice and streaming; for Decide the state and questions, under the visible
+third-party privacy line) and its rare ones under **More options** (Chat:
+system prompt, attachment, max tokens; Image: refine and reference image;
+Speech: format and the voice sliders). Each mode has its own result card, so a
+request keeps running across a switch and a result never shows in another mode.
+On a wide window (1100px+, mouse) the composer sits left of the result. The language selector is UI metadata: calls
 still use the same `model` and `voice` fields as Home Automation, App Launcher,
 and WhatsApp Radar.
 
@@ -2104,7 +2116,7 @@ curl -is -X OPTIONS http://127.0.0.1:8000/v1/messages \
 
 `POST /v1/systemone` forwards a TypeSafe "System One" request to `https://api.typesafe.ai/v1/systemone` and returns the vendor's status and JSON unchanged — the `answers` map with its per-option `probabilities` and `confidence`, plus `model` (the versioned id, e.g. `jev-1.13.0`) and `usage`. The request body is TypeSafe's own shape (`model`, `state`, typed `questions`); see TypeSafe's HTTP reference (`https://docs.typesafe.ai/api.md`). Jev is a decision model, not a chat model, so it is deliberately **not** reachable through `/v1/messages` / `/v1/chat/completions` and not listed in `GET /v1/models`.
 
-In the admin SPA, Jev shows up in two places, both admin-only. The **Models** tab has a read-only *TypeSafe Jev* tile: backend `typesafe`, `api.typesafe.ai (US)`, the aliases, and a `no key` badge when `TYPESAFE_API_KEY` is unset. It has no start/stop/ping, because every probe would be a billed evaluation. The **Playground** has a *Decision questions* card (Jev): a state box plus a questions JSON box, prefilled with the vendor quickstart. It shows each answer as probability bars with the chosen option or score and its confidence. The card calls this route over loopback, so its evaluations land in the request ring like any other caller's. A vendor 401 comes back as a 502 naming the rejected key, so it can't be mistaken for the admin session expiring.
+In the admin SPA, Jev shows up in two places, both admin-only. The **Models** tab has a read-only *TypeSafe Jev* tile: backend `typesafe`, `api.typesafe.ai (US)`, the aliases, and a `no key` badge when `TYPESAFE_API_KEY` is unset. It has no start/stop/ping, because every probe would be a billed evaluation. The **Playground** has a *Decide* mode (Jev): a state box plus a questions JSON box, prefilled with the vendor quickstart. It shows each answer as probability bars with the chosen option or score and its confidence. The mode calls this route over loopback, so its evaluations land in the request ring like any other caller's. A vendor 401 comes back as a 502 naming the rejected key, so it can't be mistaken for the admin session expiring.
 
 > **Privacy:** this route sends the request content to a **third-party API hosted in the United States**. It is the hub's only internet egress; it is opt-in — a caller has to call this route explicitly, and nothing in the hub falls back to it.
 

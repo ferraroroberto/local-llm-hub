@@ -103,9 +103,10 @@ segmented   = { src = "app/webapp/static/_vendored/segmented", sha = "92d16e00cd
 
 # Views that span the width right of the rail on a wide window (design.md
 # layout.wide): Hub's glance + services | Activity columns (#738) and Code's
-# totals + trend | breakdowns columns (#739), the owner's answers on #735. Every other view keeps the measure or a master-detail.
+# totals + trend | breakdowns columns (#739) and Playground's composer | result
+# columns (#740, geometry proposed on that issue), the owner's answers on #735. Every other view keeps the measure or a master-detail.
 [design]
-wide_views = ["hub", "code-usage"]
+wide_views = ["hub", "code-usage", "playground"]
 
 # Accepted /design-review exceptions: a failing rubric rule listed here is
 # filed under "## Accepted" in the design-review issue, never under Findings.
@@ -186,6 +187,21 @@ click = "#cldModelOpenBtn"
 tab   = "code-usage"
 id    = "sessions-sheet"
 click = "#cldSessionsOpenBtn"
+
+[[design.review.extra_steps]]
+tab   = "playground"
+id    = "image-mode"
+click = "#playMode [data-mode=\"image\"]"
+
+[[design.review.extra_steps]]
+tab   = "playground"
+id    = "speech-mode"
+click = "#playMode [data-mode=\"speech\"]"
+
+[[design.review.extra_steps]]
+tab   = "playground"
+id    = "decide-mode"
+click = "#playMode [data-mode=\"decide\"]"
 
 # Populated request and error lists come from a throwaway hub with invented
 # records (scripts/design_review_synthetic.py), never from the live hub's
