@@ -124,25 +124,30 @@ start_langfuse.bat
 ::      LANGFUSE_SECRET_KEY=sk-lf-...
 ::    The OTLP exporter uses these to authenticate against Langfuse's
 ::    /api/public/otel/v1/traces receiver; without them every span is
-::    rejected and the Telemetry tab's deep-links land on
+::    rejected and the Hub trace sheet's Langfuse links land on
 ::    "Trace not found". The hub logs `auth=MISSING` at startup if either
 ::    is absent — easy to spot.
 
 :: 4. Start the hub (or restart if it was already running so OTel picks up env)
 run_hub.bat
 
-:: 5. Open the admin SPA -> 📊 Telem tab
+:: 5. Open the admin SPA -> Hub (Activity, and Services > Langfuse)
 ::    http://127.0.0.1:8000/admin/
 ```
 
-The Telemetry tab shows: stack health, per-model leaderboard from the
-hub's in-memory ring (so it works even when Langfuse is offline), and a
-live trace feed with deep-links into the Langfuse UI.
+The admin's **Hub** tab carries it all (since #741, which retired the
+separate Telemetry pane): Services › **Langfuse** opens the stack health,
+OTel state, PII mode, endpoint, Open Langfuse UI and the offline hint; the
+**Activity** feed lists every request with a trace sheet (prompt and
+completion preview, thumbs score, Open in Langfuse); **By model** is the
+per-model leaderboard from the hub's in-memory ring (so it works even when
+Langfuse is offline). A `#telemetry` link opens Hub Activity.
 
 ## Accessing Langfuse from mobile / LAN / Tailscale / Cloudflare
 
-The Telemetry tab's per-row 🔗 Langfuse button (and the header 🔗) build
-the URL the **browser** will hit using this rule, in order:
+The Hub trace sheet's **Open in Langfuse** link (and **Open Langfuse UI** in
+the Langfuse sheet and Settings › About) build the URL the **browser** will
+hit using this rule, in order:
 
 1. If `LANGFUSE_PUBLIC_URL` is set in `.env`, use it verbatim. Right for
    anything that isn't `<same-host>:3000` — Tailscale Serve, Cloudflare
@@ -189,7 +194,7 @@ tailscale serve status
 # |-- / proxy http://localhost:3000
 ```
 
-Then set the public URL in `.env` so the Telemetry tab's deep-links
+Then set the public URL in `.env` so the Hub's Langfuse links
 land at the Tailscale URL instead of the local one:
 
 ```
@@ -307,8 +312,8 @@ share-screen something you might not want fully captured:
 set OTEL_HASH_PROMPTS=true
 ```
 
-(Or set it in `.env`.) Restart the hub. The Telemetry tab's "PII" chip
-flips to `hashed` so you can tell at a glance.
+(Or set it in `.env`.) Restart the hub. The Langfuse sheet's "PII mode"
+(Hub › Services › Langfuse) flips to `hashed` so you can tell at a glance.
 
 ## Disabling telemetry entirely
 
@@ -317,12 +322,12 @@ set OTEL_SDK_DISABLED=true
 ```
 
 Hub keeps serving traffic; spans + metrics become no-ops; the
-Telemetry tab shows "OTel disabled" but the in-memory leaderboard
-still works (it doesn't depend on OTel).
+Langfuse sheet shows "OTel disabled" but the in-memory leaderboard
+(Hub › Activity › By model) still works (it doesn't depend on OTel).
 
 ## Feedback / scores
 
-The Telemetry tab's 👍 / 👎 buttons POST to
+The Hub trace sheet's 👍 / 👎 buttons POST to
 `/admin/api/trace/{trace_id}/feedback`. The hub forwards to Langfuse's
 `score()` API in a background task (returns 202 in <50 ms).
 
@@ -335,7 +340,7 @@ This section is the opposite direction: the hub also runs a small OTLP-
 metrics **receiver** so Claude Code's own telemetry export — which is the
 only channel that sees sub-agent (Task tool) API calls, since Claude Code
 never writes those to its JSONL session transcripts (#66) — can feed the
-admin SPA's OTel tab.
+admin SPA's Code tab (agent sheet › **Sub-agents (OTel)**).
 
 ### Enable on the host
 
@@ -398,7 +403,7 @@ pipelines.
 - **Per-model, not per-individual-subagent.** Which model ran is visible;
   which *named* sub-agent it was is not — that finer attribution is tracked
   upstream in [anthropics/claude-code#22625](https://github.com/anthropics/claude-code/issues/22625).
-- The OTel tab's "Claude Code (host CLI)" panel is intentionally **not**
+- The Code tab's **Sub-agents (OTel)** source is intentionally **not**
   summed into the Code tab's JSONL-sourced headline totals — the two sources
   are labelled and shown separately to avoid double-counting main-agent
   activity both would otherwise report.
@@ -477,11 +482,11 @@ Sessions that hit neither path show "—" in the panel's Project column.
 | `src/observability.py` | OTel bootstrap, GenAI helpers, metric instruments |
 | `src/trace_id_middleware.py` | X-Trace-Id contract (in / out) |
 | `app_web/routers/telemetry.py` | Health, trace feed, metrics, feedback endpoint |
-| `app_web/static/telemetry.{js,css}` | SPA Telemetry tab |
+| `app_web/static/langfuse.js` | SPA Langfuse helpers: health, UI and trace addresses, trace preview, feedback (the Hub's Langfuse and trace sheets) |
 | `docs/clients-telemetry-contract.md` | Client-side recipe |
 | `src/server_otel_receiver.py` | `POST /v1/metrics` — Claude Code's OTLP metrics receiver (issue #68) |
 | `src/claude_code_otel.py` | Parse/persist/rollup for the Claude Code OTel receiver |
-| `data/telemetry/claude_code_otel_usage.jsonl` | Persisted usage log (gitignored) backing the OTel tab's Claude Code panel |
+| `data/telemetry/claude_code_otel_usage.jsonl` | Persisted usage log (gitignored) backing the Code tab's Sub-agents (OTel) source |
 
 ## Limitations / known gaps
 

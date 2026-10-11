@@ -22,8 +22,9 @@ def test_boot_does_not_wait_on_live_probe_endpoints(page, admin_url):
     boot = [u for u in seen if any(u.endswith(s.split("/admin")[1]) for s in _SLOW)]
     assert boot == [], f"boot fetched {boot}"
 
-    # Opening the Health & install card loads its checks.
-    page.click("#installCard > summary")
+    # Opening Settings › Health & install loads its checks (#741).
+    page.click("#paneHub .home-settings")
+    page.click('#settingsDialog .settings-link[data-settings="health"] .action-row-main')
     page.wait_for_function(
         "document.getElementById('installSummary').textContent.indexOf('checks') !== -1",
         timeout=15000,

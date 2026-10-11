@@ -22,7 +22,6 @@
   <link rel="stylesheet" href="/admin/static/_vendored/switch/switch.css">
   <link rel="stylesheet" href="/admin/static/_vendored/empty-state/empty-state.css">
   <link rel="stylesheet" href="/admin/static/_vendored/nav/nav-tabs.css">
-  <link rel="stylesheet" href="/admin/static/telemetry.css">
   <link rel="stylesheet" href="/admin/static/code_usage.css">
   <link rel="stylesheet" href="/admin/static/_vendored/select-native/select-native.css">
   <link rel="stylesheet" href="/admin/static/_vendored/modal/modal.css">
@@ -69,7 +68,6 @@
     <!-- OTel is not a primary destination (the bar holds five): it opens from the
          header's OTel button. This entry stays in the nav only so the vendored
          switcher keeps tracking the pane; it is never shown and carries no tab role. -->
-    <button id="tabTelemetry" type="button" class="tab" data-tab="telemetry" hidden aria-controls="paneTelemetry" tabindex="-1" aria-hidden="true"></button>
     <button id="tabCodeUsage" type="button" class="tab" data-tab="code-usage" role="tab" aria-selected="false" aria-controls="paneCodeUsage" tabindex="-1">
       <svg class="icon tab-icon" aria-hidden="true"><use href="#i-code"></use></svg>
       <span class="tab-label">Code</span>
@@ -88,7 +86,6 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>Hub</span>
         <span id="hubHeadLine" class="status head-line" role="status" aria-live="polite">Reading hub…</span>
-        <button type="button" class="ghost-btn home-otel" data-open-tab="telemetry" aria-label="Open traces and usage" title="Open traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Traces</button>
         <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
@@ -113,7 +110,7 @@
             </div>
             <div class="sparklines" id="hubSparklines"></div>
             <div class="segmented hub-series" id="hubSeries" role="group" aria-label="Load history to show"></div>
-            <p class="hub-proc muted">Process <code id="hubPid">—</code> · up <span id="hubUptime">—</span></p>
+            <p class="hub-proc muted">Up <span id="hubUptime">—</span></p>
           </section>
 
           <!-- Services as exceptions (#738): healthy services fold into one row
@@ -122,25 +119,6 @@
           <section class="card action-list" id="servicesCard" aria-label="Services">
             <ul id="servicesList" class="action-rows"></ul>
           </section>
-
-      <!-- Health & install — vendored disclosure card (_vendored/disclosure) -->
-      <details class="card card--collapsible" id="installCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-stethoscope"></use></svg>
-            <h3 class="collapse-title">Health &amp; install</h3>
-            <span id="installSummary" class="collapse-count">not checked</span>
-          </span>
-          <span class="collapse-chevron" aria-hidden="true">›</span>
-        </summary>
-        <div class="collapse-body">
-          <div id="installRows"></div>
-          <div class="card-actions">
-            <button id="installFixAllBtn" type="button" class="button-primary launch-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-wrench"></use></svg>Fix all</button>
-            <button id="installRefreshBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>Re-check</button>
-          </div>
-        </div>
-      </details>
 
         </div>
 
@@ -180,7 +158,6 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-boxes"></use></svg>Models</span>
         <span id="modelsHeadLine" class="status head-line" role="status" aria-live="polite">Reading models…</span>
-        <button type="button" class="ghost-btn home-otel" data-open-tab="telemetry" aria-label="Open traces and usage" title="Open traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Traces</button>
         <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
@@ -210,31 +187,7 @@
       <section class="card action-list" id="modelsCard" aria-label="Models">
         <ul id="modelsList" class="action-rows models-list"></ul>
         <div id="modelsEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-boxes"></use></svg><p class="empty-state-message">No models enabled for this host — check <code>config/models.yaml</code>.</p></div>
-        <!-- models.yaml config version (#424) — same sha on every converged hub;
-             compare across /admin pages to spot drift. Moves to Settings in Step 6. -->
-        <p id="modelsConfigSha" class="models-config-sha muted"></p>
       </section>
-
-      <!-- Service startup (#265; services-only since #430, renamed #431).
-           Folded by default — a one-time setup surface, not something you
-           check every visit (#266). First in the tab: boot-time switches
-           above the live inventory. -->
-      <details class="card card--collapsible" id="startupCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-rocket"></use></svg>
-            <h3 class="collapse-title">Service startup</h3>
-          </span>
-          <span class="collapse-chevron" aria-hidden="true">›</span>
-        </summary>
-        <div class="collapse-body">
-          <p class="muted small">Services that come up automatically every time the hub launches — toggle
-            any item on or off; the setting persists to <code>config/startup_profile.json</code>.
-            Model autostart is governed per model (<code>startup: eager|on_demand</code>) in the
-            placement cards below.</p>
-          <ul id="startupList" class="startup-list"></ul>
-        </div>
-      </details>
     </section>
     <!-- The wide window's detail pane for the selected model or machine (rows.css
          data-wide="split"); the phone uses #modelSheet instead. -->
@@ -247,7 +200,6 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>Playground</span>
         <span id="playHeadLine" class="status" role="status" aria-live="polite">Chat</span>
-        <button type="button" class="ghost-btn home-otel" data-open-tab="telemetry" aria-label="Open traces and usage" title="Open traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Traces</button>
         <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
@@ -496,91 +448,6 @@
       </div>
     </section>
 
-    <section id="paneTelemetry" class="pane" hidden role="tabpanel">
-      <!-- Page header: the vendored home-head (_vendored/home-head) — title, one context
-           line, and the theme toggle pinned right. -->
-      <div class="card home-head">
-        <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg>OTel</span>
-        <span class="status">Traces and Claude Code usage</span>
-        <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
-        <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
-      </div>
-      <!-- Stack health strip: OTel SDK state + Langfuse reachability + PII mode -->
-      <section class="card">
-        <div class="card-header">
-          <div class="hub-title-block">
-            <h2><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg>Telemetry</h2>
-            <span id="telHealth" class="hub-live-status" aria-live="polite">
-              <span class="dot"></span>
-              <span id="telHealthText">checking…</span>
-            </span>
-          </div>
-          <div class="card-header-actions">
-            <a id="telOpenLangfuse" class="icon-header-btn" href="http://localhost:3000" target="_blank" rel="noopener" aria-label="Open Langfuse UI" title="Open Langfuse UI"><svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg></a>
-          </div>
-        </div>
-        <div id="telHealthMeta" class="hub-meta-row">
-          <span><span>OTel</span><code id="telOtelState">—</code></span>
-          <span><span>PII</span><code id="telHashMode">—</code></span>
-          <span><span>Endpoint</span><code id="telEndpoint">—</code></span>
-        </div>
-        <p id="telOfflineHint" class="muted small" style="margin: 4px 0 0;" hidden>
-          Langfuse stack offline — run <code>start_langfuse.bat</code>, open
-          the Langfuse UI (button above),
-          create a project, copy the keys into <code>.env</code>, then restart the hub.
-        </p>
-      </section>
-
-      <!-- Per-model leaderboard (reuses .counters table style) -->
-      <section class="card">
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>Per-model leaderboard</h2>
-          <span id="telSummary" class="muted small">—</span>
-        </div>
-        <div class="counters-wrap">
-          <table id="telCountersTable" class="counters">
-            <thead><tr><th>Model</th><th>Requests</th><th>Errors</th><th>Median</th><th>Slowest 5%</th><th>Tokens in/out</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <p class="muted small" style="margin: 8px 0 0;">Window resets on hub restart. Open Langfuse for long-window analytics.</p>
-      </section>
-
-      <!-- Claude Code (host CLI) per-model usage incl. sub-agents — via OTel (issue #68) -->
-      <section class="card">
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Claude Code (host CLI)</h2>
-          <span id="telCcSummary" class="muted small">—</span>
-        </div>
-        <div id="telCcPeriodSeg" class="segmented stretch" role="tablist" aria-label="Usage period" style="margin-bottom: 12px;">
-          <button type="button" data-period="today" class="active">Day</button>
-          <button type="button" data-period="week">Week</button>
-          <button type="button" data-period="month">Month</button>
-          <button type="button" data-period="all">All</button>
-        </div>
-        <div class="counters-wrap">
-          <table id="telCcTable" class="counters">
-            <thead><tr><th>Date</th><th>Project</th><th>Model</th><th>Source</th><th>In</th><th>Out</th><th>Cache reads</th><th>Cache writes</th><th>≈ $</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div id="telCcEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-code"></use></svg><p class="empty-state-message">No sub-agent/Claude Code OTel usage yet — needs <code>CLAUDE_CODE_ENABLE_TELEMETRY</code> set on the host.</p></div>
-        <p class="muted small" style="margin: 8px 0 0;">Sourced from Claude Code's own OTel export (<code>POST /v1/metrics</code>) — the only channel that sees sub-agent (Task tool) usage. Persisted separately from the Code tab's JSONL totals, not summed into them, to avoid double-counting. Project is auto-tagged for sessions launched via the <code>claude</code> shell wrapper fleet-config wires into your PowerShell profile (from the invoking repo); "—" for anything else (a one-off <code>OTEL_RESOURCE_ATTRIBUTES=project.name=&lt;repo&gt;</code> covers those).</p>
-      </section>
-
-      <!-- Live trace feed -->
-      <section class="card">
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Live traces</h2>
-          <span id="telTracesBadge" class="badge">0</span>
-        </div>
-        <input id="telTracesFilter" type="search" class="list-filter" placeholder="Filter traces" aria-label="Filter live traces" autocomplete="off">
-        <ul id="telTracesList" class="card-list dense tel-traces" aria-label="Live trace feed"></ul>
-        <div id="telTracesEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No traces yet — the ring fills as clients call the hub.</p><button type="button" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
-        <p class="muted small" style="margin: 8px 0 0;">Tap a row to expand prompt/completion preview. <svg class="icon" aria-hidden="true"><use href="#i-thumbs-up"></use></svg>/<svg class="icon" aria-hidden="true"><use href="#i-thumbs-down"></use></svg> sends a Langfuse score; <svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg> opens the full trace.</p>
-      </section>
-    </section>
-
     <section id="paneCodeUsage" class="pane" hidden role="tabpanel" data-wide="cols">
       <!-- Page header: the vendored home-head (_vendored/home-head) — title, the live
            header line (rows.js setHeadLine: a failed load or an offline AgentsView;
@@ -588,7 +455,6 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Code</span>
         <span id="codeHeadLine" class="status head-line" role="status" aria-live="polite">Reading usage…</span>
-        <button type="button" class="ghost-btn home-otel" data-open-tab="telemetry" aria-label="Open traces and usage" title="Open traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Traces</button>
         <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
@@ -766,7 +632,6 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-server"></use></svg>Machines</span>
         <span id="machinesHeadLine" class="status head-line" role="status" aria-live="polite">Reading machines…</span>
-        <button type="button" class="ghost-btn home-otel" data-open-tab="telemetry" aria-label="Open traces and usage" title="Open traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Traces</button>
         <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
@@ -943,7 +808,7 @@
       <p id="hubByModelSummary" class="sheet-meta">—</p>
       <div class="counters-wrap">
         <table id="countersTable" class="counters">
-          <thead><tr><th>Backend</th><th>Requests</th><th>Errors</th><th>Median</th><th>Slowest 5%</th><th>Tokens in/out</th></tr></thead>
+          <thead><tr><th>Model</th><th>Requests</th><th>Errors</th><th>Median</th><th>Slowest 5%</th><th>Tokens in/out</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -1116,21 +981,65 @@
 
   <!-- Settings (the home-head gear on every pane): a vendored dialog shell holding
        the vendored text-size control (_vendored/text-size). -->
-  <dialog class="detail-dialog" id="settingsDialog">
+  <!-- Settings (#741): the gear on every pane opens the design system's settings
+       groups (Display, Startup, Health, About). A row with a body opens it in
+       place on a phone (with a back row) and beside the list on a wide window
+       (list : detail, the geometry proposed on #741). -->
+  <dialog class="detail-dialog settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
     <div class="detail-card">
       <div class="detail-header">
-        <h2><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg><span>Settings</span></h2>
+        <h2 id="settingsTitle"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg><span>Settings</span></h2>
         <button type="button" class="icon-button detail-close" id="settingsCloseBtn" aria-label="Close settings">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
-      <div class="row">
-        <span>Text size</span>
-        <nav class="range-tabs" id="textSizeControl" aria-label="Text size">
-          <button type="button" class="range-tab" data-textsize="small">Small</button>
-          <button type="button" class="range-tab" data-textsize="default">Default</button>
-          <button type="button" class="range-tab" data-textsize="large">Large</button>
-        </nav>
+      <div class="settings-layout" id="settingsLayout">
+        <div class="settings-list">
+          <ul class="action-rows settings-groups">
+            <li class="group-overline">Display</li>
+            <li class="settings-row settings-inline"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-monitor"></use></svg></span><span class="settings-row-label">Text size</span>
+              <nav class="range-tabs" id="textSizeControl" aria-label="Text size">
+                <button type="button" class="range-tab" data-textsize="small">Small</button>
+                <button type="button" class="range-tab" data-textsize="default">Default</button>
+                <button type="button" class="range-tab" data-textsize="large">Large</button>
+              </nav>
+            </li>
+            <li class="settings-row settings-inline"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-sun"></use></svg></span><span class="settings-row-label">Theme</span>
+              <div class="segmented" id="themeSeg" role="group" aria-label="Theme">
+                <button type="button" class="segmented-item" data-theme-pref="system" aria-pressed="false">System</button>
+                <button type="button" class="segmented-item" data-theme-pref="light" aria-pressed="false">Light</button>
+                <button type="button" class="segmented-item" data-theme-pref="dark" aria-pressed="false">Dark</button>
+              </div>
+            </li>
+            <li class="group-overline">Startup</li>
+            <li class="action-row settings-link" data-settings="startup"><button type="button" class="action-row-main" aria-controls="settingsPage-startup"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-rocket"></use></svg></span><span class="action-row-text"><span class="action-row-title">Service startup</span><span class="action-row-meta" id="startupSummary">—</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
+            <li class="group-overline">Health</li>
+            <li class="action-row settings-link" data-settings="health"><button type="button" class="action-row-main" aria-controls="settingsPage-health"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-stethoscope"></use></svg></span><span class="action-row-text"><span class="action-row-title">Health &amp; install</span><span class="action-row-meta" id="installSummary">not checked</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
+            <li class="group-overline">About</li>
+            <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-tag"></use></svg></span><span class="settings-row-label">Build</span><span class="settings-row-value"><span id="aboutBuild">—</span></span></li>
+            <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-layers"></use></svg></span><span class="settings-row-label">Config version</span><span class="settings-row-value"><span id="modelsConfigSha">—</span></span></li>
+            <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-cpu"></use></svg></span><span class="settings-row-label">Process</span><span class="settings-row-value"><code id="aboutPid">—</code></span></li>
+            <li class="action-row"><a class="action-row-main" id="aboutLangfuse" href="#" target="_blank" rel="noopener"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-external-link"></use></svg></span><span class="action-row-text"><span class="action-row-title">Open Langfuse UI</span><span class="action-row-meta">Traces and long-window analytics</span></span></a></li>
+            <li class="action-row"><a class="action-row-main" id="aboutFrontier" href="/admin/frontier" target="_blank" rel="noopener"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-line"></use></svg></span><span class="action-row-text"><span class="action-row-title">Frontier report</span><span class="action-row-meta">The latest model comparison run</span></span></a></li>
+          </ul>
+        </div>
+        <div class="settings-detail">
+          <section class="settings-page" id="settingsPage-startup" data-page="startup" hidden aria-labelledby="settingsStartupTitle">
+          <button type="button" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
+          <h3 id="settingsStartupTitle">Service startup</h3>
+          <p class="settings-note muted">Services that come up automatically every time the hub launches; each switch saves at once to <code>config/startup_profile.json</code>. Model autostart is set per model (<code>startup: eager|on_demand</code>) in its placement editor on Models.</p>
+          <ul id="startupList" class="startup-list"></ul>
+          </section>
+          <section class="settings-page" id="settingsPage-health" data-page="health" hidden aria-labelledby="settingsHealthTitle">
+          <button type="button" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
+          <h3 id="settingsHealthTitle">Health &amp; install</h3>
+          <div id="installRows"><p class="settings-note muted">Checking…</p></div>
+          <div class="card-actions">
+            <button id="installFixAllBtn" type="button" class="button-primary launch-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-wrench"></use></svg>Fix all</button>
+            <button id="installRefreshBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>Re-check</button>
+          </div>
+          </section>
+        </div>
       </div>
     </div>
   </dialog>

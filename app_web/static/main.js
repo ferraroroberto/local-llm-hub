@@ -3,9 +3,8 @@
  * background event streams.
  */
 
-import { state, els, THEME_KEY, STATUS_POLL_MS, COUNTERS_POLL_MS, MODELS_POLL_MS } from './state.js';
+import { state, els, TAB_KEY, STATUS_POLL_MS, COUNTERS_POLL_MS, MODELS_POLL_MS } from './state.js';
 import { jsonApi, tokenFromUrl, writeToken, wireLoginForm, toast } from './api.js';
-import { icon } from './_vendored/icons/icons.js';
 import { wireTabs, onTabChange, setTab } from './tabs.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchServicesStatus, renderSparklines } from './hub.js';
 import { wireModels, fetchModels, fetchRoles } from './models.js';
@@ -13,36 +12,41 @@ import { wireStartupProfile, fetchStartupProfile } from './startup.js';
 import { fetchFleetPlacement } from './fleet_placement.js';
 import { wirePlayground, wirePlayModes, setPlayMode, fetchPlaygroundModels, fetchTtsModels, fetchImageModels } from './playground.js';
 import { wireJev, fetchJevInfo } from './playground_jev.js';
-import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls, fetchTelemetryHealth } from './telemetry.js';
-import { wireCodeUsage, startCodeUsagePolls, stopCodeUsagePolls, restyleCodeUsageCharts } from './code_usage.js';
+import { fetchOtelHealth } from './langfuse.js';
+import { wireTheme } from './theme.js';
+import { wireCodeUsage, startCodeUsagePolls, stopCodeUsagePolls } from './code_usage.js';
 import { wireMachines, startMachinesPolls, stopMachinesPolls } from './machines.js';
 import { wireSettings } from './settings.js';
 import { wireInfoSheet } from './rows.js';
 
-// --------------------------------------------------------------- theme toggle
-// The pre-paint boot script in index.html already stamped html[data-theme]
-// (localStorage override, prefers-color-scheme fallback); this block owns the
-// sun/moon button in every pane header. Same mechanism as home-automation/app-launcher.
-function applyTheme(dark) {
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  // Show the glyph for the action: sun to switch to light, moon to switch to dark.
-  els.themeToggleBtns.forEach(function (btn) { btn.innerHTML = icon(dark ? 'sun' : 'moon'); });
-  localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
-  // Chart.js canvases can't follow CSS vars on their own — re-resolve them.
-  restyleCodeUsageCharts();
+// --------------------------------------------------------------- #telemetry
+// The retired OTel pane's ways in (#741): a #telemetry link, a stored
+// `telemetry` tab and an in-app data-open-tab="telemetry" all open Hub with
+// the Activity feed (which carries the pane's traces) in view.
+const RETIRED_TAB = 'telemetry';
+
+function storedTab() {
+  try { return localStorage.getItem(TAB_KEY); } catch (_) { return null; }
 }
 
-function toggleTheme() {
-  applyTheme(document.documentElement.dataset.theme !== 'dark');
+function showActivity() {
+  setTab('hub');
+  if (location.hash === '#' + RETIRED_TAB) {
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+  // After the nav's own scroll reset (setTab scrolls to the top).
+  requestAnimationFrame(function () {
+    const card = document.getElementById('activityCard');
+    if (card) card.scrollIntoView({ block: 'start' });
+  });
 }
 
-(function initTheme() {
-  const stored = localStorage.getItem(THEME_KEY);
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  applyTheme(stored ? stored === 'dark' : prefersDark);
-})();
-
-els.themeToggleBtns.forEach(function (btn) { btn.addEventListener('click', toggleTheme); });
+function openTab(tab) {
+  if (tab === RETIRED_TAB) { showActivity(); return; }
+  // "Send a test request" lands on the Playground's Chat (#740).
+  if (tab === 'playground') setPlayMode('chat');
+  setTab(tab);
+}
 
 async function fetchVersion() {
   try {
@@ -53,6 +57,7 @@ async function fetchVersion() {
     if (els.buildReadout) {
       els.buildReadout.textContent = ts ? ('Build: ' + sha + ' · ' + ts) : ('Build: ' + sha);
     }
+    if (els.aboutBuild) els.aboutBuild.textContent = ts ? sha + ' · ' + ts : sha;
   } catch (_) { /* ignore */ }
 }
 
@@ -62,7 +67,7 @@ async function fetchVersion() {
 // already has it and a login doesn't change it. Two live-probe endpoints are
 // left out on purpose (seconds each, neither feeds the landing view, #646):
 // fleet-placement loads when the Models tab opens (onTabChange below) and
-// install/status when the Health & install card opens (wireHub).
+// install/status when Settings › Health opens (settings.js).
 function fetchAllData() {
   return Promise.allSettled([
     fetchHubStatus(),
@@ -70,7 +75,7 @@ function fetchAllData() {
     fetchModels(),
     fetchStartupProfile(),
     fetchServicesStatus(),
-    fetchTelemetryHealth(),
+    fetchOtelHealth(),
     fetchPlaygroundModels(),
     fetchTtsModels(),
     fetchImageModels(),
@@ -83,13 +88,13 @@ async function boot() {
   if (fromUrl) writeToken(fromUrl);
 
   wireLoginForm(function () { return resumeAfterLogin(); });
+  wireTheme();
   wireHub();
   wireModels();
   wireStartupProfile();
   wirePlayground();
   wirePlayModes();
   wireJev();
-  wireTelemetry();
   wireCodeUsage();
   wireMachines();
   wireSettings();
@@ -105,11 +110,6 @@ async function boot() {
       renderSparklines();
     } else {
       stopHubStreams();
-    }
-    if (tab === 'telemetry') {
-      startTelemetryPolls();
-    } else {
-      stopTelemetryPolls();
     }
     if (tab === 'code-usage') {
       startCodeUsagePolls();
@@ -130,14 +130,17 @@ async function boot() {
       fetchRoles().catch(function () {});
     }
   });
+  // A stored `telemetry` (the retired pane) is not a tab any more: the nav
+  // would fall back to Hub anyway, but the Activity feed should be in view.
+  const toActivity = location.hash === '#' + RETIRED_TAB || storedTab() === RETIRED_TAB;
   wireTabs();
-  // Header buttons that open a destination which is not in the bottom bar.
+  if (toActivity) showActivity();
+  window.addEventListener('hashchange', function () {
+    if (location.hash === '#' + RETIRED_TAB) showActivity();
+  });
+  // Buttons that open a destination which is not in the bottom bar.
   document.querySelectorAll('[data-open-tab]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      // "Send a test request" lands on the Playground's Chat (#740).
-      if (btn.dataset.openTab === 'playground') setPlayMode('chat');
-      setTab(btn.dataset.openTab);
-    });
+    btn.addEventListener('click', function () { openTab(btn.dataset.openTab); });
   });
 
   await Promise.allSettled([fetchVersion(), fetchAllData()]);

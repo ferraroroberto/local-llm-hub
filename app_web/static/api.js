@@ -195,7 +195,7 @@ export function toastPending(msg) {
 }
 
 // --------------------------------------------------------------- fmt
-/* Shared across hub.js / models.js / telemetry.js — one definition (the
+/* Shared across hub.js / models.js / code_usage.js — one definition (the
  * sibling-dedup pass of local-llm-hub#211; the copies had drifted). */
 export function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -292,7 +292,7 @@ export function tokPair(inTok, outTok) {
 }
 
 /* Shared plumbing behind every table-render function in this file (and, as
- * of #530, in code_usage.js / telemetry.js too): resolve `table`'s
+ * of #530, in code_usage.js too): resolve `table`'s
  * <tbody>, bail silently (-1) if either isn't in the DOM, else fill it from
  * `rows` via `cellsFn` — one row's full '<tr>...</tr>' markup — and return
  * the row count so the caller can drive its own empty-state UI (an inline
@@ -333,7 +333,7 @@ export function renderCounterTable(table, rows) {
 
 /* Fill a <table>'s <tbody> from `rows`, toggling a sibling "no data" element
  * on emptiness — the scaffold five different panels (code_usage.js's
- * vendor/model/project/Copilot-billing tables, telemetry.js's Claude Code
+ * vendor/model/project/Copilot-billing tables, the Code tab's Sub-agents (OTel)
  * usage table) each re-derived by hand: resolve tbody, bail if absent,
  * clear + fill, toggle `emptyEl.hidden` on `rows.length`. `renderCounterTable`
  * above was already the deduplicated version of this exact shape for the two

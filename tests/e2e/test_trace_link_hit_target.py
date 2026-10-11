@@ -83,17 +83,17 @@ def test_trace_links_are_44px_targets_that_never_overlap(page, admin_url, viewpo
     sheet = page.locator("#traceSheet[open]")
     sheet.wait_for(timeout=3000)
     page.wait_for_function(
-        "(document.querySelector('#traceSheet .tel-trace-detail')?.innerText || '').includes('Langfuse stack offline')",
+        "(document.querySelector('#traceSheet .trace-detail')?.innerText || '').includes('Langfuse stack offline')",
         timeout=5000,
     )
-    sheet.locator('.tel-thumb[data-thumbs="1"]').click()
-    sheet.locator('.tel-thumb[data-thumbs="-1"]').click()
+    sheet.locator('.trace-thumb[data-thumbs="1"]').click()
+    sheet.locator('.trace-thumb[data-thumbs="-1"]').click()
     for _ in range(30):
         if len(scores) >= 2:
             break
         page.wait_for_timeout(100)
     assert scores == [1, -1], scores
-    link = sheet.locator("a.tel-deeplink")
+    link = sheet.locator("a.trace-link")
     assert "trace-0002-abcdef" in link.get_attribute("href")
     box = link.bounding_box()
     assert box["height"] >= 44, box

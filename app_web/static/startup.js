@@ -1,5 +1,5 @@
-/* Models tab — "Service startup" card: which services autostart with the
- * hub (#265; services-only since #430, renamed in #431).
+/* Settings › Startup — "Service startup": which services autostart with the
+ * hub (#265; services-only since #430, renamed in #431; in Settings since #741).
  *
  * Thin CRUD view over GET/PATCH /admin/api/startup-profile. Model autostart
  * lives elsewhere — per model (`startup: eager|on_demand`) in the placement
@@ -37,6 +37,17 @@ function renderStartup() {
   });
 
   root.replaceChildren(frag);
+  renderSummary();
+}
+
+/* The Settings row's value: how many services come up with the hub. */
+function renderSummary() {
+  const data = state.startupProfile;
+  if (!els.startupSummary || !data) return;
+  const profile = data.profile || {};
+  const services = data.services || [];
+  const on = services.filter(function (svc) { return !!profile[svc.id]; }).length;
+  els.startupSummary.textContent = on + ' of ' + services.length + ' start with the hub';
 }
 
 function buildRow(label, on, apply) {
@@ -57,6 +68,7 @@ function buildRow(label, on, apply) {
         .then(function (body) {
           setSwitch(btn, next);
           if (body && body.profile) state.startupProfile.profile = body.profile;
+          renderSummary();
         })
         .catch(function (exc) {
           setSwitch(btn, on);

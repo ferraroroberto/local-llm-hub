@@ -30,10 +30,16 @@ def test_page_header_is_as_tall_as_a_collapsed_card(page, admin_url):
     page.goto(admin_url, wait_until="load")
     page.wait_for_selector("#paneHub .home-head", state="visible", timeout=5000)
 
-    # A closed disclosure card's height is the row geometry the header must match.
-    closed = "#paneHub details.card--collapsible:not([open])"
-    page.wait_for_selector(closed, state="visible", timeout=5000)
-    row = _height(page, closed)
+    # A closed disclosure card's height (--row-md inside two 1px borders) is
+    # the row geometry the header must match; Hub has no folded card since #741.
+    row = page.evaluate("""() => {
+        const probe = document.createElement('div');
+        probe.style.height = 'calc(var(--row-md) + 2px)';
+        document.body.appendChild(probe);
+        const h = probe.getBoundingClientRect().height;
+        probe.remove();
+        return h;
+    }""")
 
     for tab, pane in _TABS.items():
         page.click(tab)
@@ -42,7 +48,7 @@ def test_page_header_is_as_tall_as_a_collapsed_card(page, admin_url):
         assert abs(header - row) <= 1, f"{pane}: header {header}px vs collapsed card {row}px"
 
 
-def test_labelled_otel_button_keeps_every_header_inside_the_phone_width(page, admin_url):
+def test_every_header_stays_inside_the_phone_width(page, admin_url):
     page.set_viewport_size(PHONE)
     page.goto(admin_url, wait_until="load")
     for tab, pane in _TABS.items():

@@ -56,15 +56,15 @@ export async function fetchRoles() {
   } catch (_) { /* roles stay unshown; the sheets still render without them */ }
 }
 
-/* models.yaml config-version chip (#424) — the HEAD sha of the file. Every
- * converged hub shows the same sha, so drift between hubs is visible by
- * comparing their /admin pages at a glance. */
+/* models.yaml config version (#424) — the HEAD sha of the file, shown in
+ * Settings › About since #741. Every converged hub shows the same sha, so
+ * drift between hubs is visible by comparing their /admin pages. */
 function renderConfigChip() {
   const el = els.modelsConfigSha;
   if (!el) return;
   const cfg = state.modelsConfig;
   const sha = cfg && cfg.sha && cfg.sha !== 'unknown' ? cfg.sha : '';
-  el.textContent = sha ? 'Config version ' + sha : '';
+  el.textContent = sha || '—';
   el.title = sha
     ? 'models.yaml config version (HEAD sha of config/models.yaml) — the same on every converged hub'
     : '';

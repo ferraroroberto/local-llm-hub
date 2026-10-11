@@ -7,7 +7,7 @@ reverse-engineer — the hub sources usage from **AgentsView**
 ([`kenn-io/agentsview`](https://github.com/kenn-io/agentsview)), a local-first
 indexer that reads 40+ coding-agent session formats into its own SQLite index
 and serves a REST API. Architecturally it's the same shape as the Langfuse
-dependency behind the Telemetry tab: an **optional, isolated, external local
+dependency behind the Hub's traces: an **optional, isolated, external local
 service** the hub polls over HTTP and degrades gracefully without.
 
 **Scope is deliberately curated, not everything AgentsView sees.** A map in
@@ -71,8 +71,8 @@ itself.**
   timeout); the summary endpoint only ever reads the snapshot. Completed
   sessions are fetched once and cached — they're immutable.
 - **Graceful degradation.** AgentsView down → the AGY button keeps showing
-  last-fetched data and the tab shows a muted "AgentsView offline" hint (the
-  Code-tab mirror of the Telemetry tab's `langfuse_reachable`). Not installed
+  last-fetched data, the agent sheet marks it "offline" and the header line
+  names it (the Code-tab mirror of the Langfuse sheet's `langfuse_reachable`). Not installed
   → the tab is exactly the native three-vendor view, no hint, no errors.
 - **Costs are "as reported by AgentsView"** — its own estimates for
   subscription agents, passed through unchanged (never re-priced against the

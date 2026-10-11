@@ -1,9 +1,10 @@
 """A request row leads with what was asked for, and the time trails (#647, J-10).
 
 The design review's judgment pass answers no when a list's rows lead with a
-timestamp instead of the row's name. The Hub's live-request and error lists and
-the Telemetry trace feed all opened a row with its clock; the model now leads
-and the clock is the last, muted cell.
+timestamp instead of the row's name. The Hub's live-request and error lists
+(and the retired OTel pane's trace feed, folded into them by #738 and #741)
+opened a row with its clock; the model now leads and the clock is the last,
+muted cell.
 """
 
 from __future__ import annotations
@@ -50,14 +51,3 @@ def test_hub_request_and_error_rows_lead_with_the_model(page, admin_url):
         cells = _first_and_last_cells(page, selector)
         assert MARKER in cells["first"], f"{selector} row opens with {cells['first']!r}"
         assert CLOCK.match(cells["last"]), f"{selector} row ends with {cells['last']!r}"
-
-
-def test_trace_feed_rows_lead_with_the_model(page, admin_url):
-    _post_bogus_request(admin_url)
-    page.goto(admin_url, wait_until="load")
-    page.click('[data-open-tab="telemetry"]')
-    cells = _first_and_last_cells(page, "#telTracesList")
-    assert MARKER in cells["first"], f"trace row opens with {cells['first']!r}"
-    # The trace row's trailing cells are its meta and actions blocks; the clock
-    # is still in the row, just not where the eye starts.
-    assert re.search(r"\d{1,2}:\d{2}:\d{2}", cells["all"]), cells["all"]
