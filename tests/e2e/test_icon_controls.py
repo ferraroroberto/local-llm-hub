@@ -24,23 +24,15 @@ def test_model_rows_ping_from_the_menu_not_a_bare_glyph(page, admin_url):
         assert (items.nth(i).text_content() or "").strip() == "Ping"
 
 
-def test_header_opens_otel_with_a_chart_glyph(page, admin_url):
+def test_every_header_holds_the_theme_toggle_and_the_gear_only(page, admin_url):
+    """The Traces button is gone (#741): each pane header carries exactly the
+    theme toggle and the Settings gear (design.md page-header trailingActions 2)."""
     page.goto(admin_url, wait_until="domcontentloaded")
     page.wait_for_selector("#paneHub .home-head", state="attached")
-    glyphs = page.evaluate(
-        """() => [...document.querySelectorAll('.home-head [data-open-tab="telemetry"] use')]
-            .map(u => u.getAttribute('href'))"""
+    heads = page.evaluate(
+        """() => [...document.querySelectorAll('.home-head')].map(h =>
+            [...h.querySelectorAll('button')].map(b =>
+                b.classList.contains('theme-toggle') ? 'theme' : b.classList.contains('home-settings') ? 'gear' : b.className))"""
     )
-    assert glyphs, "no header button opens the OTel tab"
-    assert set(glyphs) == {"#i-chart-column"}, glyphs
-
-
-def test_header_otel_button_is_labelled_in_words(page, admin_url):
-    page.goto(admin_url, wait_until="domcontentloaded")
-    page.wait_for_selector("#paneHub .home-head", state="attached")
-    labels = page.evaluate(
-        """() => [...document.querySelectorAll('.home-head [data-open-tab="telemetry"]')]
-            .map(b => (b.textContent || '').trim())"""
-    )
-    assert labels, "no header button opens the OTel tab"
-    assert set(labels) == {"Traces"}, labels
+    assert len(heads) == 5, heads
+    assert all(h == ["theme", "gear"] for h in heads), heads

@@ -115,6 +115,7 @@ Per call, you get a trace with:
 - TTFT + tokens/second when the call went through the streaming path
 - Whichever scores you POST through the feedback endpoint
 
-Open the Telemetry tab in the hub admin SPA
-(`http://127.0.0.1:8000/admin/`) for a live view of every trace as it
-lands, with deep-links into the Langfuse UI for full inspection.
+Open the **Hub** tab's Activity feed in the hub admin SPA
+(`http://127.0.0.1:8000/admin/#telemetry` lands there) for a live view of
+every trace as it lands; a row opens its trace sheet with a link into the
+Langfuse UI for full inspection.

@@ -1,6 +1,6 @@
 /* Machines tab (issue #309; rows + sheet since #736) — fleet status/actions/terminal.
  *
- * Mirrors the telemetry.js tab-lifecycle shape (start/stopMachinesPolls,
+ * Mirrors the Code tab's tab-lifecycle shape (start/stopMachinesPolls,
  * only polled while the tab is active). Five async lifecycle states
  * (design.md): loading / ready / empty / stale / error — see
  * fetchMachinesStatus() + renderMachines().

@@ -923,11 +923,24 @@ and is anything failing?* first (#738):
   Langfuse**. **By model** opens the per-backend counters with their summary
   line; **Server log** opens the live tail with Pause. The ⓘ explains the
   window and the audio calls that bypass the hub.
-- **Health & install** stays a folded card here until it moves to Settings.
 
 On a wide window (1100px+, mouse) the glance and services sit left of the
 Activity feed; a phone shows one column. The model roles and placement live
 on the Models tab (#737).
+
+### Settings
+
+The gear in every page header opens **Settings** (#741), the fleet's inset
+groups: **Display** (text size, and theme: System · Light · Dark beside the
+header toggle), **Startup** (the services that come up with the hub, saved as
+each switch flips), **Health** (Health & install with Fix all and Re-check, run
+when the row opens; a failing check also reaches Hub's header line) and
+**About** (build, models.yaml config version, process id, Open Langfuse UI,
+the frontier report). A row with a body opens it in place on a phone and
+beside the list on a wide window. The separate OTel pane and its header
+**Traces** button are gone: their functions live in Hub (Langfuse sheet,
+Activity, By model) and Code (Sub-agents (OTel)), and a `#telemetry` link
+opens Hub Activity.
 
 ### Machines console
 
@@ -1390,7 +1403,7 @@ Plain check (no changes):
 .venv\Scripts\python -m src.install
 ```
 
-Or open the **🩺 Health & install** panel on the admin webapp's
+Or open **Settings › Health & install** (the gear) on the admin webapp's
 **🛰 Hub** tab (`http://127.0.0.1:8000/admin/`) — same checks, same
 fixes, one button per row plus a **Fix-all**.
 
@@ -1491,7 +1504,7 @@ Starts a resident system-tray icon (silent — no terminal window) that:
     services-only since #430): Docker + Langfuse if `docker` / `langfuse` are
     `true` (via the same `launch_stack()` the Services card's manual launch
     button uses), and AgentsView if `agentsview` is `true`. Toggle any service
-    off from the admin SPA's Models tab **Service startup** card, or hand-edit the
+    off from the admin SPA's **Settings › Service startup** (the gear), or hand-edit the
     JSON. Peer wake/sync is *not* a startup-profile toggle — it is owned by
     the fleet reconcile loop, driven by the registry-derived desired state.
     The Docker VM's memory is capped host-side by `%USERPROFILE%\.wslconfig`
@@ -2216,7 +2229,7 @@ subprocesses, no wrapper around any binary, no impact on the running CLIs:
   AgentsView knows about are deliberately not surfaced (curated map in
   `agentsview_usage.py`). Polled over HTTP, never from raw files; the hub
   runs fully without it. AgentsView appears in the Hub tab's **Services**
-  sheet and the Models tab's **Service startup** toggles — the hub launches it at
+  sheet and the **Settings › Service startup** toggles — the hub launches it at
   startup when toggled on (exe from `.venv-agentsview/`, `AGENTSVIEW_EXE`,
   or PATH). Setup and behaviour:
   [docs/code-usage-agentsview.md](docs/code-usage-agentsview.md).
@@ -2240,7 +2253,7 @@ window in All.
 (Date, Project, Model, Source, In, Out, Cache reads, Cache writes, ≈ $), its
 tokens-and-cost line and an empty state naming the export to enable. It is the
 only source that sees sub-agent usage, is stored separately and is never added
-into All (the OTel tab shows the same figures until it retires).
+into All (the retired OTel pane's copy of these figures went in #741).
 
 **By project** lists the busiest projects as rows; **Every project**, **By
 model** and **Recent sessions** open as sheets. Projects under the `automation`
@@ -2279,7 +2292,7 @@ last 14 days; Week → last 12 weeks; Month → last 12 months; All → the card
 the trend covers Day, Week and Month.  The **Recent sessions** sheet shows the
 last 15 sessions across every project on this host.
 
-> **⚠️ The local JSONL source undercounts Claude two ways (verified 2026-07-12, #280).** (a) Sessions bridged through **claude.ai/code** (web/desktop remote-control) write `mode`/`permission` lines but **no assistant/usage records** to the local transcripts — their tokens are only visible via the **OTel tab**'s "Claude Code (host CLI)" panel (issue #68): the hub runs its own OTLP-metrics receiver (`POST /v1/metrics`) that Claude Code's telemetry export can point at; see [docs/telemetry-langfuse.md](docs/telemetry-langfuse.md#claude-code-otel-metrics-receiver-issue-68) for the host env vars. (b) Claude Code **prunes transcripts after ~30 days** (`cleanupPeriodDays`) — to survive that, the hub snapshots daily rollups per (date, vendor, model, project) into `data/code_usage_history.json` (`src/code_usage_history.py`: max-merge on write, per-vendor cutoff on read so no day is double-counted) and feeds them back into the "All" period after the source files are gone. History accumulates from 2026-07-12 forward; days already pruned before then are unrecoverable from disk. On the plus side, newer Claude Code also writes per-session directories with **sub-agent transcripts** (`projects/<proj>/<session>/subagents/agent-*.jsonl`), which the parser now includes — the old sub-agent blind spot is captured where those exist; finer per-subagent attribution is tracked upstream in [anthropics/claude-code#22625](https://github.com/anthropics/claude-code/issues/22625).
+> **⚠️ The local JSONL source undercounts Claude two ways (verified 2026-07-12, #280).** (a) Sessions bridged through **claude.ai/code** (web/desktop remote-control) write `mode`/`permission` lines but **no assistant/usage records** to the local transcripts — their tokens are only visible via the Code tab's **Sub-agents (OTel)** source (issue #68): the hub runs its own OTLP-metrics receiver (`POST /v1/metrics`) that Claude Code's telemetry export can point at; see [docs/telemetry-langfuse.md](docs/telemetry-langfuse.md#claude-code-otel-metrics-receiver-issue-68) for the host env vars. (b) Claude Code **prunes transcripts after ~30 days** (`cleanupPeriodDays`) — to survive that, the hub snapshots daily rollups per (date, vendor, model, project) into `data/code_usage_history.json` (`src/code_usage_history.py`: max-merge on write, per-vendor cutoff on read so no day is double-counted) and feeds them back into the "All" period after the source files are gone. History accumulates from 2026-07-12 forward; days already pruned before then are unrecoverable from disk. On the plus side, newer Claude Code also writes per-session directories with **sub-agent transcripts** (`projects/<proj>/<session>/subagents/agent-*.jsonl`), which the parser now includes — the old sub-agent blind spot is captured where those exist; finer per-subagent attribution is tracked upstream in [anthropics/claude-code#22625](https://github.com/anthropics/claude-code/issues/22625).
 
 > **Why no host OTEL → Langfuse bridge?**  Issue #20 originally shipped an
 > opt-in path to forward host Claude Code traces into the hub's Langfuse

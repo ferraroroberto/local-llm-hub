@@ -23,4 +23,4 @@ Local HTTP hub routing Anthropic- and OpenAI-shaped requests to multiple LLM/ASR
   - app_web/static/**/*.css
   - app_web/static/**/*.{js,html}
 - key views:                      # single tabbed SPA served at `/admin/`
-  - /admin/    (Hub · Models · Playground · Telemetry · Code Usage · Machines tabs)
+  - /admin/    (Hub · Models · Playground · Code · Machines tabs, plus the Settings dialog)

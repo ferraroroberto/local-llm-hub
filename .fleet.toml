@@ -127,6 +127,7 @@ no_go = [
   '[data-act="start"]', '[data-act="stop"]', '[data-act="force-stop"]', '[data-act="ping"]',
   "#dockerStartBtn", "#dockerStopBtn", "#langfuseStartBtn", "#langfuseStopBtn",
   "#agentsviewStartBtn", "#agentsviewStopBtn", "#servicesLaunchBtn", "#installFixAllBtn",
+  "#startupList button",
   '[data-act="svc-start"]',
   '[data-machine-action="wake"]', '[data-machine-action="bootstrap"]', '[data-machine-action="sync"]',
   '[data-machine-action="reboot"]', '[data-machine-action="shutdown"]', "#machinesConfirmBtn",

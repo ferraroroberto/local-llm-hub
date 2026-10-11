@@ -221,11 +221,6 @@ code { font-family: inherit; }   /* beat the UA's default monospace */
 pre code { font-family: inherit; } /* …but code inside a pre stays mono */
 .muted { color: var(--muted); }
 .small { font-size: var(--font-caption); }
-/* "requested → served @host" tail on a request row whose model was resolved to
- * a different one (role chain / fallback) and/or served by another machine —
- * see api.js modelLabel (#412). */
-.model-served { color: var(--muted); }
-.model-host { color: var(--muted); }
 
 /* ---------- icons (vendored Lucide sprite — _vendored/icons) ----------
  * The `.icon` rule is the required CSS contract from the vendored component's
@@ -309,27 +304,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .app .card.home-head { min-height: calc(var(--row-md) + 2px); }
 /* The theme toggle and the gear: only the first is pushed right. */
 .home-head .home-toggle + .home-toggle { margin-left: 0; }
-/* The OTel entry is the one header action with words (a chart glyph alone has no
- * fixed meaning, J-05): compact, never shrunk, so the status line is what ellipsizes. */
-.home-head .home-otel {
-  flex: none;
-  padding: 4px 10px;
-  font-size: var(--font-caption);
-}
-/* On a phone the word leaves a static subtitle under ~60px, a one-letter stub:
- * drop it there. A live line stays: the Hub status pill and every header line
- * the shared helper writes (`.head-line`, rows.js), which names the pane's
- * exception and so must be readable on the phone too (#736). */
-@media (max-width: 480px) {
-  .home-head .status:not(.hub-live-status):not(.head-line) { display: none; }
-  /* At 390px a live line has no room beside the tab title, the labelled
-   * Traces button and the two toggles (it was squeezed to ~30px). A header
-   * that carries one drops Traces on the phone; the OTel pane stays one tap
-   * away from every other tab's header and from this one on a wider window,
-   * until Step 6 retires the button everywhere (#736, #741). */
-  .home-head:has(.head-line) .home-otel { display: none; }
-}
-
 /* ---------- tone map (design.md "status chip") ----------
  * The one place a status colour gets its meaning; the status chip and the
  * header line (rows.js) both read it through `data-tone`.
@@ -359,8 +333,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
   background: color-mix(in srgb, var(--tone) 16%, transparent);
   color: var(--tone-text);
 }
-/* The nav tracks the OTel pane through a hidden entry; the bar shows five tabs. */
-.tabs .tab[data-tab="telemetry"] { display: none; }
 .home-head .home-toggle::before { content: ""; position: absolute; inset: -5px; }
 
 /* Filter above a long list (action-row: 44px, control-border). */
@@ -752,6 +724,78 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
    * their two columns span the width right of the rail. */
   .app:has(> .pane[data-wide="cols"]:not([hidden])) { max-width: none; margin: 0; }
   .hub-cols.wide-cols, .code-cols.wide-cols, .play-cols.wide-cols { display: grid; align-items: start; }
+}
+
+/* ---------- Hub trace sheet (#738; its own styles since #741) ----------
+ * One request's trace id, then its prompt and completion (langfuse.js). */
+.trace-detail { display: flex; flex-direction: column; gap: 10px; font-size: var(--font-body-sm); }
+.trace-detail-row { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.trace-detail-row code { overflow-wrap: anywhere; color: var(--ink); }
+.trace-detail-section { display: flex; flex-direction: column; gap: 4px; }
+.trace-detail-pre {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 260px;
+  overflow: auto;
+  background: var(--card-off);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-body-sm);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Settings (#741) ----------
+ * The design system's settings groups in the gear's dialog: overline headers,
+ * rows with a lead glyph, a label and the current value. A row with a body
+ * opens it in place of the list on a phone (with a back row) and beside the
+ * list on a wide window (list : detail = 1 : 1.5). */
+.settings-groups { margin: 0 -18px; }
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  min-height: var(--row-md);
+  padding: 6px 14px;
+  border-top: 1px solid var(--line-muted);
+}
+.settings-row-label { flex: 1; min-width: 0; font-weight: 600; }
+.settings-row-value { color: var(--muted); font-size: var(--font-body-sm); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }
+.settings-inline { flex-wrap: wrap; }
+.settings-inline .settings-row-label { flex: 1 0 auto; }
+.settings-inline .segmented, .settings-inline .range-tabs { flex: none; }
+.group-overline + .settings-row, .group-overline + .action-row { border-top: 0; }
+.settings-link .action-row-main { align-items: center; }
+.settings-chevron { flex: none; margin-left: auto; color: var(--muted); width: var(--icon-title); height: var(--icon-title); }
+.settings-groups .settings-link .action-row-meta[data-tone] { color: var(--tone-text); font-weight: 600; }
+.settings-detail h3 { margin: 0 0 8px; font-size: var(--font-body); font-weight: 700; }
+.settings-note { margin: 0 0 10px; font-size: var(--font-body-sm); }
+.settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--row-sm);
+  margin: 0 0 6px -6px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.settings-back-glyph { transform: scaleX(-1); }
+/* Phone: the list, or one body in its place. */
+.settings-layout[data-open=""] .settings-detail,
+.settings-layout:not([data-open]) .settings-detail { display: none; }
+.settings-layout:not([data-open=""])[data-open] .settings-list { display: none; }
+@media (min-width: 1100px) and (pointer: fine) {
+  .detail-dialog.settings-dialog { width: min(1040px, 94vw); }
+  .settings-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: var(--gap); align-items: start; }
+  .settings-layout:not([data-open=""])[data-open] .settings-list { display: block; }
+  .settings-layout .settings-detail { display: block; }
+  .settings-back { display: none; }
 }
 
 /* ---------- Playground (#740) ----------

@@ -852,7 +852,7 @@ function _chartOptions(isTok) {
 }
 
 /* Re-resolve the axis/legend token colors on the live chart after a theme
- * flip (called from main.js's applyTheme). Dataset fills are saturated and
+ * flip (called from theme.js). Dataset fills are saturated and
  * theme-stable, so only grid/tick/legend colors need the update. */
 export function restyleCodeUsageCharts() {
   if (!_chart) return;

@@ -1,7 +1,6 @@
 /* HTTP + SSE helpers, bearer-token plumbing, login overlay, toast. */
 
 import { els, state, TOKEN_KEY } from './state.js';
-import { icon } from './_vendored/icons/icons.js';
 
 // --------------------------------------------------------------- tokens
 export function tokenFromUrl() {
@@ -195,7 +194,7 @@ export function toastPending(msg) {
 }
 
 // --------------------------------------------------------------- fmt
-/* Shared across hub.js / models.js / telemetry.js — one definition (the
+/* Shared across hub.js / models.js / code_usage.js — one definition (the
  * sibling-dedup pass of local-llm-hub#211; the copies had drifted). */
 export function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -218,22 +217,6 @@ export function modelLabelText(rec, fallback) {
   if (served && served !== requested) out += ', served by ' + served;
   if (host) out += ' @' + host;
   return out;
-}
-
-/* Escaped-HTML twin of modelLabelText, with the resolved parts muted. Shared
- * by the Hub tab's live-request / error lists and the Telemetry tab's trace
- * feed so a substitution can never be visible in one pane and invisible in
- * the other (#412). */
-export function modelLabel(rec, fallback) {
-  const requested = (rec && rec.model) || '';
-  const served = (rec && rec.served_model) || '';
-  const host = (rec && rec.served_host) || '';
-  let html = escapeHtml(requested || fallback || '');
-  if (served && served !== requested) {
-    html += ' <span class="model-served">' + icon('chevron-right') + escapeHtml(served) + '</span>';
-  }
-  if (host) html += ' <span class="model-host">@' + escapeHtml(host) + '</span>';
-  return html;
 }
 
 /* Trim the vendor prefix off an nvidia-smi GPU name ("NVIDIA GeForce RTX
@@ -292,7 +275,7 @@ export function tokPair(inTok, outTok) {
 }
 
 /* Shared plumbing behind every table-render function in this file (and, as
- * of #530, in code_usage.js / telemetry.js too): resolve `table`'s
+ * of #530, in code_usage.js too): resolve `table`'s
  * <tbody>, bail silently (-1) if either isn't in the DOM, else fill it from
  * `rows` via `cellsFn` — one row's full '<tr>...</tr>' markup — and return
  * the row count so the caller can drive its own empty-state UI (an inline
@@ -333,7 +316,7 @@ export function renderCounterTable(table, rows) {
 
 /* Fill a <table>'s <tbody> from `rows`, toggling a sibling "no data" element
  * on emptiness — the scaffold five different panels (code_usage.js's
- * vendor/model/project/Copilot-billing tables, telemetry.js's Claude Code
+ * vendor/model/project/Copilot-billing tables, the Code tab's Sub-agents (OTel)
  * usage table) each re-derived by hand: resolve tbody, bail if absent,
  * clear + fill, toggle `emptyEl.hidden` on `rows.length`. `renderCounterTable`
  * above was already the deduplicated version of this exact shape for the two

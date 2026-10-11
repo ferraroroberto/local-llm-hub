@@ -61,6 +61,19 @@ def test_text_size_steps_change_the_root_and_persist(page, admin_url):
     active = page.locator("#textSizeControl .range-tab.active")
     assert active.get_attribute("data-textsize") == "large"
 
+    # Theme sits beside it in Display (#741): an explicit choice persists, and
+    # System hands the page back to the device.
+    page.click('#themeSeg [data-theme-pref="dark"]')
+    page.click("#settingsCloseBtn")
+    page.reload(wait_until="load")
+    assert page.evaluate("document.documentElement.dataset.theme") == "dark"
+    page.click("#paneHub .home-settings")
+    assert page.locator('#themeSeg [data-theme-pref="dark"]').get_attribute("aria-pressed") == "true"
+    page.click('#themeSeg [data-theme-pref="system"]')
+    assert page.evaluate("localStorage.getItem('llmhub.theme')") is None
+    device = page.evaluate("matchMedia('(prefers-color-scheme: dark)').matches")
+    assert page.evaluate("document.documentElement.dataset.theme") == ("dark" if device else "light")
+
 
 @pytest.mark.parametrize("viewport", [PHONE, DESKTOP], ids=["phone", "desktop"])
 @pytest.mark.parametrize("theme", ["light", "dark"])

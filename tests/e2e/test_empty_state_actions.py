@@ -71,9 +71,11 @@ def test_code_cards_wait_for_the_first_summary_then_name_their_control(page, adm
 
 
 def test_hub_and_otel_empty_lists_offer_a_test_request(page, admin_url):
+    # The OTel pane's empty trace list was retired with it (#741); Hub
+    # Activity's is the one left.
     page.goto(admin_url, wait_until="domcontentloaded")
     page.wait_for_selector("#paneHub", state="attached")
-    for empty in ("#liveRequestsEmpty", "#telTracesEmpty"):
+    for empty in ("#liveRequestsEmpty",):
         action = page.locator(f"{empty} .empty-state-action")
         assert action.count() == 1, f"{empty} has no action"
         assert action.get_attribute("data-open-tab") == "playground"

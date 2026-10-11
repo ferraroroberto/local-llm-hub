@@ -34,8 +34,18 @@ def _open(page, admin_url, body):
             status=200, content_type="application/json", body=json.dumps(body)
         ),
     )
+    # Healthy services, so the header line has room to name the check (it
+    # shows the first two exceptions).
+    page.route(
+        "**/admin/api/services/status*",
+        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps({
+            "launchable": True, "docker": {"running": True}, "langfuse": {"reachable": True},
+            "agentsview": {"host": None}})),
+    )
     page.goto(admin_url, wait_until="load")
-    page.eval_on_selector("#installCard", "el => { el.open = true; }")
+    # Settings › Health (#741): the battery runs when its row opens.
+    page.click("#paneHub .home-settings")
+    page.click('#settingsDialog .settings-link[data-settings="health"] .action-row-main')
     page.wait_for_selector("#installRows .install-row", state="attached", timeout=10000)
 
 
@@ -48,3 +58,6 @@ def test_fix_all_is_hidden_when_nothing_needs_fixing(page, admin_url):
 def test_fix_all_appears_when_a_check_has_a_fix(page, admin_url):
     _open(page, admin_url, ONE_MISSING)
     assert page.locator("#installFixAllBtn").is_visible()
+    # The failing check is the row's value and Hub's header exception.
+    assert "1 check failing" in page.inner_text("#installSummary")
+    assert "install check failing" in page.inner_text("#hubHeadLine")

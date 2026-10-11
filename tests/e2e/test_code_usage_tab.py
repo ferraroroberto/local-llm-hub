@@ -103,7 +103,6 @@ def test_code_usage_tab_loads(page, admin_url):
     page.wait_for_selector("#paneHub", state="hidden", timeout=PANE_TIMEOUT)
     page.wait_for_selector("#paneModels", state="hidden", timeout=PANE_TIMEOUT)
     page.wait_for_selector("#panePlayground", state="hidden", timeout=PANE_TIMEOUT)
-    page.wait_for_selector("#paneTelemetry", state="hidden", timeout=PANE_TIMEOUT)
     # All four counter elements must be present (content may be "—" or a value).
     assert page.locator("#cldRequests").count() == 1
     assert page.locator("#cldInputTok").count() == 1

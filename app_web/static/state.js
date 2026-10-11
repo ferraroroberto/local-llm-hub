@@ -32,22 +32,16 @@ export const state = {
   liveRequests: [],       // ring synced from SSE stream
   recentErrors: [],
   logPaused: false,
-  installRows: [],
-  installChecked: false,   // the install battery has been requested once (it loads on first open)
+  installChecks: [],      // the last install battery (Settings › Health); a failing one reaches Hub's header
+  installChecked: false,   // the install battery has been requested once (it loads when Settings › Health opens)
   version: null,
   hubStreamCtl: null,     // EventSource abort handles
   hubLogStreamCtl: null,
 
   // Telemetry tab — its own state slice (issue #4).
-  telHealth: null,
-  telHealthFailed: false,  // the last health read failed: "unreachable" on the pane and the Hub Langfuse sheet (#738)
-  telCounters: [],
-  telTraces: [],
-  telStreamCtl: null,
-  telExpandedTraceId: '',
+  otelHealth: null,         // GET /admin/api/telemetry/health (langfuse.js): the Hub Langfuse sheet, trace links
+  otelHealthFailed: false,  // the last health read failed: the Langfuse sheet says "unreachable" (#738)
   // Claude Code (host CLI) OTel-sourced usage panel (issue #68).
-  telCcSummary: null,
-  telCcPeriod: 'today',   // 'today' | 'week' | 'month' | 'all'
 
   // Code-usage tab — host Claude Code session data (issue #20).
   cldSummary: null,
@@ -111,29 +105,21 @@ export const els = {
   // it discovers them from the markup; no element handles needed here.
 
   // Telemetry tab — health strip + leaderboard + live trace feed (issue #4)
-  telHealth: document.getElementById('telHealth'),
-  telHealthText: document.getElementById('telHealthText'),
-  telOtelState: document.getElementById('telOtelState'),
-  telHashMode: document.getElementById('telHashMode'),
-  telEndpoint: document.getElementById('telEndpoint'),
-  telOfflineHint: document.getElementById('telOfflineHint'),
-  telOpenLangfuse: document.getElementById('telOpenLangfuse'),
-  telSummary: document.getElementById('telSummary'),
-  telCountersTable: document.getElementById('telCountersTable'),
-  telTracesList: document.getElementById('telTracesList'),
-  telTracesFilter: document.getElementById('telTracesFilter'),
-  telTracesBadge: document.getElementById('telTracesBadge'),
-  telTracesEmpty: document.getElementById('telTracesEmpty'),
-  telCcSummary: document.getElementById('telCcSummary'),
-  telCcPeriodSeg: document.getElementById('telCcPeriodSeg'),
-  telCcTable: document.getElementById('telCcTable'),
-  telCcEmpty: document.getElementById('telCcEmpty'),
 
   // Hub card — live status indicator lives inside the card header
   // (replaces the old always-on status strip).
   // One theme toggle per pane header (the vendored home-head).
   themeToggleBtns: Array.from(document.querySelectorAll('.theme-toggle')),
-  hubPid: document.getElementById('hubPid'),
+  // Settings (#741): the dialog, its layout, the theme row and the About values
+  settingsDialog: document.getElementById('settingsDialog'),
+  settingsCloseBtn: document.getElementById('settingsCloseBtn'),
+  settingsLayout: document.getElementById('settingsLayout'),
+  textSizeControl: document.getElementById('textSizeControl'),
+  themeSeg: document.getElementById('themeSeg'),
+  startupSummary: document.getElementById('startupSummary'),
+  aboutBuild: document.getElementById('aboutBuild'),
+  aboutPid: document.getElementById('aboutPid'),
+  aboutLangfuse: document.getElementById('aboutLangfuse'),
   hubUptime: document.getElementById('hubUptime'),
   hubSparklines: document.getElementById('hubSparklines'),
 

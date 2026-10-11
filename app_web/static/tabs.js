@@ -1,5 +1,5 @@
-/* Five-tab switcher: Hub | Models | Playground | Claude Code | Machines (OTel is a
- * header destination, tracked here as a hidden tab).
+/* Five-tab switcher: Hub | Models | Playground | Code | Machines (#741 retired the
+ * hidden sixth OTel tab; main.js maps its old ways in to Hub Activity).
  *
  * Thin adapter over the vendored fleet nav (_vendored/nav/nav-tabs.js —
  * local-llm-hub#211). The vendored component owns tab discovery, ARIA +

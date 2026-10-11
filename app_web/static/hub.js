@@ -14,12 +14,13 @@
  *     completion preview, a thumbs score and the Langfuse link (the OTel
  *     pane's trace functions, same helpers). By model (the per-backend
  *     counters + summary) and the server log open from the feed's foot.
- * Health & install stays a folded card here until Step 6 moves it.
+ * Health & install and the process id live in Settings since #741; a failing
+ * install check still reaches this tab's header line.
  */
 
 import { els, state } from './state.js';
 import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, renderCounterTable, shortGpu, modelLabelText, applyListFilter, isAuthError, tokPair } from './api.js';
-import { langfuseTraceUrl, langfuseUiBase, fetchTelemetryHealth, hydrateDetailPanel, postFeedback } from './telemetry.js';
+import { langfuseTraceUrl, langfuseUiBase, fetchOtelHealth, hydrateTraceDetail, postFeedback } from './langfuse.js';
 import { icon } from './_vendored/icons/icons.js';
 import { row, chip, setHeadLine, defineInfo } from './rows.js';
 
@@ -36,7 +37,7 @@ export async function fetchHubStatus() {
     const body = await jsonApi('/admin/api/hub/status');
     state.status = body;
     state.hubStatusOk = true;
-    if (els.hubPid) els.hubPid.textContent = body.pid || '—';
+    if (els.aboutPid) els.aboutPid.textContent = body.pid || '—';
     if (els.hubUptime) els.hubUptime.textContent = fmtUptime(body.uptime_s);
   } catch (exc) {
     if (isAuthError(exc)) return;
@@ -61,8 +62,9 @@ function fmtMs(ms) {
 }
 
 /* The header line: what is wrong now (an unreachable hub, a down service, the
- * errors in the feed — the same list the Errors view draws), else the uptime. */
-function renderHeadLine() {
+ * errors in the feed — the same list the Errors view draws — or a failing
+ * install check once Settings has run them), else the uptime. */
+export function renderHeadLine() {
   const el = els.hubHeadLine;
   if (!el) return;
   if (state.hubStatusOk === null) { setHeadLine(el, [], 'Reading hub…'); return; }
@@ -73,6 +75,10 @@ function renderHeadLine() {
   });
   const errs = (state.recentErrors || []).length;
   if (errs) parts.push({ text: errs + (errs === 1 ? ' error' : ' errors'), tone: 'attention' });
+  const failing = (state.installChecks || []).filter(function (c) {
+    return c.status === 'missing' || c.status === 'error';
+  }).length;
+  if (failing) parts.push({ text: failing + (failing === 1 ? ' install check failing' : ' install checks failing'), tone: 'attention' });
   const up = state.status && Number.isFinite(state.status.uptime_s) ? 'Up ' + fmtUptime(state.status.uptime_s) : 'Serving';
   setHeadLine(el, parts, up);
 }
@@ -234,16 +240,16 @@ function openTrace(r) {
     }).join('') + '</dl>'
     + (r.error_detail ? '<p class="sheet-meta trace-error">' + escapeHtml(String(r.error_detail).slice(0, 280)) + '</p>' : '')
     + '</div>'
-    + '<div class="sheet-section"><div class="tel-trace-detail"><span class="muted">Loading…</span></div></div>'
+    + '<div class="sheet-section"><div class="trace-detail"><span class="muted">Loading…</span></div></div>'
     + '<div class="sheet-section trace-actions"><span class="icon-button-group">'
-    + '<button type="button" class="icon-button tel-thumb" data-thumbs="1" aria-label="Thumbs up" title="Thumbs up">' + icon('thumbs-up') + '</button>'
-    + '<button type="button" class="icon-button tel-thumb" data-thumbs="-1" aria-label="Thumbs down" title="Thumbs down">' + icon('thumbs-down') + '</button>'
+    + '<button type="button" class="icon-button trace-thumb" data-thumbs="1" aria-label="Thumbs up" title="Thumbs up">' + icon('thumbs-up') + '</button>'
+    + '<button type="button" class="icon-button trace-thumb" data-thumbs="-1" aria-label="Thumbs down" title="Thumbs down">' + icon('thumbs-down') + '</button>'
     + '</span>'
-    + '<a class="button-tint tel-deeplink" target="_blank" rel="noopener" href="' + escapeHtml(langfuseTraceUrl(r.trace_id)) + '">'
+    + '<a class="button-tint trace-link" target="_blank" rel="noopener" href="' + escapeHtml(langfuseTraceUrl(r.trace_id)) + '">'
     + icon('external-link') + '<span>Open in Langfuse</span></a>'
     + '</div>';
   if (!els.traceSheet.open) els.traceSheet.showModal();
-  hydrateDetailPanel(els.traceSheetBody.querySelector('.tel-trace-detail'), r.trace_id);
+  hydrateTraceDetail(els.traceSheetBody.querySelector('.trace-detail'), r.trace_id);
 }
 
 // --------------------------------------------------------- log tail
@@ -278,63 +284,6 @@ export function startHubStreams() {
 export function stopHubStreams() {
   if (state.hubStreamCtl) { try { state.hubStreamCtl.close(); } catch (_) {} state.hubStreamCtl = null; }
   if (state.hubLogStreamCtl) { try { state.hubLogStreamCtl.close(); } catch (_) {} state.hubLogStreamCtl = null; }
-}
-
-// --------------------------------------------------------- install panel
-export async function fetchInstallStatus() {
-  try {
-    const body = await jsonApi('/admin/api/install/status');
-    state.installRows = body.checks || [];
-    renderInstall(body);
-  } catch (_) { /* ignore */ }
-}
-
-function renderInstall(body) {
-  if (!els.installRows || !els.installSummary) return;
-  const checks = body.checks || [];
-  const overall = body.worst_status || 'ok';
-  els.installSummary.textContent = checks.length + ' checks · overall ' + overall;
-  els.installSummary.className = 'collapse-count overall-' + overall;
-  els.installRows.innerHTML = '';
-  // The one filled button is a repair: offer it only once a check has something to fix (J-02, #647).
-  if (els.installFixAllBtn) {
-    els.installFixAllBtn.hidden = !checks.some(function (c) {
-      return c.fix_id && (c.status === 'missing' || c.status === 'error');
-    });
-  }
-  checks.forEach(function (c) {
-    const r = document.createElement('div');
-    r.className = 'install-row install-' + c.status;
-    const glyph = c.status === 'ok' ? icon('circle-check')
-      : c.status === 'warn' ? icon('triangle-alert')
-      : c.status === 'missing' ? icon('circle-help')
-      : icon('circle-x');
-    r.innerHTML =
-      '<span class="install-glyph">' + glyph + '</span>' +
-      '<span class="install-label">' + escapeHtml(c.label) + '</span>' +
-      '<span class="install-detail muted small">' + escapeHtml(c.detail || '') + '</span>';
-    if (c.fix_id && (c.status === 'missing' || c.status === 'error')) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'ghost-btn';
-      btn.innerHTML = icon('wrench') + escapeHtml(c.fix_label || 'Fix');
-      btn.addEventListener('click', async function () {
-        btn.disabled = true;
-        btn.textContent = 'Running…';
-        try {
-          await postJson('/admin/api/install/fix', { fix_id: c.fix_id });
-          toast('Fixed ' + c.id, 'good');
-          await fetchInstallStatus();
-        } catch (exc) {
-          toast(String(exc.message || exc), 'error');
-          btn.disabled = false;
-          btn.innerHTML = icon('wrench') + 'Retry';
-        }
-      });
-      r.appendChild(btn);
-    }
-    els.installRows.appendChild(r);
-  });
 }
 
 // --------------------------------------------------------- services (issue #27)
@@ -537,8 +486,8 @@ function renderServices() {
 
 /* The Langfuse sheet: the OTel pane's stack health, same values. */
 function langfuseHealth() {
-  const h = state.telHealth;
-  if (state.telHealthFailed) return { text: 'unreachable', tone: 'danger' };
+  const h = state.otelHealth;
+  if (state.otelHealthFailed) return { text: 'unreachable', tone: 'danger' };
   if (!h) return { text: 'checking…', tone: '' };
   if (!h.otel_enabled) return { text: 'OTel disabled', tone: 'attention' };
   if (h.langfuse_reachable) return { text: 'live', tone: '' };
@@ -546,19 +495,19 @@ function langfuseHealth() {
 }
 
 function renderLangfuseSheet() {
-  const h = state.telHealth || {};
+  const h = state.otelHealth || {};
   const health = langfuseHealth();
   [els.hubOtelHealth, els.langfuseHealthValue].forEach(function (el) {
     if (!el) return;
     el.textContent = health.text;
     if (health.tone) el.dataset.tone = health.tone; else delete el.dataset.tone;
   });
-  if (els.hubOtelState) els.hubOtelState.textContent = state.telHealth ? (h.otel_enabled ? 'on' : 'off') : '—';
-  if (els.hubOtelHash) els.hubOtelHash.textContent = state.telHealth ? (h.hash_prompts ? 'hashed' : 'raw') : '—';
+  if (els.hubOtelState) els.hubOtelState.textContent = state.otelHealth ? (h.otel_enabled ? 'on' : 'off') : '—';
+  if (els.hubOtelHash) els.hubOtelHash.textContent = state.otelHealth ? (h.hash_prompts ? 'hashed' : 'raw') : '—';
   if (els.hubOtelEndpoint) els.hubOtelEndpoint.textContent = h.otel_endpoint || '—';
   if (els.hubOpenLangfuse) els.hubOpenLangfuse.href = langfuseUiBase();
   if (els.hubOtelOfflineHint) {
-    els.hubOtelOfflineHint.hidden = !state.telHealth || !!h.langfuse_reachable || !h.otel_enabled;
+    els.hubOtelOfflineHint.hidden = !state.otelHealth || !!h.langfuse_reachable || !h.otel_enabled;
   }
 }
 
@@ -657,7 +606,7 @@ export function wireHub() {
   });
   if (els.traceSheetBody) {
     els.traceSheetBody.addEventListener('click', function (ev) {
-      const thumb = ev.target.closest('.tel-thumb');
+      const thumb = ev.target.closest('.trace-thumb');
       if (!thumb) return;
       const holder = els.traceSheetBody.querySelector('[data-trace-id]');
       if (holder) postFeedback(holder.dataset.traceId, parseInt(thumb.dataset.thumbs || '0', 10));
@@ -718,38 +667,6 @@ export function wireHub() {
   }
   if (els.hubLogPauseBtn) els.hubLogPauseBtn.addEventListener('click', togglePause);
 
-  if (els.installFixAllBtn) {
-    els.installFixAllBtn.addEventListener('click', async function () {
-      els.installFixAllBtn.disabled = true;
-      const original = els.installFixAllBtn.textContent;
-      els.installFixAllBtn.textContent = 'Running…';
-      try {
-        await postJson('/admin/api/install/fix-all', {});
-        toast('Fix-all complete.', 'good');
-        await fetchInstallStatus();
-      } catch (exc) {
-        toast(String(exc.message || exc), 'error');
-      } finally {
-        els.installFixAllBtn.disabled = false;
-        els.installFixAllBtn.textContent = original;
-      }
-    });
-  }
-  if (els.installRefreshBtn) {
-    els.installRefreshBtn.addEventListener('click', function () { fetchInstallStatus(); });
-  }
-  // The install battery takes seconds, so it runs when the card is first opened
-  // rather than in the boot burst (#646).
-  const installCard = document.getElementById('installCard');
-  if (installCard) {
-    installCard.addEventListener('toggle', function () {
-      if (installCard.open && !state.installChecked) {
-        state.installChecked = true;
-        fetchInstallStatus();
-      }
-    });
-  }
-
   if (els.servicesLaunchBtn) els.servicesLaunchBtn.addEventListener('click', onServicesLaunchClick);
   [['agentsview', els.agentsviewStartBtn, els.agentsviewStopBtn],
    ['docker', els.dockerStartBtn, els.dockerStopBtn],
@@ -774,7 +691,7 @@ export function wireHub() {
     if (state.tab !== 'hub') return;
     if (state.servicesLaunching) return;
     fetchServicesStatus().catch(function () {});
-    fetchTelemetryHealth().then(renderLangfuseSheet).catch(function () {});
+    fetchOtelHealth().then(renderLangfuseSheet).catch(function () {});
   }, 5000);
 }
 
