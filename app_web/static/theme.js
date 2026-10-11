@@ -14,7 +14,7 @@ import { restyleCodeUsageCharts } from './code_usage.js';
 
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
-export function themePref() {
+function themePref() {
   try {
     const stored = localStorage.getItem(THEME_KEY);
     return stored === 'dark' || stored === 'light' ? stored : 'system';
@@ -36,7 +36,7 @@ function paint() {
   restyleCodeUsageCharts();
 }
 
-export function setThemePref(pref) {
+function setThemePref(pref) {
   try {
     if (pref === 'system') localStorage.removeItem(THEME_KEY);
     else localStorage.setItem(THEME_KEY, pref);

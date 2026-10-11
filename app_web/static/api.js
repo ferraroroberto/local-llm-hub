@@ -1,7 +1,6 @@
 /* HTTP + SSE helpers, bearer-token plumbing, login overlay, toast. */
 
 import { els, state, TOKEN_KEY } from './state.js';
-import { icon } from './_vendored/icons/icons.js';
 
 // --------------------------------------------------------------- tokens
 export function tokenFromUrl() {
@@ -218,22 +217,6 @@ export function modelLabelText(rec, fallback) {
   if (served && served !== requested) out += ', served by ' + served;
   if (host) out += ' @' + host;
   return out;
-}
-
-/* Escaped-HTML twin of modelLabelText, with the resolved parts muted. Shared
- * by the Hub tab's live-request / error lists and the Telemetry tab's trace
- * feed so a substitution can never be visible in one pane and invisible in
- * the other (#412). */
-export function modelLabel(rec, fallback) {
-  const requested = (rec && rec.model) || '';
-  const served = (rec && rec.served_model) || '';
-  const host = (rec && rec.served_host) || '';
-  let html = escapeHtml(requested || fallback || '');
-  if (served && served !== requested) {
-    html += ' <span class="model-served">' + icon('chevron-right') + escapeHtml(served) + '</span>';
-  }
-  if (host) html += ' <span class="model-host">@' + escapeHtml(host) + '</span>';
-  return html;
 }
 
 /* Trim the vendor prefix off an nvidia-smi GPU name ("NVIDIA GeForce RTX

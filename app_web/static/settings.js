@@ -59,7 +59,7 @@ function syncAbout() {
 }
 
 // --------------------------------------------------------- Health & install
-export async function fetchInstallStatus() {
+async function fetchInstallStatus() {
   try {
     const body = await jsonApi('/admin/api/install/status');
     state.installChecks = body.checks || [];
