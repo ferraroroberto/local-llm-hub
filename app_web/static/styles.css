@@ -607,6 +607,11 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 
 /* ---------- counters table (scrollable wrap on phone) ---------- */
 .counters-wrap { overflow-x: auto; }
+/* Under a table wider than a phone: says the wrap scrolls sideways (#739). */
+.table-scroll-hint { display: none; margin: 6px 0 0; font-size: var(--font-body-sm); }
+@media (max-width: 520px) {
+  .table-scroll-hint { display: block; }
+}
 .counters {
   width: 100%;
   border-collapse: collapse;
@@ -688,7 +693,8 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
  * Glance + services on the left, the Activity feed on the right on a wide
  * window (rows.css .wide-cols); one column below it. The glance's figures are
  * numbers first; the process line stays here until Step 6 moves it. */
-.hub-cols, .hub-col { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+/* Code (#739) shares the two-column shape. */
+.hub-cols, .hub-col, .code-cols, .code-col { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
 .hub-window { font-size: var(--font-caption); text-align: right; }
 .hub-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); }
 .hub-figure { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -713,7 +719,8 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 }
 .activity-tools .list-filter { flex: 1 1 180px; min-width: 0; margin: 0; }
 .activity-list:empty { display: none; }
-.activity-row.is-static .action-row-main { cursor: default; }
+/* A row that opens nothing (a request without a trace, a project row). */
+.action-row.is-static .action-row-main { cursor: default; }
 .activity-clock {
   flex: none;
   padding: 0 14px 0 4px;
@@ -734,18 +741,17 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 /* In a sheet the rows are the content, not a dense card's side facts: body-sm. */
 #servicesSheet .hub-live-status,
 #servicesSheet .services-detail { font-size: var(--font-body-sm); }
-/* The By model table reads at body-sm where the sheet has room; the phone keeps
- * the caption size so its six columns fit without scrolling (#215). */
-@media (min-width: 521px) {
-  #byModelSheet .counters,
-  #byModelSheet .counters thead th { font-size: var(--font-body-sm); }
-}
+/* A table in a sheet is the sheet's content, not a dense card's side facts:
+ * body-sm at every width (Hub By model, Code By model / Every project, #739).
+ * A table wider than a phone scrolls in its wrap under a .table-scroll-hint. */
+.detail-dialog .counters,
+.detail-dialog .counters thead th { font-size: var(--font-body-sm); }
 .wide-dialog { width: min(760px, 96vw); }
 @media (min-width: 1100px) and (pointer: fine) {
-  /* Hub is a declared wide view ([design] wide_views): its two columns span
-   * the width right of the rail. */
+  /* Hub and Code are declared wide views ([design] wide_views): their two
+   * columns span the width right of the rail. */
   .app:has(> .pane[data-wide="cols"]:not([hidden])) { max-width: none; margin: 0; }
-  .hub-cols.wide-cols { display: grid; align-items: start; }
+  .hub-cols.wide-cols, .code-cols.wide-cols { display: grid; align-items: start; }
 }
 
 /* ---------- Models tab (#737) ----------

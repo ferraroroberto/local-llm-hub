@@ -50,7 +50,9 @@ export const state = {
   // Code-usage tab — host Claude Code session data (issue #20).
   cldSummary: null,
   cldPeriod: 'today',   // 'today' | 'week' | 'month' | 'all'
-  cldVendor: 'all',     // 'all' | 'claude' | 'codex' | 'copilot' | <agentsview agent> (issues #71, #231, #280)
+  cldMetric: 'input_tokens', // the trend chart's metric: the counter last tapped (#739)
+  cldVendorTotals: null,     // {period, rows, totals} from the last All read: the agent sheet's figures (#739)
+  cldVendor: 'all',     // 'all' | 'claude' | 'codex' | 'copilot' | <agentsview agent> | 'subagents' (Claude Code OTel, #739) (issues #71, #231, #280)
 
   // Services card — Docker + Langfuse status (issue #27).
   services: null,
@@ -288,8 +290,33 @@ export const els = {
 
   // Code-usage tab (issue #20)
   cldFreshness: document.getElementById('cldFreshness'),
-  cldVendorSeg: document.getElementById('cldVendorSeg'),
-  cldAgentsviewHint: document.getElementById('cldAgentsviewHint'),
+  // Code (#739): header line, agent sheet, figures, Sub-agents (OTel), one
+  // trend chart, breakdown rows and sheets
+  codeHeadLine: document.getElementById('codeHeadLine'),
+  cldAgentBtn: document.getElementById('cldAgentBtn'),
+  cldAgentLabel: document.getElementById('cldAgentLabel'),
+  cldAgentSheet: document.getElementById('cldAgentSheet'),
+  cldAgentList: document.getElementById('cldAgentList'),
+  cldFigures: document.getElementById('cldFigures'),
+  cldCounterGrid: document.getElementById('cldCounterGrid'),
+  cldUndercountNote: document.getElementById('cldUndercountNote'),
+  cldSubagents: document.getElementById('cldSubagents'),
+  cldSubSummary: document.getElementById('cldSubSummary'),
+  cldSubTable: document.getElementById('cldSubTable'),
+  cldSubEmpty: document.getElementById('cldSubEmpty'),
+  cldChart: document.getElementById('cldChart'),
+  cldChartLabel: document.getElementById('cldChartLabel'),
+  cldChartWrap: document.getElementById('cldChartWrap'),
+  cldChartEmpty: document.getElementById('cldChartEmpty'),
+  cldProjectList: document.getElementById('cldProjectList'),
+  cldProjectsAllBtn: document.getElementById('cldProjectsAllBtn'),
+  cldProjectsMeta: document.getElementById('cldProjectsMeta'),
+  cldProjectSheet: document.getElementById('cldProjectSheet'),
+  cldModelOpenBtn: document.getElementById('cldModelOpenBtn'),
+  cldModelMeta: document.getElementById('cldModelMeta'),
+  cldModelSheet: document.getElementById('cldModelSheet'),
+  cldSessionsOpenBtn: document.getElementById('cldSessionsOpenBtn'),
+  cldSessionsSheet: document.getElementById('cldSessionsSheet'),
   cldError: document.getElementById('cldError'),
   cldErrorMsg: document.getElementById('cldErrorMsg'),
   cldPeriodSeg: document.getElementById('cldPeriodSeg'),
@@ -310,9 +337,7 @@ export const els = {
   cldProjectTable: document.getElementById('cldProjectTable'),
   cldProjectEmpty: document.getElementById('cldProjectEmpty'),
   cldPending: document.getElementById('cldPending'),
-  cldModelCard: document.getElementById('cldModelCard'),
   cldProjectCard: document.getElementById('cldProjectCard'),
-  cldSessionsCard: document.getElementById('cldSessionsCard'),
   cldVendorCard: document.getElementById('cldVendorCard'),
   cldVendorTable: document.getElementById('cldVendorTable'),
   cldVendorEmpty: document.getElementById('cldVendorEmpty'),
@@ -325,10 +350,6 @@ export const els = {
   cldCopilotBillingEmptyMsg: document.getElementById('cldCopilotBillingEmptyMsg'),
   // Charts (issue #50)
   cldChartsCard: document.getElementById('cldChartsCard'),
-  cldChartInput: document.getElementById('cldChartInput'),
-  cldChartOutput: document.getElementById('cldChartOutput'),
-  cldChartReqs: document.getElementById('cldChartReqs'),
-  cldChartCache: document.getElementById('cldChartCache'),
   cldSessionsList: document.getElementById('cldSessionsList'),
   cldSessionsBadge: document.getElementById('cldSessionsBadge'),
   cldSessionsEmpty: document.getElementById('cldSessionsEmpty'),

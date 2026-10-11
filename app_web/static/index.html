@@ -584,211 +584,182 @@
       </section>
     </section>
 
-    <section id="paneCodeUsage" class="pane" hidden role="tabpanel">
-      <!-- Page header: the vendored home-head (_vendored/home-head) — title, one context
-           line, and the theme toggle pinned right. -->
+    <section id="paneCodeUsage" class="pane" hidden role="tabpanel" data-wide="cols">
+      <!-- Page header: the vendored home-head (_vendored/home-head) — title, the live
+           header line (rows.js setHeadLine: a failed load or an offline AgentsView;
+           else the period and its total cost), and the theme toggle pinned right. -->
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Code</span>
-        <span class="status">Coding-agent usage</span>
+        <span id="codeHeadLine" class="status head-line" role="status" aria-live="polite">Reading usage…</span>
         <button type="button" class="ghost-btn home-otel" data-open-tab="telemetry" aria-label="Open traces and usage" title="Open traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Traces</button>
         <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
 
-      <!-- Today / This week counters -->
-      <section class="card">
-        <div class="card-header">
-          <div class="hub-title-block">
-            <h2><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Coding agent usage</h2>
-            <span id="cldFreshness" class="muted small"></span>
-          </div>
-        </div>
+      <!-- Two columns on a wide window (rows.css .wide-cols): totals and trend on the
+           left, the breakdowns on the right. One column on a phone. -->
+      <div class="code-cols wide-cols">
+        <div class="code-col">
+          <!-- Totals first (#739): the period switch over the four counters and the
+               total cost. The agent filter opens a sheet (every agent, the AgentsView
+               extras with their freshness, and the separate Sub-agents (OTel) source). -->
+          <section class="card cld-totals" id="cldTotalsCard">
+            <div class="card-header">
+              <h2><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Usage</h2>
+              <span class="card-header-actions">
+                <span id="cldFreshness" class="muted small"></span>
+                <button type="button" class="icon-button info-button" data-info="code-usage" aria-haspopup="dialog" aria-label="About these figures" title="About these figures"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></button>
+              </span>
+            </div>
+            <div class="cld-tools">
+              <div id="cldPeriodSeg" class="segmented" role="group" aria-label="Usage period">
+                <button type="button" class="segmented-item" data-period="today" aria-pressed="true">Day</button>
+                <button type="button" class="segmented-item" data-period="week" aria-pressed="false">Week</button>
+                <button type="button" class="segmented-item" data-period="month" aria-pressed="false">Month</button>
+                <button type="button" class="segmented-item" data-period="all" aria-pressed="false">All</button>
+              </div>
+              <button type="button" class="button-tint cld-agent-btn" id="cldAgentBtn" aria-haspopup="dialog" aria-label="Choose the agent"><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg><span id="cldAgentLabel">All agents</span><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+            </div>
 
-        <!-- Vendor selector (issue #71): one vendor or all at once -->
-        <div id="cldVendorSeg" class="segmented stretch" role="tablist" aria-label="Vendor" style="margin-bottom: 8px;">
-          <button type="button" data-vendor="all" class="active">All</button>
-          <button type="button" data-vendor="claude">Claude</button>
-          <button type="button" data-vendor="codex">Codex</button>
-          <button type="button" data-vendor="copilot">Copilot</button>
-        </div>
-        <!-- AgentsView gap-fill vendors (issue #280): extra buttons are
-             injected above when the optional AgentsView service reports
-             agents the hub has no native parser for. -->
-        <p id="cldAgentsviewHint" class="muted small" hidden style="margin: -4px 0 8px;">AgentsView offline — extra coding agents show last-fetched data.</p>
+            <!-- Load-failure banner (issue #580): a summary that could not be
+                 built is its own state, never a zero-usage day. Shown only when
+                 the server actually reports a failure. -->
+            <p id="cldError" class="cld-error" hidden role="status">
+              <svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>
+              <span id="cldErrorMsg">Usage data could not be loaded.</span>
+            </p>
 
-        <!-- Load-failure banner (issue #580): a summary that could not be
-             built is its own state, never a zero-usage day. Shown only when
-             the server actually reports a failure — a real zero-usage period
-             leaves this hidden and renders its zeroes as usual. -->
-        <p id="cldError" class="cld-error" hidden role="status">
-          <svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>
-          <span id="cldErrorMsg">Usage data could not be loaded.</span>
-        </p>
-
-        <!-- Period toggle -->
-        <div id="cldPeriodSeg" class="segmented stretch" role="tablist" aria-label="Usage period" style="margin-bottom: 12px;">
-          <button type="button" data-period="today" class="active">Day</button>
-          <button type="button" data-period="week">Week</button>
-          <button type="button" data-period="month">Month</button>
-          <button type="button" data-period="all">All</button>
-        </div>
-
-        <!-- Big counter grid -->
-        <div id="cldCounterGrid" class="cld-counter-grid">
-          <div class="cld-counter">
+            <div class="cld-figures" id="cldFigures">
+              <div class="cld-total">
+                <span class="cld-total-value" id="cldTotalCost" title="Total equivalent metered API cost (input + output + cache reads)">—</span>
+                <span class="cld-total-label">equivalent API cost</span>
+              </div>
+              <!-- The four counters; a tap picks the trend chart's metric. -->
+              <div id="cldCounterGrid" class="cld-counter-grid" role="group" aria-label="Usage counters — choose the trend metric">
+          <button type="button" class="cld-counter" data-metric="requests" aria-pressed="false">
             <div class="cld-counter-value" id="cldRequests">—</div>
-            <div class="cld-counter-cost" id="cldTotalCost" title="Total equivalent metered API cost (input + output + cache reads)"></div>
+            <div class="cld-counter-cost"></div>
             <div class="cld-counter-label">requests</div>
             <span class="cld-delta" id="cldDeltaRequests" hidden></span>
-          </div>
-          <div class="cld-counter">
+          </button>
+          <button type="button" class="cld-counter" data-metric="input_tokens" aria-pressed="true">
             <div class="cld-counter-value" id="cldInputTok">—</div>
             <div class="cld-counter-cost" id="cldInputCost" title="Equivalent metered API cost"></div>
             <div class="cld-counter-label">input tokens</div>
             <span class="cld-delta" id="cldDeltaInputTok" hidden></span>
-          </div>
-          <div class="cld-counter">
+          </button>
+          <button type="button" class="cld-counter" data-metric="output_tokens" aria-pressed="false">
             <div class="cld-counter-value" id="cldOutputTok">—</div>
             <div class="cld-counter-cost" id="cldOutputCost" title="Equivalent metered API cost"></div>
             <div class="cld-counter-label">output tokens</div>
             <span class="cld-delta" id="cldDeltaOutputTok" hidden></span>
-          </div>
-          <div class="cld-counter">
+          </button>
+          <button type="button" class="cld-counter" data-metric="cache_read_tokens" aria-pressed="false">
             <div class="cld-counter-value" id="cldCacheRead">—</div>
             <div class="cld-counter-cost" id="cldCacheCost" title="Equivalent metered API cost"></div>
             <div class="cld-counter-label">cache reads</div>
             <span class="cld-delta" id="cldDeltaCacheRead" hidden></span>
-          </div>
-        </div>
-        <p class="muted small" style="margin: 6px 0 0;">Input tokens = net new + cache creation (both billed).
-          Cache reads are served from the 5-min/1-hr prompt cache.
-          <span class="cld-counter-cost" style="display:inline">≈ $</span> lines show the equivalent
-          metered-API cost these tokens would have billed.</p>
-        <p class="muted small" style="margin: 4px 0 0;"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg> <strong>Claude figures undercount two ways</strong> — sessions bridged through claude.ai/code don't write usage to the local transcripts at all (the <strong>OTel tab's "Claude Code (host CLI)"</strong> panel captures those when telemetry is enabled), and Claude Code prunes transcripts after ~30 days — the hub snapshots daily rollups so "All" keeps growing from 2026-07-12 forward, but earlier pruned days are gone. Sub-agent (Task tool) usage <em>is</em> counted where the newer per-session transcript folders exist.</p>
-      </section>
+          </button>
+              </div>
+              <!-- The one note that applies now: shown only while Claude figures are in view. -->
+              <p id="cldUndercountNote" class="cld-note muted" hidden><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg><span>Claude figures undercount: see ⓘ.</span></p>
+            </div>
 
-      <!-- Until the first usage summary lands the breakdown cards stay hidden: a header-only
-           table or a "none found" line would claim emptiness nothing has measured (#647). -->
-      <div id="cldPending" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-clock"></use></svg><p class="empty-state-message">Reading usage…</p></div>
+            <!-- Sub-agents (OTel) source (#739): Claude Code's own OTel export, for the
+                 one period switch above; a separate store, never added into All. -->
+            <div class="cld-subagents" id="cldSubagents" hidden>
+              <p class="cld-sub-summary" id="cldSubSummary">—</p>
+              <p class="cld-note muted">A separate source (Claude Code's own OTel export, the only one that sees sub-agent usage), never added into All.</p>
+              <div class="counters-wrap table-scroll">
+                <table id="cldSubTable" class="counters">
+                  <thead><tr><th>Date</th><th>Project</th><th>Model</th><th>Source</th><th>In</th><th>Out</th><th>Cache reads</th><th>Cache writes</th><th>≈ $</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              <p class="table-scroll-hint muted">Swipe the table sideways for every column.</p>
+              <div id="cldSubEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-code"></use></svg><p class="empty-state-message">No sub-agent usage for this period — needs <code>CLAUDE_CODE_ENABLE_TELEMETRY</code> set on the host, or pick a longer period above.</p></div>
+            </div>
+          </section>
 
-      <!-- Per-vendor breakdown (issue #71) — shown only in "All" mode -->
-      <section class="card" id="cldVendorCard" hidden>
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg>Per-vendor</h2>
-        </div>
-        <div class="counters-wrap">
-          <table id="cldVendorTable" class="counters">
-            <thead>
-              <tr>
-                <th>Vendor</th><th>Requests</th><th>Tokens in/out</th><th>Cache reads</th><th>≈ $</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div id="cldVendorEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg><p class="empty-state-message">No vendor data for this period — pick a longer period above.</p></div>
-      </section>
+          <!-- Copilot official credits (issue #231, part B) — under the counters when
+               Copilot is chosen. Authoritative $ from the GitHub billing API. -->
+          <section class="card" id="cldCopilotBillingCard" hidden>
+            <div class="card-header">
+              <h2><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg>Copilot credits (official)</h2>
+              <span class="muted small" id="cldCopilotBillingAsOf"></span>
+            </div>
+            <p class="cld-note muted">Authoritative spend from the GitHub billing API, independent of the session data above.</p>
+            <div class="cld-counter-grid cld-single">
+              <div class="cld-counter">
+                <div class="cld-counter-value" id="cldCopilotBillingTotal">—</div>
+                <div class="cld-counter-label">total credits (last 14 days)</div>
+              </div>
+            </div>
+            <div class="counters-wrap">
+              <table id="cldCopilotBillingTable" class="counters">
+                <thead>
+                  <tr><th>Date</th><th>Model</th><th>Credits</th><th>≈ $</th></tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div id="cldCopilotBillingEmpty" class="empty-state" hidden>
+              <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg>
+              <p class="empty-state-message" id="cldCopilotBillingEmptyMsg">No billing data.</p>
+            </div>
+          </section>
 
-      <!-- Copilot official credits (issue #231, part B) — shown only when the
-           Copilot vendor is selected. Authoritative $ from the GitHub billing
-           API; independent of the session-shaped data above (day x model
-           granularity only, no project/session attribution). -->
-      <section class="card" id="cldCopilotBillingCard" hidden>
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg>Copilot credits (official)</h2>
-          <span class="muted small" id="cldCopilotBillingAsOf"></span>
+          <!-- One trend chart (#739): its metric is the counter last tapped. -->
+          <section class="card" id="cldChartsCard" hidden>
+            <div class="card-header">
+              <h2><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Trend · <span id="cldChartLabel">Input tokens</span></h2>
+            </div>
+            <div class="cld-chart-inner" id="cldChartWrap"><canvas id="cldChart"></canvas></div>
+            <p id="cldChartEmpty" class="cld-note muted" hidden>The trend covers Day, Week and Month — pick one above.</p>
+          </section>
         </div>
-        <p class="muted small" style="margin: 0 0 8px;">Authoritative spend from the GitHub billing API — independent of the session data above.</p>
-        <div class="cld-counter-grid" style="grid-template-columns: 1fr;">
-          <div class="cld-counter">
-            <div class="cld-counter-value" id="cldCopilotBillingTotal">—</div>
-            <div class="cld-counter-label">total credits (last 14 days)</div>
-          </div>
-        </div>
-        <div class="counters-wrap">
-          <table id="cldCopilotBillingTable" class="counters">
-            <thead>
-              <tr><th>Date</th><th>Model</th><th>Credits</th><th>≈ $</th></tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div id="cldCopilotBillingEmpty" class="empty-state" hidden>
-          <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg>
-          <p class="empty-state-message" id="cldCopilotBillingEmptyMsg">No billing data.</p>
-        </div>
-      </section>
 
-      <!-- Per-model breakdown -->
-      <section class="card" id="cldModelCard" hidden>
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>Per-model</h2>
-        </div>
-        <div class="counters-wrap">
-          <table id="cldModelTable" class="counters">
-            <thead>
-              <tr>
-                <th>Model</th><th>Requests</th><th>Tokens in/out</th><th>Cache reads</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div id="cldModelEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg><p class="empty-state-message">No model data for this period — pick a longer period or another vendor above.</p></div>
-      </section>
+        <div class="code-col">
+          <!-- Until the first usage summary lands the breakdowns stay hidden: a
+               header-only table or a "none found" line would claim emptiness
+               nothing has measured (#647). -->
+          <div id="cldPending" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-clock"></use></svg><p class="empty-state-message">Reading usage…</p></div>
 
-      <!-- Per-project breakdown -->
-      <section class="card" id="cldProjectCard" hidden>
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>Per-project</h2>
-        </div>
-        <div class="counters-wrap">
-          <table id="cldProjectTable" class="counters">
-            <thead>
-              <tr>
-                <th>Project</th><th>Requests</th><th>Tokens in/out</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div id="cldProjectEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-folder"></use></svg><p class="empty-state-message">No project data for this period — pick a longer period or another vendor above.</p></div>
-        <p class="muted small" style="margin: 6px 0 0;">Projects under the <code>automation</code> workspace show just the folder name (the <code>automation-</code> prefix is stripped; the workspace root itself stays <code>automation</code>). Long names are truncated with “…” — hover for the full path.</p>
-      </section>
+          <!-- Breakdowns as rows (#739): By project first; By model, every project
+               and the recent sessions open as sheets. -->
+          <section class="card action-list" id="cldProjectCard" hidden aria-labelledby="cldProjectTitle">
+            <div class="glance-head">
+              <h2 id="cldProjectTitle"><svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>By project</h2>
+            </div>
+            <ul id="cldProjectList" class="action-rows" aria-label="Projects by requests"></ul>
+            <div id="cldProjectEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-folder"></use></svg><p class="empty-state-message">No project data for this period — pick a longer period or another agent above.</p></div>
+            <ul class="action-rows cld-links">
+              <li class="action-row"><button type="button" class="action-row-main" id="cldProjectsAllBtn" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-folder"></use></svg></span><span class="action-row-text"><span class="action-row-title">Every project</span><span class="action-row-meta" id="cldProjectsMeta">The full table</span></span></button></li>
+              <li class="action-row"><button type="button" class="action-row-main" id="cldModelOpenBtn" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-line"></use></svg></span><span class="action-row-text"><span class="action-row-title">By model</span><span class="action-row-meta" id="cldModelMeta">Requests and tokens per model</span></span></button></li>
+              <li class="action-row"><button type="button" class="action-row-main" id="cldSessionsOpenBtn" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-clock"></use></svg></span><span class="action-row-text"><span class="action-row-title">Recent sessions</span><span class="action-row-meta" id="cldSessionsBadge">—</span></span></button></li>
+            </ul>
+          </section>
 
-      <!-- Usage trend charts (hidden in "All" mode) -->
-      <section class="card" id="cldChartsCard" hidden>
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Usage trend</h2>
+          <!-- Per-vendor table (issue #71): the wide window's full table, in All. On
+               a phone each agent's figures sit in the agent sheet instead. -->
+          <section class="card" id="cldVendorCard" hidden>
+            <div class="card-header">
+              <h2><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg>Per agent</h2>
+            </div>
+            <div class="counters-wrap">
+              <table id="cldVendorTable" class="counters">
+                <thead>
+                  <tr>
+                    <th>Agent</th><th>Requests</th><th>Tokens in/out</th><th>Cache reads</th><th>≈ $</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div id="cldVendorEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg><p class="empty-state-message">No agent data for this period — pick a longer period above.</p></div>
+          </section>
         </div>
-        <div class="cld-chart-wrap">
-          <div class="cld-chart-label">Input tokens</div>
-          <div class="cld-chart-inner"><canvas id="cldChartInput"></canvas></div>
-        </div>
-        <div class="cld-chart-wrap">
-          <div class="cld-chart-label">Output tokens</div>
-          <div class="cld-chart-inner"><canvas id="cldChartOutput"></canvas></div>
-        </div>
-        <div class="cld-chart-wrap">
-          <div class="cld-chart-label">Requests</div>
-          <div class="cld-chart-inner"><canvas id="cldChartReqs"></canvas></div>
-        </div>
-        <div class="cld-chart-wrap">
-          <div class="cld-chart-label">Cache reads</div>
-          <div class="cld-chart-inner"><canvas id="cldChartCache"></canvas></div>
-        </div>
-      </section>
-
-      <!-- Recent sessions -->
-      <section class="card" id="cldSessionsCard" hidden>
-        <div class="card-header">
-          <h2><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg>Recent sessions</h2>
-          <span id="cldSessionsBadge" class="badge">0</span>
-        </div>
-        <ul id="cldSessionsList" class="card-list dense cld-sessions" aria-label="Recent Claude Code sessions"></ul>
-        <div id="cldSessionsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-clock"></use></svg><p class="empty-state-message">No sessions found in <code>~/.claude/projects/</code> — pick another vendor above.</p></div>
-      </section>
-
+      </div>
     </section>
 
     <section id="paneMachines" class="pane" hidden role="tabpanel" aria-labelledby="tabMachines" data-wide="split">
@@ -979,6 +950,7 @@
           <tbody></tbody>
         </table>
       </div>
+      <p class="table-scroll-hint muted">Swipe the table sideways for every column.</p>
       <p class="muted sheet-meta">The window resets on hub restart; open Langfuse for long-window analytics.</p>
     </div>
   </dialog>
@@ -995,6 +967,78 @@
         <button id="hubLogPauseBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-pause"></use></svg>Pause</button>
       </div>
       <pre id="hubLog" class="logpane" aria-label="Hub server log"></pre>
+    </div>
+  </dialog>
+
+  <!-- Code sheets (#739). Agent: every agent and the Sub-agents (OTel) source.
+       By model, every project and the recent sessions: the breakdowns. -->
+  <dialog class="detail-dialog" id="cldAgentSheet" aria-labelledby="cldAgentSheetTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="cldAgentSheetTitle">Agent</h2>
+        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <ul id="cldAgentList" class="action-rows cld-agent-list" aria-label="Agents"></ul>
+    </div>
+  </dialog>
+
+  <dialog class="detail-dialog wide-dialog" id="cldModelSheet" aria-labelledby="cldModelSheetTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="cldModelSheetTitle">By model</h2>
+        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div class="counters-wrap">
+        <table id="cldModelTable" class="counters">
+          <thead>
+            <tr>
+              <th>Model</th><th>Requests</th><th>Tokens in/out</th><th>Cache reads</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="table-scroll-hint muted">Swipe the table sideways for every column.</p>
+      <div id="cldModelEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg><p class="empty-state-message">No model data for this period — pick a longer period or another agent above.</p></div>
+    </div>
+  </dialog>
+
+  <dialog class="detail-dialog wide-dialog" id="cldProjectSheet" aria-labelledby="cldProjectSheetTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="cldProjectSheetTitle">Every project</h2>
+        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div class="counters-wrap">
+        <table id="cldProjectTable" class="counters">
+          <thead>
+            <tr>
+              <th>Project</th><th>Requests</th><th>Tokens in/out</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="table-scroll-hint muted">Swipe the table sideways for every column.</p>
+    </div>
+  </dialog>
+
+  <dialog class="detail-dialog wide-dialog" id="cldSessionsSheet" aria-labelledby="cldSessionsSheetTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="cldSessionsSheetTitle">Recent sessions</h2>
+        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <ul id="cldSessionsList" class="card-list dense cld-sessions" aria-label="Recent coding-agent sessions"></ul>
+      <div id="cldSessionsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-clock"></use></svg><p class="empty-state-message">No sessions found in <code>~/.claude/projects/</code> — pick another agent above.</p></div>
     </div>
   </dialog>
 

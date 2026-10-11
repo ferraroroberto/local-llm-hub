@@ -1,11 +1,17 @@
-/* Claude Code usage tab (issues #20, #50).
+/* Code tab: coding-agent usage (issues #20, #50; redesigned by #739).
  *
- * Polls /admin/api/code/usage/summary?period=<period> every 30 s while
- * the tab is visible.  Data comes from ~/.claude/projects/**\/*.jsonl —
- * no subprocess, no proxy.
+ * Totals and cost first: the period switch over the four counters (requests,
+ * input, output, cache reads) with their equivalent cost and deltas, and the
+ * total cost above them. The agent filter opens a sheet: All, every built-in
+ * vendor, the AgentsView extras with their freshness, and the separate
+ * Sub-agents (OTel) source, which shows Claude Code's own OTel export for the
+ * same period and is never summed into All. One trend chart takes its metric
+ * from the counter last tapped. The breakdowns are rows (By project) and
+ * sheets (every project, By model, recent sessions); the per-agent table shows
+ * on a wide window.
  *
- * Reuses: jsonApi from api.js, els + state from state.js,
- *         .card, .counters, .card-list.dense, .badge, .empty from styles.css
+ * Polls /admin/api/code/usage/summary?period=&vendor= every 30 s while the
+ * tab is visible (or the OTel usage route while Sub-agents is chosen).
  *
  * Charts (issue #50): requires Chart.js 4.x loaded globally via CDN before
  * this module executes (see the <script> tag just before main.js in index.html).
@@ -13,6 +19,22 @@
 
 import { els, state } from './state.js';
 import { jsonApi, fmtTok, fmtCost, tokPair, escapeHtml, renderTable, toastPending, isAuthError } from './api.js';
+import { row, setHeadLine, defineInfo } from './rows.js';
+
+defineInfo('code-usage', 'About these figures',
+  '<p><strong>Input tokens</strong> are net new plus cache creation (both billed). <strong>Cache reads</strong> '
+  + 'are served from the 5-minute or 1-hour prompt cache. The ≈ $ figures are the equivalent metered-API cost '
+  + 'these tokens would have billed.</p>'
+  + '<p><strong>Claude figures undercount two ways.</strong> Sessions bridged through claude.ai/code write no usage '
+  + 'to the local transcripts (the <strong>Sub-agents (OTel)</strong> source and the OTel tab capture those when '
+  + 'telemetry is enabled), and Claude Code prunes transcripts after about 30 days: the hub snapshots daily rollups, '
+  + 'so All keeps growing from 2026-07-12 forward, but earlier pruned days are gone. Sub-agent (Task tool) usage '
+  + '<em>is</em> counted where the newer per-session transcript folders exist.</p>'
+  + '<p><strong>Sub-agents (OTel)</strong> is Claude Code\'s own OTel export (<code>POST /v1/metrics</code>), the only '
+  + 'channel that sees sub-agent usage. It is stored separately and never added into All, so main-agent activity is '
+  + 'not counted twice. Its project is tagged for sessions launched through the <code>claude</code> shell wrapper.</p>'
+  + '<p>Projects under the <code>automation</code> workspace show just the folder name (the <code>automation-</code> '
+  + 'prefix is stripped). Long names are cut with “…”.</p>');
 
 // ---------------------------------------------------------------------------
 // Chart constants (issue #50)
@@ -40,11 +62,23 @@ const EXTRA_COLORS = [
 // Final fallback for an absent/unattributable model ("unknown").
 const OTHER_COLOR = { bg: 'rgba(154,154,154,0.14)', border: 'rgba(154,154,154,0.65)' };
 
-// Retained Chart.js instances — destroyed before each recreation to prevent leaks.
-let _chartInput  = null;
-let _chartOutput = null;
-let _chartReqs   = null;
-let _chartCache  = null;
+// The trend chart's four metrics, one per counter (#739).
+const METRICS = {
+  requests:          { label: 'Requests',      isTok: false },
+  input_tokens:      { label: 'Input tokens',  isTok: true },
+  output_tokens:     { label: 'Output tokens', isTok: true },
+  cache_read_tokens: { label: 'Cache reads',   isTok: true },
+};
+
+const PERIOD_LABEL = { today: 'Day', week: 'Week', month: 'Month', all: 'All' };
+const BUILTIN_VENDORS = ['claude', 'codex', 'copilot'];
+const SUBAGENTS = 'subagents';
+// By project on the face: the busiest few; every project opens as a table.
+const PROJECT_ROWS = 6;
+
+// The one retained Chart.js instance — destroyed before each recreation.
+let _chart = null;
+let _lastTs = null;
 
 const POLL_MS = 30_000;
 let _pollHandle = null;
@@ -63,17 +97,20 @@ let _gen = 0;
 // Empty-state blocks whose copy swaps to a "could not load" line while the
 // summary is failing (#580), and the pristine markup to restore on recovery.
 const EMPTY_STATE_KEYS = [
-  'cldVendorEmpty', 'cldModelEmpty', 'cldProjectEmpty', 'cldSessionsEmpty',
+  'cldVendorEmpty', 'cldModelEmpty', 'cldProjectEmpty', 'cldSessionsEmpty', 'cldSubEmpty',
 ];
 const _pristineEmptyMsg = {};
 let _loadFailed = false;
+let _answered = false;      // the first read (success or failure) has landed
+let _agentsview = null;     // the last AgentsView status block
+let _lastCost = null;       // the shown period's total cost, for the header line
 
 // ---------------------------------------------------------------------------
 // Public lifecycle — called from main.js
 // ---------------------------------------------------------------------------
 
 export function wireCodeUsage() {
-  // Period toggle (Day / Week / Month / All)
+  // Period (Day / Week / Month / All): the one true peer set, a segmented row.
   if (els.cldPeriodSeg) {
     els.cldPeriodSeg.addEventListener('click', function (e) {
       const btn = e.target.closest('button[data-period]');
@@ -81,27 +118,53 @@ export function wireCodeUsage() {
       const next = btn.dataset.period;
       if (next === state.cldPeriod) return;     // nothing to do
       state.cldPeriod = next;
-      els.cldPeriodSeg.querySelectorAll('button').forEach(function (b) {
-        b.classList.toggle('active', b === btn);
-      });
+      syncPeriodSeg();
       startChoiceLoad();
     });
   }
 
-  // Vendor selector (All / Claude / Codex) — issue #71.
-  if (els.cldVendorSeg) {
-    els.cldVendorSeg.addEventListener('click', function (e) {
-      const btn = e.target.closest('button[data-vendor]');
-      if (!btn) return;
-      const next = btn.dataset.vendor;
+  // Agent filter: a button opening the sheet of every agent and source.
+  if (els.cldAgentBtn) {
+    els.cldAgentBtn.addEventListener('click', function () {
+      renderAgentSheet();
+      if (els.cldAgentSheet && !els.cldAgentSheet.open) els.cldAgentSheet.showModal();
+    });
+  }
+  if (els.cldAgentList) {
+    els.cldAgentList.addEventListener('click', function (e) {
+      const item = e.target.closest('[data-vendor]');
+      if (!item) return;
+      if (els.cldAgentSheet && els.cldAgentSheet.open) els.cldAgentSheet.close();
+      const next = item.dataset.vendor;
       if (next === state.cldVendor) return;
       state.cldVendor = next;
-      els.cldVendorSeg.querySelectorAll('button').forEach(function (b) {
-        b.classList.toggle('active', b === btn);
-      });
+      syncAgentLabel();
+      applyView();
       startChoiceLoad();
     });
   }
+
+  // A counter tap picks the trend chart's metric.
+  if (els.cldCounterGrid) {
+    els.cldCounterGrid.addEventListener('click', function (e) {
+      const btn = e.target.closest('button[data-metric]');
+      if (!btn || !METRICS[btn.dataset.metric]) return;
+      state.cldMetric = btn.dataset.metric;
+      syncMetric();
+      drawChart();
+    });
+  }
+
+  [[els.cldProjectsAllBtn, els.cldProjectSheet], [els.cldModelOpenBtn, els.cldModelSheet],
+   [els.cldSessionsOpenBtn, els.cldSessionsSheet]].forEach(function (pair) {
+    if (!pair[0] || !pair[1]) return;
+    pair[0].addEventListener('click', function () { if (!pair[1].open) pair[1].showModal(); });
+  });
+
+  syncPeriodSeg();
+  syncAgentLabel();
+  syncMetric();
+  renderHeadLine();
 }
 
 export function startCodeUsagePolls() {
@@ -150,14 +213,16 @@ function startChoiceLoad() {
   }, CHOICE_SETTLE_MS);
 }
 
-/* Fetch + render one summary. Resolves 'ok', 'aborted' (superseded — nothing
- * rendered), 'auth' (the sign-in overlay owns it) or the failure reason
- * (already shown through the #580 banner). */
+/* Fetch + render the current choice: the summary, or the Sub-agents (OTel)
+ * rollup while that source is chosen. Resolves 'ok', 'aborted' (superseded —
+ * nothing rendered), 'auth' (the sign-in overlay owns it) or the failure
+ * reason (already shown through the #580 banner). */
 async function fetchSummary(ctl, gen) {
+  const sub = state.cldVendor === SUBAGENTS;
   try {
-    const body = await jsonApi(
-      '/admin/api/code/usage/summary?period=' + state.cldPeriod +
-      '&vendor=' + state.cldVendor,
+    const body = await jsonApi(sub
+      ? '/admin/api/telemetry/claude-code/usage?period=' + state.cldPeriod
+      : '/admin/api/code/usage/summary?period=' + state.cldPeriod + '&vendor=' + state.cldVendor,
       { signal: ctl.signal }
     );
     if (ctl.signal.aborted || gen !== _gen) return 'aborted';
@@ -166,29 +231,9 @@ async function fetchSummary(ctl, gen) {
     // still carries `error` (an older hub on a peer machine) is a failure too
     // — read the field rather than trusting the status alone.
     if (body && body.error) throw new Error(String(body.error));
-    state.cldSummary = body;
-    syncAgentsviewVendors(body.agentsview);
-    // If the server coerced an unknown vendor back to "all" (e.g. the hub
-    // restarted and hasn't re-discovered an AgentsView vendor yet), resync
-    // the selector so the UI and the data agree.
-    if (body.vendor && body.vendor !== state.cldVendor) {
-      state.cldVendor = body.vendor;
-      if (els.cldVendorSeg) {
-        els.cldVendorSeg.querySelectorAll('button').forEach(function (b) {
-          b.classList.toggle('active', b.dataset.vendor === body.vendor);
-        });
-      }
-    }
     setLoadError(null);
-    render(body);
-    // Copilot billing card is a separate authoritative source (issue #231,
-    // part B) — only fetched while that vendor tab is actually selected, so
-    // the GitHub API isn't hit on every 30s poll regardless of tab.
-    if (state.cldVendor === 'copilot') {
-      fetchCopilotBilling().catch(function () {});
-    } else if (els.cldCopilotBillingCard) {
-      els.cldCopilotBillingCard.hidden = true;
-    }
+    if (sub) renderSubagents(body);
+    else renderSummary(body);
     return 'ok';
   } catch (exc) {
     if (ctl.signal.aborted || (exc && exc.name === 'AbortError') || gen !== _gen) return 'aborted';
@@ -199,10 +244,30 @@ async function fetchSummary(ctl, gen) {
   }
 }
 
+function renderSummary(body) {
+  state.cldSummary = body;
+  _agentsview = body.agentsview || _agentsview;
+  // If the server coerced an unknown vendor back to "all" (e.g. the hub
+  // restarted and hasn't re-discovered an AgentsView vendor yet), resync
+  // the selector so the UI and the data agree.
+  if (body.vendor && body.vendor !== state.cldVendor) {
+    state.cldVendor = body.vendor;
+    syncAgentLabel();
+  }
+  if (state.cldVendor === 'all') {
+    state.cldVendorTotals = { period: state.cldPeriod, rows: body.by_vendor || [], totals: body.totals || {} };
+  }
+  render(body);
+  // Copilot billing is a separate authoritative source (issue #231, part B):
+  // only fetched while that vendor is chosen, so the GitHub API isn't hit on
+  // every 30 s poll regardless.
+  if (state.cldVendor === 'copilot') fetchCopilotBilling().catch(function () {});
+}
+
 /* Render "the summary could not be built" as its own state (#580).
  *
  * The whole point is that this is NOT a zero-usage day: every counter goes to
- * the unknown dash rather than 0, the trend charts are torn down instead of
+ * the unknown dash rather than 0, the trend chart is torn down instead of
  * drawing a flat zero line, and each table's empty-state says the load failed
  * rather than "no data for this period". Driven purely by the server
  * reporting failure — never inferred from totals being zero, so a genuinely
@@ -226,40 +291,158 @@ function setLoadError(reason) {
     if (!el) return;
     const msg = el.querySelector('.empty-state-message');
     if (!msg) return;
-    // Capture the pristine copy once — one of these carries markup (a <code>
-    // path), so restoring it needs the original HTML, not a text snapshot.
+    // Capture the pristine copy once — some carry markup (a <code> path), so
+    // restoring them needs the original HTML, not a text snapshot.
     if (_pristineEmptyMsg[key] === undefined) _pristineEmptyMsg[key] = msg.innerHTML;
     if (failed) msg.textContent = 'Could not load — see the error above.';
     else msg.innerHTML = _pristineEmptyMsg[key];
   });
-  if (!failed) return;
+  if (!failed) { applyView(); return; }
 
   // Unknown, not zero: blank every counter and cost line, drop the deltas
-  // (there is nothing to compare), tear the charts down and empty the tables.
-  [els.cldRequests, els.cldInputTok, els.cldOutputTok, els.cldCacheRead]
+  // (there is nothing to compare), tear the chart down and empty the tables.
+  [els.cldRequests, els.cldInputTok, els.cldOutputTok, els.cldCacheRead, els.cldTotalCost]
     .forEach(function (el) { set(el, '—'); });
-  [els.cldTotalCost, els.cldInputCost, els.cldOutputCost, els.cldCacheCost]
+  [els.cldInputCost, els.cldOutputCost, els.cldCacheCost]
     .forEach(function (el) { set(el, ''); });
   if (els.cldOutputTok) els.cldOutputTok.removeAttribute('title');
   [els.cldDeltaRequests, els.cldDeltaInputTok, els.cldDeltaOutputTok,
    els.cldDeltaCacheRead].forEach(function (el) { if (el) el.hidden = true; });
-
-  if (els.cldChartsCard) els.cldChartsCard.hidden = true;
-  _destroyCharts();
+  _lastTs = null;
+  _lastCost = null;
+  _destroyChart();
 
   const noRows = function () { return ''; };
-  // Same visibility rule as the success path: the per-vendor card is an
-  // "All" -mode card, and it says "could not load" like every other table.
-  if (els.cldVendorCard) els.cldVendorCard.hidden = state.cldVendor !== 'all';
   renderTable(els.cldVendorTable, els.cldVendorEmpty, [], noRows);
   renderTable(els.cldModelTable, els.cldModelEmpty, [], noRows);
-  renderTable(els.cldProjectTable, els.cldProjectEmpty, [], noRows);
+  renderTable(els.cldProjectTable, null, [], noRows);
+  renderTable(els.cldSubTable, els.cldSubEmpty, [], noRows);
+  if (els.cldProjectList) els.cldProjectList.innerHTML = '';
+  if (els.cldProjectEmpty) els.cldProjectEmpty.hidden = false;
+  set(els.cldSubSummary, '—');
   if (els.cldSessionsList) els.cldSessionsList.innerHTML = '';
   if (els.cldSessionsEmpty) els.cldSessionsEmpty.hidden = false;
-  // "—", not "0": the session count is unknown, not known to be none.
+  // "—", not "0": the counts are unknown, not known to be none.
   set(els.cldSessionsBadge, '—');
-  revealBreakdownCards();
+  set(els.cldModelMeta, 'Could not load');
+  set(els.cldProjectsMeta, 'Could not load');
+  _answered = true;
   setFreshness('load failed ' + new Date().toLocaleTimeString());
+  applyView();
+}
+
+// ---------------------------------------------------------------------------
+// Which blocks show (#739): the figures or the Sub-agents table, the chart,
+// the breakdowns, Copilot's credits, the note that applies now.
+// ---------------------------------------------------------------------------
+
+function applyView() {
+  const sub = state.cldVendor === SUBAGENTS;
+  const all = state.cldVendor === 'all';
+  if (els.cldFigures) els.cldFigures.hidden = sub;
+  if (els.cldSubagents) els.cldSubagents.hidden = !sub;
+  if (els.cldUndercountNote) {
+    els.cldUndercountNote.hidden = sub || _loadFailed || !(all || state.cldVendor === 'claude');
+  }
+  // The breakdowns stay hidden until the first summary has been answered,
+  // success or failure (#647): a header-only table or a "none found" line
+  // before that would state an emptiness nothing has measured.
+  if (els.cldPending) els.cldPending.hidden = _answered || sub;
+  if (els.cldProjectCard) els.cldProjectCard.hidden = !_answered || sub;
+  if (els.cldVendorCard) els.cldVendorCard.hidden = !_answered || !all;
+  if (els.cldCopilotBillingCard && state.cldVendor !== 'copilot') els.cldCopilotBillingCard.hidden = true;
+  if (els.cldChartsCard) els.cldChartsCard.hidden = !_answered || sub || _loadFailed;
+  renderHeadLine();
+}
+
+function agentLabel(v) {
+  if (v === 'all') return 'All agents';
+  if (v === SUBAGENTS) return 'Sub-agents (OTel)';
+  return vendorLabel(v);
+}
+
+/* The header line: what is wrong now (a failed load, an offline AgentsView
+ * behind the extras), else the period, the agent and the total cost. */
+function renderHeadLine() {
+  const el = els.codeHeadLine;
+  if (!el) return;
+  if (!_answered) { setHeadLine(el, [], 'Reading usage…'); return; }
+  const parts = [];
+  if (_loadFailed) parts.push({ text: 'Usage not loaded', tone: 'danger' });
+  if (agentsviewOffline()) parts.push({ text: 'AgentsView offline', tone: 'attention' });
+  const bits = [PERIOD_LABEL[state.cldPeriod] || state.cldPeriod];
+  if (state.cldVendor !== 'all') bits.push(agentLabel(state.cldVendor));
+  if (_lastCost !== null) bits.push(fmtCost(_lastCost) || '≈ $0.00');
+  setHeadLine(el, parts, bits.join(' · '));
+}
+
+function agentsviewOffline() {
+  const av = _agentsview;
+  return !!(av && av.vendors && av.vendors.length && !av.reachable);
+}
+
+// ---------------------------------------------------------------------------
+// The agent sheet (#739)
+// ---------------------------------------------------------------------------
+
+function syncPeriodSeg() {
+  if (!els.cldPeriodSeg) return;
+  els.cldPeriodSeg.querySelectorAll('button[data-period]').forEach(function (b) {
+    b.setAttribute('aria-pressed', String(b.dataset.period === state.cldPeriod));
+  });
+}
+
+function syncAgentLabel() {
+  set(els.cldAgentLabel, agentLabel(state.cldVendor));
+}
+
+function syncMetric() {
+  if (!els.cldCounterGrid) return;
+  els.cldCounterGrid.querySelectorAll('button[data-metric]').forEach(function (b) {
+    b.setAttribute('aria-pressed', String(b.dataset.metric === state.cldMetric));
+  });
+  set(els.cldChartLabel, METRICS[state.cldMetric].label);
+}
+
+/* One agent's figures for the shown period, from the last All read (its
+ * per-vendor breakdown); empty when that read is for another period. */
+function agentFigures(v) {
+  const cache = state.cldVendorTotals;
+  if (!cache || cache.period !== state.cldPeriod) return '';
+  const r = v === 'all' ? cache.totals : (cache.rows || []).find(function (x) { return x.vendor === v; });
+  if (!r) return v === 'all' ? '' : 'no usage';
+  const cost = (r.input_cost || 0) + (r.output_cost || 0) + (r.cache_read_cost || 0);
+  return fmtNum(r.requests) + ' req · ' + (fmtCost(cost) || '≈ $0.00');
+}
+
+function agentRow(v, meta, chips) {
+  return row({
+    cls: 'cld-agent-row',
+    attrs: ' data-vendor="' + escapeHtml(v) + '"',
+    title: agentLabel(v),
+    meta: meta,
+    chips: chips || [],
+    selected: state.cldVendor === v,
+  });
+}
+
+function renderAgentSheet() {
+  const list = els.cldAgentList;
+  if (!list) return;
+  const av = _agentsview || {};
+  const extras = (av.vendors || []).filter(function (v) { return BUILTIN_VENDORS.indexOf(v) === -1; });
+  const fresh = av.last_refresh ? fmtTs(av.last_refresh) : '';
+  const html = ['<li class="group-overline">Agents</li>', agentRow('all', agentFigures('all'))];
+  BUILTIN_VENDORS.forEach(function (v) { html.push(agentRow(v, agentFigures(v))); });
+  extras.forEach(function (v) {
+    const figures = agentFigures(v);
+    const freshness = 'AgentsView' + (fresh ? (av.reachable ? ' · updated ' : ' · last fetched ') + fresh : '');
+    html.push(agentRow(v, [freshness, figures].filter(Boolean).join(' · '),
+      av.reachable ? [] : [{ text: 'offline', tone: 'attention' }]));
+  });
+  html.push('<li class="group-overline">Separate source</li>');
+  html.push(agentRow(SUBAGENTS, 'Separate store · never added into All'));
+  list.innerHTML = html.join('');
 }
 
 // ---------------------------------------------------------------------------
@@ -326,36 +509,57 @@ function renderCopilotBilling(body) {
 // Render
 // ---------------------------------------------------------------------------
 
-/* The breakdown cards stay hidden until the first summary has been answered,
- * success or failure (#647): a header-only table or a "none found" line before
- * that would state an emptiness nothing has measured. Idempotent. */
-function revealBreakdownCards() {
-  if (els.cldPending) els.cldPending.hidden = true;
-  [els.cldModelCard, els.cldProjectCard, els.cldSessionsCard].forEach(function (card) {
-    if (card) card.hidden = false;
-  });
-}
-
 function render(body) {
   if (!body) return;
-  revealBreakdownCards();
+  _answered = true;
   renderCldCounters(body);
   renderDeltas(body);
-  renderCharts(body);
+  _lastTs = body.time_series || [];
   renderVendorTable(body.by_vendor || []);
   renderModelTable(body.by_model || []);
-  renderProjectTable(body.by_project || []);
+  renderProjects(body.by_project || []);
   renderSessions(body.recent_sessions || []);
   setFreshness('updated ' + new Date().toLocaleTimeString());
+  applyView();
+  drawChart();
+}
+
+/* Sub-agents (OTel): the OTel pane's table and summary line for the shown
+ * period. Never summed into All — the figures stay in this block. */
+function renderSubagents(body) {
+  _answered = true;
+  const rows = (body && body.rows) || [];
+  renderTable(els.cldSubTable, els.cldSubEmpty, rows, function (r) {
+    return '<tr>' +
+      '<td>' + escapeHtml(r.date || '—') + '</td>' +
+      '<td>' + escapeHtml(r.project || '—') + '</td>' +
+      '<td>' + escapeHtml(r.model) + '</td>' +
+      '<td>' + escapeHtml(r.query_source) + '</td>' +
+      '<td>' + fmtTok(r.input) + '</td>' +
+      '<td>' + fmtTok(r.output) + '</td>' +
+      '<td>' + fmtTok(r.cache_read) + '</td>' +
+      '<td>' + fmtTok(r.cache_creation) + '</td>' +
+      '<td>' + (fmtCost(r.cost_usd) || '—') + '</td>' +
+      '</tr>';
+  });
+  const totals = (body && body.totals) || {};
+  const reqTok = (totals.input || 0) + (totals.output || 0);
+  set(els.cldSubSummary, reqTok
+    ? tokPair(totals.input, totals.output) + ' tok · ' + (fmtCost(totals.cost_usd) || '≈ $0.00')
+    : 'no data yet');
+  _lastCost = totals.cost_usd || 0;
+  setFreshness('updated ' + new Date().toLocaleTimeString());
+  applyView();
 }
 
 function renderCldCounters(body) {
   if (!body) return;
   const bucket = body.totals || {};
   set(els.cldRequests, fmtNum(bucket.requests));
-  // Grand-total equivalent metered cost under the requests tile (issue #71).
+  // Grand-total equivalent metered cost, the figure the owner reads first (#71, #739).
   const totalCost = (bucket.input_cost || 0) + (bucket.output_cost || 0) + (bucket.cache_read_cost || 0);
-  set(els.cldTotalCost, fmtCost(totalCost));
+  _lastCost = totalCost;
+  set(els.cldTotalCost, fmtCost(totalCost) || '≈ $0.00');
   set(els.cldInputTok, fmtTok(
     (bucket.input_tokens || 0) + (bucket.cache_creation_tokens || 0)
   ));
@@ -376,8 +580,6 @@ function renderCldCounters(body) {
 }
 
 function renderVendorTable(rows) {
-  // Per-vendor card only makes sense when viewing every vendor at once.
-  if (els.cldVendorCard) els.cldVendorCard.hidden = state.cldVendor !== 'all';
   renderTable(els.cldVendorTable, els.cldVendorEmpty, rows, function (r) {
     const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
     const cost = (r.input_cost || 0) + (r.output_cost || 0) + (r.cache_read_cost || 0);
@@ -400,32 +602,6 @@ function vendorLabel(v) {
   return v ? v.charAt(0).toUpperCase() + v.slice(1) : '—';
 }
 
-// ---------------------------------------------------------------------------
-// AgentsView gap-fill vendors (issue #280)
-// ---------------------------------------------------------------------------
-
-/* Inject a selector button per AgentsView-discovered vendor (additive only —
- * the server keeps vendors sticky across outages, so an active button never
- * vanishes mid-session). Click handling is delegated on the container in
- * wireCodeUsage(), so injected buttons need no listeners. The offline hint
- * only shows when vendors are known AND the service is down — a machine that
- * never ran AgentsView stays silent. */
-function syncAgentsviewVendors(av) {
-  if (!av || !els.cldVendorSeg) return;
-  (av.vendors || []).forEach(function (v) {
-    if (els.cldVendorSeg.querySelector('button[data-vendor="' + v + '"]')) return;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.dataset.vendor = v;
-    btn.textContent = vendorLabel(v);
-    els.cldVendorSeg.appendChild(btn);
-  });
-  if (els.cldAgentsviewHint) {
-    els.cldAgentsviewHint.hidden =
-      !(av.vendors && av.vendors.length && !av.reachable);
-  }
-}
-
 function renderModelTable(rows) {
   renderTable(els.cldModelTable, els.cldModelEmpty, rows, function (r) {
     const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
@@ -436,10 +612,28 @@ function renderModelTable(rows) {
       '<td class="muted">' + fmtTok(r.cache_read_tokens) + '</td>' +
       '</tr>';
   });
+  set(els.cldModelMeta, rows.length
+    ? rows.length + (rows.length === 1 ? ' model' : ' models') + ' · requests and tokens'
+    : 'None this period');
 }
 
-function renderProjectTable(rows) {
-  renderTable(els.cldProjectTable, els.cldProjectEmpty, rows, function (r) {
+/* By project on the face: the busiest few as rows; every project opens as
+ * the full table. */
+function renderProjects(rows) {
+  if (els.cldProjectList) {
+    els.cldProjectList.innerHTML = rows.slice(0, PROJECT_ROWS).map(function (r) {
+      const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
+      return row({
+        cls: 'cld-project-row is-static',
+        title: r.project || r.project_key || '—',
+        lead: fmtNum(r.requests) + ' req',
+        meta: tokPair(totalIn, r.output_tokens) + ' tok',
+        mainAttrs: ' tabindex="-1"',
+      });
+    }).join('');
+  }
+  if (els.cldProjectEmpty) els.cldProjectEmpty.hidden = rows.length > 0;
+  renderTable(els.cldProjectTable, null, rows, function (r) {
     const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
     const name = r.project || r.project_key;
     return '<tr>' +
@@ -448,14 +642,16 @@ function renderProjectTable(rows) {
       '<td>' + tokPair(totalIn, r.output_tokens) + '</td>' +
       '</tr>';
   });
+  set(els.cldProjectsMeta, rows.length
+    ? rows.length + (rows.length === 1 ? ' project' : ' projects') + ' · the full table'
+    : 'None this period');
 }
 
 function renderSessions(sessions) {
   if (!els.cldSessionsList) return;
-  const badge = els.cldSessionsBadge;
   const empty = els.cldSessionsEmpty;
 
-  if (badge) badge.textContent = sessions.length;
+  set(els.cldSessionsBadge, sessions.length + (sessions.length === 1 ? ' session' : ' sessions'));
   if (!sessions.length) {
     els.cldSessionsList.innerHTML = '';
     if (empty) empty.hidden = false;
@@ -524,30 +720,25 @@ function renderDeltas(body) {
 }
 
 // ---------------------------------------------------------------------------
-// Trend charts (issue #50)
+// The trend chart (issue #50; one chart since #739)
 // ---------------------------------------------------------------------------
 
-function renderCharts(body) {
+/* Draw the chosen metric over the last summary's time series. The server
+ * sends no series for All (an unbounded axis), so the card says which periods
+ * the trend covers instead of drawing nothing. */
+function drawChart() {
   const card = els.cldChartsCard;
-  if (!card) return;
-
-  const ts = body.time_series;
-  if (!ts || !ts.length || state.cldPeriod === 'all') {
-    card.hidden = true;
-    _destroyCharts();
-    return;
-  }
-
-  card.hidden = false;
-  const labels = ts.map(function (b) { return b.label; });
-  // Stable family list + colours, shared across all four charts so a model
-  // keeps the same colour everywhere (issue #71: GPT models get own series).
-  const families = _orderedFamilies(ts);
-
-  _chartInput  = _makeChart(els.cldChartInput,  _chartInput,  labels, ts, families, 'input_tokens',      true);
-  _chartOutput = _makeChart(els.cldChartOutput, _chartOutput, labels, ts, families, 'output_tokens',     true);
-  _chartReqs   = _makeChart(els.cldChartReqs,   _chartReqs,   labels, ts, families, 'requests',          false);
-  _chartCache  = _makeChart(els.cldChartCache,  _chartCache,  labels, ts, families, 'cache_read_tokens', true);
+  if (!card || card.hidden) return;
+  const ts = _lastTs;
+  const has = !!(ts && ts.length);
+  if (els.cldChartWrap) els.cldChartWrap.hidden = !has;
+  if (els.cldChartEmpty) els.cldChartEmpty.hidden = has;
+  if (!has) { _destroyChart(); return; }
+  const metric = METRICS[state.cldMetric];
+  // Stable family list + colours, so a model keeps the same colour on every
+  // metric (issue #71: GPT models get own series).
+  _chart = _makeChart(els.cldChart, _chart, ts.map(function (b) { return b.label; }), ts,
+    _orderedFamilies(ts), state.cldMetric, metric.isTok);
 }
 
 // Build the ordered list of chart series from the time-series buckets: Claude
@@ -578,11 +769,8 @@ function _orderedFamilies(ts) {
   return series;
 }
 
-function _destroyCharts() {
-  if (_chartInput)  { _chartInput.destroy();  _chartInput  = null; }
-  if (_chartOutput) { _chartOutput.destroy(); _chartOutput = null; }
-  if (_chartReqs)   { _chartReqs.destroy();   _chartReqs   = null; }
-  if (_chartCache)  { _chartCache.destroy();  _chartCache  = null; }
+function _destroyChart() {
+  if (_chart) { _chart.destroy(); _chart = null; }
 }
 
 function _makeChart(canvas, existing, labels, ts, families, field, isTok) {
@@ -663,21 +851,16 @@ function _chartOptions(isTok) {
   };
 }
 
-/* Re-resolve the axis/legend token colors on the live charts after a theme
+/* Re-resolve the axis/legend token colors on the live chart after a theme
  * flip (called from main.js's applyTheme). Dataset fills are saturated and
  * theme-stable, so only grid/tick/legend colors need the update. */
 export function restyleCodeUsageCharts() {
-  var gridColor = _cssVar('--line');
-  var tickColor = _cssVar('--muted');
-  var fgColor   = _cssVar('--ink');
-  [_chartInput, _chartOutput, _chartReqs, _chartCache].forEach(function (chart) {
-    if (!chart) return;
-    chart.options.scales.x.ticks.color = tickColor;
-    chart.options.scales.y.grid.color = gridColor;
-    chart.options.scales.y.ticks.color = tickColor;
-    chart.options.plugins.legend.labels.color = fgColor;
-    chart.update('none');
-  });
+  if (!_chart) return;
+  _chart.options.scales.x.ticks.color = _cssVar('--muted');
+  _chart.options.scales.y.grid.color = _cssVar('--line');
+  _chart.options.scales.y.ticks.color = _cssVar('--muted');
+  _chart.options.plugins.legend.labels.color = _cssVar('--ink');
+  _chart.update('none');
 }
 
 // ---------------------------------------------------------------------------

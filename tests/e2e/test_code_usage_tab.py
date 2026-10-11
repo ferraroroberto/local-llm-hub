@@ -10,9 +10,13 @@ Checks:
   - Tab button is visible and clickable.
   - Switching to the tab hides the other panes.
   - The four counter elements are rendered (may show "—" when empty).
-  - Period and vendor toggles switch the active selector.
+  - The period switch and the agent sheet switch the choice (#739): every
+    agent including a runtime AgentsView extra with its freshness, and the
+    Sub-agents (OTel) source driven by the one period switch, never summed
+    into All.
   - A failed summary renders as an error, not a zero-usage day (#580).
-  - Phone-size screenshot is saved.
+  - The first screen holds the period switch, the counters and the total
+    cost on a phone and on a PC window; a phone screenshot is saved.
 """
 
 from __future__ import annotations
@@ -123,37 +127,106 @@ def test_period_toggle_changes_counters(page, admin_url):
         "document.querySelector('#cldPeriodSeg button[data-period=\"week\"]').click()"
     )
     active_period = page.evaluate(
-        "document.querySelector('#cldPeriodSeg button.active')?.dataset.period"
+        "document.querySelector('#cldPeriodSeg [aria-pressed=\"true\"]')?.dataset.period"
     )
     assert active_period == "week", f"expected 'week', got {active_period!r}"
 
 
+_AV_BODY = {
+    "period": "today", "vendor": "all",
+    "totals": {"requests": 5, "input_tokens": 100, "output_tokens": 50, "cache_read_tokens": 0,
+               "cache_creation_tokens": 0, "input_cost": 1.0, "output_cost": 0.5, "cache_read_cost": 0},
+    "daily": [], "by_model": [], "by_project": [], "by_vendor": [
+        {"vendor": "claude", "requests": 3, "input_tokens": 60, "output_tokens": 30,
+         "input_cost": 0.6, "output_cost": 0.3, "cache_read_cost": 0},
+        {"vendor": "agy", "requests": 2, "input_tokens": 40, "output_tokens": 20,
+         "input_cost": 0.4, "output_cost": 0.2, "cache_read_cost": 0},
+    ],
+    "recent_sessions": [], "time_series": [],
+    "agentsview": {"enabled": True, "reachable": False, "vendors": ["agy"],
+                   "last_refresh": "2026-10-11T08:30:00+00:00"},
+}
+
+_SUB_COLUMNS = ["Date", "Project", "Model", "Source", "In", "Out", "Cache reads", "Cache writes", "≈ $"]
+
+
+def _sub_body(period):
+    if period == "all":
+        return {"period": period, "rows": [], "totals": {}}
+    return {"period": period, "totals": {"input": 1200, "output": 300, "cost_usd": 0.42}, "rows": [
+        {"date": "2026-10-10", "project": "demo-project", "model": "demo-model", "query_source": "sub-agent",
+         "input": 1200, "output": 300, "cache_read": 0, "cache_creation": 0, "cost_usd": 0.42},
+    ]}
+
+
+def _wait_for(page, cond):
+    for _ in range(80):
+        if cond():
+            return True
+        page.wait_for_timeout(50)
+    return cond()
+
+
 def test_vendor_toggle_changes_selector(page, admin_url):
-    """Clicking 'Codex' toggles the active vendor button and reveals the
-    per-vendor card only in 'All' mode (issue #71)."""
+    """The agent sheet lists every agent (a runtime AgentsView extra with its
+    freshness too) and the Sub-agents (OTel) source (#739, issues #71, #280)."""
+    import json as _json
+    from urllib.parse import parse_qs, urlparse
+
+    summaries, subs = [], []
+
+    def summary(route):
+        q = parse_qs(urlparse(route.request.url).query)
+        summaries.append((q["period"][0], q["vendor"][0]))
+        body = dict(_AV_BODY, period=q["period"][0], vendor=q["vendor"][0])
+        route.fulfill(status=200, content_type="application/json", body=_json.dumps(body))
+
+    def sub_usage(route):
+        period = parse_qs(urlparse(route.request.url).query)["period"][0]
+        subs.append(period)
+        route.fulfill(status=200, content_type="application/json", body=_json.dumps(_sub_body(period)))
+
+    page.route("**/api/code/usage/summary*", summary)
+    page.route("**/api/telemetry/claude-code/usage*", sub_usage)
     page.set_viewport_size({"width": 800, "height": 900})
     page.goto(admin_url, wait_until="domcontentloaded")
     page.click("#tabCodeUsage")
     page.wait_for_selector("#paneCodeUsage", state="visible", timeout=PANE_TIMEOUT)
     _await_first_summary(page)
-    # Default is "all" → per-vendor card visible.
-    assert page.evaluate(
-        "document.querySelector('#cldVendorSeg button.active')?.dataset.vendor"
-    ) == "all"
-    # Switch to Codex via JS to avoid viewport clipping.
-    page.evaluate(
-        "document.querySelector('#cldVendorSeg button[data-vendor=\"codex\"]').click()"
-    )
-    active_vendor = page.evaluate(
-        "document.querySelector('#cldVendorSeg button.active')?.dataset.vendor"
-    )
-    assert active_vendor == "codex", f"expected 'codex', got {active_vendor!r}"
-    # Per-vendor card is hidden when a single vendor is selected. Condition
-    # wait, not a fixed sleep: the vendor-switch re-render sits behind the
-    # summary fetch, which cold-scans full multi-vendor history and overruns
-    # any fixed budget under host contention (issue #361 — same flake class
-    # as the pane switches, #177).
+    assert page.inner_text("#cldAgentLabel") == "All agents"
+    # The offline AgentsView behind the extra is the header's exception.
+    assert "AgentsView offline" in page.inner_text("#codeHeadLine")
+    page.click("#cldAgentBtn")
+    sheet = page.locator("#cldAgentSheet[open]")
+    sheet.wait_for(timeout=3000)
+    titles = sheet.locator(".cld-agent-row .action-row-title").all_inner_texts()
+    assert titles == ["All agents", "Claude", "Codex", "Copilot", "AGY", "Sub-agents (OTel)"], titles
+    agy = sheet.locator('.cld-agent-row[data-vendor="agy"]').inner_text()
+    assert "AgentsView" in agy and "offline" in agy and "2 req" in agy, agy
+
+    sheet.locator('.cld-agent-row[data-vendor="codex"] .action-row-main').click()
+    page.wait_for_selector("#cldAgentSheet", state="hidden", timeout=3000)
+    assert page.inner_text("#cldAgentLabel") == "Codex"
+    assert _wait_for(page, lambda: ("today", "codex") in summaries), summaries
+    # The per-agent table is an All view.
     page.wait_for_selector("#cldVendorCard", state="hidden", timeout=PANE_TIMEOUT)
+
+    # Sub-agents (OTel): the pane's table for the one period switch above.
+    page.click("#cldAgentBtn")
+    page.locator('#cldAgentSheet .cld-agent-row[data-vendor="subagents"] .action-row-main').click()
+    page.wait_for_selector("#cldSubagents", state="visible", timeout=PANE_TIMEOUT)
+    assert page.locator("#cldFigures").is_hidden()
+    assert page.locator("#cldSubTable thead th").all_inner_texts() == _SUB_COLUMNS
+    page.wait_for_function(
+        "document.getElementById('cldSubSummary').textContent.includes('$0.42')", timeout=PANE_TIMEOUT)
+    assert "never added into All" in page.inner_text("#cldSubagents")
+    assert "today" in subs
+    for period in ("week", "month", "all"):
+        page.evaluate("p => document.querySelector('#cldPeriodSeg button[data-period=\"' + p + '\"]').click()", period)
+        assert _wait_for(page, lambda: bool(subs) and subs[-1] == period), subs
+    page.wait_for_selector("#cldSubEmpty", state="visible", timeout=PANE_TIMEOUT)
+    # The separate store never reaches the summary route.
+    assert not [v for _, v in summaries if v == "subagents"], summaries
 
 
 def test_code_usage_tab_phone_screenshot(page, admin_url, browser_name):
@@ -164,6 +237,25 @@ def test_code_usage_tab_phone_screenshot(page, admin_url, browser_name):
     # Wait for the first poll to complete (counters fill in). The counters
     # start as "—", so their text is no signal; the freshness stamp is.
     _await_first_summary(page)
+    # The first screen (#739): the period switch, the four counters and the
+    # total cost fit without scrolling, with no paragraph above the numbers,
+    # on a phone and on a PC window.
+    for viewport in (PHONE_VIEWPORT, {"width": 1280, "height": 800}):
+        page.set_viewport_size(viewport)
+        got = page.evaluate(
+            """() => {
+                const grid = document.querySelector('#cldCounterGrid').getBoundingClientRect();
+                return {
+                    bottom: Math.max(...['#cldPeriodSeg', '#cldTotalCost', '#cldCounterGrid'].map(
+                        s => document.querySelector(s).getBoundingClientRect().bottom)),
+                    paragraphs: [...document.querySelectorAll('#cldTotalsCard p')].filter(
+                        p => p.offsetParent && p.getBoundingClientRect().top < grid.top).length,
+                };
+            }"""
+        )
+        assert got["bottom"] <= viewport["height"], f"first screen overflows at {viewport}: {got}"
+        assert got["paragraphs"] == 0, got
+    page.set_viewport_size(PHONE_VIEWPORT)
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     out = SNAPSHOT_DIR / f"code-usage-390x844-{browser_name}.png"
     page.screenshot(path=str(out), full_page=True)
@@ -227,6 +319,8 @@ def test_failed_summary_renders_as_error_not_zero_usage(page, admin_url):
     # The session count is unknown, not known to be none.
     assert page.inner_text("#cldSessionsBadge") == "—"
     page.wait_for_selector("#cldChartsCard", state="hidden", timeout=PANE_TIMEOUT)
+    # The header line names the failure too (#739).
+    assert "Usage not loaded" in page.inner_text("#codeHeadLine")
 
     # --- recovery into a real zero-usage period: zeroes, no error ---
     state["fail"] = False
@@ -240,4 +334,5 @@ def test_failed_summary_renders_as_error_not_zero_usage(page, admin_url):
         "document.getElementById('cldRequests').textContent === '0'",
         timeout=PANE_TIMEOUT,
     )
-    assert page.inner_text("#cldSessionsBadge") == "0"
+    assert page.inner_text("#cldSessionsBadge") == "0 sessions"
+    assert "Usage not loaded" not in page.inner_text("#codeHeadLine")

@@ -120,7 +120,9 @@ def test_switch_shows_loading_toast_until_data_lands(page, admin_url):
 
 def test_toast_is_the_frosted_neutral_glass(page, admin_url):
     _open(page, admin_url)
-    _click(page, '#cldVendorSeg button[data-vendor="codex"]')
+    # The agent is chosen in its sheet since #739.
+    page.click("#cldAgentBtn")
+    page.click('#cldAgentSheet .cld-agent-row[data-vendor="codex"] .action-row-main')
     page.locator("#toast").wait_for(state="visible", timeout=2000)
     style = page.locator("#toast").evaluate(
         "e => { const s = getComputedStyle(e); return { f: s.backdropFilter || s.webkitBackdropFilter, w: s.fontWeight }; }"
@@ -146,7 +148,7 @@ def test_rapid_clicks_fire_one_request_for_the_final_choice(page, admin_url):
         "document.getElementById('cldRequests').textContent === '99'", timeout=PANE_TIMEOUT
     )
     assert page.evaluate(
-        "document.querySelector('#cldPeriodSeg button.active').dataset.period"
+        "document.querySelector('#cldPeriodSeg [aria-pressed=\"true\"]').dataset.period"
     ) == "all"
 
 
