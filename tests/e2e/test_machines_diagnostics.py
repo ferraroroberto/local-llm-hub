@@ -126,20 +126,17 @@ def test_diagnostics_dialog_never_widens_the_page(phone_page, admin_url):
 
 
 def test_diagnostics_entry_row_only_on_this_machine(phone_page, admin_url):
-    """A capture runs inside *this* hub's process, so offering the row on a
-    peer card would be a button that cannot do what it says."""
+    """A capture runs inside *this* hub's process, so the entry is offered for
+    the machine being viewed only. Since #736 it is its own shared row under
+    the machine list: exactly one, never on a machine row, and it names the
+    machine it is for."""
     page = phone_page
     page.goto(admin_url, wait_until="load")
     page.click("#tabMachines")
-    page.wait_for_selector(".machine-card", state="visible", timeout=15000)
+    page.wait_for_selector(".machine-row", state="visible", timeout=15000)
     page.wait_for_selector(".diag-entry", state="visible", timeout=15000)
-    entries = page.evaluate(
-        "[...document.querySelectorAll('.machine-card')].map(c => "
-        "({self: c.querySelector('.hub-live-status.accent') !== null,"
-        "  hasDiag: c.querySelector('.diag-entry') !== null}))"
+    assert page.locator(".diag-entry").count() == 1, "one Diagnostics entry, for this machine"
+    assert page.locator("#machinesList .diag-entry").count() == 0, (
+        "the diagnostics row must not ride on a machine row"
     )
-    assert entries, "no machine cards rendered"
-    for card in entries:
-        assert card["hasDiag"] == card["self"], (
-            "the diagnostics row must appear on the active host's card only"
-        )
+    assert "This machine" in page.locator("#machinesDiagCard").inner_text()

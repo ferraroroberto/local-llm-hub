@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/admin/static/styles.css">
   <link rel="stylesheet" href="/admin/static/_vendored/button/button.css">
   <link rel="stylesheet" href="/admin/static/_vendored/icon-button/icon-button.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/action-row/action-row.css">
   <link rel="stylesheet" href="/admin/static/_vendored/card/card.css">
   <link rel="stylesheet" href="/admin/static/_vendored/home-head/home-head.css">
   <link rel="stylesheet" href="/admin/static/_vendored/disclosure/disclosure.css">
@@ -27,6 +28,7 @@
   <link rel="stylesheet" href="/admin/static/_vendored/range-tab/range-tab.css">
   <link rel="stylesheet" href="/admin/static/_vendored/text-size/text-size.css">
   <link rel="stylesheet" href="/admin/static/_vendored/xterm/xterm.css">
+  <link rel="stylesheet" href="/admin/static/rows.css">
   <link rel="stylesheet" href="/admin/static/machines.css">
   <title>Local LLM Hub</title>
   <script>
@@ -914,19 +916,22 @@
 
     </section>
 
-    <section id="paneMachines" class="pane" hidden role="tabpanel" aria-labelledby="tabMachines">
-      <!-- Page header: the vendored home-head (_vendored/home-head) — title, one context
-           line, and the theme toggle pinned right. -->
+    <section id="paneMachines" class="pane" hidden role="tabpanel" aria-labelledby="tabMachines" data-wide="split">
+      <!-- Page header: the vendored home-head (_vendored/home-head) — title, the live
+           header line (rows.js setHeadLine: "N offline" / stale age, else the machine
+           count), and the theme toggle pinned right. -->
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-server"></use></svg>Machines</span>
-        <span class="status">Fleet machines</span>
+        <span id="machinesHeadLine" class="status head-line" role="status" aria-live="polite">Reading machines…</span>
         <button type="button" class="ghost-btn home-otel" data-open-tab="telemetry" aria-label="Open traces and usage" title="Open traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Traces</button>
         <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
-      <!-- Async lifecycle (design.md): loading / error empty-states, a stale
-           inline note, then one .card per machine in machinesList. Only one
-           of loading/error/the card list is visible at a time (issue #309). -->
+      <!-- Async lifecycle (design.md): loading / error empty-states, then one
+           shared row per machine (rows.js) in machinesList; the stale age is the
+           header line. Only one of loading/error/the list is visible at a time
+           (issue #309). A row opens the machine sheet (phone) or fills
+           #machinesDetail beside the list (wide window, #736). -->
       <div id="machinesLoading" class="empty-state">
         <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-server"></use></svg>
         <p class="empty-state-message">Reading machine status…</p>
@@ -936,9 +941,14 @@
         <p class="empty-state-message" id="machinesErrorMsg">Could not read machine status.</p>
         <button id="machinesRetryBtn" type="button" class="empty-state-action">Retry</button>
       </div>
-      <p id="machinesStaleNote" class="muted small" role="status" aria-live="polite" hidden></p>
-      <div id="machinesList" class="machines-list"></div>
+      <div id="machinesList" class="card action-list" hidden></div>
+      <!-- Diagnostics: its own row under the list, only for the machine being
+           viewed (a capture runs inside this hub's own process). -->
+      <div id="machinesDiagCard" class="card action-list" hidden></div>
     </section>
+    <!-- The wide window's detail pane for the selected machine (rows.css
+         data-wide="split"); the phone uses #machineSheet instead. -->
+    <aside id="machinesDetail" class="card wide-detail" aria-label="Machine detail"></aside>
 
     <!-- Build identity: which build the PWA is running. Filled by main.js.
          (Frontier report stays reachable at /admin/frontier by URL.) -->
@@ -979,6 +989,35 @@
       <div class="detail-actions">
         <button type="button" class="detail-save-btn button-primary danger" id="machinesConfirmBtn">Confirm</button>
       </div>
+    </div>
+  </dialog>
+
+  <!-- One machine's sheet on the phone (#736): gauges, Terminal and Remote,
+       connection, its own hub, then Reboot / Shut down last. The wide window
+       renders the same body in #machinesDetail instead. -->
+  <dialog class="detail-dialog machine-sheet" id="machineSheet" aria-labelledby="machineSheetTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="machineSheetTitle">Machine</h2>
+        <button type="button" class="icon-button detail-close" id="machineSheetCloseBtn" aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div id="machineSheetBody"></div>
+    </div>
+  </dialog>
+
+  <!-- The ⓘ info sheet (rows.js): explanations that used to be permanent
+       footnote paragraphs. -->
+  <dialog class="detail-dialog" id="infoSheet" aria-labelledby="infoSheetTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="infoSheetTitle">About</h2>
+        <button type="button" class="icon-button detail-close" id="infoSheetCloseBtn" aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div id="infoSheetBody" class="info-sheet-body"></div>
     </div>
   </dialog>
 

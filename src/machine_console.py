@@ -113,6 +113,38 @@ def _card_base(
         # nothing dials may have no `address` configured for itself.
         "ip": host.address,
         "actions": _actions_for(host, is_host=is_host, reachable=reachable),
+        # A probed peer that runs its own hub overrides this with its hub's
+        # reachability + build identity (#736, `_hub_facts`).
+        "hub": None,
+    }
+
+
+def _hub_facts_down(host: HostProfile) -> Optional[Dict[str, Any]]:
+    """A powered-off peer's hub facts: down, nothing compared. ``None`` for a
+    machine that runs no hub of its own."""
+    if not host.enabled:
+        return None
+    return {"reachable": False, "git_sha_match": None, "local_git_sha": None, "remote_git_sha": None}
+
+
+async def _hub_facts(host: HostProfile) -> Optional[Dict[str, Any]]:
+    """Peer-hub reachability + build identity for a machine that runs its own
+    hub (#736), so the Machines tab owns Sync, the out-of-sync state and
+    bootstrap before the Hub tab drops its peer rows. The same probe the
+    Services card runs (``remote_stats.peer_health``), minus its raw error
+    text: the SPA shows a sanitized state, never an exception string."""
+    if not host.enabled:
+        return None
+    health = await remote_stats.peer_health(host.id)
+    logger.debug(
+        "peer hub %s: reachable=%s sha_match=%s",
+        host.id, health.get("reachable"), health.get("git_sha_match"),
+    )
+    return {
+        "reachable": bool(health.get("reachable")),
+        "git_sha_match": health.get("git_sha_match"),
+        "local_git_sha": health.get("local_git_sha"),
+        "remote_git_sha": health.get("remote_git_sha"),
     }
 
 
@@ -154,7 +186,10 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
         located = await remote_stats.located_address(host)
         reachable = located is not None
         card = _card_base(host, is_host=False, reachable=reachable)
-        stats = await remote_stats.collect(host) if reachable else None
+        if reachable:
+            stats, hub = await asyncio.gather(remote_stats.collect(host), _hub_facts(host))
+        else:
+            stats, hub = None, _hub_facts_down(host)
         card.update(
             state="up" if reachable else "down",
             reachable=reachable,
@@ -173,6 +208,7 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
             # meaningful for a peer we're reporting reachable right now.
             flaky=remote_stats.connection_flaky(host) if reachable else None,
             detail="" if reachable else "Offline",
+            hub=hub,
         )
         return card
 

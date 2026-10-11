@@ -98,6 +98,7 @@ select-native = { src = "app/webapp/static/_vendored/select-native", sha = "7e14
 switch        = { src = "app/webapp/static/_vendored/switch", sha = "7e1433c70cac1bdcdbd160e874d3f486ba9e2a08", dest = "app_web/static/_vendored/switch" }
 text-size     = { src = "app/webapp/static/_vendored/text-size", sha = "8f89563a959dbf05bb368a230e9b898a9cae2291", dest = "app_web/static/_vendored/text-size" }
 icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "aa820f1215151087588433f290cd2ba55b34658d", dest = "app_web/static/_vendored/icon-button" }
+action-row  = { src = "app/webapp/static/_vendored/action-row", sha = "92d16e00cd47561de647cda12faea7fcdb6f081b", dest = "app_web/static/_vendored/action-row" }
 
 # Accepted /design-review exceptions: a failing rubric rule listed here is
 # filed under "## Accepted" in the design-review issue, never under Findings.
@@ -106,3 +107,36 @@ icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "aa820f12
 rule   = "TYPE-02"
 reason = "the Playground's JSON editor (textarea.jev-json) is set in a monospace font on purpose so the JSON lines up; it is not a UA-font fallback. Rule-wide for this repo, so re-check TYPE-02's flagged controls if it ever names anything else"
 record = "https://github.com/ferraroroberto/fleet-config/issues/1211"
+
+# The /design-review walk's extra reach (#736; schema: fleet-config
+# skills/_lib/design_review/plan.py). Read-only by construction: steps only
+# open a details or click a selector, and every click inside a `no_go`
+# selector is refused, so the walk can never start, stop, wake, sync, reboot or
+# shut anything down. Later redesign steps (#737-#741) add their own steps here.
+[design.review]
+theme_storage_key = "llmhub.theme"
+no_go = [
+  '[data-act="start"]', '[data-act="stop"]', '[data-act="force-stop"]', '[data-act="ping"]',
+  "#dockerStartBtn", "#dockerStopBtn", "#langfuseStartBtn", "#langfuseStopBtn",
+  "#agentsviewStartBtn", "#agentsviewStopBtn", "#servicesLaunchBtn", "#installFixAllBtn",
+  "#peerRows [data-action]",
+  '[data-machine-action="wake"]', '[data-machine-action="bootstrap"]', '[data-machine-action="sync"]',
+  '[data-machine-action="reboot"]', '[data-machine-action="shutdown"]', "#machinesConfirmBtn",
+]
+
+[[design.review.extra_steps]]
+tab  = "models"
+id   = "row-menu"
+open = "#paneModels details.row-menu"
+
+[[design.review.extra_steps]]
+tab   = "machines"
+id    = "machine-sheet"
+click = "#machinesList .machine-row .action-row-main"
+
+# Populated request and error lists come from a throwaway hub with invented
+# records (scripts/design_review_synthetic.py), never from the live hub's
+# traffic. Same no_go as the live walk.
+[design.review.synthetic]
+command = ["scripts/design_review_synthetic.py"]
+startup_timeout_s = 90

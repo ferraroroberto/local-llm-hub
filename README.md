@@ -890,7 +890,21 @@ The **Machines** tab turns the hub into a fleet machine console — one place
 to see the health of every box and act on it. It reads the host inventory
 from `config/models.yaml` `hosts:` (now enrolling two managed-only machines
 alongside `tower` and `mac-mini-m4`: **OpenClaw**, a Linux laptop, and
-**gaming**, a Ryzen Linux inference satellite — #323) and renders a card per machine:
+**gaming**, a Ryzen Linux inference satellite — #323) and renders one row per machine.
+
+**Layout (#736).** Each row answers *is it up?* from its face: the avatar's
+corner badge (alive or down), the uptime, and an exception chip only when
+something is wrong (*hub down*, *out of sync*, *via tailnet*, *flaky link*).
+A down machine with a MAC shows **Wake** on the row; a reachable machine whose
+own hub is down shows **Start hub**. Tapping a row opens the machine's sheet on
+a phone, or fills the detail pane beside the list on a wide window (1100px+,
+mouse): the gauges, **Terminal** and **Remote**, the **Connection** row, the
+machine's own **Hub** (state, both builds when they differ, **Sync** or
+**Start hub**), then **Reboot** and **Shut down** last, behind a confirm. The
+header line names *N offline* or the stale age, else the machine count, and
+**Diagnostics** is its own row under the list (this machine only). The shared
+row, chip, header line, ⓘ info sheet and wide-window primitives live in
+`app_web/static/rows.js` / `rows.css` for the other tabs to adopt.
 
 Every reachable machine shows the **same** snapshot — CPU / RAM / GPU / disk
 (as uniform horizontal gauges) + uptime:
@@ -914,20 +928,20 @@ when the LAN path stops answering (`remote_stats.dial_address`, a short-TTL
 last-known-good resolver). The wired NICs carry fixed DHCP reservations while
 Wi-Fi is an *unreserved* fallback, so a wired failure moves a box to a pool
 address — only the NIC-independent tailnet name survives that. The failover is
-logged at info level (`falling back to tailnet …`) and the Machines card shows
-a **via tailnet** badge while a peer is reached that way; hosts with no
+logged at info level (`falling back to tailnet …`) and the machine's row shows
+a **via tailnet** chip while a peer is reached that way; hosts with no
 `tailscale:` recorded behave exactly as before, and a healthy LAN path is
 always preferred (no WireGuard hop while the wire works).
 
-**Connection status (#397, #408).** Every card — including the active hub
-host's own — now shows a fixed meta structure: Uptime, then **IP** (the
-config `address:`, or a live `lan_ip()` lookup for the host's own row) and
-**MAC** together, then a dedicated connection row. That row shows *live*
+**Connection status (#397, #408).** Every machine's sheet — including the
+active hub host's own — carries a **Connection** row that opens to **Address**
+(the config `address:`, or a live `lan_ip()` lookup for the host's own row),
+**MAC**, the network and the tailnet state. The network line shows *live*
 connection detail read over the same SSH round-trip as the CPU/RAM/GPU/disk
 snapshot — no extra probe: **Wired** vs **Wi-Fi · SSID · signal (dBm)** for
-whichever interface currently owns the box's outbound default route, with
-Tailscale status right-aligned on the same line, plus a **Flaky link** flag
-when the liveness probe that produced the card needed its #333 warm-up retry
+whichever interface currently owns the box's outbound default route, plus
+the Tailscale state and a **Flaky link** flag
+when the liveness probe that produced the row needed its #333 warm-up retry
 to answer. Every signal degrades independently (no `iw` on Linux still
 reports Wired/Wi-Fi, just without SSID/signal; a down peer shows none of it)
 — see `docs/machines.md` for the per-platform availability matrix.
@@ -973,10 +987,10 @@ install. Restart the hub to pick up an edit, same as `models.yaml`.
 
 **Wake (non-destructive, #356).** A machine that is **down or dormant** and
 has a wired-NIC `mac:` recorded in `config/machines.local.yaml` offers a
-**Wake** button — a fire-and-forget Wake-on-LAN magic packet
+**Wake** verb on its row — a fire-and-forget Wake-on-LAN magic packet
 (`src/wake_on_lan.py`, UDP broadcast to `255.255.255.255:9`, stdlib socket
 only) via `POST /admin/api/machines/{id}/wake`. No confirmation loop: the
-card flips to *Rechecking…* and the next status poll reports whether the box
+verb flips to *Rechecking…* and the next status poll reports whether the box
 came up. The hub can't wake its own host (that's BIOS AC-restore territory),
 and a host without a `mac:` simply has no Wake action. Per-machine WOL state
 and caveats (Apple-silicon wakes from sleep only; openclaw has no wired NIC)

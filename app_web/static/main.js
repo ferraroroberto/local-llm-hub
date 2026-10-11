@@ -18,6 +18,7 @@ import { wireTelemetry, startTelemetryPolls, stopTelemetryPolls, fetchTelemetryH
 import { wireCodeUsage, startCodeUsagePolls, stopCodeUsagePolls, restyleCodeUsageCharts } from './code_usage.js';
 import { wireMachines, startMachinesPolls, stopMachinesPolls } from './machines.js';
 import { wireSettings } from './settings.js';
+import { wireInfoSheet } from './rows.js';
 
 // --------------------------------------------------------------- theme toggle
 // The pre-paint boot script in index.html already stamped html[data-theme]
@@ -93,6 +94,7 @@ async function boot() {
   wireCodeUsage();
   wireMachines();
   wireSettings();
+  wireInfoSheet();
 
   // Register the tab-change hook BEFORE wiring the nav: the vendored
   // component restores the persisted tab during wireTabs() and fires

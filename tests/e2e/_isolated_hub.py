@@ -285,15 +285,53 @@ def isolate_from_live_services(state_dir: Path) -> None:
     _stub(backend_process, "probe_health", lambda model, timeout=1.5: None)
 
 
+# Invented request records for the design-review walk's synthetic instance
+# (#736, scripts/design_review_synthetic.py): (model, path, status, latency ms,
+# tokens in, tokens out, error detail). Never real traffic, never a payload.
+_DEMO_REQUESTS = (
+    ("demo-chat", "/v1/messages", 200, 840.0, 1200, 310, ""),
+    ("demo-chat", "/v1/messages", 200, 1310.0, 2400, 520, ""),
+    ("demo-small", "/v1/chat/completions", 200, 420.0, 300, 90, ""),
+    ("demo-vision", "/v1/chat/completions", 200, 2900.0, 1800, 240, ""),
+    ("demo-speech", "/v1/audio/transcriptions", 200, 650.0, 0, 0, ""),
+    ("demo-chat", "/v1/messages", 504, 30000.0, 900, 0, "Backend timed out"),
+    ("demo-small", "/v1/chat/completions", 200, 380.0, 250, 70, ""),
+    ("demo-missing", "/v1/messages", 404, 3.0, 0, 0, "Unknown model"),
+    ("demo-chat", "/v1/messages", 200, 990.0, 1500, 400, ""),
+    ("demo-small", "/v1/chat/completions", 503, 12.0, 0, 0, "Backend not running"),
+)
+
+
+def seed_demo_activity() -> None:
+    """Fill the request and error rings with invented records, so a walk of
+    the synthetic instance sees populated lists without any live traffic."""
+    import time
+
+    from src.hub_observability import OBS, RequestRecord
+
+    now = time.time()
+    for i, (model, path, status, latency, tin, tout, err) in enumerate(_DEMO_REQUESTS):
+        OBS.record_request(RequestRecord(
+            ts=now - (len(_DEMO_REQUESTS) - i) * 37, path=path, model=model,
+            backend="openai" if "chat/completions" in path else "claude",
+            status=status, latency_ms=latency, in_tok=tin, out_tok=tout,
+            client="127.0.0.1", error_detail=err,
+        ))
+
+
 def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--state-dir", type=Path, required=True)
+    parser.add_argument("--seed-demo", action="store_true",
+                        help="fill the request/error rings with invented records (design-review synthetic instance)")
     args = parser.parse_args(argv)
 
     install_egress_guard(args.state_dir / VIOLATIONS_FILE)
     _prove_guard_armed()
     isolate_from_live_services(args.state_dir)
+    if args.seed_demo:
+        seed_demo_activity()
 
     import uvicorn
 

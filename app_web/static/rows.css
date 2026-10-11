@@ -1,0 +1,201 @@
+/* Shared parts (#736) — the app-side half of rows.js. The row itself is the
+ * vendored action-row (_vendored/action-row/action-row.css); the chip and the
+ * tone map live in styles.css. This file adds only what the vendored row
+ * leaves to the app: the meta line's lead + chips + ellipsizing context, a
+ * labelled verb, the selected row of a list-plus-detail split, the header
+ * line's tones, the ⓘ button, the info sheet, the sheet's own rows and the
+ * two wide-window primitives.
+ */
+
+/* ---------- meta line: lead · chips · context ----------
+ * One body-sm line. The lead (a state, an uptime) and the chips never shrink;
+ * only the context string, last, ellipsizes (design.md action-row: at 390px
+ * only the context name may ellipsize). */
+.action-row .action-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.row-meta-lead { flex: none; white-space: nowrap; }
+.row-meta-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-meta-text:not(:first-child)::before { content: "· "; }
+
+/* The one visible verb with its word (Wake, Start hub): the vendored tint
+ * verb at its real 44px height, grown to fit the label (design.md: a text verb
+ * is a tint verb at real 44px geometry). */
+.action-row .action-row-verb.row-verb {
+  width: auto;
+  min-width: var(--row-sm);
+  padding: 0 12px;
+  gap: 6px;
+  font-size: var(--font-label);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.action-row .action-row-verb.row-verb:disabled {
+  background: var(--card-off);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+/* The selected row of a list-plus-detail split keeps the accent-soft tint, and
+ * its secondary text moves to accent-text (muted measured under AA on it). */
+.action-row.is-selected { background: var(--accent-soft); border-radius: var(--radius-md); }
+.action-row.is-selected .action-row-meta { color: var(--accent-text); }
+
+/* A dimmed list while its data is stale (design.md "stale"): last-known rows
+ * stay, read as inert. */
+.action-list.is-stale .action-rows { opacity: 0.72; }
+
+/* ---------- header line (rows.js setHeadLine) ---------- */
+.home-head .head-line .head-part[data-tone] { color: var(--tone-text); font-weight: 600; }
+
+/* ---------- ⓘ ---------- */
+.info-button { --icon-btn-box: var(--row-sm); flex: none; }
+
+/* ---------- sheet: the detail of one item ----------
+ * The same body renders in the phone sheet (a vendored <dialog>) and in the
+ * wide window's detail pane. Sections sit on the modal's divider rhythm. */
+.sheet-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line-muted);
+}
+.sheet-section:first-child { border-top: 0; padding-top: 0; }
+.sheet-meta { margin: 0; color: var(--muted); font-size: var(--font-body-sm); }
+.sheet-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sheet-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-sm); }
+.sheet-buttons .button-tint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* A settings-group style row inside the sheet: lead glyph, label, muted value,
+ * then one trailing control (a chevron, an ⓘ, a tint button). */
+.sheet-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  min-height: var(--row-md);
+}
+.sheet-row > .icon { width: var(--icon-title); height: var(--icon-title); color: var(--muted); }
+.sheet-row-label { font-weight: 600; flex: none; }
+.sheet-row-value {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--font-body-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+.sheet-row-value[data-tone] { color: var(--tone-text); font-weight: 600; }
+.sheet-row .button-tint { min-height: var(--row-sm); padding: 0 12px; flex: none; display: inline-flex; align-items: center; gap: 6px; }
+
+/* A disclosure row in the sheet (Connection): the summary is the row, the body
+ * its label/value pairs. */
+details.sheet-disclosure > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details.sheet-disclosure > summary::-webkit-details-marker { display: none; }
+details.sheet-disclosure > summary .sheet-chevron { transition: transform 0.15s ease; color: var(--muted); }
+details.sheet-disclosure[open] > summary .sheet-chevron { transform: rotate(90deg); }
+.sheet-pairs { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 16px; font-size: var(--font-body-sm); }
+.sheet-pairs dt { color: var(--muted); }
+.sheet-pairs dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.sheet-pairs dd[data-tone] { color: var(--tone-text); font-weight: 600; }
+
+/* Destructive rows, last, after a divider, in danger-text, each behind the
+ * confirm dialog (design.md action-row). */
+.sheet-danger { display: flex; flex-direction: column; }
+.sheet-danger-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  min-height: var(--row-md);
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--danger-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.sheet-danger-row + .sheet-danger-row { border-top: 1px solid var(--line-muted); border-radius: 0; }
+.sheet-danger-row:not(:disabled):hover { background: var(--danger-soft); }
+.sheet-danger-row:disabled { color: var(--muted); cursor: not-allowed; }
+.sheet-danger-row .icon { width: var(--icon-title); height: var(--icon-title); }
+
+/* ---------- wide-window primitives (design.md layout.wide) ----------
+ * Below 1100px, or on a coarse pointer, nothing here applies: the phone and
+ * the 772px column are unchanged.
+ *
+ * .wide-cols         Two equal columns of whatever it holds.
+ * data-wide="split"  On a pane: list plus detail. The detail is the
+ *                    `.wide-detail` element right after the pane (outside it,
+ *                    so the pane keeps its own width); the .app column widens
+ *                    and leaves room on the right, the detail sits fixed there
+ *                    at list : detail = 1 : 1.5 and scrolls on its own. */
+.wide-detail { display: none; }
+@media (min-width: 1100px) and (pointer: fine) {
+  .wide-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
+
+  .app:has(> .pane[data-wide="split"]:not([hidden])) {
+    --split-avail: calc(100vw - var(--layout-rail, 80px) - var(--gap) * 3);
+    --detail-w: calc(var(--split-avail) * 0.6);
+    max-width: none;
+    margin: 0;
+    padding-right: calc(var(--detail-w) + var(--gap) * 2);
+  }
+  .pane[data-wide="split"]:not([hidden]) + .wide-detail {
+    display: block;
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + var(--gap) + var(--space-xs));
+    bottom: var(--gap);
+    right: var(--gap);
+    width: var(--detail-w);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+.wide-detail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  min-height: var(--row-md);
+  margin-bottom: 10px;
+}
+.wide-detail-head h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--font-heading-lg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wide-detail-head .button-tint { min-height: var(--row-sm); padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  details.sheet-disclosure > summary .sheet-chevron { transition: none; }
+}
+
+/* ---------- the ⓘ info sheet's body ---------- */
+.info-sheet-body p { margin: 0 0 10px; color: var(--ink); font-size: var(--font-body-sm); }
+.info-sheet-body p:last-child { margin-bottom: 0; }

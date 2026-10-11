@@ -30,6 +30,7 @@
   --danger: #cf222e;
   --danger-text: #a40e26;   /* danger-coloured TEXT on a danger-soft tint (fleet-config#963) */
   --attention: #9a6700;
+  --attention-text: #7d4e00; /* attention-coloured TEXT on its own tint (status chip, header line) */
   /* Neutral control surface: input/select boundary + switch off-track — 3:1+
      against `card` (WCAG 1.4.11); `--line` hairlines stay for card borders. */
   --control-border: #818b98;
@@ -54,6 +55,11 @@
   --deficit: var(--danger);
   --deficit-soft: var(--danger-soft);
   --deficit-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  /* The vendored action-row's names for two roles this file already carries:
+     `success` is --on (the avatar's alive badge, its only use), and the chip
+     fill is neutral-soft (design.md `chip`). */
+  --success: var(--on);
+  --neutral-soft: color-mix(in srgb, var(--muted) 16%, transparent);
   /* radii (rounded scale) */
   --radius-sm: 8px;
   --radius-md: 12px;        /* buttons / inputs */
@@ -89,6 +95,7 @@
   --font-heading-lg: 1.5rem;
   --font-body: 1rem;
   --font-label: 0.875rem;
+  --font-body-sm: 0.875rem;  /* typography.body-sm — a row's meta line, the header line */
   --font-caption: 0.75rem;
   /* elevation — cards lean on surface + hairline border; only floating
      elements (toast) carry a real shadow. */
@@ -128,6 +135,7 @@
   --danger: #f85149;
   --danger-text: #ff7b72;
   --attention: #d29922;
+  --attention-text: #e3b341;
   --control-border: #6e7681;
   --toggle-knob: var(--ink);
   --close-bg: transparent;
@@ -308,10 +316,48 @@ h2 { display: flex; align-items: center; gap: 8px; }
   padding: 4px 10px;
   font-size: var(--font-caption);
 }
-/* On a phone the word leaves the static subtitle under ~60px, a one-letter stub:
- * drop it there and keep the live status pill, which carries state. */
+/* On a phone the word leaves a static subtitle under ~60px, a one-letter stub:
+ * drop it there. A live line stays: the Hub status pill and every header line
+ * the shared helper writes (`.head-line`, rows.js), which names the pane's
+ * exception and so must be readable on the phone too (#736). */
 @media (max-width: 480px) {
-  .home-head .status:not(.hub-live-status) { display: none; }
+  .home-head .status:not(.hub-live-status):not(.head-line) { display: none; }
+  /* At 390px a live line has no room beside the tab title, the labelled
+   * Traces button and the two toggles (it was squeezed to ~30px). A header
+   * that carries one drops Traces on the phone; the OTel pane stays one tap
+   * away from every other tab's header and from this one on a wider window,
+   * until Step 6 retires the button everywhere (#736, #741). */
+  .home-head:has(.head-line) .home-otel { display: none; }
+}
+
+/* ---------- tone map (design.md "status chip") ----------
+ * The one place a status colour gets its meaning; the status chip and the
+ * header line (rows.js) both read it through `data-tone`.
+ *   (none)     neutral: a plain fact (dormant, stale)
+ *   accent     work in progress (capturing)
+ *   attention  needs the user soon (out of sync, via tailnet, flaky link)
+ *   danger     broken (down, failed, timed out)
+ * A healthy state is never toned: no chip, no dot colour, no fill. `success`
+ * appears only as the avatar's alive badge (_vendored/action-row). */
+[data-tone="accent"]    { --tone: var(--accent);    --tone-text: var(--accent-text); }
+[data-tone="attention"] { --tone: var(--attention); --tone-text: var(--attention-text); }
+[data-tone="danger"]    { --tone: var(--danger);    --tone-text: var(--danger-text); }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 2px var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: var(--neutral-soft);
+  color: var(--ink);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.chip[data-tone] {
+  background: color-mix(in srgb, var(--tone) 16%, transparent);
+  color: var(--tone-text);
 }
 /* The nav tracks the OTel pane through a hidden entry; the bar shows five tabs. */
 .tabs .tab[data-tab="telemetry"] { display: none; }

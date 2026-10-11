@@ -15,6 +15,7 @@ import { els, state } from './state.js';
 import { jsonApi, postJson, putJson, api, toast, escapeHtml, isAuthError } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { setSwitch } from './_vendored/switch/switch.js';
+import { chip } from './rows.js';
 
 const POLL_MS = 5000;
 let pollHandle = null;
@@ -387,24 +388,29 @@ function renderDiagnostics() {
   if (sw) setSwitch(sw, sw.dataset.diagSwitch === '1');
 }
 
-/* The compact entry point on the this-machine card: last verdict, or live
- * capture progress. machines.js re-renders the card list on its own poll, so
- * this only refreshes the chip's text/class in place. */
+/* The Diagnostics row's meta line under the Machines list (#736): "This
+ * machine", then the exception only — capturing (accent), a warning
+ * (attention) or a critical verdict (danger) as one chip; a healthy or absent
+ * verdict stays plain muted text, never a coloured state. machines.js
+ * re-renders the row on its own poll, so this only repaints the line. */
+const VERDICT_TONE = { critical: 'danger', warning: 'attention' };
+
 function updateCardChip() {
-  const chip = document.querySelector('[data-diag-chip]');
-  if (!chip) return;
+  const line = document.querySelector('[data-diag-chip]');
+  if (!line) return;
   const status = state.diagStatus;
   const active = status && status.active;
+  const parts = ['<span class="row-meta-lead">This machine</span>'];
   if (active) {
-    chip.className = 'hub-live-status accent';
-    chip.innerHTML = '<span class="dot"></span><span>Capturing · '
-      + escapeHtml(fmtDuration(active.elapsed_s)) + '</span>';
-    return;
+    parts.push(chip('capturing · ' + fmtDuration(active.elapsed_s), 'accent'));
+  } else {
+    const latest = (state.diagRuns || [])[0];
+    const level = latest && latest.verdict_level;
+    const v = verdictMeta(level);
+    if (VERDICT_TONE[level]) parts.push(chip(v.label.toLowerCase(), VERDICT_TONE[level]));
+    else parts.push('<span class="row-meta-text">' + escapeHtml(level === 'healthy' ? 'Last capture healthy' : v.label) + '</span>');
   }
-  const latest = (state.diagRuns || [])[0];
-  const v = verdictMeta(latest && latest.verdict_level);
-  chip.className = 'hub-live-status ' + v.cls;
-  chip.innerHTML = '<span class="dot"></span><span>' + escapeHtml(v.label) + '</span>';
+  line.innerHTML = parts.join('');
 }
 
 // ----------------------------------------------------------------- actions
