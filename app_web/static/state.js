@@ -69,6 +69,8 @@ export const state = {
 
   // Models tab — "Active only" filter, default on (issue #266).
   modelsActiveOnly: true,
+  modelsSelected: null,          // { kind: 'model' | 'host', id } — sheet / wide detail (#737)
+  roles: null,                   // /admin/api/roles payload, read on Models tab open (#737)
   // Models tab — config-as-code context (#424): models.yaml HEAD sha,
   // whether this hub may write (tower only), and the fleet host list the
   // chain editor offers. Null until the first /admin/api/models fetch.
@@ -172,14 +174,20 @@ export const els = {
   // Models tab
   modelsList: document.getElementById('modelsList'),
   modelsEmpty: document.getElementById('modelsEmpty'),
-  modelsActiveToggle: document.getElementById('modelsActiveToggle'),
+  modelsScope: document.getElementById('modelsScope'),
   modelsConfigSha: document.getElementById('modelsConfigSha'),
+  modelsHeadLine: document.getElementById('modelsHeadLine'),
+  modelsMemoryList: document.getElementById('modelsMemoryList'),
+  modelsDetail: document.getElementById('modelsDetail'),
+  modelSheet: document.getElementById('modelSheet'),
+  modelSheetTitle: document.getElementById('modelSheetTitle'),
+  modelSheetBody: document.getElementById('modelSheetBody'),
+  modelSheetCloseBtn: document.getElementById('modelSheetCloseBtn'),
 
   // Startup card (issue #265)
   startupList: document.getElementById('startupList'),
 
-  // Fleet placement card (issue #354)
-  fleetPlacementBody: document.getElementById('fleetPlacementBody'),
+  // Fleet placement (issue #354): the memory glance's stale note (#737)
   fleetPlacementStaleNote: document.getElementById('fleetPlacementStaleNote'),
 
   // Model decisions card (issue #373) — Hub tab, role → model + placement

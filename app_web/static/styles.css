@@ -684,106 +684,96 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
   .sparkline svg { height: 48px; }
 }
 
-/* ---------- Models tab: .app-item rows (canonical pattern) ----------
- * Flat full-bleed rows inside one wrapping `.card` (design.md `list-row`
- * contract, #265) — never nested per-item cards. The card's own
- * `spacing.md` padding supplies the horizontal inset; rows only need
- * `list-row.rowPadding` (12px 0) and a top hairline on every row after
- * the first. */
-
-/* Card-header actions cluster for a `.card--collapsible` summary (#266) —
- * the toggle button sits before the chevron rather than its own row, so
- * per-app markup nests both inside grid-column 2 (the vendored
- * .collapse-chevron's own `grid-column: 2` is then a no-op, since it's no
- * longer a direct grid child — harmless). */
-.collapse-actions {
-  grid-column: 2;
-  display: flex;
-  align-items: center;
-  /* Same 14px as disclosure.summaryPadding — the gap from the card's left
-   * edge to the .collapse-main icon, mirrored here between the action
-   * button and the chevron (#266: 2px read as the icon crowding the arrow). */
-  gap: 14px;
-}
-.models-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-}
-.app-item {
-  display: block;
-}
-.app-item + .app-item {
-  border-top: 1px solid var(--line-muted);
-}
-.app-item .app-main {
-  display: flex;
-  flex-direction: column;
-  padding: 12px 0;
-  gap: 4px;
-  width: 100%;
-}
-.app-item .app-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.app-item .app-title {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--font-label);
-  font-weight: 600;
-}
-/* Only the name ellipsises on narrow viewports; the status badge and the
- * adopted-PID note sit beside .app-title as title-row siblings, so they
- * are never clipped regardless of display-name length. */
-.app-item .app-name {
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.app-item .badge { flex-shrink: 0; }
-.app-item .app-icons {
-  display: flex;
-  gap: 0;
-  flex-shrink: 0;
-  /* Push the action icons to the right edge now that .app-title no longer
-   * grows to fill the row. */
-  margin-left: auto;
-}
-/* The row's one power control: glyph plus the verb (Start / Stop), compact. */
-.app-item .app-icons .ghost-btn {
-  padding: 4px 10px;
-  font-size: var(--font-caption);
-}
-.app-item .app-meta {
-  font-size: var(--font-caption);
+/* ---------- Models tab (#737) ----------
+ * Rows are the shared row (rows.js on the vendored action-row), grouped by
+ * the host serving them under an overline header. The memory glance's rows
+ * carry a meter as their one trailing value. */
+.group-overline {
+  padding: 14px 14px 4px;
   color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.group-overline + .action-row { border-top: 0; }
+.action-row + .group-overline { border-top: 1px solid var(--line-muted); }
+.models-scope { align-self: flex-start; }
+.models-config-sha { margin: 0; padding: 10px 14px 12px; font-size: var(--font-body-sm); }
+.models-config-sha:empty { display: none; }
+.glance-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  min-height: var(--row-md);
+  padding: 0 4px 0 14px;
+  border-bottom: 1px solid var(--line-muted);
+}
+.glance-head h2 { margin: 0; font-size: var(--font-body); font-weight: 700; }
+.glance-head h2 .icon { width: var(--icon-title); height: var(--icon-title); color: var(--muted); }
+.glance-note { margin: 0; padding: 0 14px 12px; font-size: var(--font-body-sm); }
+/* The meter (design.md `meter`): a 6px pill track on neutral-soft, the fill
+ * accent while there is room, attention past 75%, danger at 90%; the percent
+ * in tabular figures beside it. Unknown is words, never an empty track. */
+.memory-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-body-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+.memory-meter.is-unknown { color: var(--muted); font-weight: 400; }
+.meter-track {
+  width: 72px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--neutral-soft);
+  overflow: hidden;
+}
+.meter-fill { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.memory-meter[data-level="warn"] .meter-fill { background: var(--attention); }
+.memory-meter[data-level="high"] .meter-fill { background: var(--danger); }
+.memory-meter[data-level="warn"] .meter-pct { color: var(--attention-text); }
+.memory-meter[data-level="high"] .meter-pct { color: var(--danger-text); }
+.meter-pct { min-width: 3.2em; text-align: right; }
+/* The sheet's own bits: a label over a block, the editor slot, the log tail. */
+.sheet-label { margin: 0; color: var(--muted); font-size: var(--font-body-sm); font-weight: 600; }
+.model-editor:empty { display: none; }
+.model-editor { margin-top: var(--space-sm); }
+.model-log-tail {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.wide-detail-body .host-body .fleet-host,
+.model-sheet .host-body .fleet-host { border: 0; padding: 0; }
+.startup-policy { font-size: var(--font-caption); }
+.row-menu-note { margin: 0; padding: 0 var(--space-sm) var(--space-xs); font-size: var(--font-body-sm); }
+
 /* Trailing "More actions" menu (action-row: one accessory per row). The
  * <details> summary is the 44px accessory; the list floats under it so opening
  * it never reflows the row. */
-.row-menu { position: relative; }
-.models-filter-row { margin: var(--space-sm) 0; }
+.row-menu { position: relative; flex: none; }
+/* The row's one trailing kebab: an unpainted icon-button at the 44px row box
+ * (action-row), its glyph taking the accent while the menu is open. */
 .row-menu-toggle {
+  --icon-btn-box: var(--row-sm);
   list-style: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--hit-min);
-  min-height: var(--hit-min);
-  color: var(--muted);
-  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 .row-menu-toggle::-webkit-details-marker { display: none; }
-.row-menu[open] > .row-menu-toggle { color: var(--ink); background: var(--card-off); }
+.row-menu[open] > .row-menu-toggle { color: var(--accent); }
 .row-menu-list {
   position: absolute;
   right: 0;

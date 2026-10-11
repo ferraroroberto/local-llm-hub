@@ -97,6 +97,14 @@ def test_models_tab(page, admin_url):
     page.goto(admin_url, wait_until="load")
     page.click("#tabModels")
     page.wait_for_selector("#paneModels", state="visible", timeout=3000)
+    # #737: the tab opens on the memory glance, then the list; its header line
+    # is live, never the old fixed slogan.
+    order = page.evaluate(
+        "() => [...document.querySelectorAll('#paneModels > .card, #paneModels > .segmented')].map(e => e.id)"
+    )
+    assert order.index("modelsMemoryCard") < order.index("modelsCard"), order
+    page.wait_for_function(
+        "() => !document.getElementById('modelsHeadLine').textContent.startsWith('Reading')", timeout=5000)
 
 
 def test_toast_stacks_above_mobile_navigation(page, admin_url):

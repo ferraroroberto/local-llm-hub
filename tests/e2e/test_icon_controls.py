@@ -14,9 +14,10 @@ from __future__ import annotations
 def test_model_rows_ping_from_the_menu_not_a_bare_glyph(page, admin_url):
     page.goto(admin_url, wait_until="domcontentloaded")
     page.click("#tabModels")
-    page.wait_for_selector("#modelsList .app-item", state="attached", timeout=10000)
+    page.wait_for_selector("#modelsList .model-row", state="attached", timeout=10000)
 
-    assert page.locator('#modelsList .app-icons .icon-button[data-act="ping"]').count() == 0
+    # Not a visible verb on the row (#737: Start / Stop is its only one).
+    assert page.locator('#modelsList .action-row-verb[data-act="ping"]').count() == 0
     items = page.locator('#modelsList .row-menu-item[data-act="ping"]')
     assert items.count() > 0, "no row offers Ping from its More actions menu"
     for i in range(items.count()):

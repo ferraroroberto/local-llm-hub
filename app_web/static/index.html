@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/admin/static/_vendored/button/button.css">
   <link rel="stylesheet" href="/admin/static/_vendored/icon-button/icon-button.css">
   <link rel="stylesheet" href="/admin/static/_vendored/action-row/action-row.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/segmented/segmented.css">
   <link rel="stylesheet" href="/admin/static/_vendored/card/card.css">
   <link rel="stylesheet" href="/admin/static/_vendored/home-head/home-head.css">
   <link rel="stylesheet" href="/admin/static/_vendored/disclosure/disclosure.css">
@@ -185,7 +186,7 @@
             <ul id="rolesPlacementList" class="startup-list" aria-label="Per-host placement summary"></ul>
           </div>
           <div class="card-actions">
-            <button id="rolesViewPlacementBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg>View fleet summary</button>
+            <button id="rolesViewPlacementBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg>View memory on Models</button>
           </div>
         </div>
       </details>
@@ -281,16 +282,48 @@
       </details>
     </section>
 
-    <section id="paneModels" class="pane" hidden role="tabpanel">
-      <!-- Page header: the vendored home-head (_vendored/home-head) — title, one context
-           line, and the theme toggle pinned right. -->
+    <section id="paneModels" class="pane" hidden role="tabpanel" data-wide="split">
+      <!-- Page header: the vendored home-head (_vendored/home-head) — title, the live
+           header line (rows.js setHeadLine: "N failover" / over capacity, else the
+           number running), and the theme toggle pinned right. -->
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-boxes"></use></svg>Models</span>
-        <span class="status">Backends enabled on this host</span>
+        <span id="modelsHeadLine" class="status head-line" role="status" aria-live="polite">Reading models…</span>
         <button type="button" class="ghost-btn home-otel" data-open-tab="telemetry" aria-label="Open traces and usage" title="Open traces and usage"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Traces</button>
         <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
+
+      <!-- Glance card (#737): "how much room is left" — one memory meter per host,
+           drawn at once from the models payload's fleet hosts and filled in by the
+           fleet-placement probe (loaded on tab open and once after a Start / Stop,
+           never polled). A row opens that host's running / loadable summary. -->
+      <section class="card action-list glance-card" id="modelsMemoryCard" aria-labelledby="modelsMemoryTitle">
+        <div class="glance-head">
+          <h2 id="modelsMemoryTitle"><svg class="icon" aria-hidden="true"><use href="#i-cpu"></use></svg>Memory</h2>
+          <button type="button" class="icon-button info-button" data-info="models-about" aria-haspopup="dialog" aria-label="About models and memory" title="About models and memory"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></button>
+        </div>
+        <ul id="modelsMemoryList" class="action-rows" aria-label="Memory per machine"></ul>
+        <p id="fleetPlacementStaleNote" class="glance-note muted" role="status" aria-live="polite" hidden></p>
+      </section>
+
+      <!-- Scope: Running · All (vendored segmented), replacing the "Active models
+           only" switch; reads and writes the same llmhub.models.activeOnly key. -->
+      <div class="segmented models-scope" id="modelsScope" role="group" aria-label="Which models to list">
+        <button type="button" class="segmented-item" aria-pressed="true" data-scope="running">Running</button>
+        <button type="button" class="segmented-item" aria-pressed="false" data-scope="all">All</button>
+      </div>
+
+      <!-- One shared row per model (rows.js), grouped by the host serving it. A row
+           opens the model's sheet (phone) or fills #modelsDetail (wide window). -->
+      <section class="card action-list" id="modelsCard" aria-label="Models">
+        <ul id="modelsList" class="action-rows models-list"></ul>
+        <div id="modelsEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-boxes"></use></svg><p class="empty-state-message">No models enabled for this host — check <code>config/models.yaml</code>.</p></div>
+        <!-- models.yaml config version (#424) — same sha on every converged hub;
+             compare across /admin pages to spot drift. Moves to Settings in Step 6. -->
+        <p id="modelsConfigSha" class="models-config-sha muted"></p>
+      </section>
+
       <!-- Service startup (#265; services-only since #430, renamed #431).
            Folded by default — a one-time setup surface, not something you
            check every visit (#266). First in the tab: boot-time switches
@@ -311,59 +344,10 @@
           <ul id="startupList" class="startup-list"></ul>
         </div>
       </details>
-
-      <!-- Vendored disclosure card (_vendored/disclosure), open by default —
-           the inventory is what you came to this tab to see (#266). -->
-      <details class="card card--collapsible" id="modelsCard" open>
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-boxes"></use></svg>
-            <h3 class="collapse-title">Models</h3>
-          </span>
-          <span class="collapse-actions">
-            <!-- models.yaml config version (#424) — same sha on every
-                 converged hub; compare across /admin pages to spot drift. -->
-            <span id="modelsConfigSha" class="models-config-sha muted small"></span>
-            <span class="collapse-chevron" aria-hidden="true">›</span>
-          </span>
-        </summary>
-        <div class="collapse-body">
-          <p class="muted small">One row per backend enabled for this host. Local <code>llama-server</code>
-            and <code>whisper-server</code> backends can be started or stopped individually; the
-            Claude and Gemini rows are subscription-backed and don't have a managed process.</p>
-          <div class="opt-switch-row models-filter-row">
-            <span>Active models only</span>
-            <button id="modelsActiveToggle" type="button" class="toggle on" role="switch" aria-checked="true" aria-label="Active models only"><span class="knob"></span><span class="toggle-label">ON</span></button>
-          </div>
-          <ul id="modelsList" class="models-list"></ul>
-          <div id="modelsEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-boxes"></use></svg><p class="empty-state-message">No models enabled for this host — check <code>config/models.yaml</code>.</p></div>
-        </div>
-      </details>
-
-      <!-- Read-only fleet summary (#354, reworked #431): what each machine is
-           running and could load, with honest capacity numbers. Zero controls
-           beyond the collapse — placement is edited in the model cards above
-           or config/models.yaml. Folded by default. -->
-      <details class="card card--collapsible" id="fleetPlacementCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-layers"></use></svg>
-            <h3 class="collapse-title">Fleet summary</h3>
-          </span>
-          <span class="collapse-chevron" aria-hidden="true">›</span>
-        </summary>
-        <div class="collapse-body">
-          <p class="muted small">Per machine: models running now (live state), models placeable but
-            not running (chain members, including on-demand rows), and estimated capacity — a
-            read-only summary derived from <code>config/models.yaml</code> plus live probes. To
-            change placement, edit a model's placement card above or <code>models.yaml</code>.</p>
-          <div id="fleetPlacementBody" class="fleet-placement">
-            <div class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-server"></use></svg><p class="empty-state-message">Reading fleet summary…</p></div>
-          </div>
-          <p id="fleetPlacementStaleNote" class="muted small" role="status" aria-live="polite" hidden></p>
-        </div>
-      </details>
     </section>
+    <!-- The wide window's detail pane for the selected model or machine (rows.css
+         data-wide="split"); the phone uses #modelSheet instead. -->
+    <aside id="modelsDetail" class="card wide-detail" aria-label="Model detail"></aside>
 
     <section id="panePlayground" class="pane" hidden role="tabpanel">
       <!-- Page header: the vendored home-head (_vendored/home-head) — title, one context
@@ -989,6 +973,21 @@
       <div class="detail-actions">
         <button type="button" class="detail-save-btn button-primary danger" id="machinesConfirmBtn">Confirm</button>
       </div>
+    </div>
+  </dialog>
+
+  <!-- One model's (or one machine's memory) sheet on the phone (#737): placement,
+       roles, details, the placement editor or dictionary, the log tail. The wide
+       window renders the same body in #modelsDetail instead. -->
+  <dialog class="detail-dialog model-sheet" id="modelSheet" aria-labelledby="modelSheetTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="modelSheetTitle">Model</h2>
+        <button type="button" class="icon-button detail-close" id="modelSheetCloseBtn" aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div id="modelSheetBody"></div>
     </div>
   </dialog>
 

@@ -9,8 +9,10 @@
  * time you look, without a background timer.
  *
  * Two sections inside: a compact role → model list, and a compact per-host
- * placement summary — the fuller read-only Fleet summary lives on the
- * Models tab (#431); this card links to it rather than duplicating it.
+ * placement summary. Both have a home on the Models tab since #737 (each
+ * model's sheet names its roles; each machine's memory row opens its running
+ * and loadable models), and this card goes in Step 3; until then it links
+ * to the Models memory glance rather than duplicating it.
  */
 
 import { els } from './state.js';
@@ -110,9 +112,8 @@ function goToFleetPlacement() {
   // browser a frame before scrolling so scrollIntoView measures a laid-out
   // target rather than a still-hidden one.
   requestAnimationFrame(function () {
-    const card = document.getElementById('fleetPlacementCard');
+    const card = document.getElementById('modelsMemoryCard');
     if (!card) return;
-    card.open = true;
     card.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 }

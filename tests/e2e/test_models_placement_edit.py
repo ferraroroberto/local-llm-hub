@@ -15,7 +15,10 @@ What they lock in:
   * a validation rejection (400) surfaces its detail *inline* in the open
     editor — the VRAM arithmetic is the message — and nothing closes;
   * a successful save closes the editor and refreshes;
-  * the config-version chip renders the models.yaml sha in the card header.
+  * #737: the editor opens in the model's detail pane on a wide window and in
+    its sheet on a phone, keeps an unsaved draft across the 5 s poll, and the
+    shared transcription dictionary opens in the same slot;
+  * the config-version chip renders the models.yaml sha under the list.
 """
 
 from __future__ import annotations
@@ -112,21 +115,22 @@ def _open_models_tab(page, admin_url, body, put_handler=None):
     page.goto(admin_url, wait_until="load")
     page.click("#tabModels")
     page.wait_for_selector("#paneModels", state="visible", timeout=5000)
-    page.wait_for_selector("#modelsList .app-item", state="visible", timeout=10000)
+    page.wait_for_selector("#modelsList .model-row", state="visible", timeout=10000)
 
 
 def _item(page, model_id):
-    return page.locator(f'#modelsList .app-item[data-id="{model_id}"]')
+    return page.locator(f'#modelsList .model-row[data-id="{model_id}"]')
 
 
 def _open_editor(page, model_id):
+    """Edit placement from the row menu: the editor mounts in the model's
+    detail pane (wide window) or its sheet (phone), never under the row."""
     _item(page, model_id).locator(".row-menu-toggle").click()
     _item(page, model_id).locator(".placement-edit-btn").click()
     page.wait_for_selector(
-        f'#modelsList .app-item[data-id="{model_id}"] .placement-editor',
-        state="visible", timeout=5000,
+        f'.model-body[data-id="{model_id}"] .placement-editor', state="visible", timeout=5000,
     )
-    return _item(page, model_id).locator(".placement-editor")
+    return page.locator(f'.model-body[data-id="{model_id}"] .placement-editor')
 
 
 def test_config_sha_chip_renders(page, admin_url):
@@ -212,13 +216,28 @@ def test_validation_rejection_shows_inline_and_keeps_editor_open(page, admin_url
     err = editor.locator(".pe-error")
     page.wait_for_selector(".placement-editor .pe-error", state="visible", timeout=5000)
     assert "overcommits" in err.inner_text()
-    # Editor stays open with the draft intact for correction.
+    # Editor stays open with the draft intact for correction — also across the
+    # 5 s models poll, which repaints the pane's info but never its editor slot.
     assert editor.locator(".pe-startup").input_value() == "eager"
+    assert page.locator("#modelsDetail .placement-editor").count() == 1, "wide window: the detail pane"
+    page.wait_for_timeout(5600)
+    assert editor.locator(".pe-startup").input_value() == "eager"
+    assert "overcommits" in editor.locator(".pe-error").inner_text()
 
 
 def test_idle_input_disabled_for_eager_policy(page, admin_url):
+    # On a phone the editor opens in the model's sheet.
+    page.set_viewport_size({"width": 390, "height": 844})
     _open_models_tab(page, admin_url, _payload())
     editor = _open_editor(page, "whisper")
+    assert page.locator("#modelSheet[open] .placement-editor").count() == 1
     assert editor.locator(".pe-idle").is_disabled()
     editor.locator(".pe-startup").select_option("on_demand")
     assert editor.locator(".pe-idle").is_enabled()
+
+    # The shared dictionary opens in the same slot, replacing the editor.
+    page.click("#modelSheetCloseBtn")
+    _item(page, "whisper").locator(".row-menu-toggle").click()
+    _item(page, "whisper").locator('.row-menu-item[data-act="dictionary"]').click()
+    page.wait_for_selector("#modelSheet[open] .model-editor .glossary-panel", timeout=5000)
+    assert page.locator(".placement-editor").count() == 0

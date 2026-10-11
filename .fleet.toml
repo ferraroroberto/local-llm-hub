@@ -99,6 +99,7 @@ switch        = { src = "app/webapp/static/_vendored/switch", sha = "7e1433c70ca
 text-size     = { src = "app/webapp/static/_vendored/text-size", sha = "8f89563a959dbf05bb368a230e9b898a9cae2291", dest = "app_web/static/_vendored/text-size" }
 icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "aa820f1215151087588433f290cd2ba55b34658d", dest = "app_web/static/_vendored/icon-button" }
 action-row  = { src = "app/webapp/static/_vendored/action-row", sha = "92d16e00cd47561de647cda12faea7fcdb6f081b", dest = "app_web/static/_vendored/action-row" }
+segmented   = { src = "app/webapp/static/_vendored/segmented", sha = "92d16e00cd47561de647cda12faea7fcdb6f081b", dest = "app_web/static/_vendored/segmented" }
 
 # Accepted /design-review exceptions: a failing rubric rule listed here is
 # filed under "## Accepted" in the design-review issue, never under Findings.
@@ -122,12 +123,23 @@ no_go = [
   "#peerRows [data-action]",
   '[data-machine-action="wake"]', '[data-machine-action="bootstrap"]', '[data-machine-action="sync"]',
   '[data-machine-action="reboot"]', '[data-machine-action="shutdown"]', "#machinesConfirmBtn",
+  ".pe-save", ".glossary-panel",
 ]
 
 [[design.review.extra_steps]]
 tab  = "models"
 id   = "row-menu"
 open = "#paneModels details.row-menu"
+
+[[design.review.extra_steps]]
+tab   = "models"
+id    = "model-sheet"
+click = "#modelsList .model-row .action-row-main"
+
+[[design.review.extra_steps]]
+tab   = "models"
+id    = "memory-sheet"
+click = "#modelsMemoryList .memory-row .action-row-main"
 
 [[design.review.extra_steps]]
 tab   = "machines"

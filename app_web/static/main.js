@@ -8,7 +8,7 @@ import { jsonApi, tokenFromUrl, writeToken, wireLoginForm, toast } from './api.j
 import { icon } from './_vendored/icons/icons.js';
 import { wireTabs, onTabChange, setTab } from './tabs.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchServicesStatus, renderSparklines } from './hub.js';
-import { wireModels, fetchModels } from './models.js';
+import { wireModels, fetchModels, fetchRoles } from './models.js';
 import { wireStartupProfile, fetchStartupProfile } from './startup.js';
 import { fetchFleetPlacement } from './fleet_placement.js';
 import { wireRolesCard } from './roles_card.js';
@@ -122,10 +122,14 @@ async function boot() {
     } else {
       stopMachinesPolls();
     }
-    // Refresh fleet placement each time the Models tab opens so its per-host
-    // running/reachability status is current when you look at it. The GET runs
-    // live peer probes, so it's tab-triggered (+ post-toggle), never polled.
-    if (tab === 'models') fetchFleetPlacement().catch(function () {});
+    // Refresh the memory glance each time the Models tab opens so it is
+    // current when you look at it. The GET runs live peer probes, so it is
+    // tab-triggered (+ once after a Start / Stop), never polled. Roles ride
+    // along for the model sheets (#737).
+    if (tab === 'models') {
+      fetchFleetPlacement().catch(function () {});
+      fetchRoles().catch(function () {});
+    }
   });
   wireTabs();
   // Header buttons that open a destination which is not in the bottom bar.
