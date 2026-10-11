@@ -217,25 +217,32 @@ models:
   # display_name as `--model` to the CLI — so when Anthropic ships
   # claude-haiku-5 (or whatever's next), only `display_name` needs
   # updating and clients keep working unchanged.
+  #
+  # Old ids stay as aliases (#733): resolve() matches only id, display_name and
+  # aliases, so repointing display_name would otherwise make a caller that
+  # sends the previous raw id (e.g. `claude-haiku-4-5`) fail. When you bump a
+  # row, append the display_name you are replacing to its `aliases` — the
+  # caller then gets the newest model, and /v1/models still lists one entry
+  # per row.
   claude_haiku:
     display_name: claude-haiku-5-5
     backend: claude
-    aliases: ["claude_haiku"]
+    aliases: ["claude_haiku", "claude-haiku-4-5"]
 
   claude_sonnet:
     display_name: claude-sonnet-5-5
     backend: claude
-    aliases: ["claude_sonnet"]
+    aliases: ["claude_sonnet", "claude-sonnet-4-6"]
 
   claude_opus:
     display_name: claude-opus-5-5
     backend: claude
-    aliases: ["claude_opus"]
+    aliases: ["claude_opus", "claude-opus-4-8"]
 
   claude_fable:
     display_name: claude-fable-5-1
     backend: claude
-    aliases: ["claude_fable"]
+    aliases: ["claude_fable", "claude-fable-5"]
 
   # --- Gemini subscription path (Google AI Pro via the Antigravity CLI) ---
   # Google deprecated the standalone `gemini` CLI (service ends
