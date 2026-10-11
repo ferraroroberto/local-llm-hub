@@ -595,18 +595,34 @@ Models tab also renders its declared placement *intent* straight from
 highlighted, cpu-resident tiers marked — the flag is the *effective* device
 per host from `model_registry.cpu_resident_map`, so an always-CPU row like
 `whisper-medium-translate`'s `-ng` is tagged on its owner too, matching the
-Fleet summary) and a startup-policy badge that reads the live state honestly
-(`eager`, `on-demand · loaded`, `on-demand · idle-unloaded`). No per-card
-size chip and no host budget bar (#434): capacity is the Fleet summary
-card's job, and the bar repeated the same machine fact on every card. The
-data rides `GET /admin/api/models` as a per-row `placement` object (the
-top-level `host_budgets` map was retired with the bar). The card is not on
-the row face (#647): a row reads in two lines (name and status, then the key
-fact), and the chips open at the top of the row's "More actions" chevron.
+memory summary) and the startup policy, read honestly from the live state
+(*Always on*, *on demand · loaded*, *on demand · idle*). No per-card size chip
+and no host budget bar (#434): capacity is the memory glance's job. The data
+rides `GET /admin/api/models` as a per-row `placement` object (the top-level
+`host_budgets` map was retired with the bar). The chips are not on the row
+face (#647): they head the row's menu and its sheet / detail pane.
+
+**Models layout (#737).** The tab opens on a **memory** glance — one meter per
+machine (live GPU memory, RAM on a machine with no discrete GPU, the `~`
+estimate against the declared ceiling only as the fallback, *not confirmed*
+until a figure exists) — read on tab open and once after a Start / Stop
+settles, never polled. Below it, **Running · All** picks the list (the old
+*Active models only* switch's stored choice carries over), and one shared row
+per model, grouped by the machine serving it: the avatar's alive badge says
+it runs, the meta line carries kind, remote host, port and footprint, an
+exception chip appears only for *no key*, *failover*, *adopted* or *on demand*,
+and **Start / Stop** is the one visible verb. Everything else is in the row's
+menu (Ping, Transcription dictionary, Edit placement, Model log, and Force
+stop last, behind a confirm). Tapping a row opens the model's sheet on a phone,
+or fills the detail pane beside the list on a wide window (1100px+, mouse):
+full details (process id, device, aliases, the roles it serves), placement,
+the placement editor or dictionary, and the log tail. Tapping a memory row
+opens that machine's running / loadable summary the same way.
 
 **Editable placement — the UI writes through to git (#424).** On the single
 write host (`hub.config_write_host` in `models.yaml` — the tower) each
-placement card gains an edit button that opens an inline editor: reorder /
+model's menu offers **Edit placement**, which opens the editor in the
+model's sheet (detail pane on a wide window): reorder /
 add / remove chain hosts from the fleet host list, toggle a host's degraded
 `cpu` tier, flip `eager` ↔ `on_demand`, set `idle_unload_minutes`. Saving
 `PUT`s `/admin/api/models/<id>/placement`, which **validates first** —
@@ -663,9 +679,9 @@ a live port and a forwarded `/start` returns a benign `409` — so the periodic
 pass is safe to repeat forever and is strictly **additive**: it never stops a
 model you started by hand.
 
-The **Fleet summary** card in the Models tab (#354, reworked #431, polished
-#434) renders a read-only per-machine summary over **every** configured
-fleet host: the models **running** there right now (live state), the models
+Each machine's **memory summary** on the Models tab (#354, reworked #431,
+polished #434, opened from its memory row since #737) is read-only, over
+**every** configured fleet host: the models **running** there right now (live state), the models
 **loadable** but not running (that host's chain members, including
 `on_demand` rows) — both lists one model per line, right-aligned at one
 muted caption size, keeping the per-model device tag (#434) — and a
@@ -677,8 +693,8 @@ same 1-decimal format, so the two tabs can never disagree while both are
 live; the `~`-prefixed `est_vram_mb` sum vs the declared ceiling appears
 only as a fallback where no live GPU figure exists (host offline, or a
 unified-memory host with no discrete-GPU metric). It
-carries **zero controls** beyond the collapse — placement is edited per model
-in the Models card (#424) or `config/models.yaml`. Liveness is the same
+carries **zero controls** — placement is edited per model (#424) or in
+`config/models.yaml`. Liveness is the same
 hub-independent TCP probe the Machines tab uses (*is the box on?*), so a
 **managed-only satellite that runs no hub** (`openclaw` — driven directly
 over SSH, no models registered) reads *online* honestly with a note instead
@@ -688,9 +704,9 @@ port (voice-transcriber's own whisper-server on `:8090`) is labelled
 
 **Capacity awareness (#375):** each host row may declare a `vram_mb` GPU-VRAM
 ceiling (and, display-only, a `ram_mb` total) and each GPU model a rough
-`est_vram_mb` footprint (all in `config/models.yaml`). The card sums a host's
+`est_vram_mb` footprint (all in `config/models.yaml`). The summary sums a host's
 desired + running models' `est_vram_mb` and shows an **advisory** *"Over VRAM
-capacity"* warning on that host's row when the total exceeds its ceiling — a
+capacity"* warning (its memory meter in danger, the header line naming it) when the total exceeds its ceiling — a
 heads-up that a placement change overcommits the box (e.g. `gaming`'s 8 GB
 GTX 1070), replacing the by-hand `nvidia-smi` glance. Rows resident on
 **CPU on that host** — piper's CPU-only engine, `-ng` whisper rows, a chain's

@@ -98,14 +98,9 @@ def test_view_placement_button_jumps_to_models_tab(page, admin_url):
 
     page.click("#rolesViewPlacementBtn")
     page.wait_for_selector("#paneModels", state="visible", timeout=5000)
-    # The card is opened one animation frame *after* the pane flips visible
-    # (goToFleetPlacement defers it via requestAnimationFrame), so a single
-    # read right after the visibility wait races that frame (#588). Wait on
-    # the card's own open flag instead.
-    page.wait_for_function(
-        "document.getElementById('fleetPlacementCard').open === true",
-        timeout=5000,
-    )
+    # The jump lands on the Models memory glance (#737), which holds what the
+    # old Fleet summary card did (per machine: running, loadable, capacity).
+    page.wait_for_selector("#modelsMemoryCard", state="visible", timeout=5000)
 
 
 def test_roles_card_shows_no_bare_headings_while_loading(page, admin_url):

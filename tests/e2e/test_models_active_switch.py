@@ -1,73 +1,79 @@
-"""The Models card's "Active models only" switch shows its real state (#647).
+"""The Models list's Running · All control shows its real state (#647, #737).
 
-The vendored switch paints state with the ``.on`` class (track + thumb) and
-``aria-checked``. Both must follow the filter on load and on every toggle, and
-the choice must survive a reload. The markup ships as ON, so a page whose JS
-does not drive the class (a stale module under fresh markup) looks ON forever.
+Since #737 the scope is the vendored segmented control (a true peer set), not
+the "Active models only" switch. It keeps the switch's stored preference
+(``llmhub.models.activeOnly``: "true" = Running), so nobody loses their
+choice; the raised segment (``aria-pressed``) must follow the filter on load
+and on every tap, survive a reload, and the empty state must read right in
+both positions.
 """
 
 from __future__ import annotations
 
+import json
+
 from playwright.sync_api import expect
 
-_SWITCH = "#modelsActiveToggle"
+_SCOPE = "#modelsScope"
 _STORE_KEY = "llmhub.models.activeOnly"
 
-
-def _track(page) -> str:
-    return page.evaluate(
-        "sel => getComputedStyle(document.querySelector(sel)).backgroundColor", _SWITCH
-    )
-
-
-def _wait_track_not(page, colour: str) -> None:
-    page.wait_for_function(
-        "([sel, c]) => getComputedStyle(document.querySelector(sel)).backgroundColor !== c",
-        arg=[_SWITCH, colour],
-        timeout=2000,
-    )
+# One stopped model and nothing running: Running is empty, All is not.
+FAKE_MODELS = {
+    "models": [
+        {
+            "id": "stopped_row", "display_name": "stopped-row", "backend": "llama",
+            "port": 8082, "aliases": [], "controllable": True, "ownership": "none",
+            "pid": None, "reachable": False, "host": "tower",
+        },
+    ],
+}
 
 
 def _open(page, admin_url):
+    page.route(
+        "**/admin/api/models",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(FAKE_MODELS)
+        ),
+    )
     page.goto(admin_url, wait_until="load")
     page.click("#tabModels")
-    page.wait_for_selector(_SWITCH, state="visible", timeout=5000)
+    page.wait_for_selector(_SCOPE, state="visible", timeout=5000)
 
 
-def _assert_state(page, on: bool, on_track: str):
-    """Class, aria-checked and the settled track colour all say ``on``.
-
-    The track animates (0.15s transition), so the colour is awaited with the
-    auto-retrying matcher rather than read once.
-    """
-    switch = page.locator(_SWITCH)
-    expect(switch).to_have_attribute("aria-checked", "true" if on else "false")
-    if on:
-        expect(switch).to_have_class("toggle on")
-        expect(switch).to_have_css("background-color", on_track)
+def _assert_scope(page, running: bool):
+    seg = page.locator(_SCOPE)
+    expect(seg.locator('[data-scope="running"]')).to_have_attribute("aria-pressed", "true" if running else "false")
+    expect(seg.locator('[data-scope="all"]')).to_have_attribute("aria-pressed", "false" if running else "true")
+    empty = page.locator("#modelsEmpty")
+    if running:
+        expect(empty).to_be_visible()
+        expect(empty).to_contain_text("choose All")
+        expect(page.locator('#modelsList .model-row[data-id="stopped_row"]')).to_have_count(0)
     else:
-        expect(switch).to_have_class("toggle")
-        _wait_track_not(page, on_track)
+        expect(empty).to_be_hidden()
+        expect(page.locator('#modelsList .model-row[data-id="stopped_row"]')).to_have_count(1)
 
 
-def test_active_switch_follows_the_filter_and_persists(page, admin_url):
+def test_running_all_follows_the_filter_and_persists(page, admin_url):
+    # A preference stored by the old switch ("false" = show everything) is honoured.
     page.add_init_script(
-        f"try {{ if (!sessionStorage.getItem('seeded')) {{ localStorage.removeItem('{_STORE_KEY}');"
+        f"try {{ if (!sessionStorage.getItem('seeded')) {{ localStorage.setItem('{_STORE_KEY}', 'false');"
         " sessionStorage.setItem('seeded', '1'); } } catch (_) {}"
     )
     _open(page, admin_url)
-    on_track = _track(page)
-    _assert_state(page, True, on_track)
+    _assert_scope(page, running=False)
+    assert page.locator("#modelsActiveToggle").count() == 0, "the old switch is gone"
 
-    page.click(_SWITCH)
-    _assert_state(page, False, on_track)
+    page.click(f'{_SCOPE} [data-scope="running"]')
+    _assert_scope(page, running=True)
+    assert page.evaluate(f"localStorage.getItem('{_STORE_KEY}')") == "true"
 
-    page.click(_SWITCH)
-    _assert_state(page, True, on_track)
+    page.click(f'{_SCOPE} [data-scope="all"]')
+    _assert_scope(page, running=False)
 
-    page.click(_SWITCH)  # off, then reload: the choice persists
-    _assert_state(page, False, on_track)
+    page.click(f'{_SCOPE} [data-scope="running"]')  # Running, then reload: the choice persists
     page.reload(wait_until="load")
     page.click("#tabModels")
-    page.wait_for_selector(_SWITCH, state="visible", timeout=5000)
-    _assert_state(page, False, on_track)
+    page.wait_for_selector(_SCOPE, state="visible", timeout=5000)
+    _assert_scope(page, running=True)

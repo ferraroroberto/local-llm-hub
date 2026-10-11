@@ -10,8 +10,9 @@ What they lock in:
   * chain pills render in priority order with the effective owner
     highlighted and cpu-resident tiers marked — including an always-CPU row
     (whisper_translate's ``-ng``) whose *owner* pill carries the tag (#434);
-  * the startup badge reads the policy + live state truthfully — ``eager``,
-    ``on-demand · loaded``, ``on-demand · idle-unloaded``;
+  * the startup policy reads the policy + live state truthfully — ``Always
+    on`` in plain words, ``on demand · loaded``, ``on demand · idle`` (#737:
+    "eager" is gone, and a loaded on-demand row is never painted green);
   * the cards stay light (#434): no per-card size chip and no host budget
     bar anywhere — capacity is the Fleet summary card's job;
   * #436: the meta line ends with ``· ~X GB`` (the registry's est_vram_mb)
@@ -20,8 +21,10 @@ What they lock in:
     show no size;
   * subscription rows (claude) carry no placement section at all;
   * #647 (J-10): the placement chips are not on the row face — a row reads in
-    two lines (name + status, key fact) — and sit one tap behind the row's
-    "More actions" details, keyboard-reachable, on phone and desktop.
+    two lines (name, then one budgeted meta line) — and sit one tap behind the
+    row's "More actions" details, keyboard-reachable, on phone and desktop;
+  * #737: the face carries the alive badge instead of a "running" chip, no
+    "stopped" or "eager" word, and only exception chips (on demand, failover).
 """
 
 from __future__ import annotations
@@ -172,16 +175,17 @@ def _open_models_tab(page, admin_url):
     page.goto(admin_url, wait_until="load")
     page.click("#tabModels")
     page.wait_for_selector("#paneModels", state="visible", timeout=5000)
-    page.wait_for_selector("#modelsList .app-item", state="visible", timeout=10000)
+    page.wait_for_selector("#modelsList .model-row", state="visible", timeout=10000)
 
 
 def _item(page, model_id):
-    return page.locator(f'#modelsList .app-item[data-id="{model_id}"]')
+    return page.locator(f'#modelsList .model-row[data-id="{model_id}"]')
 
 
 def _open_details(page, model_id):
     """Open a row's "More actions" details — where the placement chips live."""
     item = _item(page, model_id)
+    page.keyboard.press("Escape")  # close a menu left open by an earlier step
     item.locator(".row-menu-toggle").click()
     item.locator(".placement").wait_for(state="visible", timeout=5000)
     return item
@@ -214,20 +218,20 @@ def test_degraded_cpu_tier_is_marked(page, admin_url):
     assert "owner" not in (last.get_attribute("class") or "")
 
 
-def test_startup_badge_reads_policy_and_live_state(page, admin_url):
+def test_startup_policy_reads_policy_and_live_state(page, admin_url):
     _open_models_tab(page, admin_url)
 
-    orpheus_badges = _open_details(page, "orpheus").locator(".placement .badge")
-    assert orpheus_badges.count() == 1
-    assert orpheus_badges.first.inner_text() == "eager"
+    orpheus_policy = _open_details(page, "orpheus").locator(".placement .startup-policy")
+    assert orpheus_policy.count() == 1
+    assert orpheus_policy.first.inner_text() == "Always on"
 
-    gemma_badge = _open_details(page, "gemma4_26b").locator(".placement .badge").first
-    assert gemma_badge.inner_text() == "on-demand · idle-unloaded"
+    gemma_policy = _open_details(page, "gemma4_26b").locator(".placement .startup-policy").first
+    assert gemma_policy.inner_text() == "on demand · idle"
 
-    # A reachable on-demand row reads "loaded" — and carries the good tint.
-    chatter_badge = _open_details(page, "chatterbox").locator(".placement .badge").first
-    assert chatter_badge.inner_text() == "on-demand · loaded"
-    assert "good" in (chatter_badge.get_attribute("class") or "")
+    # A reachable on-demand row reads "loaded" — a plain fact, never the success tint.
+    chatter_policy = _open_details(page, "chatterbox").locator(".placement .startup-policy").first
+    assert chatter_policy.inner_text() == "on demand · loaded"
+    assert chatter_policy.get_attribute("data-tone") is None
 
 
 def test_always_cpu_owner_pill_carries_cpu_tag(page, admin_url):
@@ -259,13 +263,13 @@ def test_meta_line_carries_size_only_for_process_rows(page, admin_url):
     :8088, est 0) and the subscription row show no size."""
     _open_models_tab(page, admin_url)
 
-    orpheus_meta = _item(page, "orpheus").locator(".app-meta").inner_text()
+    orpheus_meta = _item(page, "orpheus").locator(".action-row-meta").inner_text()
     assert "~2.1 GB" in orpheus_meta          # 2200 MB → 2.1 GB
-    gemma_meta = _item(page, "gemma4_26b").locator(".app-meta").inner_text()
+    gemma_meta = _item(page, "gemma4_26b").locator(".action-row-meta").inner_text()
     assert "~13.1 GB" in gemma_meta           # 13400 MB → 13.1 GB
-    nothink_meta = _item(page, "qwen35_4b_nothink").locator(".app-meta").inner_text()
+    nothink_meta = _item(page, "qwen35_4b_nothink").locator(".action-row-meta").inner_text()
     assert "GB" not in nothink_meta, "virtual alias must carry no size"
-    claude_meta = _item(page, "claude_haiku").locator(".app-meta").inner_text()
+    claude_meta = _item(page, "claude_haiku").locator(".action-row-meta").inner_text()
     assert "GB" not in claude_meta, "subscription row must carry no size"
 
 
@@ -285,25 +289,28 @@ def test_row_face_is_two_lines_and_chips_sit_behind_details(page, admin_url, vie
     page.set_viewport_size(viewport)
     _open_models_tab(page, admin_url)
 
-    # Face: exactly the title row + the meta line, and no chip visible.
+    # Face: the title + one meta line, no placement chip, and the alive badge
+    # (not a "running" / "stopped" / "eager" word) saying what runs (#737).
     for model_id in ("orpheus", "whisper", "gemma4_26b", "claude_haiku"):
-        main = _item(page, model_id).locator(":scope > .app-main")
-        kids = main.locator(":scope > *")
-        assert kids.count() == 2, f"{model_id} face has {kids.count()} blocks"
-        assert "app-title-row" in (kids.nth(0).get_attribute("class") or "")
-        assert "app-meta" in (kids.nth(1).get_attribute("class") or "")
-        for chip in (".place-pill", ".placement .badge"):
-            assert not any(
-                main.locator(chip).nth(i).is_visible()
-                for i in range(main.locator(chip).count())
-            ), f"{model_id} shows {chip} on its face"
+        main = _item(page, model_id).locator(":scope > .action-row-main")
+        text = main.locator(".action-row-text > *")
+        assert text.count() == 2, f"{model_id} face has {text.count()} lines"
+        assert "action-row-title" in (text.nth(0).get_attribute("class") or "")
+        assert "action-row-meta" in (text.nth(1).get_attribute("class") or "")
+        assert main.locator(".place-pill, .placement").count() == 0, f"{model_id} shows placement on its face"
+        face = main.inner_text().lower()
+        for word in ("running", "stopped", "eager"):
+            assert word not in face, f"{model_id} face says {word!r}"
+    assert _item(page, "orpheus").locator('.action-row-avatar[data-badge="up"]').count() == 1
+    assert _item(page, "gemma4_26b").locator(".action-row-avatar[data-badge]").count() == 0
+    assert _item(page, "gemma4_26b").locator(".action-row-main .chip").inner_text() == "on demand"
 
-    # Details: the whole chain + startup badge are one tap away, on screen.
+    # Details: the whole chain + startup policy are one tap away, on screen.
     whisper = _open_details(page, "whisper")
     pills = whisper.locator(".place-pill")
     assert [pills.nth(i).inner_text() for i in range(pills.count())] == [
         "gaming", "mac-mini-m4", "tower · cpu"]
-    assert whisper.locator(".placement .badge").inner_text() == "eager"
+    assert whisper.locator(".placement .startup-policy").inner_text() == "Always on"
     # The floating list itself is the role=menu layer: the design review treats
     # an absolutely positioned [role=menu] as the popup that paints over the
     # rows below it, so the placement card and the actions share it (TOUCH-02).

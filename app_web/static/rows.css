@@ -199,3 +199,9 @@ details.sheet-disclosure[open] > summary .sheet-chevron { transform: rotate(90de
 /* ---------- the ⓘ info sheet's body ---------- */
 .info-sheet-body p { margin: 0 0 10px; color: var(--ink); font-size: var(--font-body-sm); }
 .info-sheet-body p:last-child { margin-bottom: 0; }
+
+/* A sheet's action buttons that may carry longer words (Edit placement,
+ * Transcription dictionary): two columns where each gets 160px, else one per
+ * row, so a label never wraps inside its button. */
+.sheet-buttons.sheet-buttons--flow { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.sheet-buttons .button-tint { white-space: nowrap; }
