@@ -111,6 +111,9 @@ def test_token_figures_group_thousands(page, admin_url):
     assert page.inner_text("#cldInputTok") == "41,564.0M"
     assert page.inner_text("#cldOutputTok") == "2,323.7M"
     assert page.inner_text("#cldCacheRead") == "981.2M"
+    # The total cost leads the figures (#739): input + output + cache reads.
+    # (fmtCost groups with the browser locale, which may print no separator.)
+    assert page.inner_text("#cldTotalCost").replace(",", "").replace(".", "") == "≈ $1644"
 
 
 @pytest.mark.parametrize(

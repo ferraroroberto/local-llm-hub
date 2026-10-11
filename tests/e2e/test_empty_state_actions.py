@@ -2,9 +2,10 @@
 
 The design review's judgment pass flags an empty list whose sentence neither
 sits beside a control nor names the control that fills it, and a table that
-shows only its header row. On the Code tab the three breakdown cards stayed
-header-only until the first usage summary arrived, and "No sessions found"
-was asserted before anything had been read.
+shows only its header row. On the Code tab the breakdowns stayed header-only
+until the first usage summary arrived, and "No sessions found" was asserted
+before anything had been read. Since #739 By project is a card of rows and By
+model and the recent sessions open as sheets from it.
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ def test_code_cards_wait_for_the_first_summary_then_name_their_control(page, adm
     # Before the summary lands: one honest "reading" line, no header-only tables,
     # no "No sessions found" claim.
     page.wait_for_selector("#cldPending", state="visible", timeout=5000)
-    for card in ("#cldModelCard", "#cldProjectCard", "#cldSessionsCard"):
+    for card in ("#cldProjectCard", "#cldChartsCard"):
         assert page.locator(card).is_hidden(), f"{card} is showing before the first summary"
 
     released.append(True)
@@ -49,15 +50,21 @@ def test_code_cards_wait_for_the_first_summary_then_name_their_control(page, adm
     page.wait_for_selector("#cldPending", state="hidden", timeout=10000)
 
     # After it lands (the e2e hub has no usage history): every empty state is
-    # visible and names the control that changes it (the period or vendor
-    # selector above) or carries its own action button.
-    for card, empty in (
-        ("#cldModelCard", "#cldModelEmpty"),
-        ("#cldProjectCard", "#cldProjectEmpty"),
-        ("#cldSessionsCard", "#cldSessionsEmpty"),
+    # visible where it lives (the card, or the sheet its row opens) and names
+    # the control that changes it (the period switch or agent filter above) or
+    # carries its own action button.
+    for opener, empty in (
+        (None, "#cldProjectEmpty"),
+        ("#cldModelOpenBtn", "#cldModelEmpty"),
+        ("#cldSessionsOpenBtn", "#cldSessionsEmpty"),
     ):
-        page.wait_for_selector(f"{card} {empty}", state="visible", timeout=5000)
+        if opener:
+            page.click(opener)
+        page.wait_for_selector(empty, state="visible", timeout=5000)
         text = page.locator(f"{empty} .empty-state-message").inner_text().lower()
+        if opener:
+            page.keyboard.press("Escape")
+            page.wait_for_selector(empty, state="hidden", timeout=3000)
         has_action = page.locator(f"{empty} .empty-state-action").count() > 0
         assert has_action or "above" in text, f"{empty} names no control: {text!r}"
         assert "today" not in text, f"{empty} still says 'today' for every period: {text!r}"

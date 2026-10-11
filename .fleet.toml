@@ -102,10 +102,10 @@ action-row  = { src = "app/webapp/static/_vendored/action-row", sha = "92d16e00c
 segmented   = { src = "app/webapp/static/_vendored/segmented", sha = "92d16e00cd47561de647cda12faea7fcdb6f081b", dest = "app_web/static/_vendored/segmented" }
 
 # Views that span the width right of the rail on a wide window (design.md
-# layout.wide): Hub's glance + services | Activity columns (#738, the owner's
-# answer on #735). Every other view keeps the measure or a master-detail.
+# layout.wide): Hub's glance + services | Activity columns (#738) and Code's
+# totals + trend | breakdowns columns (#739), the owner's answers on #735. Every other view keeps the measure or a master-detail.
 [design]
-wide_views = ["hub"]
+wide_views = ["hub", "code-usage"]
 
 # Accepted /design-review exceptions: a failing rubric rule listed here is
 # filed under "## Accepted" in the design-review issue, never under Findings.
@@ -171,6 +171,21 @@ click = "#byModelOpenBtn"
 tab   = "hub"
 id    = "log-sheet"
 click = "#logOpenBtn"
+
+[[design.review.extra_steps]]
+tab   = "code-usage"
+id    = "agent-sheet"
+click = "#cldAgentBtn"
+
+[[design.review.extra_steps]]
+tab   = "code-usage"
+id    = "code-model-sheet"
+click = "#cldModelOpenBtn"
+
+[[design.review.extra_steps]]
+tab   = "code-usage"
+id    = "sessions-sheet"
+click = "#cldSessionsOpenBtn"
 
 # Populated request and error lists come from a throwaway hub with invented
 # records (scripts/design_review_synthetic.py), never from the live hub's

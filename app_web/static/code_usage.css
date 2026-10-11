@@ -1,6 +1,61 @@
-/* Claude Code usage tab (issue #20).
+/* Code tab (issue #20; redesigned by #739).
  * Inherits .card, .counters, .card-list.dense, .badge, .empty from styles.css.
  */
+
+/* The period switch and the agent filter share one row above the figures. */
+.cld-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: 12px;
+}
+.cld-tools .segmented { flex: 1 1 220px; }
+.cld-tools .segmented .segmented-item { flex: 1; }
+.cld-agent-btn {
+  flex: 0 1 auto;
+  min-height: var(--row-sm);
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.cld-agent-btn > span { overflow: hidden; text-overflow: ellipsis; }
+
+/* The total cost leads the figures: the one number read first (#739). */
+.cld-total {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-bottom: 10px;
+}
+.cld-total-value {
+  font-size: var(--font-heading-lg);
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.cld-total-label { font-size: var(--font-body-sm); color: var(--muted); }
+
+/* A one-line note shown only when it applies now; the long copy is the ⓘ. */
+.cld-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: var(--font-body-sm);
+}
+.cld-note .icon { flex: none; }
+.cld-note:first-child { margin-top: 0; }
+
+/* Sub-agents (OTel): the pane's nine columns. On a phone the table scrolls
+ * sideways inside its wrap, and the hint below says so. */
+.cld-sub-summary { margin: 0 0 6px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cld-subagents .counters-wrap { margin-top: 10px; }
+
 
 /* Big counter grid — 4 equal cells on desktop, one stacked list on a phone. */
 .cld-counter-grid {
@@ -18,6 +73,17 @@
   flex-direction: column;
   gap: 4px;
 }
+/* A counter is a button (#739): its tap picks the trend metric. The chosen one
+ * carries the accent hairline. */
+button.cld-counter {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+button.cld-counter[aria-pressed="true"] { border-color: var(--accent-border-strong); box-shadow: inset 0 0 0 1px var(--accent-border-strong); }
+.cld-counter-grid.cld-single { grid-template-columns: 1fr; }
 
 /* The big figure is right-aligned in tabular numerals so the four cards share a
  * right edge and their digits line up (#692). */
@@ -82,20 +148,25 @@
 /* First-column truncation is the shared .counters td.td-trunc rule in
  * styles.css (#215 — also used by the Hub counters + OTel leaderboard). */
 
-/* Chart wrappers (issue #50). */
-.cld-chart-wrap { margin-bottom: 20px; }
-.cld-chart-wrap:last-child { margin-bottom: 0; }
-
-.cld-chart-label {
-  font-size: var(--font-caption);
-  color: var(--muted);
-  margin-bottom: 6px;
-}
-
+/* The one trend chart (issue #50; one chart since #739). */
 .cld-chart-inner {
   position: relative;
-  height: 140px;
+  height: 180px;
 }
+
+/* By project rows: the requests lead, then the tokens. */
+#cldProjectCard .empty-state { margin: 0; }
+.cld-links { border-top: 1px solid var(--line-muted); }
+
+/* The full per-agent table is the wide window's (#739); a phone reads each
+ * agent's figures in the agent sheet. */
+#cldVendorCard { display: none; }
+@media (min-width: 1100px) and (pointer: fine) {
+  #cldVendorCard:not([hidden]) { display: block; }
+}
+
+/* Sessions sheet. */
+#cldSessionsSheet .cld-sessions { margin: 0; }
 
 /* Session list rows */
 ul.cld-sessions.card-list.dense > li {
@@ -141,12 +212,12 @@ ul.cld-sessions > li > .cld-sess-meta code {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: -4px 0 8px;
+  margin: 0 0 10px;
   padding: 7px 10px;
   color: var(--danger-text);
   background: var(--danger-soft);
   border: 1px solid var(--danger-border);
   border-radius: var(--radius-sm);
-  font-size: var(--font-caption);
+  font-size: var(--font-body-sm);
 }
 .cld-error .icon { flex: 0 0 auto; }
