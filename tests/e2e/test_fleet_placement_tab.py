@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import json
 
+from playwright.sync_api import expect
+
 # A fixed fleet: the local tower (online), an offline Mac Mini, and a
 # nothing-placeable machine.
 FAKE_PLACEMENT = {
@@ -244,7 +246,9 @@ def test_capacity_warning_renders_only_on_overcommitted_host(page, admin_url):
     tower_row = page.locator('.memory-row[data-host-id="tower"]')
     assert "is-over" in (tower_row.get_attribute("class") or "")
     assert tower_row.locator('.memory-meter[data-level="high"]').count() == 1
-    assert "over capacity" in page.locator("#modelsHeadLine").inner_text()
+    # The header names it once the models read lands, which can trail the
+    # stubbed placement by about a second: wait, don't read at once (#746).
+    expect(page.locator("#modelsHeadLine")).to_contain_text("over capacity", timeout=10000)
     warn = _open_host(page, "tower").locator(".fleet-capacity-warn")
     assert warn.count() == 1, "overcommitted host should show the capacity warning"
     assert "over vram capacity" in warn.inner_text().lower()
