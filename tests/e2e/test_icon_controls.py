@@ -12,9 +12,25 @@ from __future__ import annotations
 
 
 def test_model_rows_ping_from_the_menu_not_a_bare_glyph(page, admin_url):
+    # The Models list opens on Running (#737), which holds only rows whose
+    # backend is up or adopted: on a clean runner (CI) none is, so the list is
+    # empty and no row ever renders (#752). Ping is offered on every row, so
+    # ask for All -- the stored scope preference (``llmhub.models.activeOnly``:
+    # "false" = All) -- and the test no longer depends on what the host runs.
+    page.add_init_script(
+        "try { localStorage.setItem('llmhub.models.activeOnly', 'false'); } catch (_) {}"
+    )
     page.goto(admin_url, wait_until="domcontentloaded")
     page.click("#tabModels")
-    page.wait_for_selector("#modelsList .model-row", state="attached", timeout=10000)
+    try:
+        page.wait_for_selector("#modelsList .model-row", state="attached", timeout=10000)
+    except Exception as exc:  # noqa: BLE001 -- name the missing element, then re-raise
+        scope = page.evaluate("localStorage.getItem('llmhub.models.activeOnly')")
+        empty = page.locator("#modelsEmpty").text_content() or ""
+        raise AssertionError(
+            "no '#modelsList .model-row' rendered on the Models tab "
+            f"(stored scope={scope!r}, empty-state={empty.strip()!r})"
+        ) from exc
 
     # Not a visible verb on the row (#737: Start / Stop is its only one).
     assert page.locator('#modelsList .action-row-verb[data-act="ping"]').count() == 0
