@@ -812,6 +812,9 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 #panePlayground .opt-stack > label,
 #panePlayground .opt-group-title { font-size: var(--font-body-sm); }
 .play-result > :first-child + * { margin-top: 0; }
+/* An empty card is its one sentence: the static headings and the reply box arrive with the reply (#759). */
+.play-result.is-empty > [data-label],
+.play-result.is-empty > .logpane { display: none; }
 
 /* ---------- Models tab (#737) ----------
  * Rows are the shared row (rows.js on the vendored action-row), grouped by
