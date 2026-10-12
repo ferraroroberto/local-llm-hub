@@ -69,6 +69,13 @@ def _open_hub(page, admin_url, viewport, status=_STATUS):
     page.wait_for_function(
         "document.getElementById('dockerStatusText').textContent !== '—'", timeout=10000
     )
+    # The header line is filled by a different read (/admin/api/status) and says
+    # "Reading hub…" until it lands; on a slow runner the services rows can paint
+    # first, so asserting on the line before this read the line, not the hub (#752).
+    page.wait_for_function(
+        "!document.getElementById('hubHeadLine').textContent.startsWith('Reading hub')",
+        timeout=10000,
+    )
 
 
 def _open_sheet(page):
