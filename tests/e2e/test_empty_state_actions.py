@@ -96,3 +96,39 @@ def test_hub_counters_and_errors_empties_name_what_to_do(page, admin_url):
     action = page.locator("#recentErrorsEmpty .empty-state-action")
     assert action.count() == 1, "recent errors empty state has no action"
     assert action.get_attribute("data-open-tab") == "playground"
+
+
+def test_playground_chat_empty_card_shows_only_its_sentence(page, admin_url):
+    """The Chat result card's static Reply/Usage headings are not content (#759, J-09)."""
+    page.route(
+        "**/admin/api/playground/send",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json",
+            body='{"text": "An invented reply.", "usage": {}}'),
+    )
+    page.set_viewport_size(PHONE)
+    page.goto(admin_url, wait_until="load")
+    page.click("#tabPlayground")
+    page.wait_for_selector("#chatResult", state="visible", timeout=5000)
+    page.wait_for_function(
+        "document.getElementById('playgroundModel').options.length > 0", timeout=10000)
+
+    card = page.locator("#chatResult")
+    empty = card.locator("[data-empty]")
+    assert empty.is_visible()
+    assert "Send" in empty.inner_text(), "the sentence names the control that fills it"
+    assert card.locator(".opt-group-title").count() == 2
+    assert card.locator(".opt-group-title:visible").count() == 0
+    assert page.locator("#playgroundReply").is_hidden()
+
+    page.fill("#playgroundPrompt", "An invented test prompt.")
+    page.click("#playgroundSendBtn")
+    page.wait_for_function(
+        "document.getElementById('playgroundReply').textContent === 'An invented reply.'", timeout=5000)
+    assert empty.is_hidden()
+    assert card.locator(".opt-group-title:visible").count() == 2
+    assert page.locator("#playgroundReply").is_visible()
+
+    page.click("#playgroundClearBtn")
+    assert empty.is_visible()
+    assert card.locator(".opt-group-title:visible").count() == 0

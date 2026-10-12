@@ -83,19 +83,22 @@ function renderPlayHeadLine() {
 }
 
 /* Each result card shows a one-line placeholder until its mode has produced
- * something (a status line, a reply, an image, audio or answers). */
+ * something (a status line, a reply, an image, audio or answers). A static
+ * `[data-label]` heading is not content: it neither hides the placeholder nor
+ * shows while the card is empty (`.is-empty`, styles.css). */
 function wireResultPlaceholders() {
   document.querySelectorAll('#panePlayground .play-result').forEach(function (card) {
     const placeholder = card.querySelector('[data-empty]');
     if (!placeholder) return;
     const sync = function () {
       const filled = Array.prototype.some.call(card.children, function (child) {
-        if (child === placeholder || child.hidden) return false;
+        if (child === placeholder || child.hidden || child.hasAttribute('data-label')) return false;
         if (child.tagName === 'IMG' || child.tagName === 'AUDIO') return true;
         if (child.querySelector('img:not([hidden]), audio:not([hidden])')) return true;
         return child.textContent.trim() !== '';
       });
       if (placeholder.hidden !== filled) placeholder.hidden = filled;
+      card.classList.toggle('is-empty', !filled);
     };
     new MutationObserver(function (records) {
       if (records.every(function (r) { return r.target === placeholder; })) return;
