@@ -762,6 +762,8 @@ models:
     # whisper_vanilla, mirroring whisper/orpheus's #323 move) — cross-enabled
     # on tower + mac-mini-m4, which proxy to gaming's hub.
     hosts: [gaming, {id: tower, cpu: true}]
+    startup: on_demand
+    idle_unload_minutes: 5
     engine: whisper-server
     port: 8091
     # CPU-only (`-ng`): medium runs in ~1.5 GB *system RAM*, zero discrete VRAM.
