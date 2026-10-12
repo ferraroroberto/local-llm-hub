@@ -825,7 +825,7 @@ models:
     # Owned by the gaming satellite since #370 (moved off tower alongside
     # whisper_translate, mirroring whisper/orpheus's #323 move) — cross-enabled
     # on tower + mac-mini-m4, which proxy to gaming's hub.
-    host: gaming
+    hosts: [gaming, {id: tower, cpu: true}]
     engine: whisper-server
     port: 8094
     startup: on_demand
