@@ -40,27 +40,22 @@ defineInfo('code-usage', 'About these figures',
 // Chart constants (issue #50)
 // ---------------------------------------------------------------------------
 
-// Fixed colours for the Claude model families. Hardcoded (not from CSS vars)
-// because the Chart.js canvas cannot read CSS custom properties. Fills are the
-// energy-tab's translucent 0.18 alpha over a solid 2px line (#215).
-const CLAUDE_COLORS = {
-  Haiku:  { bg: 'rgba(74,138,243,0.18)',  border: 'rgba(74,138,243,0.85)'  },
-  Sonnet: { bg: 'rgba(76,175,80,0.18)',   border: 'rgba(76,175,80,0.85)'   },
-  Opus:   { bg: 'rgba(240,161,0,0.18)',   border: 'rgba(240,161,0,0.85)'   },
-  Fable:  { bg: 'rgba(63,81,181,0.18)',   border: 'rgba(63,81,181,0.85)'   },
+// Vendor hues for the trend's stacked bars (#751). Hardcoded (not from CSS
+// vars) because the Chart.js canvas cannot read CSS custom properties; each
+// holds at least 3:1 against the card on both themes (white and #161b22).
+// Order is the stack order, base first. `point` is the legend's shape, the
+// non-colour cue the design spec asks of every colour-coded series.
+const VENDORS = {
+  anthropic: { rgb: [219, 109, 40], point: 'circle'   },  // orange
+  openai:    { rgb: [45, 164, 78],  point: 'rect'     },  // green
+  google:    { rgb: [47, 129, 247], point: 'triangle' },  // blue
+  microsoft: { rgb: [137, 87, 229], point: 'rectRot'  },  // purple
+  other:     { rgb: [139, 148, 158], point: 'crossRot' },  // grey
 };
-const CLAUDE_ORDER = ['Haiku', 'Sonnet', 'Opus', 'Fable'];
-// Extra colours assigned in first-seen order to non-Claude families (Codex
-// GPT models, etc.) so each gets its own series instead of collapsing to grey.
-const EXTRA_COLORS = [
-  { bg: 'rgba(186,104,200,0.18)', border: 'rgba(186,104,200,0.85)' }, // purple
-  { bg: 'rgba(0,188,212,0.18)',   border: 'rgba(0,188,212,0.85)'   }, // cyan
-  { bg: 'rgba(233,30,99,0.18)',   border: 'rgba(233,30,99,0.85)'   }, // pink
-  { bg: 'rgba(121,85,72,0.18)',   border: 'rgba(121,85,72,0.85)'   }, // brown
-  { bg: 'rgba(255,112,67,0.18)',  border: 'rgba(255,112,67,0.85)'  }, // deep orange
-];
-// Final fallback for an absent/unattributable model ("unknown").
-const OTHER_COLOR = { bg: 'rgba(154,154,154,0.14)', border: 'rgba(154,154,154,0.65)' };
+const VENDOR_ORDER = ['anthropic', 'openai', 'google', 'microsoft', 'other'];
+// Within a vendor the most-used model in the shown range is solid, the next
+// ones step down; any further model keeps the floor.
+const OPACITY_STEPS = [1, 0.75, 0.5, 0.25];
 
 // The trend chart's four metrics, one per counter (#739).
 const METRICS = {
@@ -723,9 +718,9 @@ function renderDeltas(body) {
 // The trend chart (issue #50; one chart since #739)
 // ---------------------------------------------------------------------------
 
-/* Draw the chosen metric over the last summary's time series. The server
- * sends no series for All (an unbounded axis), so the card says which periods
- * the trend covers instead of drawing nothing. */
+/* Draw the chosen metric over the last summary's time series as stacked
+ * bars, one per bucket (#751). Every period carries a series; a period with
+ * no buckets at all (All before any usage) shows the empty line. */
 function drawChart() {
   const card = els.cldChartsCard;
   if (!card || card.hidden) return;
@@ -734,71 +729,83 @@ function drawChart() {
   if (els.cldChartWrap) els.cldChartWrap.hidden = !has;
   if (els.cldChartEmpty) els.cldChartEmpty.hidden = has;
   if (!has) { _destroyChart(); return; }
-  const metric = METRICS[state.cldMetric];
-  // Stable family list + colours, so a model keeps the same colour on every
-  // metric (issue #71: GPT models get own series).
-  _chart = _makeChart(els.cldChart, _chart, ts.map(function (b) { return b.label; }), ts,
-    _orderedFamilies(ts), state.cldMetric, metric.isTok);
+  _chart = _makeChart(els.cldChart, _chart, ts, state.cldMetric, METRICS[state.cldMetric].isTok);
 }
 
-// Build the ordered list of chart series from the time-series buckets: Claude
-// families first (fixed colours), then every other model (e.g. Codex GPT-5.5)
-// each with its own colour, and finally a grey "Other" for unattributable ids.
-function _orderedFamilies(ts) {
-  const seen = new Set();
+/* The vendor behind a chart series key: the server's model_display() label
+ * (Haiku/Sonnet/Opus/Fable, GPT-5.5, or the raw model id). */
+export function modelVendor(key) {
+  const k = String(key || '').toLowerCase();
+  if (/claude|haiku|sonnet|opus|fable/.test(k)) return 'anthropic';
+  if (/^gpt|codex|^o\d/.test(k)) return 'openai';
+  if (/gemini|gemma/.test(k)) return 'google';
+  if (/^mai-|copilot/.test(k)) return 'microsoft';
+  return 'other';
+}
+
+/* The stacked series for one metric: every model with a non-zero total in
+ * the shown range, grouped by vendor in VENDOR_ORDER and, within a vendor,
+ * most-used first. Opacity follows that rank, so the solid segment sits at
+ * the base of its vendor's block and the legend reads in the same order. */
+export function trendSeries(ts, field) {
+  const totals = {};
   ts.forEach(function (b) {
-    Object.keys(b.models || {}).forEach(function (k) { seen.add(k); });
+    Object.keys(b.models || {}).forEach(function (k) {
+      totals[k] = (totals[k] || 0) + (b.models[k][field] || 0);
+    });
   });
-
-  const series = [];
-  CLAUDE_ORDER.forEach(function (k) {
-    if (seen.has(k)) series.push({ key: k, label: k, bg: CLAUDE_COLORS[k].bg, border: CLAUDE_COLORS[k].border });
+  const keys = Object.keys(totals).filter(function (k) { return totals[k] > 0; });
+  keys.sort(function (x, y) {
+    const vx = VENDOR_ORDER.indexOf(modelVendor(x));
+    const vy = VENDOR_ORDER.indexOf(modelVendor(y));
+    return vx - vy || totals[y] - totals[x] || x.localeCompare(y);
   });
-
-  const rest = Array.from(seen).filter(function (k) {
-    return CLAUDE_ORDER.indexOf(k) === -1 && k !== 'unknown';
-  }).sort();
-  rest.forEach(function (k, i) {
-    const c = EXTRA_COLORS[i % EXTRA_COLORS.length];
-    series.push({ key: k, label: k, bg: c.bg, border: c.border });
+  const rank = {};
+  return keys.map(function (k) {
+    const vendor = modelVendor(k);
+    const i = rank[vendor] || 0;
+    rank[vendor] = i + 1;
+    return {
+      key: k,
+      label: k === 'unknown' ? 'Other' : k,
+      vendor: vendor,
+      opacity: OPACITY_STEPS[Math.min(i, OPACITY_STEPS.length - 1)],
+      data: ts.map(function (b) { return ((b.models || {})[k] || {})[field] || 0; }),
+    };
   });
+}
 
-  if (seen.has('unknown')) {
-    series.push({ key: 'unknown', label: 'Other', bg: OTHER_COLOR.bg, border: OTHER_COLOR.border });
-  }
-  return series;
+function _rgba(rgb, a) {
+  return 'rgba(' + rgb.join(',') + ',' + a + ')';
 }
 
 function _destroyChart() {
   if (_chart) { _chart.destroy(); _chart = null; }
 }
 
-function _makeChart(canvas, existing, labels, ts, families, field, isTok) {
+function _makeChart(canvas, existing, ts, field, isTok) {
   if (!canvas) return existing;
 
-  var datasets = [];
-  families.forEach(function (fam) {
-    var values = ts.map(function (b) { return ((b.models || {})[fam.key] || {})[field] || 0; });
-    if (values.every(function (v) { return v === 0; })) return;
-    datasets.push({
-      label: fam.label,
-      data: values,
-      fill: true,
-      backgroundColor: fam.bg,
-      borderColor: fam.border,
-      borderWidth: 2,
-      tension: 0.3,
-      pointRadius: ts.length > 10 ? 0 : 3,
-      pointHoverRadius: 4,
-    });
+  const datasets = trendSeries(ts, field).map(function (s) {
+    const v = VENDORS[s.vendor];
+    return {
+      label: s.label,
+      data: s.data,
+      backgroundColor: _rgba(v.rgb, s.opacity),
+      // A solid 1px edge keeps a faded segment's boundary at the hue's
+      // contrast against the card.
+      borderColor: _rgba(v.rgb, 1),
+      borderWidth: 1,
+      pointStyle: v.point,
+    };
   });
 
   if (existing) { existing.destroy(); }
 
   /* global Chart */
   return new Chart(canvas, {
-    type: 'line',
-    data: { labels: labels, datasets: datasets },
+    type: 'bar',
+    data: { labels: ts.map(function (b) { return b.label; }), datasets: datasets },
     options: _chartOptions(isTok),
   });
 }
@@ -811,6 +818,7 @@ function _cssVar(name) {
 }
 
 function _chartOptions(isTok) {
+  var fmt = isTok ? fmtTok : fmtNum;
   var gridColor  = _cssVar('--line');
   var tickColor  = _cssVar('--muted');
   var fgColor    = _cssVar('--ink');
@@ -840,12 +848,23 @@ function _chartOptions(isTok) {
         position: 'bottom',
         labels: { color: fgColor, boxWidth: 12, padding: 12, font: { size: 11 }, usePointStyle: true },
       },
+      // The precise-value path: the models with a value in this bucket, in
+      // stack order, then the bucket total (#751).
       tooltip: {
-        callbacks: isTok ? {
+        filter: function (item) { return item.parsed.y !== 0; },
+        callbacks: {
           label: function (ctx) {
-            return ' ' + ctx.dataset.label + ': ' + fmtTok(ctx.parsed.y);
+            return ' ' + ctx.dataset.label + ': ' + fmt(ctx.parsed.y);
           },
-        } : {},
+          footer: function (items) {
+            if (!items.length) return '';
+            const i = items[0].dataIndex;
+            const total = items[0].chart.data.datasets.reduce(function (sum, d) {
+              return sum + (d.data[i] || 0);
+            }, 0);
+            return 'Total: ' + fmt(total);
+          },
+        },
       },
     },
   };

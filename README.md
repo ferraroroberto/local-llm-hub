@@ -2283,13 +2283,17 @@ the four cards stay one height), never added on top.  Claude's
 `cache_read` tokens, by contrast, are reported separately/additively.  The
 OpenAI >272K long-context surcharge (2× input / 1.5× output) is not modelled.
 
-A **Trend** card (issue #50; one chart since #739) draws the metric of the
-counter last tapped (input tokens, output tokens, requests or cache reads) as a
-stacked area chart with one coloured series per model: the Claude families (Haiku / Sonnet / Opus) keep
-fixed colours, and every other model (e.g. Codex `GPT-5.5`) gets its own series
-colour; only an unattributable model id falls into a grey "Other" band.  Day →
-last 14 days; Week → last 12 weeks; Month → last 12 months; All → the card says
-the trend covers Day, Week and Month.  The **Recent sessions** sheet shows the
+A **Trend** card (issue #50; one chart since #739; stacked bars since #751)
+draws the metric of the counter last tapped (input tokens, output tokens,
+requests or cache reads) as stacked bars, one per time bucket, with each model
+a segment.  Segments take their vendor's hue (Anthropic orange, OpenAI green,
+Google blue, Microsoft purple, anything else grey) and, within a vendor, step
+down in opacity by usage over the shown range: the most-used model is solid,
+then 75 %, 50 %, and a 25 % floor.  The stack and the legend run vendor by
+vendor, most-used at the base; the tooltip lists only the models with a value
+in that bucket, then the bucket total.  Day → the last 14 days, Week → 7 days,
+Month → 30 days (all daily bars); All → weekly bars from the first record,
+monthly once that would pass 31 bars.  The **Recent sessions** sheet shows the
 last 15 sessions across every project on this host.
 
 > **⚠️ The local JSONL source undercounts Claude two ways (verified 2026-07-12, #280).** (a) Sessions bridged through **claude.ai/code** (web/desktop remote-control) write `mode`/`permission` lines but **no assistant/usage records** to the local transcripts — their tokens are only visible via the Code tab's **Sub-agents (OTel)** source (issue #68): the hub runs its own OTLP-metrics receiver (`POST /v1/metrics`) that Claude Code's telemetry export can point at; see [docs/telemetry-langfuse.md](docs/telemetry-langfuse.md#claude-code-otel-metrics-receiver-issue-68) for the host env vars. (b) Claude Code **prunes transcripts after ~30 days** (`cleanupPeriodDays`) — to survive that, the hub snapshots daily rollups per (date, vendor, model, project) into `data/code_usage_history.json` (`src/code_usage_history.py`: max-merge on write, per-vendor cutoff on read so no day is double-counted) and feeds them back into the "All" period after the source files are gone. History accumulates from 2026-07-12 forward; days already pruned before then are unrecoverable from disk. On the plus side, newer Claude Code also writes per-session directories with **sub-agent transcripts** (`projects/<proj>/<session>/subagents/agent-*.jsonl`), which the parser now includes — the old sub-agent blind spot is captured where those exist; finer per-subagent attribution is tracked upstream in [anthropics/claude-code#22625](https://github.com/anthropics/claude-code/issues/22625).

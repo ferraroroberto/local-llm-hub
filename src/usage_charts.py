@@ -18,9 +18,13 @@ from src.usage_common import UsageRecord, model_display
 # plain "daily" list, not just the "today"-period chart buckets here).
 MAX_DAILY_DAYS = 14
 
-# How many weeks / months of history to return for the trend charts.
-MAX_CHART_WEEKS = 12
-MAX_CHART_MONTHS = 12
+# The trend chart's bar budget (#751): a phone fits about a month of daily
+# bars. Day/Week/Month stay under it; All draws weeks up to it, then months.
+MAX_CHART_BARS = 31
+
+# Daily bars per period. "today" keeps two weeks of context (a lone bar says
+# nothing); "week" and "month" draw exactly their window (see period_since).
+_DAILY_SPAN = {"today": MAX_DAILY_DAYS, "week": 7, "month": 30}
 
 
 def _week_start(d: date) -> date:
@@ -32,45 +36,50 @@ def _month_start(d: date) -> date:
     return date(d.year, d.month, 1)
 
 
+def _month_starts(first: date, last: date) -> List[date]:
+    out, d = [], _month_start(first)
+    while d <= last:
+        out.append(d)
+        d = date(d.year + d.month // 12, d.month % 12 + 1, 1)
+    return out
+
+
 def build_time_series(
     records: List[UsageRecord], period: str, today: date
 ) -> list:
     """Build oldest-first time-series buckets with per-model breakdown for the chart.
 
-    Returned list is empty for ``period == "all"`` (unbounded x-axis is not useful).
+    Day, Week and Month are daily bars (14, 7 and 30 days). All spans the
+    first record to today in weekly bars, or monthly once that would exceed
+    ``MAX_CHART_BARS``; it is empty when there are no records at all.
     Each bucket: ``{"label": str, "models": {family: {input_tokens, output_tokens, requests}}}``.
     ``input_tokens`` already folds in ``cache_creation_tokens`` so the chart shows billed in.
     """
+    def day_of(r: UsageRecord) -> date:
+        return r.ts.astimezone(timezone.utc).date()
+
     if period == "all":
-        return []
+        if not records:
+            return []
+        first = min(day_of(r) for r in records)
+        weeks = (_week_start(today) - _week_start(first)).days // 7 + 1
+        if weeks <= MAX_CHART_BARS:
+            unit = "week"
+            buckets = [_week_start(first) + timedelta(weeks=i) for i in range(weeks)]
+        else:
+            unit = "month"
+            buckets = _month_starts(first, today)
+    else:
+        unit = "day"
+        span = _DAILY_SPAN.get(period, MAX_DAILY_DAYS)
+        buckets = [today - timedelta(days=i) for i in range(span - 1, -1, -1)]
 
-    if period == "today":
-        buckets = [today - timedelta(days=i) for i in range(MAX_DAILY_DAYS - 1, -1, -1)]
-    elif period == "week":
-        this_mon = _week_start(today)
-        buckets = [this_mon - timedelta(weeks=i) for i in range(MAX_CHART_WEEKS - 1, -1, -1)]
-    else:  # month
-        ym: List[tuple] = []
-        y, m = today.year, today.month
-        for _ in range(MAX_CHART_MONTHS):
-            ym.append((y, m))
-            m -= 1
-            if m == 0:
-                m, y = 12, y - 1
-        buckets = [date(yr, mo, 1) for yr, mo in reversed(ym)]
-
-    bucket_set = set(buckets)
+    to_bucket = {"day": lambda d: d, "week": _week_start, "month": _month_start}[unit]
     bmap: Dict[date, Dict[str, dict]] = {b: {} for b in buckets}
 
     for r in records:
-        rd = r.ts.astimezone(timezone.utc).date()
-        if period == "today":
-            bk = rd
-        elif period == "week":
-            bk = _week_start(rd)
-        else:
-            bk = _month_start(rd)
-        if bk not in bucket_set:
+        bk = to_bucket(day_of(r))
+        if bk not in bmap:
             continue
         family = model_display(r.model)
         if family not in bmap[bk]:
@@ -87,7 +96,7 @@ def build_time_series(
 
     result = []
     for b in buckets:
-        lbl = b.strftime("%b %Y") if period == "month" else b.strftime("%b ") + str(b.day)
+        lbl = b.strftime("%b %Y") if unit == "month" else b.strftime("%b ") + str(b.day)
         result.append({"label": lbl, "models": bmap[b]})
     return result
 
