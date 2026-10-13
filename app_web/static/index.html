@@ -532,7 +532,7 @@
                  one period switch above; a separate store, never added into All. -->
             <div class="cld-subagents" id="cldSubagents" hidden>
               <p class="cld-sub-summary" id="cldSubSummary">—</p>
-              <p class="cld-note muted">A separate source (Claude Code's own OTel export, the only one that sees sub-agent usage), never added into All.</p>
+              <p class="cld-note muted">A separate source (Claude Code's own telemetry export, the only one that sees sub-agent usage), never added into All.</p>
               <div class="counters-wrap table-scroll">
                 <table id="cldSubTable" class="counters">
                   <thead><tr><th>Date</th><th>Project</th><th>Model</th><th>Source</th><th>In</th><th>Out</th><th>Cache reads</th><th>Cache writes</th><th>≈ $</th></tr></thead>
@@ -749,7 +749,7 @@
         </div>
       <div class="sheet-row langfuse-link-row">
         <svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>
-        <span class="sheet-row-label">Langfuse and OTel</span>
+        <span class="sheet-row-label">Langfuse and telemetry</span>
         <span class="sheet-row-value" id="langfuseHealthValue">—</span>
         <button type="button" class="button-tint" id="langfuseSheetOpenBtn" aria-haspopup="dialog">Details</button>
       </div>
@@ -770,10 +770,14 @@
       </div>
       <dl class="sheet-pairs">
         <dt>Health</dt><dd id="hubOtelHealth">—</dd>
-        <dt>OTel</dt><dd id="hubOtelState">—</dd>
-        <dt>PII mode</dt><dd id="hubOtelHash">—</dd>
+        <dt>Telemetry export</dt><dd id="hubOtelState">—</dd>
+        <dt>Hide personal data</dt><dd id="hubOtelHash">—</dd>
         <dt>Endpoint</dt><dd id="hubOtelEndpoint">—</dd>
       </dl>
+      <p class="muted sheet-meta">
+        Telemetry export sends each request's trace to Langfuse (OpenTelemetry).
+        Hide personal data stores a hash of each prompt and answer instead of the text.
+      </p>
       <p id="hubOtelOfflineHint" class="muted sheet-meta" hidden>
         Langfuse stack offline — run <code>start_langfuse.bat</code>, open
         the Langfuse UI (button below),

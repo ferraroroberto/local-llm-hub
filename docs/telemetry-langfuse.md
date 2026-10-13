@@ -137,7 +137,7 @@ run_hub.bat
 
 The admin's **Hub** tab carries it all (since #741, which retired the
 separate Telemetry pane): Services › **Langfuse** opens the stack health,
-OTel state, PII mode, endpoint, Open Langfuse UI and the offline hint; the
+Telemetry export state, Hide personal data, endpoint, Open Langfuse UI and the offline hint; the
 **Activity** feed lists every request with a trace sheet (prompt and
 completion preview, thumbs score, Open in Langfuse); **By model** is the
 per-model leaderboard from the hub's in-memory ring (so it works even when
@@ -312,8 +312,8 @@ share-screen something you might not want fully captured:
 set OTEL_HASH_PROMPTS=true
 ```
 
-(Or set it in `.env`.) Restart the hub. The Langfuse sheet's "PII mode"
-(Hub › Services › Langfuse) flips to `hashed` so you can tell at a glance.
+(Or set it in `.env`.) Restart the hub. The Langfuse sheet's "Hide personal data"
+(Hub › Services › Langfuse) flips to `on` so you can tell at a glance.
 
 ## Disabling telemetry entirely
 
@@ -322,7 +322,7 @@ set OTEL_SDK_DISABLED=true
 ```
 
 Hub keeps serving traffic; spans + metrics become no-ops; the
-Langfuse sheet shows "OTel disabled" but the in-memory leaderboard
+Langfuse sheet shows "Telemetry off" but the in-memory leaderboard
 (Hub › Activity › By model) still works (it doesn't depend on OTel).
 
 ## Feedback / scores
@@ -340,7 +340,7 @@ This section is the opposite direction: the hub also runs a small OTLP-
 metrics **receiver** so Claude Code's own telemetry export — which is the
 only channel that sees sub-agent (Task tool) API calls, since Claude Code
 never writes those to its JSONL session transcripts (#66) — can feed the
-admin SPA's Code tab (agent sheet › **Sub-agents (OTel)**).
+admin SPA's Code tab (agent sheet › **Sub-agents (telemetry)**).
 
 ### Enable on the host
 
@@ -403,7 +403,7 @@ pipelines.
 - **Per-model, not per-individual-subagent.** Which model ran is visible;
   which *named* sub-agent it was is not — that finer attribution is tracked
   upstream in [anthropics/claude-code#22625](https://github.com/anthropics/claude-code/issues/22625).
-- The Code tab's **Sub-agents (OTel)** source is intentionally **not**
+- The Code tab's **Sub-agents (telemetry)** source is intentionally **not**
   summed into the Code tab's JSONL-sourced headline totals — the two sources
   are labelled and shown separately to avoid double-counting main-agent
   activity both would otherwise report.

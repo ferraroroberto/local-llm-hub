@@ -489,7 +489,7 @@ function langfuseHealth() {
   const h = state.otelHealth;
   if (state.otelHealthFailed) return { text: 'unreachable', tone: 'danger' };
   if (!h) return { text: 'checking…', tone: '' };
-  if (!h.otel_enabled) return { text: 'OTel disabled', tone: 'attention' };
+  if (!h.otel_enabled) return { text: 'Telemetry off', tone: 'attention' };
   if (h.langfuse_reachable) return { text: 'live', tone: '' };
   return { text: 'Langfuse offline', tone: 'danger' };
 }
@@ -503,7 +503,7 @@ function renderLangfuseSheet() {
     if (health.tone) el.dataset.tone = health.tone; else delete el.dataset.tone;
   });
   if (els.hubOtelState) els.hubOtelState.textContent = state.otelHealth ? (h.otel_enabled ? 'on' : 'off') : '—';
-  if (els.hubOtelHash) els.hubOtelHash.textContent = state.otelHealth ? (h.hash_prompts ? 'hashed' : 'raw') : '—';
+  if (els.hubOtelHash) els.hubOtelHash.textContent = state.otelHealth ? (h.hash_prompts ? 'on' : 'off') : '—';
   if (els.hubOtelEndpoint) els.hubOtelEndpoint.textContent = h.otel_endpoint || '—';
   if (els.hubOpenLangfuse) els.hubOpenLangfuse.href = langfuseUiBase();
   if (els.hubOtelOfflineHint) {
