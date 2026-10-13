@@ -100,7 +100,7 @@ switch        = { src = "app/webapp/static/_vendored/switch", sha = "7e1433c70ca
 text-size     = { src = "app/webapp/static/_vendored/text-size", sha = "8f89563a959dbf05bb368a230e9b898a9cae2291", dest = "app_web/static/_vendored/text-size" }
 icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "aa820f1215151087588433f290cd2ba55b34658d", dest = "app_web/static/_vendored/icon-button" }
 action-row  = { src = "app/webapp/static/_vendored/action-row", sha = "464eda28be4393131e36140f3c9012f3e5a1a85f", dest = "app_web/static/_vendored/action-row" }
-segmented   = { src = "app/webapp/static/_vendored/segmented", sha = "92d16e00cd47561de647cda12faea7fcdb6f081b", dest = "app_web/static/_vendored/segmented" }
+segmented   = { src = "app/webapp/static/_vendored/segmented", sha = "362f4a973746b3fbc4ebfc97c3bb0a0767fb8ada", dest = "app_web/static/_vendored/segmented" }
 
 # Views that span the width right of the rail on a wide window (design.md
 # layout.wide): Hub's glance + services | Activity columns (#738) and Code's

@@ -1,6 +1,6 @@
 # `segmented` — one choice among 2–5 peers
 
-The fleet's canonical **segmented control** (`~/.claude/design.md` → "Component contracts" → segmented control, token block `segmented`, `ferraroroberto/fleet-config#1334`): one control for a choice the user switches in place, such as a mode (alarm Off · Partial · Full, AC mode), a period (Day · Week · Month), a view (Items · Prices) or a scope (Mine · Issues · All). It is one `rounded.md` track on `neutral-soft` with a 3px inset and no outer border, holding equal borderless segments. **The selected segment is the state:** it is raised on the `card` surface with a soft shadow, label in `fg`, `aria-pressed="true"`.
+The fleet's canonical **segmented control** (`~/.claude/design.md` → "Component contracts" → segmented control, token block `segmented`, `ferraroroberto/fleet-config#1334`): one control for a choice the user switches in place, such as a mode (alarm Off · Partial · Full, AC mode), a period (Day · Week · Month), a view (Items · Prices) or a scope (Mine · Issues · All). It is one `rounded.md` track on `neutral-soft` with a 3px inset and no outer border, holding equal borderless segments. **The selected segment is the state:** it is raised with a soft shadow, label in `fg`, `aria-pressed="true"`. Light fills it with `card`; dark fills it one step lighter than the track, so it reads raised rather than pressed in (see below).
 
 Normalized from home-automation's `.segmented` (home-automation#879, #888, and the trailing cluster from #884), to stop a third variant (`project-scaffolding#341`).
 
@@ -63,22 +63,24 @@ A segmented verb cluster can be an [`action-row`](../action-row/)'s one trailing
 ## Targets and contrast
 
 - Segments sit side by side, so each reaches the 44px floor (`--row-sm`) **vertically only**: a `::before` band of (segment height − 44px) / 2, clamped at 0. Neighbouring bands touch and never overlap (design.md "Touch targets", adjacent cluster). Width comes from the equal columns: five or fewer options across a phone-width card are each well over 44px.
-- Every label is `fg` on the track (12.8:1 light, 11.9:1 dark, measured in the gallery), and the selected segment's label is `fg` on `card`. The gallery harness asserts AA for both, in both themes, plus the 44px targets.
+- Every label is `fg` on the track (12.8:1 light, 11.9:1 dark, measured in the gallery), and the selected segment's label is `fg` on its fill (12.8:1 light on `card`, 9.6:1 dark). The gallery harness asserts AA for both, in both themes, that the dark selected fill is lighter than the track, plus the 44px targets.
 
 ## Required design tokens
 
 | Token | Light value | Used for |
 | --- | --- | --- |
 | `--neutral-soft` | `color-mix(in srgb, var(--muted) 16%, transparent)` | track fill (`colors.neutral-soft`) |
-| `--card` | `#ffffff` | selected segment fill |
+| `--card` | `#ffffff` | selected segment fill in light; the base of the dark fill |
 | `--ink` | `#1f2328` | every label (`fg`) |
-| `--muted` | `#656d76` | resting hover tint (10% mix) |
+| `--muted` | `#656d76` | resting hover tint (10% mix); the dark selected fill is `color-mix(in srgb, var(--muted) 30%, var(--card))`, the track's own tint a step stronger |
 | `--control-h` | `36px` | picker track height (`components.control.height`) |
 | `--row-sm` | `44px` | target floor and the `--verbs` track (`hit-target.min`) |
 | `--radius-md` | `12px` | track corners (segments are 3px tighter) |
 | `--font-label` | `0.875rem` | label text |
 | `--icon-title` | `18px` | segment glyph (`icons.size.title`) |
 | `--space-xs` | `4px` | glyph ↔ word inside one segment |
+
+**Dark selected fill (`project-scaffolding#377`).** In dark, `card` is darker than the track (a muted tint over the card), so a `card` fill read pressed in. The dark rule, scoped to `[data-theme="dark"]`, mixes `--muted` 30% into `--card` instead (track 16%): lighter than the track over a card, the page background and a raised surface. It needs no token beyond the two above. `--card-2` is deliberately not used: over a card the track composites to `#262c34`, lighter than the dark `--card-2` (`#21262d`), so it would still read pressed in. An app that themes dark some other way than `[data-theme="dark"]` keeps the light `card` fill until it adopts that attribute.
 
 ## Don't diverge
 
