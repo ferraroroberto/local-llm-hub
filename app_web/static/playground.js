@@ -296,8 +296,8 @@ export function wirePlayground() {
       const btn = ev.target.closest('button[data-value]');
       if (!btn) return;
       const val = parseInt(btn.dataset.value, 10) || 512;
-      els.playgroundMaxTokensSeg.querySelectorAll('button').forEach(function (b) {
-        b.classList.toggle('active', b === btn);
+      els.playgroundMaxTokensSeg.querySelectorAll('.segmented-item').forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b === btn));
       });
       if (els.playgroundMaxTokens) els.playgroundMaxTokens.value = String(val);
     });
@@ -308,8 +308,8 @@ export function wirePlayground() {
       // visually clear the value comes from the input, not a preset.
       if (!els.playgroundMaxTokensSeg) return;
       const current = String(parseInt(els.playgroundMaxTokens.value, 10) || 0);
-      els.playgroundMaxTokensSeg.querySelectorAll('button').forEach(function (b) {
-        b.classList.toggle('active', b.dataset.value === current);
+      els.playgroundMaxTokensSeg.querySelectorAll('.segmented-item').forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b.dataset.value === current));
       });
     });
   }

@@ -55,6 +55,9 @@ def pytest_configure(config) -> None:
     )
     host_profile.CONFIG_PATH = pinned
     host_profile._CONFIG_CACHE.clear()
+    # The admin sub-app mounts the usage log on create_app(); keep its SQLite
+    # file in the temp dir, never the real runtime-data store (#777).
+    os.environ["LLM_HUB_USAGE_DB_PATH"] = str(_PINNED_CONFIG_DIR / "usage.sqlite3")
 
 
 def pytest_unconfigure(config) -> None:

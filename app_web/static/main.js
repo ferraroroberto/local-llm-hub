@@ -6,6 +6,7 @@
 import { state, els, TAB_KEY, STATUS_POLL_MS, COUNTERS_POLL_MS, MODELS_POLL_MS } from './state.js';
 import { jsonApi, tokenFromUrl, writeToken, wireLoginForm, toast } from './api.js';
 import { wireTabs, onTabChange, setTab } from './tabs.js';
+import { wireUsageLog } from './usage.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchServicesStatus, renderSparklines } from './hub.js';
 import { wireModels, fetchModels, fetchRoles } from './models.js';
 import { wireStartupProfile, fetchStartupProfile } from './startup.js';
@@ -101,6 +102,9 @@ async function boot() {
   wireMachines();
   wireSettings();
   wireInfoSheet();
+
+  // Start the usage log first so the restored tab counts as the first view.
+  onTabChange(wireUsageLog().trackView);
 
   // Register the tab-change hook BEFORE wiring the nav: the vendored
   // component restores the persisted tab during wireTabs() and fires

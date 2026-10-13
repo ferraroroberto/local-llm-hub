@@ -46,23 +46,12 @@
 
 /* ---------- confirm dialog (reboot / shutdown) ----------
  * Built on the vendored .detail-dialog/.detail-card shell (_vendored/modal);
- * this file only adds the body copy spacing and the danger restatement of
- * .detail-save-btn (design.md: "a destructive action may restate the tint
- * recipe on danger" — never a solid danger fill). */
+ * this file only adds the body copy spacing. The final action is the vendored
+ * outlined `.button-tint.danger` (_vendored/button), never a tint or fill. */
 .machines-confirm-body {
   margin: 4px 0 14px;
   color: var(--ink);
   font-size: var(--font-body);
-}
-.detail-save-btn.danger {
-  background: var(--danger-soft);
-  color: var(--danger-text);
-  border-color: var(--danger-border);
-}
-.detail-save-btn.danger:disabled {
-  background: var(--card-off);
-  border-color: var(--line);
-  color: var(--muted);
 }
 
 /* ---------- terminal overlay ----------

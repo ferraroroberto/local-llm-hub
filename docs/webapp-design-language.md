@@ -55,7 +55,7 @@ the home-automation/app-launcher mechanism).
 **Text size:** the same boot script (the vendored `text-size-boot`, prefix
 `llmhub`) also stamps `html[data-textsize]` from `llmhub.textsize`; the gear
 beside the theme toggle opens a Settings dialog (`settings.js`) with the
-vendored Small / Default / Large range-tab row. The steps move the root
+vendored Small / Default / Large `segmented` row. The steps move the root
 font-size, so type stays rem-based and geometry (nav, rows, hit targets, icons)
 stays in px.
 
@@ -101,15 +101,17 @@ Primary nav is the **vendored fleet component** at `app_web/static/_vendored/nav
   log, Choose file, the individual install-row fixers.
 - **`.ghost-btn.primary`** — the in-form primary (Playground Send /
   Generate / Speak / Download): an accent *tint*, never a solid fill —
-  home-automation's `.range-tab.active` recipe (`--accent-soft` background,
-  accent text, `--accent-border-strong` border; #215).
+  home-automation's ghost recipe (`--accent-soft` background, accent text,
+  `--accent-border-strong` border; #215).
 - **`.icon-btn`** — row-level button, `52 × 60 px`, lives inside a
   `.row-actions` column on the right of an `.app-item`. Use for:
   Start / Stop / Log / Ping on the Models tab.
 
-Segmented controls (Code vendor/period, Playground max-tokens) follow the
-same ghost pattern: transparent container, card-off option pills, the active
-one an accent tint (home-automation `.range-tabs`; #215). File pickers hide
+Choice groups (Models scope, Hub activity, Code period, Playground mode and
+max-tokens, Settings text size and theme) are the vendored `segmented`
+control: one track, borderless segments, the selected one raised
+(`aria-pressed="true"`), never tinted. The app carries no `.segmented` rules of
+its own beyond layout. File pickers hide
 the native input behind a ghost "Choose file" button with the selected
 filename to its right (`.file-row`).
 

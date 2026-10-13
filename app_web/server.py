@@ -28,11 +28,13 @@ from starlette.middleware.gzip import GZipMiddleware
 from starlette.responses import Response
 from starlette.types import Scope
 
+from src.runtime_data import runtime_db_path
 from src.static_versioning import (
     compute_asset_hashes,
     fleet_hash_of,
     rewrite_js_imports,
 )
+from src.usage_log import usage_router
 from src.webapp_config import WebappConfig, WebappConfigError, load_webapp_config
 from src.webauthn_gate import WebAuthnGate
 
@@ -187,5 +189,10 @@ def create_app() -> FastAPI:
     app.include_router(diagnostics.router)
     app.include_router(telemetry.router)
     app.include_router(code_usage.router, prefix="/api/code")
+    # Local-only view/tap log (#777). No router dependency: the whole sub-app
+    # already sits behind the bearer gate, so a phone must present the token.
+    app.include_router(usage_router(runtime_db_path(
+        "local-llm-hub", "usage.sqlite3", env_var="LLM_HUB_USAGE_DB_PATH", create=True,
+    )))
 
     return app

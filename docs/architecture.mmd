@@ -185,7 +185,7 @@ the hub's only internet egress (#611)"]
 
   subgraph admin["app_web/ — admin SPA, sub-app mounted at /admin"]
     WSRV["server.py\ncreate_app() + versioned static"]
-    WROUT["routers/\nhub · install (#533) · models · startup_profile ·\nfleet_placement · roles · playground · services ·\ntelemetry · code_usage · glossary · hosts · machines ·\ndiagnostics · auth · webauthn · version · misc"]
+    WROUT["routers/\nhub · install (#533) · models · startup_profile ·\nfleet_placement · roles · playground · services ·\ntelemetry · code_usage · glossary · hosts · machines ·\ndiagnostics · usage_log (#777) · auth · webauthn · version · misc"]
     WSTATIC["static/\nindex.html SPA + per-tab JS/CSS"]
   end
   SRV -.mounts.-> WSRV

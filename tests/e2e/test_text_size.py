@@ -58,8 +58,9 @@ def test_text_size_steps_change_the_root_and_persist(page, admin_url):
     page.wait_for_selector("#paneHub .home-settings", state="visible", timeout=5000)
     assert _root_px(page) == ROOT_PX["large"]
     page.click("#paneHub .home-settings")
-    active = page.locator("#textSizeControl .range-tab.active")
-    assert active.get_attribute("data-textsize") == "large"
+    pressed = page.locator('#textSizeControl .segmented-item[aria-pressed="true"]')
+    assert pressed.count() == 1
+    assert pressed.get_attribute("data-textsize") == "large"
 
     # Theme sits beside it in Display (#741): an explicit choice persists, and
     # System hands the page back to the device.

@@ -4,7 +4,7 @@ The fleet's canonical **segmented control** (`~/.claude/design.md` → "Componen
 
 Normalized from home-automation's `.segmented` (home-automation#879, #888, and the trailing cluster from #884), to stop a third variant (`project-scaffolding#341`).
 
-Not to be confused with [`range-tab/`](../range-tab/), the older row of separate ghost pills with an accent active state. A new choice control uses this one.
+It replaces [`range-tab/`](../range-tab/), the older row of separate ghost pills with an accent active state, which is **deprecated**; a new choice control uses this one, and `range-tab/README.md` has the migration recipe.
 
 ## Files
 
