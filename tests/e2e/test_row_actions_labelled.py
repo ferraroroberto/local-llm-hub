@@ -86,10 +86,10 @@ def test_model_row_power_control_says_start_or_stop(page, admin_url):
     assert "5151" not in face and "PID" not in face
     dialogs = []
     page.on("dialog", lambda d: (dialogs.append(d.type), d.dismiss()))
-    adopted.locator(".row-menu-toggle").click()
-    items = adopted.locator(".row-menu-item")
+    adopted.locator(".row-kebab").click()
+    items = page.locator("body > .row-menu .row-menu-item")
     assert items.last.get_attribute("data-act") == "force-stop", "Force stop is the menu's last item"
-    assert "danger" in (items.last.get_attribute("class") or "")
+    assert "row-menu-danger" in (items.last.get_attribute("class") or "")
     items.last.click()
     page.wait_for_selector("#machinesConfirmDialog[open]", timeout=5000)
     assert "Force stop" in page.locator("#machinesConfirmTitle").inner_text()
@@ -98,8 +98,8 @@ def test_model_row_power_control_says_start_or_stop(page, admin_url):
 
     # Model log opens the backend's log tail.
     running = page.locator('#modelsList .model-row[data-id="running_row"]')
-    running.locator(".row-menu-toggle").click()
-    running.locator('.row-menu-item[data-act="log"]').click()
+    running.locator(".row-kebab").click()
+    page.locator('body > .row-menu .row-menu-item[data-act="log"]').click()
     page.wait_for_selector(".model-log-tail", state="visible", timeout=5000)
     page.wait_for_function(
         "() => document.querySelector('.model-log-tail').textContent.includes('demo line two')", timeout=5000)

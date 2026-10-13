@@ -1,10 +1,12 @@
-"""A Models row's ⋮ menu stays reachable on a phone (#767).
+"""A Models row's ⋮ menu stays reachable on a phone (#767, #772).
 
 At 390×844 the floating nav pill covers the bottom of the screen. A menu on the
 last visible row used to open downward, behind the pill and past the viewport,
-so its items could not be tapped. It now opens upward when below would not
-fit, sits in front of the pill, and re-fits while open. Its rows use the fleet
-menu's size (body-size text, 44px rows) so the hub and app-launcher match.
+so its items could not be tapped. The menu is now the vendored row-menu: it
+opens upward when below would not fit, sits in front of the pill, re-fits while
+open, and stays anchored to its row while the 5 s poll rebuilds the list. Its
+rows use the fleet menu's size (body-size text, 44px rows) so the hub and
+app-launcher match.
 
 Invented models over route interception; no real backend is started or stopped.
 """
@@ -28,8 +30,8 @@ MODELS = {"models": [
 
 _GEOMETRY = """() => {
   const r = e => { const b = e.getBoundingClientRect(); return {top: b.top, bottom: b.bottom}; };
-  const list = document.querySelector('.row-menu[open] .row-menu-list');
-  const toggle = document.querySelector('.row-menu[open] .row-menu-toggle');
+  const list = document.querySelector('body > .row-menu');
+  const toggle = document.querySelector('.row-menu-anchor[aria-expanded="true"]');
   const nav = document.querySelector('nav.tabs');
   const b = list.getBoundingClientRect();
   const hit = document.elementFromPoint(b.left + b.width / 2, b.bottom - 6);
@@ -66,8 +68,8 @@ def test_last_row_menu_opens_upward_in_front_of_the_nav_pill(browser, admin_url)
         last = page.locator("#modelsList .model-row").last
         last.scroll_into_view_if_needed()
         page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
-        last.locator(".row-menu-toggle").click()
-        page.wait_for_selector(".row-menu[open] .row-menu-item", state="visible", timeout=5000)
+        last.locator(".row-kebab").click()
+        page.wait_for_selector("body > .row-menu .row-menu-item", state="visible", timeout=5000)
         page.wait_for_timeout(150)  # the re-fit runs on the next frame
 
         g = page.evaluate(_GEOMETRY)
@@ -90,8 +92,8 @@ def test_first_row_menu_opens_downward_and_uses_the_fleet_menu_size(browser, adm
     context, page = _open_phone_models(browser, admin_url)
     try:
         page.evaluate("window.scrollTo(0, 0)")
-        page.locator("#modelsList .model-row").first.locator(".row-menu-toggle").click()
-        page.wait_for_selector(".row-menu[open] .row-menu-item", state="visible", timeout=5000)
+        page.locator("#modelsList .model-row").first.locator(".row-kebab").click()
+        page.wait_for_selector("body > .row-menu .row-menu-item", state="visible", timeout=5000)
         page.wait_for_timeout(150)
 
         g = page.evaluate(_GEOMETRY)
@@ -99,5 +101,37 @@ def test_first_row_menu_opens_downward_and_uses_the_fleet_menu_size(browser, adm
         assert g["list"]["bottom"] <= g["nav"]["top"], g
         assert g["fontPx"] == 16, f"menu text should be body size: {g}"
         assert g["itemMinPx"] == 44 and g["glyphPx"] == 16, g
+    finally:
+        context.close()
+
+
+def test_open_menu_stays_anchored_while_the_models_list_refreshes(browser, admin_url):
+    """The poll rebuilds every row; the open menu follows its row to the new
+    kebab instead of closing or parking in a corner (project-scaffolding#373)."""
+    live = json.loads(json.dumps(MODELS))
+    context = browser.new_context(viewport=PHONE, has_touch=True)
+    page = context.new_page()
+    try:
+        page.add_init_script("localStorage.setItem('llmhub.models.activeOnly', 'false');")
+        page.route("**/admin/api/models", lambda route: _json(route, live))
+        page.route("**/admin/api/fleet-placement", lambda route: _json(route, {"hosts": []}))
+        page.goto(admin_url, wait_until="load")
+        page.click("#tabModels")
+        page.wait_for_selector("#modelsList .model-row", state="visible", timeout=10000)
+
+        page.locator("#modelsList .model-row").nth(2).locator(".row-kebab").click()
+        page.wait_for_selector("body > .row-menu .row-menu-item", state="visible", timeout=5000)
+        page.evaluate("window.__oldKebab = document.querySelector('.row-menu-anchor[aria-expanded=\"true\"]')")
+
+        live["models"][0]["port"] = 9199  # changes the list's markup, so the next poll repaints
+        page.wait_for_function("window.__oldKebab && !window.__oldKebab.isConnected", timeout=15000)
+        page.wait_for_timeout(300)  # the held menu re-places on the next frame
+
+        g = page.evaluate(_GEOMETRY)
+        assert page.locator("body > .row-menu").count() == 1, "the open menu survived the repaint"
+        assert abs(g["list"]["top"] - g["toggle"]["bottom"] - 2) <= 1 or abs(g["list"]["bottom"] - g["toggle"]["top"] + 2) <= 1, (
+            f"menu is not beside its new kebab: {g}")
+        assert g["list"]["bottom"] <= g["nav"]["top"], g
+        assert g["frontMost"], g
     finally:
         context.close()

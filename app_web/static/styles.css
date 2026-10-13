@@ -17,6 +17,7 @@
   --bg: #ffffff;            /* canvas (page background) */
   --card: #ffffff;          /* elevated card surface */
   --card-off: #f6f8fa;      /* canvas-subtle (inset / off-card surfaces) */
+  --card-2: #f6f8fa;        /* the vendored row-menu's raised surface (canvas-subtle, #772) */
   --ink: #1f2328;            /* primary text */
   --muted: #656d76;         /* fg-muted (secondary text) */
   --line: #d1d9e0;          /* border (default hairline) */
@@ -123,6 +124,7 @@
   --bg: #0d1117;            /* canvas (GitHub dark canvas) */
   --card: #161b22;          /* elevated card surface */
   --card-off: #010409;      /* canvas-subtle (true black inset) */
+  --card-2: #21262d;        /* the vendored row-menu's raised surface (border-muted, #772) */
   --ink: #e6edf3;
   --muted: #7d8590;
   --line: #30363d;
@@ -891,78 +893,14 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 .wide-detail-body .host-body .fleet-host,
 .model-sheet .host-body .fleet-host { border: 0; padding: 0; }
 .startup-policy { font-size: var(--font-caption); }
-.row-menu-note { margin: 0; padding: 0 var(--space-sm) var(--space-xs); font-size: var(--font-body-sm); }
-
-/* Trailing "More actions" menu (action-row: one accessory per row). The
- * <details> summary is the 44px accessory; the list floats under it so opening
- * it never reflows the row. */
-.row-menu { position: relative; flex: none; }
-/* The row's one trailing kebab: an unpainted icon-button at the 44px row box
- * (action-row), its glyph taking the accent while the menu is open. */
-.row-menu-toggle {
-  --icon-btn-box: var(--row-sm);
-  list-style: none;
-  cursor: pointer;
-}
-.row-menu-toggle::-webkit-details-marker { display: none; }
-.row-menu[open] > .row-menu-toggle { color: var(--accent); }
-.row-menu-list {
-  position: absolute;
-  right: 0;
-  top: 100%;
-  z-index: 20;
-  min-width: 220px;
-  width: max-content;
-  max-width: min(320px, calc(100vw - 2 * var(--space-md)));
-  padding: var(--space-xs);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-}
-/* While open the list is viewport-placed (row-menu.js writes top/left): above
- * its row when below would reach the floating nav pill, and in front of the
- * pill (z-index 120) in stacking order (#767). Hidden until first placed, so
- * it is never painted at its unplaced spot. */
-.row-menu[open] > .row-menu-list {
-  position: fixed;
-  z-index: 130;
-  top: 0;
-  right: auto;
-  left: 0;
-  visibility: hidden;
-}
-.row-menu[open] > .row-menu-list[data-placed] { visibility: visible; }
-/* The placement card heads the list (#647): context, not an action. */
-.row-menu-list > .placement {
-  margin: 0 0 var(--space-xs);
-  padding: var(--space-xs) var(--space-sm) var(--space-sm);
-  border-bottom: 1px solid var(--line);
-}
-.row-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: var(--hit-min);
-  padding: 0 12px;
-  font: inherit;
-  font-size: var(--font-body);
-  font-weight: 500;
-  color: var(--ink);
-  text-align: left;
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-.row-menu-item:hover { background: var(--card-off); }
-.row-menu-item.active { color: var(--accent-text); background: var(--accent-soft); }
-.row-menu-item.danger { color: var(--danger-text); }
+/* The row's one trailing kebab (action-row: one accessory per row): an unpainted
+ * icon-button at the 44px row box. Its menu is the vendored row-menu, mounted on
+ * <body> (_vendored/row-menu); the open kebab takes the accent from that CSS. */
+.row-kebab { --icon-btn-box: var(--row-sm); flex: none; }
 
 /* ---------- Models tab: read-only placement cards (#423) ----------
- * A per-row intent section at the top of the row's "More actions" details
- * (#647 — off the row face so a row reads in two lines): host-chain pills in
+ * A per-model intent section in the model's sheet and detail pane (the row's
+ * "More actions" menu carries the same facts as one text line): host-chain pills in
  * priority order (owner = the accent-soft "selected" tint, same recipe as
  * .segmented button.active), a startup-policy .badge, the static VRAM
  * estimate, and the owner host's budget bar. All caption-scale — placement

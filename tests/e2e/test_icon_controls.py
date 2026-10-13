@@ -34,10 +34,18 @@ def test_model_rows_ping_from_the_menu_not_a_bare_glyph(page, admin_url):
 
     # Not a visible verb on the row (#737: Start / Stop is its only one).
     assert page.locator('#modelsList .action-row-verb[data-act="ping"]').count() == 0
-    items = page.locator('#modelsList .row-menu-item[data-act="ping"]')
-    assert items.count() > 0, "no row offers Ping from its More actions menu"
-    for i in range(items.count()):
-        assert (items.nth(i).text_content() or "").strip() == "Ping"
+    # The menu is the vendored row-menu, mounted on <body> while open.
+    offered = 0
+    kebabs = page.locator("#modelsList .row-kebab")
+    for i in range(kebabs.count()):
+        kebabs.nth(i).click()
+        page.wait_for_selector("body > .row-menu", state="visible", timeout=5000)
+        ping = page.locator('body > .row-menu .row-menu-item[data-act="ping"]')
+        if ping.count():
+            offered += 1
+            assert (ping.first.text_content() or "").strip() == "Ping"
+        page.keyboard.press("Escape")
+    assert offered > 0, "no row offers Ping from its More actions menu"
 
 
 def test_every_header_holds_the_theme_toggle_and_the_gear_only(page, admin_url):
