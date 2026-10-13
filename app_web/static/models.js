@@ -21,7 +21,7 @@ import { els, state, MODELS_ACTIVE_ONLY_KEY } from './state.js';
 import { jsonApi, postJson, putJson, toast, escapeHtml, fmtGb, isAuthError } from './api.js';
 import { mountGlossaryEditor } from './glossary.js';
 import { icon } from './_vendored/icons/icons.js';
-import { wireRowMenus } from './row-menu.js';
+import { createRowMenu } from './_vendored/row-menu/row-menu.js';
 import { row, chip, setHeadLine, defineInfo, isWide, onWideChange } from './rows.js';
 import { fetchFleetPlacement, renderMemory, hostBodyEl, hostLabel, overCapacityHosts, onFleetPlacement } from './fleet_placement.js';
 
@@ -35,6 +35,10 @@ defineInfo('models-about', 'Models and memory',
   + 'load. Placement is changed per model with Edit placement, or in <code>config/models.yaml</code>.</p>');
 
 let modelsLoaded = false;
+
+// One controller for the whole list: at most one row's menu is open, and it
+// reopens on its rebuilt kebab when the 5 s poll repaints the rows.
+const rowMenu = createRowMenu();
 
 export async function fetchModels() {
   try {
@@ -198,13 +202,18 @@ function menuItems(m) {
 /* Startup policy, in words: always on (eager, the quiet default) or on demand,
  * reading its live state honestly — loaded while the backend answers, else
  * idle (stopped by the idle watchdog or never yet demanded). */
+function startupLabel(m, p) {
+  if (p.startup !== 'on_demand') return 'Always on';
+  return m.reachable ? 'on demand · loaded' : 'on demand · idle';
+}
+
 function startupHtml(m, p) {
   if (p.startup === 'on_demand') {
     const idleNote = p.idle_unload_minutes
       ? 'Loads on first request; unloads after ' + p.idle_unload_minutes + ' min idle'
       : 'Loads on first request; stays up until stopped';
     return '<span class="chip startup-policy" title="' + escapeHtml(idleNote) + '">'
-      + (m.reachable ? 'on demand · loaded' : 'on demand · idle') + '</span>';
+      + startupLabel(m, p) + '</span>';
   }
   return '<span class="startup-policy muted" title="Autostarted and kept resident">Always on</span>';
 }
@@ -228,27 +237,63 @@ function placementHtml(m) {
     + startupHtml(m, p) + '</div></div>';
 }
 
-function menuHtml(m, open) {
-  const items = menuItems(m);
-  const placement = placementHtml(m);
-  if (!items.length && !placement) return '';
+/* The menu's one header line (the vendored row-menu takes plain text, not
+ * markup): the host chain in priority order with the effective owner and
+ * cpu-resident tiers marked, the startup policy, then the roles served. */
+function menuHeader(m) {
+  const parts = [];
+  const p = m.placement;
+  if (p) {
+    const chain = (p.chain || []).map(function (entry) {
+      return entry.id + (entry.cpu ? ' (cpu)' : '') + (entry.id === m.host ? ' \u25cf' : '');
+    }).join(' \u2192 ');
+    parts.push((chain ? chain + ' \u00b7 ' : '') + startupLabel(m, p));
+  }
   const roles = rolesFor(m);
-  const head = placement
-    + (roles.length ? '<p class="row-menu-note muted">Role: ' + escapeHtml(roles.join(', ')) + '</p>' : '');
-  return '<details class="row-menu"' + (open ? ' open' : '') + '>'
-    + '<summary class="row-menu-toggle icon-button" title="More actions" aria-label="More actions for '
-    + escapeHtml(m.display_name) + '">' + icon('ellipsis-vertical') + '</summary>'
-    + '<div class="row-menu-list" role="menu">' + head
-    + items.map(function (it) {
-      return '<button type="button" class="row-menu-item' + (it.danger ? ' danger' : '') + (it.cls ? ' ' + it.cls : '') + '"'
-        + ' data-act="' + it.act + '" role="menuitem"' + (it.disabled ? ' disabled' : '') + '>'
-        + icon(it.glyph) + '<span>' + escapeHtml(it.label) + '</span></button>';
-    }).join('')
-    + '</div></details>';
+  if (roles.length) parts.push('Role: ' + roles.join(', '));
+  return parts.join(' \u00b7 ');
+}
+
+/* The row's trailing kebab. The menu itself is the vendored row-menu, built and
+ * attached after the rows are painted (attachRowMenus); `data-menu` is the
+ * menu's content, so a change to it repaints the row and re-attaches. */
+function menuHtml(m) {
+  const items = menuItems(m);
+  const header = menuHeader(m);
+  if (!items.length && !header) return '';
+  const sig = JSON.stringify([header, items.map(function (it) { return [it.act, !!it.disabled]; })]);
+  return '<button type="button" class="icon-button row-kebab" data-menu="' + escapeHtml(sig) + '"'
+    + ' title="More actions" aria-label="More actions for ' + escapeHtml(m.display_name) + '">'
+    + icon('ellipsis-vertical') + '</button>';
+}
+
+/* Hand each painted kebab to the vendored row-menu. A tap acts on the live
+ * model, not the one the row was painted from. */
+function attachRowMenus(root) {
+  root.querySelectorAll('.model-row').forEach(function (li) {
+    const kebab = li.querySelector('.row-kebab');
+    const m = findModel(li.dataset.id);
+    if (!kebab || !m) return;
+    const items = menuItems(m).map(function (it) {
+      return {
+        label: it.label,
+        glyph: it.glyph,
+        disabled: it.disabled,
+        danger: it.danger,
+        dataset: { act: it.act },
+        onTap: function () {
+          const live = findModel(li.dataset.id);
+          if (live) handleAction(live, it.act);
+        },
+      };
+    });
+    rowMenu.attach(m.id, kebab, items, { header: menuHeader(m) });
+  });
+  rowMenu.endRender();
 }
 
 // --------------------------------------------------------------- render
-function modelRow(m, openMenuId) {
+function modelRow(m) {
   const wide = isWide();
   const sel = state.modelsSelected;
   return row({
@@ -263,7 +308,7 @@ function modelRow(m, openMenuId) {
     selected: wide && !!sel && sel.kind === 'model' && sel.id === m.id,
     mainAttrs: ' data-act="open"' + (wide ? '' : ' aria-haspopup="dialog"'),
     verb: powerVerb(m),
-    trail: menuHtml(m, openMenuId === m.id),
+    trail: menuHtml(m),
   });
 }
 
@@ -287,7 +332,7 @@ function renderScope() {
 }
 
 /* Rows grouped by the host serving them, local host first. */
-function groupedRowsHtml(visible, openMenuId) {
+function groupedRowsHtml(visible) {
   const localHost = state.status && state.status.host;
   const groups = {};
   const order = [];
@@ -303,7 +348,7 @@ function groupedRowsHtml(visible, openMenuId) {
   });
   return order.map(function (key) {
     return '<li class="group-overline" role="presentation">' + escapeHtml(hostLabel(key) || 'Other') + '</li>'
-      + groups[key].map(function (m) { return modelRow(m, openMenuId); }).join('');
+      + groups[key].map(modelRow).join('');
   }).join('');
 }
 
@@ -329,19 +374,19 @@ export function renderModels() {
   }
 
   ensureSelection(visible);
-  // Repaint only when something changed, so the 5 s poll keeps focus and an
-  // open menu where they are; an open menu is carried over by id when it does.
-  const openMenu = root.querySelector('.row-menu[open]');
-  const openMenuId = openMenu ? openMenu.closest('.model-row').dataset.id : null;
-  const html = groupedRowsHtml(visible, openMenuId);
+  // Repaint only when something changed, so the 5 s poll keeps focus where it
+  // is; an open menu reopens on its row's new kebab (the vendored row-menu).
+  const html = groupedRowsHtml(visible);
   if (html !== lastListHtml) {
     const focused = document.activeElement && root.contains(document.activeElement) ? document.activeElement : null;
-    const focusKey = focused ? [focused.closest('.model-row') && focused.closest('.model-row').dataset.id, focused.dataset.act] : null;
+    const focusKey = focused ? [focused.closest('.model-row') && focused.closest('.model-row').dataset.id,
+      focused.classList.contains('row-kebab') ? 'kebab' : focused.dataset.act] : null;
     root.innerHTML = html;
     lastListHtml = html;
+    attachRowMenus(root);
     if (focusKey && focusKey[0]) {
       const again = root.querySelector('.model-row[data-id="' + cssEscape(focusKey[0]) + '"] '
-        + (focusKey[1] ? '[data-act="' + focusKey[1] + '"]' : '.action-row-main'));
+        + (focusKey[1] === 'kebab' ? '.row-kebab' : focusKey[1] ? '[data-act="' + focusKey[1] + '"]' : '.action-row-main'));
       if (again) again.focus();
     }
   }
@@ -846,8 +891,6 @@ function onModelsClick(ev) {
   const id = holder && (holder.dataset.id || '');
   const m = id ? findModel(id) : null;
   if (!m) return;
-  const menu = btn.closest('.row-menu');
-  if (menu) menu.open = false;
   handleAction(m, btn.dataset.act);
 }
 
@@ -857,36 +900,6 @@ export function wireModels() {
     if (stored !== null) state.modelsActiveOnly = stored === 'true';
   } catch (_) { /* private mode */ }
   renderScope();
-
-  // An open menu is placed in viewport coordinates: above its row when below
-  // would reach the nav pill (#767).
-  wireRowMenus();
-
-  // A row's "More actions" menu closes on any tap outside it and on Escape
-  // (focus back on its kebab), and only one is open at a time.
-  function closeMenus(except) {
-    if (!els.modelsList) return;
-    els.modelsList.querySelectorAll('.row-menu[open]').forEach(function (d) {
-      if (d !== except) d.open = false;
-    });
-  }
-  document.addEventListener('click', function (ev) {
-    if (!ev.target.closest('.row-menu')) closeMenus(null);
-  });
-  document.addEventListener('keydown', function (ev) {
-    if (ev.key !== 'Escape' || !els.modelsList) return;
-    const open = els.modelsList.querySelector('.row-menu[open]');
-    if (!open) return;
-    open.open = false;
-    const toggle = open.querySelector('.row-menu-toggle');
-    if (toggle) toggle.focus();
-  });
-  if (els.modelsList) {
-    // `toggle` does not bubble: listen in the capture phase.
-    els.modelsList.addEventListener('toggle', function (ev) {
-      if (ev.target.matches && ev.target.matches('.row-menu') && ev.target.open) closeMenus(ev.target);
-    }, true);
-  }
 
   // A memory row opens that machine's running / loadable summary.
   if (els.modelsMemoryList) {

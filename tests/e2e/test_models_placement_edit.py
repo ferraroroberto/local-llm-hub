@@ -122,11 +122,24 @@ def _item(page, model_id):
     return page.locator(f'#modelsList .model-row[data-id="{model_id}"]')
 
 
+def _menu_acts(page, model_id):
+    """The data-act of every item a row's menu offers (empty: the row has no
+    menu). The vendored row-menu mounts its items only while it is open."""
+    kebab = _item(page, model_id).locator(".row-kebab")
+    if not kebab.count():
+        return []
+    kebab.click()
+    page.wait_for_selector("body > .row-menu", state="visible", timeout=5000)
+    acts = page.locator("body > .row-menu .row-menu-item").evaluate_all("els => els.map(e => e.dataset.act)")
+    page.keyboard.press("Escape")
+    return acts
+
+
 def _open_editor(page, model_id):
     """Edit placement from the row menu: the editor mounts in the model's
     detail pane (wide window) or its sheet (phone), never under the row."""
-    _item(page, model_id).locator(".row-menu-toggle").click()
-    _item(page, model_id).locator(".placement-edit-btn").click()
+    _item(page, model_id).locator(".row-kebab").click()
+    page.locator('body > .row-menu .row-menu-item[data-act="edit-placement"]').click()
     page.wait_for_selector(
         f'.model-body[data-id="{model_id}"] .placement-editor', state="visible", timeout=5000,
     )
@@ -144,14 +157,17 @@ def test_no_edit_affordance_when_not_write_host(page, admin_url):
     """A satellite hub (write_enabled false) renders the cards read-only —
     zero edit buttons anywhere, exactly the pre-#424 surface."""
     _open_models_tab(page, admin_url, _payload(write_enabled=False))
-    assert page.locator("#modelsList .placement").count() >= 3
+    for model_id in ("whisper", "gemma4_26b"):
+        acts = _menu_acts(page, model_id)
+        assert acts, f"{model_id} should still offer its menu"
+        assert "edit-placement" not in acts, f"{model_id} offers Edit placement on a satellite"
     assert page.locator(".placement-edit-btn").count() == 0
 
 
 def test_virtual_alias_row_is_never_editable(page, admin_url):
     _open_models_tab(page, admin_url, _payload())
-    assert _item(page, "whisper").locator(".placement-edit-btn").count() == 1
-    assert _item(page, "qwen35_4b_nothink").locator(".placement-edit-btn").count() == 0
+    assert _menu_acts(page, "whisper").count("edit-placement") == 1
+    assert "edit-placement" not in _menu_acts(page, "qwen35_4b_nothink")
 
 
 def test_full_edit_drives_put_payload(page, admin_url):
@@ -239,7 +255,7 @@ def test_idle_input_disabled_for_eager_policy(page, admin_url):
 
     # The shared dictionary opens in the same slot, replacing the editor.
     page.click("#modelSheetCloseBtn")
-    _item(page, "whisper").locator(".row-menu-toggle").click()
-    _item(page, "whisper").locator('.row-menu-item[data-act="dictionary"]').click()
+    _item(page, "whisper").locator(".row-kebab").click()
+    page.locator('body > .row-menu .row-menu-item[data-act="dictionary"]').click()
     page.wait_for_selector("#modelSheet[open] .model-editor .glossary-panel", timeout=5000)
     assert page.locator(".placement-editor").count() == 0

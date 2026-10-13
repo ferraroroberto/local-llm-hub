@@ -22,7 +22,9 @@ What they lock in:
   * subscription rows (claude) carry no placement section at all;
   * #647 (J-10): the placement chips are not on the row face — a row reads in
     two lines (name, then one budgeted meta line) — and sit one tap behind the
-    row's "More actions" details, keyboard-reachable, on phone and desktop;
+    row, in its sheet or detail pane; the row's "More actions" menu (the
+    vendored row-menu, #772) repeats the chain and policy as one header line,
+    keyboard-reachable, on phone and desktop;
   * #737: the face carries the alive badge instead of a "running" chip, no
     "stopped" or "eager" word, and only exception chips (on demand, failover).
 """
@@ -183,12 +185,15 @@ def _item(page, model_id):
 
 
 def _open_details(page, model_id):
-    """Open a row's "More actions" details — where the placement chips live."""
-    item = _item(page, model_id)
-    page.keyboard.press("Escape")  # close a menu left open by an earlier step
-    item.locator(".row-menu-toggle").click()
-    item.locator(".placement").wait_for(state="visible", timeout=5000)
-    return item
+    """Open a model's detail (the pane on a wide window, the sheet on a phone)
+    — where the placement chips live. The row's menu carries the same facts as
+    one text line (see test_row_menu_header_reads_the_placement)."""
+    if page.locator("#modelSheet[open]").count():
+        page.click("#modelSheetCloseBtn")
+    _item(page, model_id).locator(".action-row-main").click()
+    body = page.locator(f'.model-body[data-id="{model_id}"]')
+    body.locator(".placement").wait_for(state="visible", timeout=5000)
+    return body
 
 
 def test_chain_pills_render_with_owner_highlight(page, admin_url):
@@ -311,28 +316,62 @@ def test_row_face_is_two_lines_and_chips_sit_behind_details(page, admin_url, vie
     assert [pills.nth(i).inner_text() for i in range(pills.count())] == [
         "gaming", "mac-mini-m4", "tower · cpu"]
     assert whisper.locator(".placement .startup-policy").inner_text() == "Always on"
-    # The floating list itself is the role=menu layer: the design review treats
-    # an absolutely or fixed positioned [role=menu] as the popup that paints over the
-    # rows below it, so the placement card and the actions share it (TOUCH-02).
-    menu = whisper.locator(".row-menu-list")
-    assert menu.get_attribute("role") == "menu"
-    # Open, it is viewport-fixed so it can flip above its row (#767).
-    assert menu.evaluate("e => getComputedStyle(e).position") == "fixed"
-    assert menu.locator(":scope > .placement").count() == 1
-    assert menu.locator(":scope > .row-menu-item").count() >= 1
-    box = whisper.locator(".row-menu-list").bounding_box()
-    assert box["x"] >= 0 and box["x"] + box["width"] <= viewport["width"], box
 
     # The subscription row has nothing to show, so its details hold no chips.
-    claude = _item(page, "claude_haiku")
-    claude.locator(".row-menu-toggle").click()
+    if page.locator("#modelSheet[open]").count():
+        page.click("#modelSheetCloseBtn")
+    claude = _open_details_without_placement(page, "claude_haiku")
     assert claude.locator(".placement").count() == 0
 
 
-def test_placement_details_open_from_the_keyboard(page, admin_url):
+def _open_details_without_placement(page, model_id):
+    _item(page, model_id).locator(".action-row-main").click()
+    body = page.locator(f'.model-body[data-id="{model_id}"]')
+    body.wait_for(state="visible", timeout=5000)
+    return body
+
+
+@pytest.mark.parametrize("viewport", [PHONE, DESKTOP], ids=["phone", "desktop"])
+def test_row_menu_header_reads_the_placement(page, admin_url, viewport):
+    """The row's "More actions" menu is the vendored row-menu: its one header
+    line carries the host chain (owner marked, cpu tier tagged), the startup
+    policy and the roles, as plain text above the actions (#772). It is the
+    role=menu layer, fixed to the viewport, and stays inside it."""
+    page.set_viewport_size(viewport)
+    _open_models_tab(page, admin_url)
+
+    _item(page, "whisper").locator(".row-kebab").click()
+    menu = page.locator("body > .row-menu")
+    menu.wait_for(state="visible", timeout=5000)
+    assert menu.get_attribute("role") == "menu"
+    assert menu.evaluate("e => getComputedStyle(e).position") == "fixed"
+    head = menu.locator(".row-menu-head")
+    text = head.inner_text()
+    assert "gaming ● → mac-mini-m4 → tower (cpu)" in text, text
+    assert "Always on" in text, text
+    assert head.get_attribute("role") == "presentation"
+    assert menu.locator(".row-menu-item").count() >= 1
+    box = menu.bounding_box()
+    assert box["x"] >= 0 and box["x"] + box["width"] <= viewport["width"], box
+
+    # The subscription row has no placement, so its menu has no chain line.
+    page.keyboard.press("Escape")
+    _item(page, "claude_haiku").locator(".row-kebab").click()
+    claude_menu = page.locator("body > .row-menu")
+    claude_menu.wait_for(state="visible", timeout=5000)
+    assert "→" not in (claude_menu.locator(".row-menu-head").inner_text()
+                          if claude_menu.locator(".row-menu-head").count() else "")
+
+
+def test_placement_menu_opens_from_the_keyboard(page, admin_url):
     _open_models_tab(page, admin_url)
     orpheus = _item(page, "orpheus")
-    orpheus.locator(".row-menu-toggle").focus()
+    orpheus.locator(".row-kebab").focus()
     page.keyboard.press("Enter")
-    orpheus.locator(".placement").wait_for(state="visible", timeout=5000)
-    assert orpheus.locator(".place-pill").count() == 2
+    menu = page.locator("body > .row-menu")
+    menu.wait_for(state="visible", timeout=5000)
+    assert "tower ● → gaming" in menu.locator(".row-menu-head").inner_text()
+    # Enter opens it with the first action focused; Escape returns focus to the kebab.
+    assert page.evaluate("document.activeElement.classList.contains('row-menu-item')")
+    page.keyboard.press("Escape")
+    assert page.evaluate("document.activeElement.classList.contains('row-kebab')")

@@ -94,6 +94,7 @@ icons         = { src = "app/webapp/static/_vendored/icons", sha = "464eda28be43
 modal         = { src = "app/webapp/static/_vendored/modal", sha = "464eda28be4393131e36140f3c9012f3e5a1a85f", dest = "app_web/static/_vendored/modal" }
 nav           = { src = "app/webapp/static/_vendored/nav", sha = "464eda28be4393131e36140f3c9012f3e5a1a85f", dest = "app_web/static/_vendored/nav" }
 range-tab     = { src = "app/webapp/static/_vendored/range-tab", sha = "464eda28be4393131e36140f3c9012f3e5a1a85f", dest = "app_web/static/_vendored/range-tab" }
+row-menu      = { src = "app/webapp/static/_vendored/row-menu", sha = "464eda28be4393131e36140f3c9012f3e5a1a85f", dest = "app_web/static/_vendored/row-menu" }
 select-native = { src = "app/webapp/static/_vendored/select-native", sha = "464eda28be4393131e36140f3c9012f3e5a1a85f", dest = "app_web/static/_vendored/select-native" }
 switch        = { src = "app/webapp/static/_vendored/switch", sha = "7e1433c70cac1bdcdbd160e874d3f486ba9e2a08", dest = "app_web/static/_vendored/switch" }
 text-size     = { src = "app/webapp/static/_vendored/text-size", sha = "8f89563a959dbf05bb368a230e9b898a9cae2291", dest = "app_web/static/_vendored/text-size" }
@@ -137,7 +138,7 @@ no_go = [
 [[design.review.extra_steps]]
 tab  = "models"
 id   = "row-menu"
-open = "#paneModels details.row-menu"
+click = "#modelsList .model-row .row-kebab"
 
 [[design.review.extra_steps]]
 tab   = "models"
