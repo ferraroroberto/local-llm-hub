@@ -26,11 +26,11 @@ defineInfo('code-usage', 'About these figures',
   + 'are served from the 5-minute or 1-hour prompt cache. The ≈ $ figures are the equivalent metered-API cost '
   + 'these tokens would have billed.</p>'
   + '<p><strong>Claude figures undercount two ways.</strong> Sessions bridged through claude.ai/code write no usage '
-  + 'to the local transcripts (the <strong>Sub-agents (OTel)</strong> source and the OTel tab capture those when '
-  + 'telemetry is enabled), and Claude Code prunes transcripts after about 30 days: the hub snapshots daily rollups, '
+  + 'to the local transcripts (the <strong>Sub-agents (telemetry)</strong> source captures those when '
+  + 'telemetry export is on), and Claude Code prunes transcripts after about 30 days: the hub snapshots daily rollups, '
   + 'so All keeps growing from 2026-07-12 forward, but earlier pruned days are gone. Sub-agent (Task tool) usage '
   + '<em>is</em> counted where the newer per-session transcript folders exist.</p>'
-  + '<p><strong>Sub-agents (OTel)</strong> is Claude Code\'s own OTel export (<code>POST /v1/metrics</code>), the only '
+  + '<p><strong>Sub-agents (telemetry)</strong> is Claude Code\'s own telemetry export (OpenTelemetry, <code>POST /v1/metrics</code>), the only '
   + 'channel that sees sub-agent usage. It is stored separately and never added into All, so main-agent activity is '
   + 'not counted twice. Its project is tagged for sessions launched through the <code>claude</code> shell wrapper.</p>'
   + '<p>Projects under the <code>automation</code> workspace show just the folder name (the <code>automation-</code> '
@@ -352,7 +352,7 @@ function applyView() {
 
 function agentLabel(v) {
   if (v === 'all') return 'All agents';
-  if (v === SUBAGENTS) return 'Sub-agents (OTel)';
+  if (v === SUBAGENTS) return 'Sub-agents (telemetry)';
   return vendorLabel(v);
 }
 

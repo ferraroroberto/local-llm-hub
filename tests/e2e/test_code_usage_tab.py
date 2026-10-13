@@ -199,7 +199,7 @@ def test_vendor_toggle_changes_selector(page, admin_url):
     sheet = page.locator("#cldAgentSheet[open]")
     sheet.wait_for(timeout=3000)
     titles = sheet.locator(".cld-agent-row .action-row-title").all_inner_texts()
-    assert titles == ["All agents", "Claude", "Codex", "Copilot", "AGY", "Sub-agents (OTel)"], titles
+    assert titles == ["All agents", "Claude", "Codex", "Copilot", "AGY", "Sub-agents (telemetry)"], titles
     agy = sheet.locator('.cld-agent-row[data-vendor="agy"]').inner_text()
     assert "AgentsView" in agy and "offline" in agy and "2 req" in agy, agy
 

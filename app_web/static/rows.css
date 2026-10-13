@@ -131,6 +131,7 @@ details.sheet-disclosure[open] > summary .sheet-chevron { transform: rotate(90de
 .sheet-pairs dt { color: var(--muted); }
 .sheet-pairs dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .sheet-pairs dd[data-tone] { color: var(--tone-text); font-weight: 600; }
+.sheet-pairs + .sheet-meta { margin-top: var(--space-md); }
 
 /* Destructive rows, last, after a divider, in danger-text, each behind the
  * confirm dialog (design.md action-row). */

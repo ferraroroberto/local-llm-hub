@@ -914,7 +914,7 @@ and is anything failing?* first (#738):
   row while all are up; a stopped or failing one is its own row with
   **Start**, and the header line names it. The row opens the **Services**
   sheet: every service with Start / Stop and its detail, **Launch Docker +
-  Langfuse**, and the **Langfuse** sheet with the OTel state, PII mode,
+  Langfuse**, and the **Langfuse** sheet with the Telemetry export state, Hide personal data,
   endpoint, stack health, **Open Langfuse UI** and the offline setup hint.
 - **Activity.** One feed of request rows (model first, status and latency,
   backend · tokens · detail, clock last), **Requests · Errors**, with a
@@ -937,9 +937,9 @@ each switch flips), **Health** (Health & install with Fix all and Re-check, run
 when the row opens; a failing check also reaches Hub's header line) and
 **About** (build, models.yaml config version, process id, Open Langfuse UI,
 the frontier report). A row with a body opens it in place on a phone and
-beside the list on a wide window. The separate OTel pane and its header
+beside the list on a wide window. The separate telemetry pane and its header
 **Traces** button are gone: their functions live in Hub (Langfuse sheet,
-Activity, By model) and Code (Sub-agents (OTel)), and a `#telemetry` link
+Activity, By model) and Code (Sub-agents (telemetry)), and a `#telemetry` link
 opens Hub Activity.
 
 ### Machines console
@@ -1477,8 +1477,7 @@ systemd unit at `linux/systemd/local-llm-hub.service` instead — see "Linux
 satellite lifecycle" above.)
 
 Once the hub is running, open `http://127.0.0.1:8000/admin/` for the
-admin webapp — five tabs (Hub / Models / Play / Code / Machines; OTel
-opens from the header button) covering every operational concern. The
+admin webapp — five tabs (Hub / Models / Play / Code / Machines) covering every operational concern. The
 header gear opens Settings, where a Small / Default / Large text-size control
 (persisted in the browser) scales every tab. Going to `http://127.0.0.1:8000/`
 redirects there.
@@ -2159,7 +2158,7 @@ local/open-source alternative spike: [docs/jev-call-site-survey.md](docs/jev-cal
 
 The hub emits OpenTelemetry traces + metrics via OTLP/gRPC into a local
 Langfuse stack started by `start_langfuse.bat`. The admin SPA's
-**OTel** tab shows stack health, a per-model leaderboard, and a
+**Hub** tab shows stack health, a per-model leaderboard, and a
 live trace feed with deep-links into the Langfuse UI for inspection.
 
 Default mode captures raw prompts and completions — fine on a personal
