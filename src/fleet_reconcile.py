@@ -194,7 +194,7 @@ async def reconcile_once() -> Dict[str, Any]:
     placement entirely: no models to run means no reason to wake it.
     """
     from . import fleet_maintenance
-    from .host_profile import resolve as resolve_host
+    from .host_profile import get_host, resolve as resolve_host
     from .model_registry import desired_placement
 
     placement = desired_placement()
@@ -202,6 +202,11 @@ async def reconcile_once() -> Dict[str, Any]:
     results: Dict[str, Any] = {}
     for host_id, desired in placement.items():
         if not desired:
+            continue
+        profile = get_host(host_id)
+        if profile is not None and profile.dormant and host_id != active_id:
+            # Intentionally off (#765): no Wake-on-LAN, no bootstrap, no start.
+            results[host_id] = {"dormant": True, "reachable": None}
             continue
         if fleet_maintenance.is_under_maintenance(host_id):
             logger.info("fleet reconcile: host %s is under maintenance — skipping", host_id)

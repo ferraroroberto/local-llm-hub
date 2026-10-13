@@ -38,7 +38,9 @@ tray:
 #   display_name  human label for the card
 #   role          one-line description under the name
 #   icon          Lucide glyph id (bare name; the SPA prefixes `i-`)
-#   dormant       true = a powered-down node shown but not live-probed
+#   dormant       true = intentionally off: a neutral card, never alerted on or
+#                 reached (#765). Normally set per machine from Settings ›
+#                 Machines into the gitignored machines.local.yaml instead
 #
 # Machine *identity* is deliberately absent from this file (#525): this repo
 # is public, and `address` / `tailscale` / `mac` / `ssh_user` / `rdp` together

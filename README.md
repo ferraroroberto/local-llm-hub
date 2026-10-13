@@ -973,7 +973,8 @@ Every reachable machine shows the **same** snapshot — CPU / RAM / GPU / disk
   (`src/remote_stats.py`): a **hub-independent TCP liveness probe** for
   up/down, and the same CPU/RAM/GPU/disk/uptime snapshot collected over the
   hub user's **own** passwordless SSH (a read-only one-liner, per-OS). A node
-  flagged `dormant` is shown but not live-probed (none at present). All peer actions —
+  flagged `dormant` (see **Dormant machines** below) is never SSH'd or
+  hub-probed. All peer actions —
   read-only observability *and* reboot/shutdown — go over that general SSH
   (plus TCP for liveness); the forced-command key is reserved for the
   hub-lifecycle `bootstrap`/`sync` (#181/#368) on the model-serving peers
@@ -1042,6 +1043,23 @@ The file is **optional**. Without it the hub boots normally and every
 peer-dependent feature — proxy failover, remote stats, SSH ops, Wake-on-LAN,
 RDP — simply stays inert, which is the correct behaviour for a single-machine
 install. Restart the hub to pick up an edit, same as `models.yaml`.
+
+**Dormant machines (#765).** A machine that is off on purpose (broken, unused
+for months) would otherwise sit in the Machines list as a red *offline* forever.
+Mark it **dormant** in **Settings › Machines**: one switch per peer, saved at
+once to `dormant: true` under that host in `config/machines.local.yaml` (this
+machine only, never committed; the machine the hub runs on has no switch).
+Switching it off again removes the key. A dormant machine is a neutral row
+sorted after the live ones, never counted in the header's *N offline*, and no
+automated path reaches it: failover chains and placement skip it (its models
+go to the next chain member, with no *failover* flag), the fleet reconcile loop
+sends it no Wake-on-LAN or bootstrap, and the sync fan-out, drift loop and
+peer probes leave it alone. The one thing the Machines tab does is a cached
+TCP connect, so a dormant box that comes back (after **Wake**, say) reads as
+*Reachable · still dormant* with a hint to switch dormant off; the flag never
+flips by itself. `dormant: true` can still be hand-set on a `hosts:` row in
+`models.yaml`, and an overlay value (`true` or `false`) wins over it. The flag
+is per hub: another hub in the fleet keeps its own `machines.local.yaml`.
 
 **Wake (non-destructive, #356).** A machine that is **down or dormant** and
 has a wired-NIC `mac:` recorded in `config/machines.local.yaml` offers a

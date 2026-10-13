@@ -548,6 +548,8 @@ async def remote_models(
     # import here would be circular.
     from src.remote_proxy import remote_auth_token
 
+    if owner.dormant:  # intentionally off (#765): never dialled
+        return None
     address = await dial_address_async(owner)
     if not address:
         return None
@@ -593,6 +595,11 @@ async def peer_health(
     from src.host_profile import get_host
 
     owner = get_host(host_id)
+    if owner is not None and owner.dormant:
+        # Intentionally off (#765): not dialled, so failover and the sync
+        # paths see "not reachable" without a probe, and no caller can raise
+        # an outage for it.
+        return {"reachable": False, "dormant": True, "error": "dormant", "address": None}
     address = await dial_address_async(owner) if owner is not None else None
     if owner is None or not address:
         return {"reachable": False, "error": f"host {host_id!r} has no address configured", "address": None}

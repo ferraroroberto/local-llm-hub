@@ -18,6 +18,10 @@ already uses for ``config/machine_specs.yaml`` and ``config/webapp_config.json``
 The overlay is optional by design: a fresh clone without one boots fine and
 every peer-dependent feature simply stays inert (all five fields are
 ``Optional`` on ``HostProfile``, and ``can_ssh`` already degrades to False).
+
+The same overlay carries one non-identity field, ``dormant`` (#765): whether
+a machine is intentionally off is a fact about *this* operator's fleet, set
+from Settings, so it lives machine-local too and never reaches a commit.
 """
 
 from __future__ import annotations
@@ -59,7 +63,9 @@ class HostProfile:
     display_name: Optional[str] = None
     role: Optional[str] = None
     icon: Optional[str] = None
-    # A powered-down node: shown as a card but not live-probed on the LAN.
+    # Intentionally off (#765): a neutral card, never alerted on and never
+    # reached by failover, placement, reconcile or sync. Set from Settings
+    # into the machine-local overlay (or by hand in either file).
     dormant: bool = False
     # Tailscale magic-DNS hostname — peer reachability + off-LAN RDP target.
     tailscale: Optional[str] = None
@@ -105,6 +111,11 @@ _CONFIG_CACHE: Dict[str, Dict[str, Any]] = {}
 # example file and the docs can't drift apart silently.
 IDENTITY_FIELDS = ("address", "tailscale", "mac", "ssh_user", "rdp")
 
+# Everything the overlay may set: identity plus the operator's dormant flag
+# (#765). `dormant: false` is a real value (it overrides a committed `true`),
+# which is why the merge below tests `is not None`, never truthiness.
+OVERLAY_FIELDS = IDENTITY_FIELDS + ("dormant",)
+
 
 def machines_path() -> Path:
     """Path to the gitignored identity overlay -- always a sibling of the
@@ -115,8 +126,8 @@ def machines_path() -> Path:
 
 
 def _merge_identity(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Merge ``machines.local.yaml``'s per-host identity onto the ``hosts:``
-    rows. Absent overlay, unreadable overlay, or a host it says nothing about
+    """Merge ``machines.local.yaml``'s per-host identity (and ``dormant``,
+    #765) onto the ``hosts:`` rows. Absent overlay, unreadable overlay, or a host it says nothing about
     all mean the same thing: those fields stay unset and the peer features
     that need them stay inert. Never raises -- a broken overlay must not stop
     the hub booting."""
@@ -141,7 +152,7 @@ def _merge_identity(data: Dict[str, Any]) -> Dict[str, Any]:
     for host_id, ident in rows.items():
         if not isinstance(ident, dict) or host_id not in hosts:
             continue
-        for field in IDENTITY_FIELDS:
+        for field in OVERLAY_FIELDS:
             if ident.get(field) is not None:
                 hosts[host_id][field] = ident[field]
     return data

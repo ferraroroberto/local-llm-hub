@@ -1,7 +1,7 @@
 /* Settings (#741): the gear on every pane opens the design system's settings
  * groups — Display (text size, theme), Startup (service startup switches),
- * Health (Health & install) and About (build, config version, process id,
- * Langfuse UI, frontier report).
+ * Machines (dormant switches, #765), Health (Health & install) and About
+ * (build, config version, process id, Langfuse UI, frontier report).
  *
  * A row with a body (Service startup, Health & install) opens it in place of
  * the list on a phone, with a back row, and beside the list on a wide window
@@ -17,6 +17,7 @@ import { icon } from './_vendored/icons/icons.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
 import { isWide, onWideChange } from './rows.js';
 import { langfuseUiBase } from './langfuse.js';
+import { fetchDormant } from './dormant.js';
 import { renderHeadLine as renderHubHeadLine } from './hub.js';
 
 const APP_PREFIX = 'llmhub';
@@ -39,6 +40,7 @@ function openPage(key) {
       else main.removeAttribute('aria-current');
     }
   });
+  if (key === 'machines') fetchDormant();
   if (key === 'health' && !state.installChecked) {
     state.installChecked = true;
     fetchInstallStatus();

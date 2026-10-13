@@ -8,9 +8,10 @@
 # network. The per-host addressing lives here instead, and the real
 # machines.local.yaml is gitignored.
 #
-# src/host_profile.py merges these five fields onto the matching `hosts:` row
-# from models.yaml at load time. Keys must match the host ids used there; a
-# host this file says nothing about simply keeps the fields unset.
+# src/host_profile.py merges these fields (the five identity ones, plus
+# `dormant`) onto the matching `hosts:` row from models.yaml at load time.
+# Keys must match the host ids used there; a host this file says nothing
+# about simply keeps the fields unset.
 #
 # Entirely optional. With no machines.local.yaml the hub boots normally and
 # every peer-dependent feature stays inert — proxy failover, remote stats,
@@ -24,6 +25,9 @@
 #   ssh_user   login for the remote-bootstrap/sync endpoints (#181). Not a
 #              secret — the key itself is LOCAL_LLM_HUB_SSH_KEY in .env
 #   rdp        {address, user} for the Remote-Desktop launch action
+#   dormant    true = this machine is off on purpose (#765): no offline alert,
+#              never contacted by failover/placement/sync. Written by
+#              Settings › Machines; you rarely need to edit it by hand
 #
 # Every value below is a placeholder. Replace them.
 

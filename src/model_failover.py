@@ -229,7 +229,8 @@ def eligible_chain(model: Model) -> List[str]:
     """``model.host_chain`` filtered to hosts that actually list the model in
     their ``enabled:`` — a chain entry that never enabled the model can't
     serve it, so it is skipped at resolution time (issue #342's "(b) has the
-    model installed/enabled"). Unknown host ids are dropped too.
+    model installed/enabled"). Unknown host ids are dropped too, and so is a
+    dormant host (intentionally off, #765): it is never probed or chosen.
     """
     from .host_profile import get_host
 
@@ -239,7 +240,7 @@ def eligible_chain(model: Model) -> List[str]:
     # code applied to ``model.host``.
     for host_id in list(getattr(model, "hosts", None) or []):
         profile = get_host(host_id)
-        if profile is not None and model.id in profile.enabled:
+        if profile is not None and not profile.dormant and model.id in profile.enabled:
             out.append(host_id)
     return out
 
