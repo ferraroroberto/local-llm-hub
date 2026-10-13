@@ -8,7 +8,8 @@
  *
  * Contract: one rounded.md track on neutral-soft with a 3px inset and no outer
  * border, holding equal borderless segments. The SELECTED SEGMENT IS THE
- * STATE: raised on the card surface with a soft shadow, aria-pressed="true".
+ * STATE: raised (card in light, a step above the track in dark) with a soft
+ * shadow, aria-pressed="true".
  * The state is never a colour, so an armed mode is not red, and never a
  * sentence above faded options. Every label is fg on the track (12.8:1 light,
  * 11.9:1 dark); fg-muted there is 4.3:1 light and 3.8:1 dark, under AA, so a
@@ -80,6 +81,18 @@
 .segmented-item[aria-pressed="true"] {
   background: var(--card);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+/* Dark: `card` is darker than the track (the track is a muted tint over the
+ * card), so the card fill would read pressed in, not raised (project-
+ * scaffolding#377, fleet-config#1396). The selection takes the same muted
+ * tint at 30% over the card, a step above the track's 16%: computed to be
+ * lighter than the track on the card, on the page background and on a raised
+ * surface, and the fg label on it is 9.6:1 (AA is 4.5:1; the gallery test
+ * asserts it). It is built from `--muted` and `--card` only, so no extra
+ * token is needed; `--card-2` is not used, because over a card the track
+ * (#262c34) is lighter than `--card-2` (#21262d). Light is unchanged. */
+[data-theme="dark"] .segmented-item[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--muted) 30%, var(--card));
 }
 
 /* Unavailable keeps the fg label (see the header); the cursor says it. */

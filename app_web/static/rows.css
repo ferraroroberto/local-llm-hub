@@ -45,19 +45,6 @@
   cursor: not-allowed;
 }
 
-/* A stopping verb (Stop) is outlined, never tinted, even as the lone verb
- * (#763): the vendored action-row paints every .action-row-verb with the tint,
- * so this overrides it app-side with the Services sheet's .ghost-btn recipe
- * (transparent, line border, muted text). The doubled .row-verb.is-outline
- * outranks the vendored hover and disabled rules. */
-.action-row .action-row-verb.row-verb.is-outline,
-.action-row .action-row-verb.row-verb.is-outline:not(:disabled):hover {
-  background: transparent;
-  border-color: var(--line);
-  color: var(--muted);
-}
-.action-row .action-row-verb.row-verb.is-outline:not(:disabled):hover { color: var(--ink); }
-
 /* The selected row of a list-plus-detail split keeps the accent-soft tint, and
  * its secondary text moves to accent-text (muted measured under AA on it). */
 .action-row.is-selected { background: var(--accent-soft); border-radius: var(--radius-md); }

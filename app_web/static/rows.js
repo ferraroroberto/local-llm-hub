@@ -70,7 +70,7 @@ export function chip(text, tone) {
  *   mainCls    extra classes on the row's main button
  *   metaAttrs  extra attributes on the meta line (a live region a caller repaints)
  *   verb       { attrs, label, glyph, disabled, title, outline } — the one visible
- *              verb; outline draws it outlined, never tinted (a stopping verb)
+ *              verb; outline draws it with the vendored .action-row-verb--stop recipe (a stopping verb)
  *   trail      raw HTML for the one trailing item (an ⓘ, a value)
  */
 export function row(opts) {
@@ -92,7 +92,7 @@ export function row(opts) {
   let verb = '';
   if (opts.verb) {
     const v = opts.verb;
-    verb = '<button type="button" class="icon-button action-row-verb row-verb' + (v.outline ? ' is-outline' : '') + '"' + (v.attrs || '')
+    verb = '<button type="button" class="icon-button action-row-verb row-verb' + (v.outline ? ' action-row-verb--stop' : '') + '"' + (v.attrs || '')
       + (v.title ? ' title="' + escapeHtml(v.title) + '"' : '')
       + (v.disabled ? ' disabled' : '') + '>'
       + (v.glyph ? icon(v.glyph) : '') + '<span>' + escapeHtml(v.label) + '</span></button>';
