@@ -16,7 +16,8 @@
  * Contract: heading-lg title + an unpainted 34px × close (modal.closeSize,
  * an `.icon-button`) with a 44px effective hit area; label/value rows at
  * 12px 0 on a top-border divider, value control >= 55%; exactly one
- * full-width primary button, whose disabled state clears AA in both themes;
+ * full-width primary button, whose disabled state is button's one recipe
+ * (4.93:1 light, 4.08:1 dark; see button.css);
  * the nav hides while the dialog is open; top-anchored on mobile so it never
  * jumps on open/close.
  */
@@ -101,7 +102,9 @@ body:has(dialog[open]) .app { overflow: hidden; }
    `.icon` whatever the link order. */
 .detail-header .detail-close .icon { width: var(--icon-title); height: var(--icon-title); }
 
-/* Label/value rows: label left, control right (>= 55%), top-border divider. */
+/* Label/value rows: label left, control right (>= 55%), top-border divider.
+   The label is the row's first `span` child; any other span (a muted note,
+   a fix-it line) keeps its own colour and weight (project-scaffolding#363). */
 .detail-card .row {
   display: flex;
   align-items: center;
@@ -110,7 +113,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
   padding: 12px 0;            /* modal.rowPadding */
   border-top: 1px solid var(--line);
 }
-.detail-card .row span { color: var(--ink); font-weight: 600; }
+.detail-card .row > span:first-child { color: var(--ink); font-weight: 600; }
 .detail-card .row .select-native,
 .detail-card .row .input-native { min-width: 55%; }
 
@@ -125,7 +128,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
   border-radius: 0 0 var(--radius) var(--radius);
 }
 /* The footer primary is `button-primary` (button.css — design.md
-   modal.primaryButton: the spec's 48px, never --control-h, #280; the AA
+   modal.primaryButton: the spec's 48px, never --control-h, #280; the
    disabled recipe lives there too, home-automation#362); the modal only
    stretches it to the full footer width. */
 .detail-save-btn { width: 100%; }
