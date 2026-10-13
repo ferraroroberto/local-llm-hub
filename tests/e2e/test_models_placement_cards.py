@@ -312,11 +312,12 @@ def test_row_face_is_two_lines_and_chips_sit_behind_details(page, admin_url, vie
         "gaming", "mac-mini-m4", "tower · cpu"]
     assert whisper.locator(".placement .startup-policy").inner_text() == "Always on"
     # The floating list itself is the role=menu layer: the design review treats
-    # an absolutely positioned [role=menu] as the popup that paints over the
+    # an absolutely or fixed positioned [role=menu] as the popup that paints over the
     # rows below it, so the placement card and the actions share it (TOUCH-02).
     menu = whisper.locator(".row-menu-list")
     assert menu.get_attribute("role") == "menu"
-    assert menu.evaluate("e => getComputedStyle(e).position") == "absolute"
+    # Open, it is viewport-fixed so it can flip above its row (#767).
+    assert menu.evaluate("e => getComputedStyle(e).position") == "fixed"
     assert menu.locator(":scope > .placement").count() == 1
     assert menu.locator(":scope > .row-menu-item").count() >= 1
     box = whisper.locator(".row-menu-list").bounding_box()

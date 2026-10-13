@@ -21,6 +21,7 @@ import { els, state, MODELS_ACTIVE_ONLY_KEY } from './state.js';
 import { jsonApi, postJson, putJson, toast, escapeHtml, fmtGb, isAuthError } from './api.js';
 import { mountGlossaryEditor } from './glossary.js';
 import { icon } from './_vendored/icons/icons.js';
+import { wireRowMenus } from './row-menu.js';
 import { row, chip, setHeadLine, defineInfo, isWide, onWideChange } from './rows.js';
 import { fetchFleetPlacement, renderMemory, hostBodyEl, hostLabel, overCapacityHosts, onFleetPlacement } from './fleet_placement.js';
 
@@ -856,6 +857,10 @@ export function wireModels() {
     if (stored !== null) state.modelsActiveOnly = stored === 'true';
   } catch (_) { /* private mode */ }
   renderScope();
+
+  // An open menu is placed in viewport coordinates: above its row when below
+  // would reach the nav pill (#767).
+  wireRowMenus();
 
   // A row's "More actions" menu closes on any tap outside it and on Escape
   // (focus back on its kebab), and only one is open at a time.
