@@ -1425,6 +1425,8 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
   font-size: var(--font-label);
 }
 .startup-row-label .badge { flex-shrink: 0; }
+/* Settings › Machines (#765): the machine's name over its one-line meaning. */
+.dormant-row-label { flex-direction: column; align-items: flex-start; gap: 2px; }
 /* Section labels reuse .opt-group-title (playground's existing group-label
  * pattern) rather than a new one-off class. */
 

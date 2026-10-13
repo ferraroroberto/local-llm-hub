@@ -380,27 +380,31 @@ def hub_peer_ids(active_id: Optional[str] = None) -> List[str]:
     ``enabled:`` list (e.g. ``openclaw``) is correctly excluded. This is the
     peer set the Services card's Wake/Sync rows enumerate — mac-mini-m4 and
     gaming today, any future hub-running satellite automatically once it
-    declares a non-empty ``enabled:``.
+    declares a non-empty ``enabled:``. A dormant host (intentionally off,
+    #765) is not a peer: the sync fan-out, the drift loop and the Services
+    card must not reach for it.
     """
     active = active_id if active_id is not None else resolve_host().id
     return [
         h.id for h in all_hosts()
-        if h.id != active and launchable_local_ids(h)
+        if h.id != active and not h.dormant and launchable_local_ids(h)
     ]
 
 
 def preferred_owner(model: Model) -> Optional[str]:
     """The first chain host that exists and enables ``model`` — the static
     preferred owner (#342), independent of live reachability. ``None`` for an
-    unowned row (empty chain) or a chain with no eligible member. The dynamic
-    counterpart (where the model is *currently* served after a failover) is
+    unowned row (empty chain) or a chain with no eligible member. A dormant
+    host (intentionally off, #765) is passed over, so its models are placed
+    on the next member instead of waking it. The dynamic counterpart (where
+    the model is *currently* served after a failover) is
     ``src.model_failover.effective_owner``.
     """
     from .host_profile import get_host
 
     for host_id in model.hosts:
         profile = get_host(host_id)
-        if profile is not None and model.id in profile.enabled:
+        if profile is not None and not profile.dormant and model.id in profile.enabled:
             return host_id
     return None
 

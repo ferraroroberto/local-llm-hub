@@ -3,6 +3,9 @@ Machines tab.
 
   * ``GET  /admin/api/machines/status`` — every enrolled machine as a probed
     card (reachability, uptime, actions, host stats). The tab's poll.
+  * ``GET  /admin/api/machines/dormant`` and ``PUT .../{id}/dormant`` — read
+    and set the per-machine dormant flag (intentionally off, #765) behind
+    Settings › Machines; the write lands in ``machines.local.yaml`` only.
   * ``GET  /admin/api/machines/self`` — this machine's own detailed snapshot
     (CPU/RAM/GPU/disk/uptime/version). Also fetched cross-host by a peer's
     aggregator, so it rides the normal bearer-token/loopback middleware.
@@ -39,8 +42,8 @@ import websockets
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from starlette.responses import Response
 
-from src import machine_console, remote_bootstrap, ssh_terminal
-from src.host_profile import get_host, resolve
+from src import config_write, machine_console, remote_bootstrap, ssh_terminal
+from src.host_profile import all_hosts, get_host, resolve
 from src.wake_on_lan import WakeOnLanError, send_wake
 
 from ..middleware import admin_token_from_state, authorize_websocket
@@ -60,6 +63,32 @@ async def machine_self() -> Dict[str, Any]:
     """This machine's own detailed snapshot — used for its own card and
     fetched cross-host by a peer's aggregator."""
     return await machine_console.self_snapshot()
+
+
+@router.get("/api/machines/dormant")
+async def machines_dormant() -> Dict[str, Any]:
+    """Every peer with its dormant flag — config only, no live probe — for
+    Settings › Machines. The machine the hub runs on is left out: it cannot
+    be dormant (#765)."""
+    active_id = resolve().id
+    return {"machines": [
+        {"id": h.id, "display_name": h.display_name or h.id, "role": h.role or "", "dormant": h.dormant}
+        for h in all_hosts() if h.id != active_id
+    ]}
+
+
+@router.put("/api/machines/{host_id}/dormant")
+async def machine_set_dormant(host_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Mark a machine dormant (intentionally off) or back, in the
+    machine-local ``machines.local.yaml`` (#765). Takes effect at once — the
+    parsed config is re-read — and survives a restart."""
+    try:
+        changed = await asyncio.to_thread(
+            config_write.set_host_dormant, host_id, payload.get("dormant")
+        )
+    except config_write.ConfigWriteError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+    return {"ok": True, "id": host_id, "dormant": bool(payload["dormant"]), "changed": changed}
 
 
 def _require_power_target(host_id: str):

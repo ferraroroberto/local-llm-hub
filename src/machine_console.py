@@ -10,8 +10,9 @@ not whether the hub happens to run there:
   * a **peer** is liveness-probed by a hub-independent TCP connect
     (``remote_stats.is_reachable``) and, when up, gives the same snapshot over
     the hub user's own SSH (``remote_stats.collect``);
-  * a **dormant** node (a powered-down box, if any is flagged) is shown
-    but never live-probed.
+  * a **dormant** node (intentionally off, #765) is shown as a neutral card
+    and never SSH'd or hub-probed; only a cached TCP connect tells whether it
+    is answering again.
 
 Power actions (reboot/shutdown) live in ``remote_bootstrap`` and run over the
 hub user's own general SSH (#311); this module only computes *which* actions
@@ -167,12 +168,18 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
             card["ip"] = lan_ip()
         return card
 
-    # Dormant node — shown but never live-probed (it is powered down).
+    # Dormant node (#765) — intentionally off: a neutral card, never SSH'd,
+    # hub-probed or counted as an outage. The one thing this view does is a
+    # cached TCP connect, so a box that came back (after Wake, say) reads as
+    # `answering` with a hint to switch dormant off; the flag never flips by
+    # itself, and no automated path (failover, placement, sync) does this.
     if host.dormant:
         card = _card_base(host, is_host=False, reachable=None)
+        answering = bool(host.address) and await remote_stats.is_reachable(host)
         card.update(
-            state="dormant", reachable=None, uptime_seconds=None, stats=None,
-            detail="Dormant — Remote Desktop only",
+            state="dormant", reachable=None, answering=answering,
+            uptime_seconds=None, stats=None,
+            detail="Dormant",
             network=None, flaky=None,
         )
         return card

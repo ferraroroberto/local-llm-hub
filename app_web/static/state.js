@@ -64,6 +64,7 @@ export const state = {
 
   // Startup card — what autostarts with the hub (issue #265).
   startupProfile: null,   // /admin/api/startup-profile payload
+  dormantMachines: null,  // /admin/api/machines/dormant rows (Settings › Machines, #765)
 
   // Fleet placement card — fleet-wide desired state (issue #354).
   fleetPlacement: null,          // /admin/api/fleet-placement payload
@@ -117,6 +118,8 @@ export const els = {
   textSizeControl: document.getElementById('textSizeControl'),
   themeSeg: document.getElementById('themeSeg'),
   startupSummary: document.getElementById('startupSummary'),
+  dormantSummary: document.getElementById('dormantSummary'),
+  dormantList: document.getElementById('dormantList'),
   aboutBuild: document.getElementById('aboutBuild'),
   aboutPid: document.getElementById('aboutPid'),
   aboutLangfuse: document.getElementById('aboutLangfuse'),

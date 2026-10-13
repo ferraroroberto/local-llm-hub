@@ -117,7 +117,7 @@ function memoryRow(host, confirmed) {
   const fig = confirmed ? meterFigure(host) : null;
   const running = (host.running || []).length;
   const meta = !confirmed ? ''
-    : (!host.local && !host.reachable ? 'off' : running + ' running');
+    : (host.dormant ? 'dormant' : (!host.local && !host.reachable ? 'off' : running + ' running'));
   return row({
     cls: 'memory-row' + (confirmed && host.capacity_warning ? ' is-over' : ''),
     attrs: ' data-host-id="' + escapeHtml(host.id) + '"',
@@ -280,7 +280,9 @@ function buildHostGroup(host) {
   if (!host.local && !host.reachable) {
     const note = document.createElement('p');
     note.className = 'fleet-host-note muted small';
-    note.textContent = 'Off — desired models apply when this machine powers up.';
+    note.textContent = host.dormant
+      ? 'Dormant — intentionally off; no models are placed here until it is switched back on.'
+      : 'Off — desired models apply when this machine powers up.';
     group.appendChild(note);
   }
 

@@ -1017,6 +1017,8 @@
             </li>
             <li class="group-overline">Startup</li>
             <li class="action-row settings-link" data-settings="startup"><button type="button" class="action-row-main" aria-controls="settingsPage-startup"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-rocket"></use></svg></span><span class="action-row-text"><span class="action-row-title">Service startup</span><span class="action-row-meta" id="startupSummary">—</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
+            <li class="group-overline">Machines</li>
+            <li class="action-row settings-link" data-settings="machines"><button type="button" class="action-row-main" aria-controls="settingsPage-machines"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-server"></use></svg></span><span class="action-row-text"><span class="action-row-title">Dormant machines</span><span class="action-row-meta" id="dormantSummary">—</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
             <li class="group-overline">Health</li>
             <li class="action-row settings-link" data-settings="health"><button type="button" class="action-row-main" aria-controls="settingsPage-health"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-stethoscope"></use></svg></span><span class="action-row-text"><span class="action-row-title">Health &amp; install</span><span class="action-row-meta" id="installSummary">not checked</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
             <li class="group-overline">About</li>
@@ -1033,6 +1035,12 @@
           <h3 id="settingsStartupTitle">Service startup</h3>
           <p class="settings-note muted">Services that come up automatically every time the hub launches; each switch saves at once to <code>config/startup_profile.json</code>. Model autostart is set per model (<code>startup: eager|on_demand</code>) in its placement editor on Models.</p>
           <ul id="startupList" class="startup-list"></ul>
+          </section>
+          <section class="settings-page" id="settingsPage-machines" data-page="machines" hidden aria-labelledby="settingsMachinesTitle">
+          <button type="button" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
+          <h3 id="settingsMachinesTitle">Dormant machines</h3>
+          <p class="settings-note muted">Switch on a machine that is off on purpose. It stays listed as a neutral row, raises no offline alert, and the hub never contacts it for failover, placement or sync. Each switch saves at once to <code>config/machines.local.yaml</code>, on this machine only.</p>
+          <ul id="dormantList" class="startup-list"></ul>
           </section>
           <section class="settings-page" id="settingsPage-health" data-page="health" hidden aria-labelledby="settingsHealthTitle">
           <button type="button" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>

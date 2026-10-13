@@ -13,7 +13,9 @@
  * gauges, Terminal and Remote, connection, the machine's own hub (Sync, the
  * out-of-sync state, Start hub), then Reboot and Shut down last, behind the
  * confirm dialog. The pane header line names "N offline" or the stale age,
- * else the machine count.
+ * else the machine count (plus how many are dormant). A dormant machine
+ * (intentionally off, switched in Settings › Machines, #765) is a neutral row
+ * sorted after the live ones and never counts as offline.
  */
 
 import { els, state, MACHINES_POLL_MS } from './state.js';
@@ -114,12 +116,22 @@ function signalQuality(dbm) {
 
 // --------------------------------------------------------- machine facts
 function isDown(m) { return m.state === 'down'; }
+function isDormant(m) { return m.state === 'dormant'; }
+/* A dormant machine that answers again (after Wake, say): reachable, but the
+ * flag is the owner's to flip in Settings, so it stays dormant (#765). */
+function isAnswering(m) { return isDormant(m) && !!m.answering; }
+
+/* Live machines first, dormant ones after (stable, so config order holds). */
+function orderMachines(list) {
+  return list.filter(function (m) { return !isDormant(m); })
+    .concat(list.filter(isDormant));
+}
 
 /* The avatar's corner badge means alive and nothing else (design.md avatar):
  * up for this machine and every reachable peer, down for one that should
  * answer and does not, none for a dormant box (legitimately off). */
 function badgeFor(m) {
-  if (m.state === 'self' || m.state === 'up') return 'up';
+  if (m.state === 'self' || m.state === 'up' || isAnswering(m)) return 'up';
   if (m.state === 'down') return 'down';
   return null;
 }
@@ -130,7 +142,8 @@ function leadFor(m) {
   const uptime = fmtUptimeHuman(m.uptime_seconds);
   if (m.state === 'self') return 'This machine' + (uptime ? ' · up ' + uptime : '');
   if (m.state === 'up') return uptime ? 'Up ' + uptime : 'Up';
-  if (m.state === 'dormant') return 'Dormant';
+  if (isAnswering(m)) return 'Reachable · still dormant';
+  if (isDormant(m)) return 'Dormant';
   return m.detail && m.detail !== 'Offline' ? m.detail : 'Offline';
 }
 
@@ -163,7 +176,7 @@ function rowVerb(m) {
   const a = m.actions || {};
   const name = m.display_name || m.id;
   const rechecking = !!state.machinesRecheckIds[m.id];
-  if (a.wake && (m.state === 'down' || m.state === 'dormant')) {
+  if (a.wake && (m.state === 'down' || (isDormant(m) && !isAnswering(m)))) {
     return {
       attrs: ' data-machine-action="wake" aria-label="Wake ' + escapeHtml(name) + '"',
       label: rechecking ? 'Rechecking…' : 'Wake', glyph: 'power', disabled: rechecking,
@@ -358,6 +371,9 @@ function machineBody(m, isStale, wide, connOpen) {
     + '<div class="sheet-section">'
     + '<p class="sheet-meta">' + escapeHtml(metaBits.join(' · ')) + '</p>'
     + (chips.length ? '<div class="sheet-chips">' + chips.map(function (c) { return chip(c.text, c.tone); }).join('') + '</div>' : '')
+    + (isAnswering(m)
+      ? '<p class="sheet-meta">It answers again. Switch Dormant off in Settings&nbsp;›&nbsp;Machines to watch it like the others.</p>'
+      : '')
     + '</div>'
     + statsSection(m)
     + toolsSection(m, wide)
@@ -381,7 +397,10 @@ function renderHeadLine(machines) {
     parts.push({ text: 'stale ' + fmtAge(Date.now() - state.machinesLastUpdated) });
     title = 'Last updated ' + fmtClock(state.machinesLastUpdated / 1000) + ' · live data unavailable';
   }
-  const fact = machines.length ? machines.length + (machines.length === 1 ? ' machine' : ' machines') : 'No machines';
+  let fact = machines.length ? machines.length + (machines.length === 1 ? ' machine' : ' machines') : 'No machines';
+  // Intentionally off is a plain fact, never a toned part (#765).
+  const dormant = machines.filter(isDormant).length;
+  if (dormant) fact += ' · ' + dormant + ' dormant';
   setHeadLine(el, parts, fact, title);
 }
 
@@ -449,7 +468,7 @@ function renderMachines() {
     els.machinesErrorMsg.textContent = state.machinesErrorMsg || 'Could not read machine status.';
   }
   const status = state.machinesStatus;
-  const machines = (status && status.machines) || [];
+  const machines = orderMachines((status && status.machines) || []);
   renderHeadLine(machines);
   const showList = (ds === 'ready' || ds === 'stale' || ds === 'empty') && !!status;
   if (!els.machinesList) return;

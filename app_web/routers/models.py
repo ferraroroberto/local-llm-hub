@@ -73,12 +73,19 @@ def _add_failover_fields(row: Dict[str, Any], m: Model, owner_id: str) -> None:
 
     ``preferred_host`` is the chain's first candidate; ``failover: true``
     flags that the model is currently served off-preference (failed over),
-    which the SPA renders as an amber hint on the tile's meta line.
+    which the SPA renders as an amber hint on the tile's meta line. A
+    dormant head (intentionally off, #765) is not preferred: serving from the
+    next member is the plan, not a failover to flag.
     """
     if len(m.host_chain) <= 1:
         return
-    row["preferred_host"] = m.host_chain[0]
-    row["failover"] = owner_id != m.host_chain[0]
+    def _live(host_id: str) -> bool:
+        profile = get_host(host_id)
+        return not (profile and profile.dormant)
+
+    preferred = next((h for h in m.host_chain if _live(h)), m.host_chain[0])
+    row["preferred_host"] = preferred
+    row["failover"] = owner_id != preferred
 
 
 def _add_placement_fields(

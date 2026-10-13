@@ -608,6 +608,100 @@ def apply_placement(
     }
 
 
+# --------------------------------------------- machine-local overlay (#765)
+# `dormant` is the one flag the admin UI writes into the gitignored
+# machines.local.yaml rather than the committed models.yaml: it records which
+# of THIS operator's machines are intentionally off, so there is no git
+# transaction, no single-writer gate and no bot commit. Same atomic file swap
+# the other local stores use.
+_overlay_lock = threading.Lock()
+
+
+def _committed_dormant(host_id: str) -> bool:
+    """The dormant value the committed ``models.yaml`` row declares (absent =
+    False), read raw so the overlay's own value never masks it."""
+    import yaml
+
+    from . import host_profile
+
+    # The live module attribute, not this module's import-time ``CONFIG_PATH``:
+    # the overlay path derives from host_profile's, so both must agree.
+    raw = yaml.safe_load(host_profile.CONFIG_PATH.read_text(encoding="utf-8")) or {}
+    row = (raw.get("hosts") or {}).get(host_id) or {}
+    return bool(row.get("dormant", False))
+
+
+def set_host_dormant(host_id: str, dormant: bool) -> bool:
+    """Mark ``host_id`` dormant (or not) in ``machines.local.yaml``,
+    comment-preservingly, and drop the parsed-config cache so the next read
+    sees it without a restart. Returns True when the file changed.
+
+    Refuses an unknown host (404) and the machine the hub runs on (400: the
+    local host cannot be off). A value equal to the committed row's is stored
+    by *removing* the overlay key, so the file only records real deviations;
+    an overlay that cannot be parsed is never overwritten (409).
+    """
+    from ruamel.yaml import YAML
+    from ruamel.yaml.comments import CommentedMap
+    from ruamel.yaml.error import YAMLError
+
+    from .atomic_write import atomic_write_text
+    from .host_profile import machines_path
+
+    if not isinstance(dormant, bool):
+        raise ConfigWriteError("dormant must be true or false", 400)
+    if host_id not in ((_load_config().get("hosts")) or {}):
+        raise ConfigWriteError(f"unknown machine {host_id!r}", 404)
+    if resolve_host().id == host_id:
+        raise ConfigWriteError("this machine runs the hub and cannot be dormant", 400)
+
+    keep = dormant != _committed_dormant(host_id)
+    yaml = YAML()
+    yaml.preserve_quotes = True
+    yaml.width = 2 ** 16
+    path = machines_path()
+    with _overlay_lock:
+        try:
+            data = yaml.load(path.read_text(encoding="utf-8")) if path.exists() else None
+        except (OSError, YAMLError) as exc:
+            raise ConfigWriteError(f"{path.name} is unreadable: {exc}", 409) from exc
+        if data is None:
+            data = CommentedMap()
+        if not isinstance(data, CommentedMap):
+            raise ConfigWriteError(f"{path.name} has an unexpected shape", 409)
+        hosts = data.get("hosts")
+        if hosts is None:
+            hosts = CommentedMap()
+            data["hosts"] = hosts
+        if not isinstance(hosts, CommentedMap):
+            raise ConfigWriteError(f"{path.name} has an unexpected shape", 409)
+        row = hosts.get(host_id)
+        if row is not None and not isinstance(row, CommentedMap):
+            raise ConfigWriteError(f"{path.name}: host {host_id!r} is not a mapping", 409)
+
+        if keep:
+            if row is None:
+                row = CommentedMap()
+                hosts[host_id] = row
+            if row.get("dormant") is dormant:
+                return False
+            row["dormant"] = dormant
+        else:
+            if row is None or "dormant" not in row:
+                return False
+            del row["dormant"]
+            if not len(row):
+                del hosts[host_id]
+
+        buf = StringIO()
+        yaml.dump(data, buf)
+        atomic_write_text(path, buf.getvalue())
+        _CONFIG_CACHE.clear()
+    logger.info("✅ machine %s marked %s (%s)", host_id,
+                "dormant" if dormant else "active", path.name)
+    return True
+
+
 # --------------------------------------------------------------- drift loop
 # Periodic convergence net under the push-triggered sync: a satellite that
 # was down when the tower pushed (and so missed its sync) is re-synced when
@@ -678,6 +772,7 @@ __all__ = [
     "git_preflight",
     "is_write_host",
     "normalize_chain",
+    "set_host_dormant",
     "validate_placement",
     "write_host_id",
 ]
