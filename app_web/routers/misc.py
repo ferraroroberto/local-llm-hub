@@ -23,15 +23,16 @@ FRONTIER_LATEST_FILE = FRONTIER_RUNS_DIR / "LATEST"
 
 @lru_cache(maxsize=1)
 def _icon_sprite() -> str:
-    """The vendored Lucide `<svg>` sprite, injected inline into the served page.
+    """The app's Lucide `<svg>` sprite, injected inline into the served page.
 
     The sprite must ship **in-document** (iOS Safari does not resolve external
     `<use href="file.svg#id">` references). We keep a single source — the
-    vendored ``_vendored/icons/icons-sprite.html`` partial — and inject it at
-    serve time rather than duplicating ~180 lines into ``index.html``. Cached
-    once per process; a hub restart re-reads it.
+    app-owned ``icons-sprite.html`` partial, trimmed to the hub's glyphs (the
+    vendored ``_vendored/icons/`` copy stays byte-identical to the scaffold,
+    #770) — and inject it at serve time rather than duplicating ~180 lines
+    into ``index.html``. Cached once per process; a hub restart re-reads it.
     """
-    sprite_path = STATIC_DIR / "_vendored" / "icons" / "icons-sprite.html"
+    sprite_path = STATIC_DIR / "icons-sprite.html"
     try:
         text = sprite_path.read_text(encoding="utf-8")
     except OSError:

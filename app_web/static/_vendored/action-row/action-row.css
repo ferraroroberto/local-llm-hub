@@ -12,17 +12,20 @@
  * Every other action sits behind ONE trailing 44px kebab, a sibling of the
  * main button so taps never nest. A row may add at most one leading toggle
  * (.action-row-fav) and at most one other visible action (.action-row-verb),
- * only when it is the row's dominant verb. Title: body at 600, one line,
- * ellipsized, never broken mid-word; context: at most one body-sm line in
- * muted. No vertical rules between controls. Destructive actions live in the
- * row menu, never on the row (the menu is app-side, see README).
+ * only when it is the row's dominant verb. That verb is tinted unless it stops
+ * or destroys something: Stop, Delete and Remove take the outlined recipe
+ * (.action-row-verb--stop), never the tint (fleet-config#1386, #361). Title:
+ * body at 600, one line, ellipsized, never broken mid-word; context: at most
+ * one body-sm line in muted. No vertical rules between controls. Other
+ * destructive actions live in the row menu, never on the row (the menu is
+ * app-side, see README).
  *
  * The accessories are `.icon-button`s (icon-button/, fleet-config#1259): the
  * markup carries both classes and icon-button.css, linked alongside, owns the
  * unpainted box, the glyph states and the target. Here each takes the 44px
  * row box (--icon-btn-box: --row-sm, so the target needs no expansion) and
  * only the row-specific rules below remain: the favorite's glyph swap, the
- * verb's tint and the open kebab's accent.
+ * verb's tint (or its outlined stop variant) and the open kebab's accent.
  *
  * Geometry: the accessories are real 44x44 boxes sitting side by side with no
  * gap, so their hit rectangles touch but never overlap (design.md "Touch
@@ -203,6 +206,23 @@
   border: 1px solid var(--accent-border-soft);
   border-radius: var(--radius-md);
   background: var(--accent-soft);
+}
+
+/* The same verb when it stops or destroys something (Stop, Delete, Remove;
+ * fleet-config#1386): never the tinted one, even as the row's only visible
+ * verb, so the most prominent control on a list of running things is not the
+ * one that ends them. The outlined recipe (button-ghost: transparent on a
+ * hairline) at the same 44px, radius and margin. The boundary is
+ * --control-border so the box still reads at 3:1; the glyph is --ink. It
+ * restates the colour under hover and sits after the tint, so it wins at
+ * equal specificity. */
+.action-row .action-row-verb--stop,
+.action-row .action-row-verb--stop:not(:disabled):hover {
+  color: var(--ink);
+}
+.action-row .action-row-verb--stop {
+  border-color: var(--control-border);
+  background: transparent;
 }
 
 .action-row .action-row-kebab[aria-expanded="true"],

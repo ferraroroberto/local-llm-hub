@@ -41,7 +41,7 @@ It also needs two glyphs from the vendored `icons/` sprite: `i-ellipsis-vertical
         <span class="action-row-title">journal-daily</span>
         <span class="action-row-meta">Last run yesterday</span>  <!-- optional -->
       </button>
-      <button type="button" class="icon-button action-row-verb" aria-label="Run">…</button>  <!-- optional, dominant verb only -->
+      <button type="button" class="icon-button action-row-verb" aria-label="Run">…</button>  <!-- optional, dominant verb only; add action-row-verb--stop when it stops or destroys -->
       <button type="button" class="icon-button action-row-kebab" aria-label="More actions"
               aria-haspopup="menu" aria-expanded="false">
         <svg class="icon" aria-hidden="true"><use href="#i-ellipsis-vertical"></use></svg>
@@ -58,6 +58,7 @@ It also needs two glyphs from the vendored `icons/` sprite: `i-ellipsis-vertical
 - **The accessories are `.icon-button`s.** `.action-row-fav`, `.action-row-verb` and `.action-row-kebab` each carry `icon-button` as well (`class="icon-button action-row-kebab"`): [`icon-button/`](../icon-button/) owns the unpainted box, the glyph colour states and the target, and `action-row.css` sets their box to the 44px `--row-sm` (`--icon-btn-box`), so no expansion is needed. Only the rules below are the row's own.
 - **`.action-row-fav`** is the one leading toggle. The caller flips `aria-pressed` only; CSS swaps the outline star for the filled one and colors it `--attention`. The fill is what reads without hue.
 - **`.action-row-verb`** is the one extra visible action, the tint recipe at 44px. Use it only for the row's dominant verb (Run on a job row); everything else goes in the menu.
+- **`.action-row-verb--stop`** (added next to `action-row-verb`) is that same verb when it **stops or destroys something**: Stop, Delete, Remove. Such a verb is never the tinted one, even when it is the row's only visible verb. It takes the outlined recipe (transparent on a `--control-border` hairline, `--ink` glyph) at the same 44px, so the most prominent control on a list of running things is never the one that ends them (`fleet-config#1386`, `project-scaffolding#361`). Run stays tinted, Stop is outlined. Keep it named (`aria-label="Stop"`).
 - **`.action-row-kebab`** opens the row menu. Keep `aria-expanded` in step with the menu; the kebab takes `--accent` while it is open.
 - **`.action-row-filter`** is a 44px field with a `--control-border` boundary on `--card`. Filtering is the caller's job (set `hidden` on the `<li>`s that don't match).
 
@@ -115,7 +116,7 @@ This component ships the **anchor**, not the floating menu. The reference implem
 | `--row-md` | `52px` | one-line row height |
 | `--row-lg` | `60px` | row height with a context line |
 | `--line-muted` | `#d8dee4` | hairline between rows (`border-muted`) |
-| `--ink` | `#1f2328` | title text |
+| `--ink` | `#1f2328` | title text, stop-verb glyph |
 | `--muted` | `#656d76` | context line, filter glyph (resting accessory glyphs come from `icon-button/`) |
 | `--font-body` | `1rem` | title, filter input |
 | `--font-body-sm` | `0.875rem` | context line (`typography.body-sm`) |
@@ -128,7 +129,7 @@ This component ships the **anchor**, not the floating menu. The reference implem
 | `--accent-border-soft` | `color-mix(…24%…)` | verb border |
 | `--accent-text` | `#0550ae` | verb glyph (accent on a tint) |
 | `--attention` | `#9a6700` | pressed favorite |
-| `--control-border` | `#818b98` | filter boundary |
+| `--control-border` | `#818b98` | filter boundary, stop-verb outline |
 | `--card` | `#ffffff` | filter fill, avatar badge ring |
 | `--neutral-soft` | `color-mix(in srgb, var(--muted) 16%, transparent)` | avatar fill (only with an avatar) |
 | `--success` | `#1a7f37` | avatar badge `up` (only with an avatar) |
