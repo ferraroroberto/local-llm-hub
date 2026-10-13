@@ -18,6 +18,11 @@ export function tokenFromUrl() {
 }
 
 export function readToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+// The bearer header for a request made outside api() (the usage-log client).
+export function authHeaders() {
+  const token = readToken();
+  return token ? { Authorization: 'Bearer ' + token } : {};
+}
 export function writeToken(t) { if (t) localStorage.setItem(TOKEN_KEY, t); }
 
 export function urlWithToken(path) {
@@ -40,8 +45,7 @@ export function isAuthError(exc) { return exc instanceof AuthRequiredError; }
 export async function api(path, opts) {
   opts = opts || {};
   const headers = new Headers(opts.headers || {});
-  const token = readToken();
-  if (token) headers.set('Authorization', 'Bearer ' + token);
+  Object.entries(authHeaders()).forEach(function (kv) { headers.set(kv[0], kv[1]); });
   const res = await fetch(path, Object.assign({}, opts, { headers }));
   if (res.status === 401) {
     showLogin();

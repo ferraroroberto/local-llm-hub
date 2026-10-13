@@ -245,6 +245,8 @@ def isolate_from_live_services(state_dir: Path) -> None:
     os.environ["AGENTSVIEW_BASE_URL"] = ""
     os.environ["LANGFUSE_HOST"] = ""
     os.environ["OTEL_SDK_DISABLED"] = "true"
+    # The usage log (#777) writes to the e2e state dir, never the real store.
+    os.environ["LLM_HUB_USAGE_DB_PATH"] = str(state_dir / "usage.sqlite3")
     _pin_config(state_dir)
     _isolate_usage_data(state_dir)
 

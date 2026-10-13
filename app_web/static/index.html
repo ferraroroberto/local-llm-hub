@@ -26,7 +26,6 @@
   <link rel="stylesheet" href="/admin/static/_vendored/select-native/select-native.css">
   <link rel="stylesheet" href="/admin/static/_vendored/modal/modal.css">
   <link rel="stylesheet" href="/admin/static/_vendored/row-menu/row-menu.css">
-  <link rel="stylesheet" href="/admin/static/_vendored/range-tab/range-tab.css">
   <link rel="stylesheet" href="/admin/static/_vendored/text-size/text-size.css">
   <link rel="stylesheet" href="/admin/static/_vendored/xterm/xterm.css">
   <link rel="stylesheet" href="/admin/static/rows.css">
@@ -87,8 +86,8 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>Hub</span>
         <span id="hubHeadLine" class="status head-line" role="status" aria-live="polite">Reading hub…</span>
-        <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
-        <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
+        <button type="button" class="icon-button home-toggle theme-toggle" data-track="theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="icon-button home-toggle home-settings" data-track="settings-open" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
 
       <!-- Two columns on a wide window (rows.css .wide-cols): glance, services and
@@ -134,8 +133,8 @@
             </div>
             <div class="activity-tools">
               <div class="segmented" id="activityScope" role="group" aria-label="Which activity to list">
-                <button type="button" class="segmented-item" aria-pressed="true" data-scope="requests">Requests</button>
-                <button type="button" class="segmented-item" aria-pressed="false" data-scope="errors">Errors</button>
+                <button type="button" class="segmented-item" aria-pressed="true" data-scope="requests" data-track="hub-activity-requests">Requests</button>
+                <button type="button" class="segmented-item" aria-pressed="false" data-scope="errors" data-track="hub-activity-errors">Errors</button>
               </div>
               <input id="liveRequestsFilter" type="search" class="list-filter" placeholder="Filter requests" aria-label="Filter activity" autocomplete="off">
             </div>
@@ -144,8 +143,8 @@
             <ul id="recentErrorsList" class="action-rows activity-list" aria-label="Recent errors" hidden></ul>
           <div id="recentErrorsEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-circle-check"></use></svg><p class="empty-state-message">No failed requests yet — a failure shows here the moment a client gets a non-2xx answer.</p><button type="button" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
             <ul class="action-rows activity-links">
-              <li class="action-row"><button type="button" class="action-row-main" id="byModelOpenBtn" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-column"></use></svg></span><span class="action-row-text"><span class="action-row-title">By model</span><span class="action-row-meta" id="byModelMeta">Requests, errors and latency per backend</span></span></button></li>
-              <li class="action-row"><button type="button" class="action-row-main" id="logOpenBtn" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-scroll-text"></use></svg></span><span class="action-row-text"><span class="action-row-title">Server log</span><span class="action-row-meta">The hub's own log, live</span></span></button></li>
+              <li class="action-row"><button type="button" class="action-row-main" id="byModelOpenBtn" data-track="hub-by-model" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-column"></use></svg></span><span class="action-row-text"><span class="action-row-title">By model</span><span class="action-row-meta" id="byModelMeta">Requests, errors and latency per backend</span></span></button></li>
+              <li class="action-row"><button type="button" class="action-row-main" id="logOpenBtn" data-track="hub-log" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-scroll-text"></use></svg></span><span class="action-row-text"><span class="action-row-title">Server log</span><span class="action-row-meta">The hub's own log, live</span></span></button></li>
             </ul>
           </section>
         </div>
@@ -159,8 +158,8 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-boxes"></use></svg>Models</span>
         <span id="modelsHeadLine" class="status head-line" role="status" aria-live="polite">Reading models…</span>
-        <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
-        <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
+        <button type="button" class="icon-button home-toggle theme-toggle" data-track="theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="icon-button home-toggle home-settings" data-track="settings-open" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
 
       <!-- Glance card (#737): "how much room is left" — one memory meter per host,
@@ -179,8 +178,8 @@
       <!-- Scope: Running · All (vendored segmented), replacing the "Active models
            only" switch; reads and writes the same llmhub.models.activeOnly key. -->
       <div class="segmented models-scope" id="modelsScope" role="group" aria-label="Which models to list">
-        <button type="button" class="segmented-item" aria-pressed="true" data-scope="running">Running</button>
-        <button type="button" class="segmented-item" aria-pressed="false" data-scope="all">All</button>
+        <button type="button" class="segmented-item" aria-pressed="true" data-scope="running" data-track="models-running">Running</button>
+        <button type="button" class="segmented-item" aria-pressed="false" data-scope="all" data-track="models-all">All</button>
       </div>
 
       <!-- One shared row per model (rows.js), grouped by the host serving it. A row
@@ -201,18 +200,18 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>Playground</span>
         <span id="playHeadLine" class="status" role="status" aria-live="polite">Chat</span>
-        <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
-        <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
+        <button type="button" class="icon-button home-toggle theme-toggle" data-track="theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="icon-button home-toggle home-settings" data-track="settings-open" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
 
       <!-- One composer (#740): the four modes are true alternatives, so one
            segmented switch; the last mode is remembered on this device
            (llmhub.playground.mode). -->
       <div id="playMode" class="segmented play-mode" role="group" aria-label="Playground mode">
-        <button type="button" class="segmented-item" data-mode="chat" aria-pressed="true">Chat</button>
-        <button type="button" class="segmented-item" data-mode="image" aria-pressed="false">Image</button>
-        <button type="button" class="segmented-item" data-mode="speech" aria-pressed="false">Speech</button>
-        <button type="button" class="segmented-item" data-mode="decide" aria-pressed="false">Decide</button>
+        <button type="button" class="segmented-item" data-mode="chat" aria-pressed="true" data-track="play-mode-chat">Chat</button>
+        <button type="button" class="segmented-item" data-mode="image" aria-pressed="false" data-track="play-mode-image">Image</button>
+        <button type="button" class="segmented-item" data-mode="speech" aria-pressed="false" data-track="play-mode-speech">Speech</button>
+        <button type="button" class="segmented-item" data-mode="decide" aria-pressed="false" data-track="play-mode-decide">Decide</button>
       </div>
 
       <!-- Composer left, result right on a wide window (the geometry proposed on
@@ -252,11 +251,11 @@
               <div class="opt-stack">
                 <label>Max tokens</label>
                 <div class="maxtokens-row">
-                  <div id="playgroundMaxTokensSeg" class="segmented stretch" role="tablist" aria-label="Max tokens preset">
-                    <button type="button" data-value="256">256</button>
-                    <button type="button" data-value="512" class="active">512</button>
-                    <button type="button" data-value="2048">2048</button>
-                    <button type="button" data-value="8192">8192</button>
+                  <div id="playgroundMaxTokensSeg" class="segmented" role="group" aria-label="Max tokens preset">
+                    <button type="button" class="segmented-item" aria-pressed="false" data-value="256" data-track="play-maxtokens-256">256</button>
+                    <button type="button" class="segmented-item" aria-pressed="true" data-value="512" data-track="play-maxtokens-512">512</button>
+                    <button type="button" class="segmented-item" aria-pressed="false" data-value="2048" data-track="play-maxtokens-2048">2048</button>
+                    <button type="button" class="segmented-item" aria-pressed="false" data-value="8192" data-track="play-maxtokens-8192">8192</button>
                   </div>
                   <input id="playgroundMaxTokens" type="number" min="1" max="32000" value="512" aria-label="Max tokens override">
                 </div>
@@ -264,7 +263,7 @@
             </details>
 
             <div class="playground-send-row">
-              <button id="playgroundSendBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Send</button>
+              <button id="playgroundSendBtn" data-track="play-send" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Send</button>
               <button id="playgroundClearBtn" type="button" class="ghost-btn">Clear</button>
             </div>
           </section>
@@ -311,7 +310,7 @@
             </details>
 
             <div class="playground-send-row">
-              <button id="imageGenBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Generate</button>
+              <button id="imageGenBtn" data-track="play-generate" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Generate</button>
               <button id="imageClearBtn" type="button" class="ghost-btn">Clear</button>
             </div>
           </section>
@@ -378,7 +377,7 @@
             </details>
 
             <div class="playground-send-row">
-              <button id="ttsSpeakBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Speak</button>
+              <button id="ttsSpeakBtn" data-track="play-speak" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Speak</button>
             </div>
           </section>
           <section class="card play-composer" id="jevCard" data-mode="decide" aria-label="Decide" hidden>
@@ -404,7 +403,7 @@
             </div>
 
             <div class="playground-send-row">
-              <button id="jevEvalBtn" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Evaluate</button>
+              <button id="jevEvalBtn" data-track="play-evaluate" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Evaluate</button>
               <button id="jevResetBtn" type="button" class="ghost-btn">Reset sample</button>
             </div>
           </section>
@@ -456,8 +455,8 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Code</span>
         <span id="codeHeadLine" class="status head-line" role="status" aria-live="polite">Reading usage…</span>
-        <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
-        <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
+        <button type="button" class="icon-button home-toggle theme-toggle" data-track="theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="icon-button home-toggle home-settings" data-track="settings-open" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
 
       <!-- Two columns on a wide window (rows.css .wide-cols): totals and trend on the
@@ -477,12 +476,12 @@
             </div>
             <div class="cld-tools">
               <div id="cldPeriodSeg" class="segmented" role="group" aria-label="Usage period">
-                <button type="button" class="segmented-item" data-period="today" aria-pressed="true">Day</button>
-                <button type="button" class="segmented-item" data-period="week" aria-pressed="false">Week</button>
-                <button type="button" class="segmented-item" data-period="month" aria-pressed="false">Month</button>
-                <button type="button" class="segmented-item" data-period="all" aria-pressed="false">All</button>
+                <button type="button" class="segmented-item" data-period="today" aria-pressed="true" data-track="code-period-today">Day</button>
+                <button type="button" class="segmented-item" data-period="week" aria-pressed="false" data-track="code-period-week">Week</button>
+                <button type="button" class="segmented-item" data-period="month" aria-pressed="false" data-track="code-period-month">Month</button>
+                <button type="button" class="segmented-item" data-period="all" aria-pressed="false" data-track="code-period-all">All</button>
               </div>
-              <button type="button" class="button-tint cld-agent-btn" id="cldAgentBtn" aria-haspopup="dialog" aria-label="Choose the agent"><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg><span id="cldAgentLabel">All agents</span><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+              <button type="button" class="button-tint cld-agent-btn" id="cldAgentBtn" data-track="code-agent" aria-haspopup="dialog" aria-label="Choose the agent"><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg><span id="cldAgentLabel">All agents</span><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
             </div>
 
             <!-- Load-failure banner (issue #580): a summary that could not be
@@ -598,9 +597,9 @@
             <ul id="cldProjectList" class="action-rows" aria-label="Projects by requests"></ul>
             <div id="cldProjectEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-folder"></use></svg><p class="empty-state-message">No project data for this period — pick a longer period or another agent above.</p></div>
             <ul class="action-rows cld-links">
-              <li class="action-row"><button type="button" class="action-row-main" id="cldProjectsAllBtn" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-folder"></use></svg></span><span class="action-row-text"><span class="action-row-title">Every project</span><span class="action-row-meta" id="cldProjectsMeta">The full table</span></span></button></li>
-              <li class="action-row"><button type="button" class="action-row-main" id="cldModelOpenBtn" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-line"></use></svg></span><span class="action-row-text"><span class="action-row-title">By model</span><span class="action-row-meta" id="cldModelMeta">Requests and tokens per model</span></span></button></li>
-              <li class="action-row"><button type="button" class="action-row-main" id="cldSessionsOpenBtn" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-clock"></use></svg></span><span class="action-row-text"><span class="action-row-title">Recent sessions</span><span class="action-row-meta" id="cldSessionsBadge">—</span></span></button></li>
+              <li class="action-row"><button type="button" class="action-row-main" id="cldProjectsAllBtn" data-track="code-projects" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-folder"></use></svg></span><span class="action-row-text"><span class="action-row-title">Every project</span><span class="action-row-meta" id="cldProjectsMeta">The full table</span></span></button></li>
+              <li class="action-row"><button type="button" class="action-row-main" id="cldModelOpenBtn" data-track="code-model" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-line"></use></svg></span><span class="action-row-text"><span class="action-row-title">By model</span><span class="action-row-meta" id="cldModelMeta">Requests and tokens per model</span></span></button></li>
+              <li class="action-row"><button type="button" class="action-row-main" id="cldSessionsOpenBtn" data-track="code-sessions" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-clock"></use></svg></span><span class="action-row-text"><span class="action-row-title">Recent sessions</span><span class="action-row-meta" id="cldSessionsBadge">—</span></span></button></li>
             </ul>
           </section>
 
@@ -633,8 +632,8 @@
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-server"></use></svg>Machines</span>
         <span id="machinesHeadLine" class="status head-line" role="status" aria-live="polite">Reading machines…</span>
-        <button type="button" class="icon-button home-toggle theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
-        <button type="button" class="icon-button home-toggle home-settings" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
+        <button type="button" class="icon-button home-toggle theme-toggle" data-track="theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="icon-button home-toggle home-settings" data-track="settings-open" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
       <!-- Async lifecycle (design.md): loading / error empty-states, then one
            shared row per machine (rows.js) in machinesList; the stale age is the
@@ -696,7 +695,7 @@
       </div>
       <p id="machinesConfirmBody" class="machines-confirm-body"></p>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn button-primary danger" id="machinesConfirmBtn">Confirm</button>
+        <button type="button" class="detail-save-btn button-tint danger" id="machinesConfirmBtn">Confirm</button>
       </div>
     </div>
   </dialog>
@@ -756,7 +755,7 @@
       </div>
       <p id="servicesHint" class="muted sheet-meta" hidden></p>
       <div class="detail-actions" id="servicesActions" hidden>
-        <button id="servicesLaunchBtn" type="button" class="button-primary launch-btn"><svg class="icon" aria-hidden="true"><use href="#i-rocket"></use></svg>Launch Docker + Langfuse</button>
+        <button id="servicesLaunchBtn" data-track="services-launch" type="button" class="button-primary launch-btn"><svg class="icon" aria-hidden="true"><use href="#i-rocket"></use></svg>Launch Docker + Langfuse</button>
       </div>
     </div>
   </dialog>
@@ -1003,25 +1002,25 @@
           <ul class="action-rows settings-groups">
             <li class="group-overline">Display</li>
             <li class="settings-row settings-inline"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-monitor"></use></svg></span><span class="settings-row-label">Text size</span>
-              <nav class="range-tabs" id="textSizeControl" aria-label="Text size">
-                <button type="button" class="range-tab" data-textsize="small">Small</button>
-                <button type="button" class="range-tab" data-textsize="default">Default</button>
-                <button type="button" class="range-tab" data-textsize="large">Large</button>
-              </nav>
+              <div class="segmented" id="textSizeControl" role="group" aria-label="Text size">
+                <button type="button" class="segmented-item" aria-pressed="false" data-textsize="small" data-track="text-size-small">Small</button>
+                <button type="button" class="segmented-item" aria-pressed="true" data-textsize="default" data-track="text-size-default">Default</button>
+                <button type="button" class="segmented-item" aria-pressed="false" data-textsize="large" data-track="text-size-large">Large</button>
+              </div>
             </li>
             <li class="settings-row settings-inline"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-sun"></use></svg></span><span class="settings-row-label">Theme</span>
               <div class="segmented" id="themeSeg" role="group" aria-label="Theme">
-                <button type="button" class="segmented-item" data-theme-pref="system" aria-pressed="false">System</button>
-                <button type="button" class="segmented-item" data-theme-pref="light" aria-pressed="false">Light</button>
-                <button type="button" class="segmented-item" data-theme-pref="dark" aria-pressed="false">Dark</button>
+                <button type="button" class="segmented-item" data-theme-pref="system" aria-pressed="false" data-track="theme-system">System</button>
+                <button type="button" class="segmented-item" data-theme-pref="light" aria-pressed="false" data-track="theme-light">Light</button>
+                <button type="button" class="segmented-item" data-theme-pref="dark" aria-pressed="false" data-track="theme-dark">Dark</button>
               </div>
             </li>
             <li class="group-overline">Startup</li>
-            <li class="action-row settings-link" data-settings="startup"><button type="button" class="action-row-main" aria-controls="settingsPage-startup"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-rocket"></use></svg></span><span class="action-row-text"><span class="action-row-title">Service startup</span><span class="action-row-meta" id="startupSummary">—</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
+            <li class="action-row settings-link" data-settings="startup"><button type="button" class="action-row-main" aria-controls="settingsPage-startup" data-track="settings-startup"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-rocket"></use></svg></span><span class="action-row-text"><span class="action-row-title">Service startup</span><span class="action-row-meta" id="startupSummary">—</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
             <li class="group-overline">Machines</li>
-            <li class="action-row settings-link" data-settings="machines"><button type="button" class="action-row-main" aria-controls="settingsPage-machines"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-server"></use></svg></span><span class="action-row-text"><span class="action-row-title">Dormant machines</span><span class="action-row-meta" id="dormantSummary">—</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
+            <li class="action-row settings-link" data-settings="machines"><button type="button" class="action-row-main" aria-controls="settingsPage-machines" data-track="settings-machines"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-server"></use></svg></span><span class="action-row-text"><span class="action-row-title">Dormant machines</span><span class="action-row-meta" id="dormantSummary">—</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
             <li class="group-overline">Health</li>
-            <li class="action-row settings-link" data-settings="health"><button type="button" class="action-row-main" aria-controls="settingsPage-health"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-stethoscope"></use></svg></span><span class="action-row-text"><span class="action-row-title">Health &amp; install</span><span class="action-row-meta" id="installSummary">not checked</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
+            <li class="action-row settings-link" data-settings="health"><button type="button" class="action-row-main" aria-controls="settingsPage-health" data-track="settings-health"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-stethoscope"></use></svg></span><span class="action-row-text"><span class="action-row-title">Health &amp; install</span><span class="action-row-meta" id="installSummary">not checked</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
             <li class="group-overline">About</li>
             <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-tag"></use></svg></span><span class="settings-row-label">Build</span><span class="settings-row-value"><span id="aboutBuild">—</span></span></li>
             <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-layers"></use></svg></span><span class="settings-row-label">Config version</span><span class="settings-row-value"><span id="modelsConfigSha">—</span></span></li>

@@ -476,7 +476,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .ghost-btn.danger:hover { background: var(--danger-soft); }
 /* Accent-tint variant — same size as .ghost-btn but the primary action
  * (Playground Send / Generate / Speak / Download). Transparent accent tint,
- * never a solid fill — home-automation's .range-tab.active recipe (#215). */
+ * never a solid fill (home-automation #215). */
 .ghost-btn.primary {
   background: var(--accent-soft);
   color: var(--accent-text);
@@ -490,45 +490,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
 }
 .ghost-btn.primary:active {
   background: color-mix(in srgb, var(--accent) 24%, transparent);
-}
-
-/* ---------- segmented control (Code vendor/period, Playground max tokens) ----------
- * Home-automation's ghost .range-tabs pattern (#215): transparent container,
- * each option a card-off pill, the active one a subtle accent tint — never a
- * solid fill. The ::before extends the tap target to >=44px vertically. */
-.segmented {
-  display: inline-flex;
-  gap: 5px;
-}
-/* flex-wrap: a button row that outgrows the card wraps to a second line
-   instead of driving page-level horizontal overflow (issue #280: the vendor
-   selector gained a fifth button); min-width lets a button shrink below its
-   label's min-content before the row wraps. */
-.segmented.stretch { display: flex; width: 100%; flex-wrap: wrap; }
-.segmented button {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: var(--control-h);
-  background: var(--card-off);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 0 10px;
-  font: inherit;
-  font-size: var(--font-label);
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-}
-.segmented button::before { content: ""; position: absolute; inset: -4px 0; }
-.segmented button.active {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-border-strong);
 }
 
 /* ---------- key/value grid ---------- */
@@ -767,7 +728,7 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 .settings-row-value { color: var(--muted); font-size: var(--font-body-sm); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }
 .settings-inline { flex-wrap: wrap; }
 .settings-inline .settings-row-label { flex: 1 0 auto; }
-.settings-inline .segmented, .settings-inline .range-tabs { flex: none; }
+.settings-inline .segmented { flex: none; }
 .group-overline + .settings-row, .group-overline + .action-row { border-top: 0; }
 .settings-link .action-row-main { align-items: center; }
 .settings-chevron { flex: none; margin-left: auto; color: var(--muted); width: var(--icon-title); height: var(--icon-title); }
@@ -901,8 +862,8 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 /* ---------- Models tab: read-only placement cards (#423) ----------
  * A per-model intent section in the model's sheet and detail pane (the row's
  * "More actions" menu carries the same facts as one text line): host-chain pills in
- * priority order (owner = the accent-soft "selected" tint, same recipe as
- * .segmented button.active), a startup-policy .badge, the static VRAM
+ * priority order (owner = the accent-soft "selected" tint), a
+ * startup-policy .badge, the static VRAM
  * estimate, and the owner host's budget bar. All caption-scale — placement
  * is context, never louder than the row's own title/status. */
 .placement {
@@ -1591,7 +1552,3 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
   font-size: var(--font-caption);
   margin: 0;
 }
-
-/* Settings dialog: the vendored text-size range-tabs sit in a detail-card row,
- * so drop their stacked-control bottom margin and let them take the value side. */
-#settingsDialog .row .range-tabs { margin: 0; flex: 1; max-width: 70%; }

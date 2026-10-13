@@ -942,6 +942,19 @@ beside the list on a wide window. The separate telemetry pane and its header
 Activity, By model) and Code (Sub-agents (telemetry)), and a `#telemetry` link
 opens Hub Activity.
 
+### Usage log
+
+The admin UI records which views and controls get used, and on which device 
+class, so a design review reads real frequency (#777, the vendored 
+`usage-log`). Events are only the kind (`session_start`, `view`, `tap`), a view 
+id (the tab), a control id (a constant `data-track` in `index.html`), a 
+per-visit random session id, device class and timestamps; never content, 
+names, queries, URLs or the user-agent. They post to the hub's own 
+`/admin/api/usage/events` (behind the same bearer gate, so a phone sends the 
+token and the desktop on loopback does not need one) and land in 
+`usage.sqlite3` under the runtime-data dir (`LLM_HUB_USAGE_DB_PATH` 
+overrides it). Nothing leaves the machine.
+
 ### Machines console
 
 The **Machines** tab turns the hub into a fleet machine console — one place
@@ -1254,6 +1267,7 @@ local-llm-hub/
 │   │   ├── ingest.py             #   ingest a portable foreign capture as a run (#316)
 │   │   └── settings.py           #   retention + scheduled-snapshot settings
 │   ├── install.py            # first-run checks + --fix
+│   ├── usage_log.py          # vendored usage-log router (admin UI view/tap log, #777)
 │   ├── run_backend.py        # hub|qwen35_4b|gemma4_26b|whisper|… dispatcher
 │   ├── process_supervisor.py # shared subprocess start/stop lifecycle workflow (hub + model backends)
 │   ├── server_process.py     # hub port/PID lookup + ownership tri-state (used by backend_process.py, admin routers)
@@ -1288,12 +1302,12 @@ local-llm-hub/
 │                             #   playground.js + playground_jev.js + code_usage.js/.css +
 │                             #   diagnostics.js + glossary.js + machines.js/.css +
 │                             #   machines_terminal.js + rows.js/.css + telemetry.js/.css +
-│                             #   styles.css +
+│                             #   usage.js + styles.css +
 │                             #   manifest.webmanifest + icon-*.png/favicon.ico (generated
 │                             #   by scripts/gen_icons.py, committed)
 │       └── _vendored/        #   project-scaffolding components: button / card /
 │                             #   disclosure / empty-state / icons (Lucide sprite) /
-│                             #   modal / nav / range-tab / switch / text-size /
+│                             #   modal / nav / segmented / switch / text-size /
 │                             #   xterm — SPA UI glyphs +
 │                             #   primitives per design.md; chartjs (Chart.js
 │                             #   4.4.7 UMD, byte-for-byte, #451) — trend charts
