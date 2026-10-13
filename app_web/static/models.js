@@ -157,13 +157,14 @@ function roleLabel(key) {
 }
 
 /* The one visible verb (action-row): Start while the model is down, Stop once
- * this hub owns the process. An adopted process is not this hub's to stop
- * gracefully, so Start stays disabled and Force stop lives in the menu. */
+ * this hub owns the process. Stop is drawn outlined, never tinted, even as the
+ * lone verb (#763). An adopted process is not this hub's to stop gracefully,
+ * so Start stays disabled and Force stop lives in the menu. */
 function powerVerb(m) {
   if (!m.controllable) return null;
   const ownership = m.ownership || 'none';
   if (ownership === 'ours') {
-    return { attrs: ' data-act="stop" aria-label="Stop ' + escapeHtml(m.display_name) + '"', label: 'Stop', glyph: 'square' };
+    return { attrs: ' data-act="stop" aria-label="Stop ' + escapeHtml(m.display_name) + '"', label: 'Stop', glyph: 'square', outline: true };
   }
   return {
     attrs: ' data-act="start" aria-label="Start ' + escapeHtml(m.display_name) + '"',
@@ -438,7 +439,7 @@ function renderDetail() {
   }
   const verb = m ? powerVerb(m) : null;
   head.innerHTML = '<h2>' + escapeHtml(selectionTitle(sel)) + '</h2>'
-    + (verb ? '<button type="button" class="button-tint"' + verb.attrs + (verb.disabled ? ' disabled' : '') + '>'
+    + (verb ? '<button type="button" class="' + (verb.outline ? 'ghost-btn' : 'button-tint') + '"' + verb.attrs + (verb.disabled ? ' disabled' : '') + '>'
       + icon(verb.glyph) + '<span>' + verb.label + '</span></button>' : '');
   head.dataset.id = m ? m.id : '';
   if (m) fillModelBody(slot, m);

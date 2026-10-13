@@ -115,3 +115,47 @@ def test_service_rows_start_stop_say_the_verb(page, admin_url):
             btn = page.locator(f"#{service}{verb}Btn")
             assert btn.count() == 1, f"missing #{service}{verb}Btn"
             assert (btn.text_content() or "").strip() == verb, f"{service} {verb} is icon-only"
+
+
+def test_stop_is_outlined_never_tinted_everywhere(page, admin_url):
+    """A stopping verb never takes the tint recipe, even as a row's lone verb (#763).
+
+    The Models row's Stop and the wide detail pane's Stop are drawn the way the
+    Services sheet draws its Stop (the outlined recipe), in both themes at phone
+    and desktop width; Start keeps the tint, so the two stay told apart.
+    """
+    def read(selector):
+        # Resolved at call time: the 5 s poll may repaint the row between steps.
+        page.wait_for_selector(selector, state="visible", timeout=5000)
+        return page.evaluate(
+            "(sel) => { const s = getComputedStyle(document.querySelector(sel));"
+            " return [s.backgroundColor, s.borderTopColor, s.color]; }", selector)
+
+    for theme in ("light", "dark"):
+        page.add_init_script(
+            "localStorage.setItem('llmhub.models.activeOnly', 'false');"
+            f"localStorage.setItem('llmhub.theme', '{theme}');")
+        page.route("**/admin/api/models", lambda route: _json(route, FAKE_MODELS))
+        page.route("**/admin/api/fleet-placement", lambda route: _json(route, {"hosts": []}))
+        for viewport in ({"width": 390, "height": 844}, {"width": 1280, "height": 900}):
+            page.set_viewport_size(viewport)
+            page.goto(admin_url, wait_until="load")
+            assert page.evaluate("document.documentElement.dataset.theme") == theme
+            page.click("#tabModels")
+            page.wait_for_selector("#modelsList .model-row", state="visible", timeout=10000)
+            where = f"{theme} {viewport['width']}px"
+
+            stop_style = read('#modelsList .model-row[data-id="running_row"] .row-verb[data-act="stop"]')
+            start_style = read('#modelsList .model-row[data-id="stopped_row"] .row-verb[data-act="start"]')
+            assert stop_style[0] == "rgba(0, 0, 0, 0)", f"Stop row is tinted ({where}): {stop_style}"
+            assert stop_style != start_style, f"Stop looks like Start ({where})"
+
+            # Models and Services draw Stop the same way.
+            service_stop = page.evaluate(
+                "() => { const b = document.getElementById('dockerStopBtn'); const s = getComputedStyle(b);"
+                " return [s.backgroundColor, s.borderTopColor, s.color]; }")
+            assert stop_style == service_stop, f"Stop differs from Services ({where}): {stop_style} vs {service_stop}"
+
+            if viewport["width"] >= 1000:
+                page.locator('#modelsList .model-row[data-id="running_row"] .action-row-main').click()
+                assert read('#modelsDetail .wide-detail-head [data-act="stop"]') == service_stop, f"detail Stop differs ({where})"
