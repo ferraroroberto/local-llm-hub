@@ -136,6 +136,13 @@ no_go = [
   ".pe-save", ".glossary-panel",
 ]
 
+# The machines and services status reads take 8-10 s on the live hub, so the
+# walk waits for the Machines list to have a row (not the loading state) before
+# measuring, and gives the two sheets that hang off those reads 20 s to attach
+# (fleet-config#1385, #761).
+[design.review.tab_ready]
+machines = "#machinesList .machine-row"
+
 [[design.review.extra_steps]]
 tab  = "models"
 id   = "row-menu"
@@ -155,11 +162,13 @@ click = "#modelsMemoryList .memory-row .action-row-main"
 tab   = "machines"
 id    = "machine-sheet"
 click = "#machinesList .machine-row .action-row-main"
+wait_ms = 20000
 
 [[design.review.extra_steps]]
 tab   = "hub"
 id    = "services-sheet"
 click = "#servicesList .services-summary .action-row-main"
+wait_ms = 20000
 
 [[design.review.extra_steps]]
 tab   = "hub"
