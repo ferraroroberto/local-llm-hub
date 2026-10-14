@@ -966,7 +966,7 @@ alongside `tower` and `mac-mini-m4`: **OpenClaw**, a Linux laptop, and
 **Layout (#736).** Each row answers *is it up?* from its face: the avatar's
 corner badge (alive or down), the uptime, and an exception chip only when
 something is wrong (*hub down*, *out of sync*, *via tailnet*, *flaky link*).
-A down machine with a MAC shows **Wake** on the row; a reachable machine whose
+A down machine with a MAC shows a **Wake** (power) icon-button on the row; a reachable machine whose
 own hub is down shows **Start hub**. Tapping a row opens the machine's sheet on
 a phone, or fills the detail pane beside the list on a wide window (1100px+,
 mouse): the gauges, **Terminal** and **Remote**, the **Connection** row, the
@@ -1079,7 +1079,7 @@ has a wired-NIC `mac:` recorded in `config/machines.local.yaml` offers a
 **Wake** verb on its row — a fire-and-forget Wake-on-LAN magic packet
 (`src/wake_on_lan.py`, UDP broadcast to `255.255.255.255:9`, stdlib socket
 only) via `POST /admin/api/machines/{id}/wake`. No confirmation loop: the
-verb flips to *Rechecking…* and the next status poll reports whether the box
+verb disables (its tooltip reads *Rechecking …*) and the next status poll reports whether the box
 came up. The hub can't wake its own host (that's BIOS AC-restore territory),
 and a host without a `mac:` simply has no Wake action. Per-machine WOL state
 and caveats (Apple-silicon wakes from sleep only; openclaw has no wired NIC)

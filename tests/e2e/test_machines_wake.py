@@ -125,7 +125,11 @@ def test_wake_button_on_a_down_mac_equipped_machine(phone_page, admin_url):
     btn = _wake_btn(page, "mini")
     assert btn.count() == 1, "the down, wakeable machine should show a Wake verb"
     assert btn.is_visible()
-    assert "Wake" in btn.inner_text()
+    # A glyph-only icon-button: the name and tooltip carry the verb and the row.
+    assert (btn.inner_text() or "").strip() == ""
+    assert btn.get_attribute("aria-label") == "Wake Mac Mini"
+    assert btn.get_attribute("title") == "Wake Mac Mini"
+    assert btn.get_attribute("data-track") == "machine-wake"
     # It reuses the power glyph from the vendored sprite (no bespoke SVG).
     assert btn.locator('use[href="#i-power"]').count() == 1
     # A dormant, wakeable machine shows it too.

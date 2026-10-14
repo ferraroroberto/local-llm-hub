@@ -1,9 +1,11 @@
-"""A row's main start/stop action carries a word, not a bare glyph (#647, J-01).
+"""How a row's main start/stop action is named and drawn (#647, #780).
 
-The design review's judgment pass flags list rows whose primary action is an
-icon-only square or triangle that reads like a checkbox: the power control on
-every Models row and the Start/Stop pair on the Hub's Docker, Langfuse and
-AgentsView service rows. Both now show the verb beside the glyph.
+A list row's one visible verb is a plain, unpainted, glyph-only icon-button
+(fleet-config#1420): its accessible name and tooltip say the verb and the row
+(``Start <model>``), it keeps a 44px target, and it has no fill or border at
+rest. The Start/Stop pair on the Hub's Docker, Langfuse and AgentsView service
+sheet and the wide detail pane's head are not list rows and keep their word
+beside the glyph (#647, J-01).
 
 Since #737 the Models verb is the shared row's one visible verb, and the same
 story pins what happens around it: the memory glance is read once more after
@@ -47,7 +49,7 @@ def _json(route, body):
     route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
 
-def test_model_row_power_control_says_start_or_stop(page, admin_url):
+def test_model_row_power_control_is_a_named_glyph(page, admin_url):
     page.add_init_script("localStorage.setItem('llmhub.models.activeOnly', 'false');")
     fleet_reads = []
     started = []
@@ -60,11 +62,20 @@ def test_model_row_power_control_says_start_or_stop(page, admin_url):
     page.click("#tabModels")
     page.wait_for_selector("#modelsList .model-row", state="visible", timeout=10000)
 
-    for row_id, word in (("running_row", "Stop"), ("stopped_row", "Start")):
+    for row_id, word, name, glyph in (
+        ("running_row", "Stop", "running-row", "i-square"),
+        ("stopped_row", "Start", "stopped-row", "i-play"),
+    ):
         act = word.lower()
-        btn = page.locator(f'#modelsList .model-row[data-id="{row_id}"] .row-verb[data-act="{act}"]')
+        btn = page.locator(f'#modelsList .model-row[data-id="{row_id}"] .action-row-verb[data-act="{act}"]')
         assert btn.count() == 1, f"{row_id} should carry exactly one power control"
-        assert (btn.inner_text() or "").strip() == word, f"{row_id}: {btn.inner_text()!r}"
+        assert (btn.inner_text() or "").strip() == "", f"{row_id}: the row verb is glyph-only"
+        assert btn.get_attribute("aria-label") == f"{word} {name}"
+        assert btn.get_attribute("title") == f"{word} {name}", "the tooltip names the row"
+        assert btn.get_attribute("data-track") == f"model-{act}"
+        assert btn.locator(f'use[href="#{glyph}"]').count() == 1, f"{row_id}: wrong glyph"
+        box = btn.bounding_box()
+        assert box["width"] >= 44 and box["height"] >= 44, f"{row_id}: target under 44px {box}"
 
     # Start, then the memory glance is read once more after the action settles.
     for _ in range(50):  # the tab-open read lands first
@@ -72,7 +83,7 @@ def test_model_row_power_control_says_start_or_stop(page, admin_url):
             break
         page.wait_for_timeout(100)
     reads_before = len(fleet_reads)
-    page.locator('#modelsList .model-row[data-id="stopped_row"] .row-verb[data-act="start"]').click()
+    page.locator('#modelsList .model-row[data-id="stopped_row"] .action-row-verb[data-act="start"]').click()
     page.wait_for_timeout(6500)
     assert started, "Start did not POST"
     assert len(fleet_reads) == reads_before + 1, (
@@ -117,18 +128,23 @@ def test_service_rows_start_stop_say_the_verb(page, admin_url):
             assert (btn.text_content() or "").strip() == verb, f"{service} {verb} is icon-only"
 
 
-def test_stop_is_outlined_never_tinted_everywhere(page, admin_url):
-    """A stopping verb never takes the tint recipe, even as a row's lone verb (#763).
+def test_row_verbs_are_unpainted_at_rest_everywhere(page, admin_url):
+    """No list-row verb is filled or outlined at rest (fleet-config#1420, #780).
 
-    The Models row's Stop wears the vendored action-row's .action-row-verb--stop
-    (the shared design.md J-03 outline, #773); the wide detail pane's Stop is
-    drawn the way the Services sheet draws its Stop. Both stay untinted in both
-    themes at phone and desktop width, and Start keeps the tint, so the two stay
-    told apart.
+    Models-row Start and Stop are the same plain icon-button, told apart by
+    glyph and name alone, in both themes at phone and desktop width. The old
+    outlined-Stop alias class is gone from the markup. The wide detail pane's
+    head is not a list row: its Stop stays outlined, drawn the way the
+    Services sheet draws its Stop (#763).
     """
     def read(selector):
         # Resolved at call time: the 5 s poll may repaint the row between steps.
         page.wait_for_selector(selector, state="visible", timeout=5000)
+        return page.evaluate(
+            "(sel) => { const s = getComputedStyle(document.querySelector(sel));"
+            " return [s.backgroundColor, s.borderTopWidth, s.borderTopStyle, s.boxShadow]; }", selector)
+
+    def paint(selector):
         return page.evaluate(
             "(sel) => { const s = getComputedStyle(document.querySelector(sel));"
             " return [s.backgroundColor, s.borderTopColor, s.color]; }", selector)
@@ -147,20 +163,21 @@ def test_stop_is_outlined_never_tinted_everywhere(page, admin_url):
             page.wait_for_selector("#modelsList .model-row", state="visible", timeout=10000)
             where = f"{theme} {viewport['width']}px"
 
-            stop_style = read('#modelsList .model-row[data-id="running_row"] .row-verb[data-act="stop"]')
-            start_style = read('#modelsList .model-row[data-id="stopped_row"] .row-verb[data-act="start"]')
-            assert stop_style[0] == "rgba(0, 0, 0, 0)", f"Stop row is tinted ({where}): {stop_style}"
-            assert stop_style != start_style, f"Stop looks like Start ({where})"
-
-            assert page.evaluate(
-                "() => document.querySelector('#modelsList .model-row[data-id=\"running_row\"] .row-verb[data-act=\"stop\"]')"
-                ".classList.contains('action-row-verb--stop')"), f"row Stop lost the vendored class ({where})"
+            stop_sel = '#modelsList .model-row[data-id="running_row"] .action-row-verb[data-act="stop"]'
+            start_sel = '#modelsList .model-row[data-id="stopped_row"] .action-row-verb[data-act="start"]'
+            for label, sel in (("Stop", stop_sel), ("Start", start_sel)):
+                bg, border_w, border_style, shadow = read(sel)
+                assert bg == "rgba(0, 0, 0, 0)", f"{label} row verb is filled ({where}): {bg}"
+                assert border_w == "0px" or border_style == "none", f"{label} row verb is outlined ({where})"
+                assert shadow == "none", f"{label} row verb has a shadow ({where})"
+            assert not page.evaluate(
+                "() => !!document.querySelector('#modelsList .action-row-verb--stop')"), (
+                f"a row still emits the retired outlined-Stop class ({where})")
 
             # The detail pane and Services draw Stop the same way.
-            service_stop = page.evaluate(
-                "() => { const b = document.getElementById('dockerStopBtn'); const s = getComputedStyle(b);"
-                " return [s.backgroundColor, s.borderTopColor, s.color]; }")
+            service_stop = paint("#dockerStopBtn")
 
             if viewport["width"] >= 1000:
                 page.locator('#modelsList .model-row[data-id="running_row"] .action-row-main').click()
-                assert read('#modelsDetail .wide-detail-head [data-act="stop"]') == service_stop, f"detail Stop differs ({where})"
+                page.wait_for_selector('#modelsDetail .wide-detail-head [data-act="stop"]', state="visible", timeout=5000)
+                assert paint('#modelsDetail .wide-detail-head [data-act="stop"]') == service_stop, f"detail Stop differs ({where})"

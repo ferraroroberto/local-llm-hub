@@ -69,8 +69,10 @@ export function chip(text, tone) {
  *   mainAttrs  extra attributes on the row's main button (already escaped)
  *   mainCls    extra classes on the row's main button
  *   metaAttrs  extra attributes on the meta line (a live region a caller repaints)
- *   verb       { attrs, label, glyph, disabled, title, outline } — the one visible
- *              verb; outline draws it with the vendored .action-row-verb--stop recipe (a stopping verb)
+ *   verb       { attrs, glyph, disabled, tip, track } — the one visible verb, a
+ *              plain glyph-only icon-button (design.md action-row, fleet-config#1420).
+ *              attrs carries the aria-label naming the row; tip is the tooltip
+ *              (also naming the row); track is its usage-log control id.
  *   trail      raw HTML for the one trailing item (an ⓘ, a value)
  */
 export function row(opts) {
@@ -92,10 +94,11 @@ export function row(opts) {
   let verb = '';
   if (opts.verb) {
     const v = opts.verb;
-    verb = '<button type="button" class="icon-button action-row-verb row-verb' + (v.outline ? ' action-row-verb--stop' : '') + '"' + (v.attrs || '')
-      + (v.title ? ' title="' + escapeHtml(v.title) + '"' : '')
+    verb = '<button type="button" class="icon-button action-row-verb"' + (v.attrs || '')
+      + (v.tip ? ' title="' + escapeHtml(v.tip) + '"' : '')
+      + (v.track ? ' data-track="' + v.track + '"' : '')
       + (v.disabled ? ' disabled' : '') + '>'
-      + (v.glyph ? icon(v.glyph) : '') + '<span>' + escapeHtml(v.label) + '</span></button>';
+      + icon(v.glyph) + '</button>';
   }
   return '<li class="action-row' + (opts.cls ? ' ' + opts.cls : '') + (opts.selected ? ' is-selected' : '') + '"'
     + (opts.attrs || '') + '>'

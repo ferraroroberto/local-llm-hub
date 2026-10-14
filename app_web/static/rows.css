@@ -1,8 +1,8 @@
 /* Shared parts (#736) — the app-side half of rows.js. The row itself is the
  * vendored action-row (_vendored/action-row/action-row.css); the chip and the
  * tone map live in styles.css. This file adds only what the vendored row
- * leaves to the app: the meta line's lead + chips + ellipsizing context, a
- * labelled verb, the selected row of a list-plus-detail split, the header
+ * leaves to the app: the meta line's lead + chips + ellipsizing context, the
+ * selected row of a list-plus-detail split, the header
  * line's tones, the ⓘ button, the info sheet, the sheet's own rows and the
  * two wide-window primitives.
  */
@@ -25,25 +25,6 @@
   white-space: nowrap;
 }
 .row-meta-text:not(:first-child)::before { content: "· "; }
-
-/* The one visible verb with its word (Wake, Start hub): the vendored tint
- * verb at its real 44px height, grown to fit the label (design.md: a text verb
- * is a tint verb at real 44px geometry). */
-.action-row .action-row-verb.row-verb {
-  width: auto;
-  min-width: var(--row-sm);
-  padding: 0 12px;
-  gap: 6px;
-  font-size: var(--font-label);
-  font-weight: 700;
-  white-space: nowrap;
-}
-.action-row .action-row-verb.row-verb:disabled {
-  background: var(--card-off);
-  border-color: var(--line);
-  color: var(--muted);
-  cursor: not-allowed;
-}
 
 /* The selected row of a list-plus-detail split keeps the accent-soft tint, and
  * its secondary text moves to accent-text (muted measured under AA on it). */

@@ -162,19 +162,25 @@ function roleLabel(key) {
 }
 
 /* The one visible verb (action-row): Start while the model is down, Stop once
- * this hub owns the process. Stop is drawn outlined, never tinted, even as the
- * lone verb (#763). An adopted process is not this hub's to stop gracefully,
- * so Start stays disabled and Force stop lives in the menu. */
+ * this hub owns the process. On the row it is a plain glyph-only icon-button
+ * (play / square, fleet-config#1420); the wide detail pane's head keeps the
+ * worded button and draws Stop outlined (label, outline; #763). An adopted
+ * process is not this hub's to stop gracefully, so Start stays disabled and
+ * Force stop lives in the menu. */
 function powerVerb(m) {
   if (!m.controllable) return null;
   const ownership = m.ownership || 'none';
+  const name = escapeHtml(m.display_name);
   if (ownership === 'ours') {
-    return { attrs: ' data-act="stop" aria-label="Stop ' + escapeHtml(m.display_name) + '"', label: 'Stop', glyph: 'square', outline: true };
+    return {
+      attrs: ' data-act="stop" aria-label="Stop ' + name + '"', tip: 'Stop ' + m.display_name,
+      track: 'model-stop', label: 'Stop', glyph: 'square', outline: true,
+    };
   }
   return {
-    attrs: ' data-act="start" aria-label="Start ' + escapeHtml(m.display_name) + '"',
-    label: 'Start', glyph: 'play', disabled: ownership !== 'none',
-    title: ownership !== 'none' ? 'Adopted from another process — use Force stop in the menu' : '',
+    attrs: ' data-act="start" aria-label="Start ' + name + '"',
+    tip: ownership !== 'none' ? 'Adopted from another process — use Force stop in the menu' : 'Start ' + m.display_name,
+    track: 'model-start', label: 'Start', glyph: 'play', disabled: ownership !== 'none',
   };
 }
 

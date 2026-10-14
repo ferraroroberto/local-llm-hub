@@ -349,7 +349,8 @@ function renderServiceRows() {
       mainAttrs: ' data-act="' + (s.key === 'langfuse' ? 'langfuse' : 'services') + '" aria-haspopup="dialog"',
       verb: s.canStart ? {
         attrs: ' data-act="svc-start" aria-label="Start ' + s.name + '"',
-        label: busy ? 'Starting…' : 'Start', glyph: 'play', disabled: busy,
+        tip: busy ? 'Starting ' + s.name + '…' : 'Start ' + s.name, track: 'service-start',
+        glyph: 'play', disabled: busy,
       } : null,
     });
   });

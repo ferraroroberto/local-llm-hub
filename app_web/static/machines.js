@@ -179,14 +179,16 @@ function rowVerb(m) {
   if (a.wake && (m.state === 'down' || (isDormant(m) && !isAnswering(m)))) {
     return {
       attrs: ' data-machine-action="wake" aria-label="Wake ' + escapeHtml(name) + '"',
-      label: rechecking ? 'Rechecking…' : 'Wake', glyph: 'power', disabled: rechecking,
+      tip: rechecking ? 'Rechecking ' + name + '…' : 'Wake ' + name, track: 'machine-wake',
+      glyph: 'power', disabled: rechecking,
     };
   }
   if (m.state === 'up' && hubDown(m)) {
     const busy = !!state.machinesHubBusyIds[m.id];
     return {
       attrs: ' data-machine-action="bootstrap" aria-label="Start the hub on ' + escapeHtml(name) + '"',
-      label: busy ? 'Starting…' : 'Start hub', glyph: 'play', disabled: busy,
+      tip: busy ? 'Starting the hub on ' + name + '…' : 'Start the hub on ' + name, track: 'machine-start-hub',
+      glyph: 'play', disabled: busy,
     };
   }
   return null;
