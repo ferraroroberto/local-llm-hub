@@ -96,16 +96,20 @@ def test_stored_columns_hold_no_content(usage_db):
     ]
 
 
-def test_client_endpoint_is_the_mounted_route():
+def test_client_endpoint_is_the_mounted_route(usage_db):
     source = (STATIC_DIR / "usage.js").read_text(encoding="utf-8")
     endpoint = re.search(r"USAGE_ENDPOINT = '([^']+)'", source).group(1)
     assert endpoint == "/admin/api/usage/events"
     # Same-origin path only: the vendored client refuses anything else.
     assert endpoint.startswith("/") and not endpoint.startswith("//")
-    assert any(
-        getattr(route, "path", "") == "/api/usage/events"
-        for route in admin_server.create_app().routes
-    )
+    # Resolve by request, not by scanning ``app.routes``: recent FastAPI keeps an
+    # included router as one lazy ``_IncludedRouter`` entry with no ``path``, so
+    # a path scan finds nothing on a fresh install (#782). An empty batch hits
+    # the handler (200) and records nothing; an unmounted route is a 404.
+    sub_path = endpoint.removeprefix("/admin")
+    reply = _client().post(sub_path, json={**_BATCH, "events": []})
+    assert reply.status_code == 200
+    assert not usage_db.exists()
 
 
 def test_data_track_ids_are_bounded_constants():
