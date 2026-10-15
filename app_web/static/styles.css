@@ -38,7 +38,7 @@
   /* derived surface roles (mapped onto the neutral tokens above) */
   --toggle-knob: #ffffff;       /* vendored switch: thumb */
   --input-bg: var(--card-off);
-  --code-bg: var(--card-off);  /* logpane / trace-detail <pre> surfaces */
+  --code-bg: var(--card-off);  /* the Machines terminal mount (a terminal stays a dark hole; listings use --card, COMP-17) */
   --close-bg: transparent; /* header toggles + modal ×: glyph on nothing at rest (fleet-config#1259) */
   --scrim: rgba(0, 0, 0, 0.5); /* login-overlay dim — theme-invariant by design */
   /* status-alpha composites — derived, so they re-theme for free */
@@ -98,6 +98,7 @@
   --font-label: 0.875rem;
   --font-body-sm: 0.875rem;  /* typography.body-sm — a row's meta line, the header line */
   --font-caption: 0.75rem;
+  --font-code: 13px;         /* components.code-listing: the one sanctioned off-scale size, mono listings only */
   /* elevation — cards lean on surface + hairline border; only floating
      elements (toast) carry a real shadow. */
   --shadow: 0 8px 24px rgba(31, 35, 40, 0.12);
@@ -580,16 +581,18 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 }
 
 /* ---------- log panes ---------- */
+/* The code-listing frame (design.md): 13px on the card surface with a
+ * hairline, never canvas-subtle (true black in dark, COMP-17). */
 .logpane {
-  background: var(--code-bg);
+  background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   margin: 0;
   height: 240px;
   overflow: auto;
-  font-size: var(--font-caption);
-  line-height: 1.45;
+  font-size: var(--font-code);
+  line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--ink);
@@ -846,7 +849,7 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--card);
-  font-size: 13px;
+  font-size: var(--font-code);
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;

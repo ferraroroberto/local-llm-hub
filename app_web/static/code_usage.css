@@ -194,13 +194,15 @@ ul.cld-sessions > li > .cld-sess-meta  {
   font-size: var(--font-caption);
 }
 /* The one deliberate monospace survivor outside <pre> panes (#215): a session
- * id is console output — the mono chip is what makes it read as one. */
+ * id is console output — the mono chip is what makes it read as one. The
+ * `code-inline` recipe (design.md): 0.875em of the line around it, neutral-soft
+ * fill (never canvas-subtle, the dark black hole). */
 ul.cld-sessions > li > .cld-sess-meta code {
   color: var(--ink);
-  background: var(--card-off);
-  padding: 1px 4px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-caption);
+  background: var(--neutral-soft);
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 0.875em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 

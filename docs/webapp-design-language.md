@@ -43,7 +43,7 @@ session-id chip. Inline `<code>` and the dense card lists render in the app
 font (#215).
 
 Derived hub tokens (mapped onto the roles above, re-theme for free):
-`--input-bg`, `--code-bg` (logpane surface), `--scrim`, and the
+`--input-bg`, `--code-bg` (the Machines terminal mount), `--font-code` (13px, the `code-listing` size; `.logpane` sits on `--card` with a hairline, #784), `--scrim`, and the
 `--accent-soft`/`--danger-border`-style `color-mix()` status composites.
 
 **Theme selection:** a pre-paint boot script in `index.html` stamps
@@ -202,7 +202,7 @@ The SPA's UI glyphs are **Lucide**, the canonical fleet icon set (`~/.claude/des
 
 | Aspect | Hub | app-launcher | Reason |
 |---|---|---|---|
-| `--code-bg` token | present | absent | The hub's logpane needs its own inset surface (mapped to `--card-off`); launcher uses xterm.js which paints its own background. |
+| `--code-bg` token | present | absent | The hub's terminal mount needs its own inset surface (mapped to `--card-off`; listings use `--card`, COMP-17); launcher uses xterm.js which paints its own background. |
 | Counters table | compact plain-word columns (Median and Slowest 5% in seconds, one Tokens in/out column, `.td-trunc` first column; headers wrap, phone padding is 5px) inside `.counters-wrap` | n/a — launcher has no equivalent | Fits the phone width without horizontal scrolling (#215); the scroll wrap stays as a safety net only. |
 | Icon set | Lucide via vendored `_vendored/icons/` | varied | Adopted the canonical fleet Lucide set per `~/.claude/design.md` (issue #139); nav tabs now show icon + label. Backend-identity emoji were dropped (no faithful Lucide equivalent; the backend name labels the row). See the **Icons** section above. |
 
