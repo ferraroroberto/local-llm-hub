@@ -1217,6 +1217,7 @@ local-llm-hub/
 │   ├── http_client.py        # shared pooled httpx Client/AsyncClient (skip a fresh SSL ctx per call)
 │   ├── model_registry.py     # YAML loader (resolves display_name + aliases)
 │   ├── model_failover.py     # dynamic fallback across an ordered host chain (#342)
+│   ├── model_reachability.py # shared "is this model answering" probe (Models tiles + Playground TTS rows)
 │   ├── config_write.py       # git-backed models.yaml placement writes: validate → ruamel
 │   │                         #   edit → config-bot commit → push + drift sync (#424)
 │   ├── startup_profile.py    # config/startup_profile.json load/save — service flags (#265, #430)
@@ -1301,7 +1302,8 @@ local-llm-hub/
 │                             #   hub.js + models.js + startup.js + fleet_placement.js +
 │                             #   playground.js + playground_jev.js + code_usage.js/.css +
 │                             #   diagnostics.js + glossary.js + machines.js/.css +
-│                             #   machines_terminal.js + rows.js/.css + telemetry.js/.css +
+│                             #   machines_terminal.js + rows.js/.css + settings.js +
+│                             #   langfuse.js + dormant.js + theme.js +
 │                             #   usage.js + styles.css +
 │                             #   manifest.webmanifest + icon-*.png/favicon.ico (generated
 │                             #   by scripts/gen_icons.py, committed)

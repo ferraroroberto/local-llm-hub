@@ -79,7 +79,7 @@ html, body {
 
 ## Vendored components
 
-Beyond `icons/` and `nav/`, the hub adopts the fleet's vendored components (byte-for-byte from `project-scaffolding`, per-app variation is markup + tokens only): **card** (the base `.card` contract — the hub's own `.card-header`/`.card-actions` patterns layer on top), **disclosure** (`.card--collapsible` — Health & install, the four Hub diagnostic cards, and the three Playground testers, all folded by default), **switch** (the one boolean control — the Playground Stream toggle; green on-track), and **empty-state** (every zero-items list renders the icon + reason block, never a bare dash). `escapeHtml`/`fmtClock` live once in `api.js` (sibling dedup).
+Beyond `icons/` and `nav/`, the hub adopts the fleet's vendored components (byte-for-byte from `project-scaffolding`, per-app variation is markup + tokens only): **card** (the base `.card` contract — the hub's own `.card-header`/`.card-actions` patterns layer on top), **switch** (the boolean controls — the Playground Image mode's Refine toggle and the Speech mode's Stream toggle; green on-track), and **empty-state** (every zero-items list renders the icon + reason block, never a bare dash). The **disclosure** component (`.card--collapsible`) is still vendored but no longer used anywhere in the live page — the Hub's four diagnostic cards folded into Serving/Services/Activity and Health & install moved into the Settings dialog (#738, #741). `escapeHtml`/`fmtClock` live once in `api.js` (sibling dedup).
 
 ## Navigation
 
@@ -143,22 +143,36 @@ shape is the pattern actually in use today.
 
 ## Hub-specific layout
 
-The hub diverges from app-launcher in one place — it has more
-diagnostic surfaces (live request ring, per-backend counters, error
-ring, server log) than the launcher needs. Each of the four is a
-**vendored disclosure card** (`.card--collapsible`), folded by default —
-the same pattern as Health & install (#215; this replaced the earlier
-Compact/Expanded density toggle and its dual DOM trees). SSE/poll
-renders keep updating the lists while folded, so opening one is
-instant. The build-identity footer is home-automation's `.page-foot`:
-one centered muted line, no links.
+The Hub tab is a glance, not a diagnostics dashboard (#738). Two columns on
+a wide window (`.hub-cols.wide-cols`), one column on a phone, stacked in DOM
+order:
+
+- **Serving** (`#hubGlance`) — "is the hub serving, is anything failing":
+  Requests / Errors / Median since hub start, one load sparkline with a
+  segmented control to swap its series, and the uptime line.
+- **Services as exceptions** (`#servicesCard`) — a healthy Docker/Langfuse/
+  AgentsView folds into one row that opens the Services sheet; a stopped or
+  failing service gets its own row with Start, right on the Hub pane.
+- **Activity** (`#activityCard`) — one feed of shared rows for live
+  requests and errors (true alternatives via a segmented control, not two
+  disclosures), a filter, and two links into sheets: **By model**
+  (per-backend counters) and **Server log** (the live tail).
+
+The four-disclosure diagnostics layout and the Compact/Expanded density
+toggle it replaced are gone; so is the separate Telemetry tab — Health &
+install and the Langfuse/OTel health now live in the Settings dialog and
+the Services sheet (#741). The build-identity footer is still
+home-automation's `.page-foot`: one centered muted line, no links.
 
 ## Live status indicator
 
-The `.hub-live-status` dot + word sits inline in the Hub / Telemetry card
-headers (it replaced the old always-on status strip). It tints by state via
-the status tokens — `--success` up, `--attention` degraded, `--danger`
-unreachable — which signal state only, never decoration.
+The `.hub-live-status` dot + word sits inline in the Services sheet's three
+service rows (Docker, Langfuse, AgentsView) and is reused wherever else a
+status dot is needed (e.g. diagnostics run rows) — it replaced the old
+always-on status strip and the Hub/Telemetry card headers that carried it
+before the restructure. It tints by state via the status tokens —
+`--success` up, `--attention` degraded, `--danger` unreachable — which
+signal state only, never decoration.
 
 ## Load-failure banner (`.cld-error`)
 
