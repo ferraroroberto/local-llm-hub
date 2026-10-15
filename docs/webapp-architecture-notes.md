@@ -9,7 +9,7 @@ debugging something and wants the gotchas in one place.
 The admin webapp is a FastAPI **sub-app** mounted at `/admin` on the
 hub's own `:8000` — there is no second port, no second Python process,
 no bundler. Five tabs (Hub / Models / Play / Code / Machines) plus the
-OTel page, opened from the header button, cover every operational concern.
+Settings dialog, opened from the header gear, cover every operational concern.
 
 ```
 src/server.py            ── parent FastAPI hub (:8000)
@@ -127,9 +127,6 @@ the exe looks like ours (`llama-server.exe` / `whisper-server.exe` /
 `python`), and records the PID in `_BackendState.inherited_pid`.
 
 Limitations for inherited backends:
-- No log tail. Windows can't attach to another process's stdout
-  post-hoc. The model card shows an empty log pane; the operator can
-  Stop and Start to get a fresh hub-owned spawn with captured stdout.
 - Stop uses `taskkill /F /PID` (or `SIGKILL` on POSIX) because we
   don't hold a Popen handle to politely terminate.
 

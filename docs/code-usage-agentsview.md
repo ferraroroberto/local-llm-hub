@@ -37,12 +37,12 @@ PATH.)
 Nothing else to start by hand: **the hub launches and monitors AgentsView
 itself.**
 
-- **Startup** — the Models tab's Startup card has an **AgentsView** toggle
+- **Startup** — Settings › Service startup has an **AgentsView** toggle
   (persisted to `config/startup_profile.json`); when on, the hub runs
   `agentsview serve` detached at boot, with its anonymous telemetry and
   update check disabled in the child env. Not installed → one soft-fail log
   line, the hub starts normally.
-- **Services card** (Hub tab) — an AgentsView row shows up / down /
+- **Services sheet** (Hub tab → Services) — an AgentsView row shows up / down /
   not installed / disabled, the served version, and Start/Stop buttons
   (`POST /admin/api/services/agentsview/launch` and `.../stop`, issue #284)
   — Start when it's down but installed, Stop when it's reachable.

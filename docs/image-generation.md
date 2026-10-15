@@ -422,13 +422,15 @@ the audio proxies.
 
 ## Playground
 
-The admin SPA Playground has an **🖼️ Image generation** card: pick the model,
-type a prompt, and Generate (then Download the result). Attaching a **reference
-image** switches it to edit mode (with the slow/experimental warning above).
-There is deliberately no size control — it had no effect. The card
-proxies through `/admin/api/playground/generate_image` → the hub's own
+The Playground's Image mode (one of the composer's four modes, #740) has:
+pick the model, type a prompt, Generate, then Download the result. The
+**Size** dropdown (same `src/image_sizes.py` presets as the table above) sits
+right under the prompt. Under "More options": the per-backend **Refine after
+upscaling** toggle, and attaching a **reference image** switches the call to
+edit mode (with the slow/experimental warning above). The mode proxies
+through `/admin/api/playground/generate_image` → the hub's own
 `/v1/images/{generations,edits}` over loopback, so Playground image calls are
-recorded in the live request ring like any external call. The card is hidden
+recorded in the live request ring like any external call. The mode is hidden
 on hosts with no image backend.
 
 ## Limitations / out of scope

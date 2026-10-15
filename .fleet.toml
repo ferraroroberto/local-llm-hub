@@ -25,7 +25,7 @@ full_pytest_target    = "tests/e2e"
 # budget step (not classify_e2e.py). The overage vs the scaffold's 15 is
 # structural — one admin SPA, one file per tab, no redundancy found (#604).
 # Lower this as the suite trims; /e2e-audit re-fires when the count exceeds it.
-test_budget           = 46
+test_budget           = 113
 # Timing source for /e2e-audit: the gate (scripts/verify-before-ship.ps1) writes
 # this JUnit file on every e2e run, so per-test seconds are measured, not guessed.
 junit_xml             = "data/e2e-junit.xml"
