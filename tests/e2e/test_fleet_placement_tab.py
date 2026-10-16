@@ -184,8 +184,8 @@ def test_offline_host_shows_deferred_note_not_error(page, admin_url):
 
 
 def test_capacity_value_matches_model_line_typography(page, admin_url):
-    """#436: the Capacity value must render at the same caption font size as
-    the block .fleet-model-line values."""
+    """#436: the Capacity value must render at the same font size as the block
+    .fleet-model-line values: body-sm, never caption (TYPE-01, #810)."""
     _install_routes(page)
     _open_glance(page, admin_url)
 
@@ -193,7 +193,7 @@ def test_capacity_value_matches_model_line_typography(page, admin_url):
     cap_value = tower.locator(".startup-row", has_text="Capacity").locator(".roles-row-value")
     model_line = tower.locator(".fleet-model-line").first
     font = "el => getComputedStyle(el).fontSize"
-    assert cap_value.evaluate(font) == model_line.evaluate(font)
+    assert cap_value.evaluate(font) == model_line.evaluate(font) == "14px"
 
 
 def test_external_adopted_backend_labelled(page, admin_url):

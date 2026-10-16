@@ -1315,7 +1315,7 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
   min-width: 0;
 }
 /* One model per line (#434) — right-aligned by the parent .roles-row-value;
- * both Running and Loadable read at the caption size (the old inline
+ * both Running and Loadable read at the body-sm size (the old inline
  * `·`-joined Running flow wrapped awkwardly on phones). */
 .fleet-model-line {
   display: block;
@@ -1326,10 +1326,14 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
 }
 /* Single-line values (Capacity, an honest "none") are inline spans inside
  * .roles-row-value: without a matching font-size their anonymous line box is
- * struck at the inherited body size, seating the caption-sized text below
- * the label's baseline (#436) — block .fleet-model-line values never had
- * the problem. Scoped to the fleet card. */
-.fleet-host .roles-row-value { font-size: var(--font-caption); }
+ * struck at the inherited body size, seating the smaller text below the
+ * label's baseline (#436) — block .fleet-model-line values never had the
+ * problem. Scoped to the fleet card. Every value and note here is a
+ * secondary line people read, so it is body-sm, never caption (design.md
+ * typography; TYPE-01, #810): the markup's `.small` spans step up with it. */
+.fleet-host .roles-row-value,
+.fleet-host .roles-row-value .small,
+.fleet-host-note { font-size: var(--font-body-sm); }
 
 /* ---------- placement value column (#373; the Models memory sheet since #737) ----------
  * Same .startup-row/.startup-list rhythm as the Startup card; only the
