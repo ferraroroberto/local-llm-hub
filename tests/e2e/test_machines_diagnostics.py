@@ -140,3 +140,64 @@ def test_diagnostics_entry_row_only_on_this_machine(phone_page, admin_url):
         "the diagnostics row must not ride on a machine row"
     )
     assert "This machine" in page.locator("#machinesDiagCard").inner_text()
+
+
+def test_poll_tick_keeps_unsaved_form_choices(phone_page, admin_url):
+    """#787: the 5 s status poll rebuilt the whole body through innerHTML, so a
+    user who picked "8 hours" and was a few seconds slow to press Start capture
+    silently got the 1-hour default; the Settings <details> collapsed and the
+    unsaved Snapshot-every / Keep-raw-samples picks were lost the same way.
+
+    Two ticks, driven by a stubbed status: one that changes nothing (the DOM
+    must be left alone) and one that changes the Settings markup (the body is
+    repainted, and the choices carry across)."""
+    page = phone_page
+    db = {"bytes": 5 * 1024 * 1024}
+
+    def status_handler(route):
+        resp = route.fetch()
+        body = resp.json()
+        body.setdefault("settings", {})["db_size_bytes"] = db["bytes"]
+        route.fulfill(response=resp, json=body)
+
+    page.route("**/admin/api/diagnostics/status", status_handler)
+    _open_diagnostics(page, admin_url)
+
+    page.select_option("#diagDuration", "28800")
+    page.select_option("#diagInterval", "60")
+    page.click(".diag-settings-block summary")
+    page.select_option("#diagScheduleHours", "48")
+    page.select_option("#diagRetention", "365")
+    # Tag the node: a repaint replaces it, so the tag disappears.
+    page.evaluate("document.getElementById('diagDuration').dataset.tag = 'kept'")
+
+    def choices():
+        return page.evaluate(
+            "({duration: diagDuration.value, interval: diagInterval.value,"
+            " hours: diagScheduleHours.value, retention: diagRetention.value,"
+            " open: document.querySelector('.diag-settings-block').open})"
+        )
+
+    expected = {
+        "duration": "28800", "interval": "60", "hours": "48",
+        "retention": "365", "open": True,
+    }
+
+    # Tick 1: identical status -> identical markup -> nothing is rewritten.
+    with page.expect_response(lambda r: r.url.endswith("/diagnostics/status"), timeout=15000):
+        pass
+    page.evaluate("new Promise(r => setTimeout(r, 300))")
+    assert choices() == expected
+    assert page.evaluate("document.getElementById('diagDuration').dataset.tag") == "kept"
+
+    # Tick 2: the database grew -> the Settings markup changed -> repainted,
+    # and the unsaved choices are carried across the repaint.
+    db["bytes"] = 9 * 1024 * 1024
+    page.wait_for_function(
+        "document.querySelector('.diag-settings-block').innerText.includes('Database 9 MB')",
+        timeout=15000,
+    )
+    assert page.evaluate("document.getElementById('diagDuration').dataset.tag") is None, (
+        "the body was not repainted, so the carry-across path was not exercised"
+    )
+    assert choices() == expected

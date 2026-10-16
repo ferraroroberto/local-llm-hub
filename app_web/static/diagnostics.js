@@ -19,6 +19,8 @@ import { chip } from './rows.js';
 
 const POLL_MS = 5000;
 let pollHandle = null;
+// The ready markup last written to diagBody; null once anything else was.
+let lastBodyHtml = null;
 
 // ------------------------------------------------------------------ format
 function fmtDuration(seconds) {
@@ -340,6 +342,32 @@ function renderSettings(status) {
     + '</div>';
 }
 
+/* The form choices the user has made but not acted on: a <select> whose value
+ * differs from the option the server rendered as selected, and whether the
+ * Settings <details> is open. The 5 s poll rebuilds diagBody through
+ * innerHTML, which would otherwise reset all of it (#787). */
+function captureFormState(root) {
+  const selects = {};
+  root.querySelectorAll('select[id]').forEach(function (sel) {
+    const rendered = Array.from(sel.options).find(function (o) { return o.defaultSelected; })
+      || sel.options[0];
+    if (rendered && sel.value !== rendered.value) selects[sel.id] = sel.value;
+  });
+  const details = root.querySelector('details.diag-settings-block');
+  return { selects, settingsOpen: !!(details && details.open) };
+}
+
+function restoreFormState(root, saved) {
+  Object.keys(saved.selects).forEach(function (id) {
+    const sel = root.querySelector('#' + id);
+    if (sel && Array.from(sel.options).some(function (o) { return o.value === saved.selects[id]; })) {
+      sel.value = saved.selects[id];
+    }
+  });
+  const details = root.querySelector('details.diag-settings-block');
+  if (details && saved.settingsOpen) details.open = true;
+}
+
 function renderDiagnostics() {
   // The card-level chip (rendered by machines.js) tracks the same state.
   updateCardChip();
@@ -349,12 +377,14 @@ function renderDiagnostics() {
   const status = state.diagStatus;
   const ds = state.diagDataState;
   if (ds === 'loading' && !status) {
+    lastBodyHtml = null;
     els.diagBody.innerHTML = '<div class="empty-state">'
       + '<svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-stethoscope"></use></svg>'
       + '<p class="empty-state-message">Reading diagnostics status…</p></div>';
     return;
   }
   if (ds === 'error' && !status) {
+    lastBodyHtml = null;
     els.diagBody.innerHTML = '<div class="empty-state">'
       + '<svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>'
       + '<p class="empty-state-message">Could not read diagnostics status.</p>'
@@ -366,7 +396,7 @@ function renderDiagnostics() {
     ? '<p class="muted small" role="status">Live data unavailable — showing the last known state.</p>'
     : '';
 
-  els.diagBody.innerHTML = staleNote
+  const html = staleNote
     + '<section class="diag-section"><h3 class="diag-h3">' + icon('play') + 'Capture</h3>'
     + renderCapture(status) + '</section>'
     + '<section class="diag-section"><h3 class="diag-h3">' + icon('clock') + 'Runs</h3>'
@@ -382,6 +412,14 @@ function renderDiagnostics() {
       : '')
     + '<details class="diag-section diag-settings-block"><summary class="diag-h3">'
     + icon('wrench') + 'Settings</summary>' + renderSettings(status) + '</details>';
+
+  // A poll tick that changed nothing leaves the DOM alone, so an open select
+  // list, focus and scroll position survive it.
+  if (html === lastBodyHtml) return;
+  const saved = captureFormState(els.diagBody);
+  els.diagBody.innerHTML = html;
+  lastBodyHtml = html;
+  restoreFormState(els.diagBody, saved);
 
   // Paint the schedule switch through the vendored write path.
   const sw = els.diagBody.querySelector('[data-diag-switch]');
