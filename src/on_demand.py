@@ -225,13 +225,13 @@ def ensure_ready(model: Model, deadline_s: float = READY_DEADLINE_S) -> None:
         return
     if remote_base_url(model) is not None:
         return
-    if bp.is_reachable(model, timeout=0.4):
+    if bp.is_reachable(model, timeout=bp.LIVENESS_PROBE_TIMEOUT_S):
         return
 
     with _spawn_lock(model.id):
         # Re-check under the lock — a concurrent first-request may have
         # already brought the backend up while this one waited.
-        if bp.is_reachable(model, timeout=0.4):
+        if bp.is_reachable(model, timeout=bp.LIVENESS_PROBE_TIMEOUT_S):
             return
         _warn_on_vram_overcommit(model)
         ok, msg = bp.start(model.id)

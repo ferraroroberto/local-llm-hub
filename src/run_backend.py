@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 
 from . import win_job
 from .backend_process import (
+    LIVENESS_PROBE_TIMEOUT_S,
     build_command,
     external_pid as backend_external_pid,
     is_reachable as backend_is_reachable,
@@ -83,7 +84,7 @@ def _run_hub() -> int:
     # `run_hub` window), don't try to bind :8000 a second time — uvicorn
     # would crash with WinError 10048. Print and exit cleanly so the user
     # can see what happened in the launcher's terminal.
-    if hub_is_reachable(timeout=0.4):
+    if hub_is_reachable(timeout=LIVENESS_PROBE_TIMEOUT_S):
         ext = hub_external_pid()
         suffix = f" (PID {ext})" if ext else ""
         log.info("hub already running at %s%s — nothing to do.", HUB_BASE_URL, suffix)
@@ -114,7 +115,7 @@ def _run_backend(model_id: str) -> int:
 
     # Same adopt-check as the hub: skip if something already answers on
     # this model's port.
-    if backend_is_reachable(model, timeout=0.4):
+    if backend_is_reachable(model, timeout=LIVENESS_PROBE_TIMEOUT_S):
         ext = backend_external_pid(model_id)
         suffix = f" (PID {ext})" if ext else ""
         log.info("%s already running on :%s%s — nothing to do.", model.display_name, model.port, suffix)

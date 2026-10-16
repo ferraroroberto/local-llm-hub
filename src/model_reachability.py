@@ -20,10 +20,6 @@ from .model_failover import effective_owner
 from .model_registry import Model
 from .server_process import snapshot_listening_pids
 
-# TCP-level probe budget per backend, seconds: short because a dead backend
-# is the common case on a box that only runs a subset of the registry.
-_PROBE_TIMEOUT_S = 0.4
-
 
 async def local_reachability(
     models: Sequence[Model], listening: Dict[int, Any]
@@ -41,7 +37,7 @@ async def local_reachability(
             return True
         if not m.port or m.port not in listening:
             return False
-        return await asyncio.to_thread(bp.is_reachable, m, _PROBE_TIMEOUT_S)
+        return await asyncio.to_thread(bp.is_reachable, m, bp.LIVENESS_PROBE_TIMEOUT_S)
 
     return list(await asyncio.gather(*(_probe(m) for m in models)))
 
