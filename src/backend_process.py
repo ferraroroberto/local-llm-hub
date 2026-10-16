@@ -41,11 +41,9 @@ from .model_registry import (
 )
 from .process_supervisor import ProcessSupervisor, SpawnSpec
 from .server_process import (
-    OWNERSHIP_NONE,
     WIN_NEW_GROUP,
     kill_pid,
     resolve_external_pid,
-    resolve_ownership,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -166,12 +164,6 @@ def is_running(model_id: str) -> bool:
     if p is not None and p.poll() is None:
         return True
     return _inherited_alive(state)
-
-
-def is_inherited(model_id: str) -> bool:
-    """True iff this model is alive via an inherited PID (not a Popen we own)."""
-    state = _state_for(model_id)
-    return state.proc is None and _inherited_alive(state)
 
 
 def inherited_foreign(model_id: str) -> bool:
@@ -330,15 +322,6 @@ def log_lines(model_id: str, limit: int = LOG_TAIL_LINES) -> list[str]:
     except OSError:
         return []
     return lines[-limit:] if limit else lines
-
-
-def clear_log(model_id: str) -> None:
-    """Truncate the backend's log file (no-op if it doesn't exist yet)."""
-    path = _log_path(model_id)
-    try:
-        path.open("w", encoding="utf-8").close()
-    except OSError:
-        pass
 
 
 def _whisper_boost_args(existing_args: list[str]) -> list[str]:
@@ -700,14 +683,6 @@ def running_backends() -> Dict[str, Model]:
         if m.backend in SPAWNABLE_BACKENDS and is_running(m.id):
             out[m.id] = m
     return out
-
-
-def ownership(model_id: str) -> str:
-    """Tri-state ownership of the port for *model_id* — see server_process docstring."""
-    model = resolve_model_by_id(model_id)
-    if model is None or model.port is None:
-        return OWNERSHIP_NONE
-    return resolve_ownership(is_running(model_id), model.port)
 
 
 def external_pid(model_id: str) -> Optional[int]:

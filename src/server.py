@@ -100,7 +100,6 @@ from .hub_log import install_root_handler
 from .hub_observability import ObservatoryMiddleware
 from .model_registry import Model, enabled_models
 from .observability import (
-    genai_meters,
     init_otel,
     instrument_fastapi_app,
     set_genai_payload,

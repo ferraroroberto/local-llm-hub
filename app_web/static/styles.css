@@ -356,51 +356,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
   display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: 10px;
   align-items: center;
 }
-/* Header-mounted icon action. Smaller than .icon-button so it doesn't
- * dominate the card header. */
-.icon-header-btn {
-  position: relative;
-  width: 36px;
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: 0;
-  color: var(--muted);
-  font: inherit;
-  font-size: 16px;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-}
-/* Invisible hit-area expansion — keeps the compact 36px visual while the
- * effective pointer target reaches the 44px floor (36 + 2×4px), per
- * design.md Touch targets. Each .icon-header-btn is solo in its card header,
- * so the expanded rect never overlaps a neighbour. */
-.icon-header-btn::before {
-  content: "";
-  position: absolute;
-  inset: -4px;
-}
-.icon-header-btn:hover { color: var(--ink); background: var(--card-off); }
-.icon-header-btn:active { background: var(--bg); }
-
-/* Hub card header — title + inline live status (dot + word), then
- * the action buttons on the right. */
-.hub-title-block {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-/* Services card: the header's overall pill ("all up") sits in the same
-   column as the four row pills below it — same first-column floor and
-   column gap as .services-row (#280 follow-up, user-flagged). */
-#servicesCard .hub-title-block {
-  display: grid;
-  grid-template-columns: minmax(110px, auto) auto;
-  gap: 12px;
-}
 .hub-live-status {
   display: inline-flex;
   align-items: center;
@@ -422,21 +377,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .hub-live-status.warn   .dot { background: var(--attention); }
 .hub-live-status.danger { color: var(--danger); }
 .hub-live-status.danger .dot { background: var(--danger); }
-
-/* Hub-card PID + Uptime sit on a single row, side by side. */
-.hub-meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 22px;
-  align-items: baseline;
-  font-size: var(--font-caption);
-  margin-bottom: 4px;
-}
-.hub-meta-row > span { display: inline-flex; gap: 6px; align-items: baseline; min-width: 0; }
-.hub-meta-row > span > span:first-child { color: var(--muted); }
-/* Long single-token values (the OTel endpoint URL) wrap instead of
- * overflowing the card edge. */
-.hub-meta-row code { word-break: break-all; }
 
 /* ---------- buttons ---------- */
 /* Primary per-card action layout — fill, border, radius, weight, and the
@@ -523,9 +463,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
   gap: 8px;
 }
 .card-list.dense > li:last-child { border-bottom: 0; }
-/* The row's name is its largest text. */
-.card-list.dense .req-name,
-ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 .card-list .req-status.ok { color: var(--on); }
 .card-list .req-status.err { color: var(--danger); }
 .card-list .req-status.warn { color: var(--attention); }
@@ -797,8 +734,6 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
 .group-overline + .action-row { border-top: 0; }
 .action-row + .group-overline { border-top: 1px solid var(--line-muted); }
 .models-scope { align-self: flex-start; }
-.models-config-sha { margin: 0; padding: 10px 14px 12px; font-size: var(--font-body-sm); }
-.models-config-sha:empty { display: none; }
 .glance-head {
   display: flex;
   align-items: center;
@@ -1006,13 +941,6 @@ ul.tel-traces > li > .req-model { font-size: var(--font-label); }
   padding: 7px 10px;
 }
 .pe-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-
-/* Config-version chip (#424) in the Models card header. Same typography as
- * the build sha in the page footer (#buildReadout: plain .muted.small) —
- * the monospace face clashed with the header type (#431). */
-.models-config-sha {
-  white-space: nowrap;
-}
 
 /* ---------- transcription dictionary editor (inline whisper-row panel) ---------- */
 .glossary-panel {
@@ -1360,32 +1288,6 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
   padding-top: 12px;
   border-top: 1px solid var(--line-muted);
 }
-.fleet-host-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.fleet-host-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  font-size: var(--font-label);
-  font-weight: 600;
-}
-.fleet-host-name > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.fleet-host-name .icon {
-  width: var(--icon-title);
-  height: var(--icon-title);
-  flex-shrink: 0;
-  color: var(--muted);
-}
-.fleet-host-head .hub-live-status { flex-shrink: 0; }
 .fleet-host-note { margin: 6px 0 0; }
 /* Advisory VRAM-overcommit warning (#375) — a tinted host note with a leading
  * glyph, matching the .badge.warn colour token. */

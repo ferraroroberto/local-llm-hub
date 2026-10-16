@@ -1,11 +1,11 @@
 """Port/PID utilities for the hub's own listening port, plus the tri-state
-ownership check shared with per-model backend tracking.
+ownership vocabulary shared with per-model backend tracking.
 
 **Ownership model.** A single hub process binds :8000; whoever spawned it
 owns it. Callers that want to know who currently holds a port — the admin
 SPA's hub/models routers, ``backend_process.py`` for per-model ports —
-call :func:`resolve_ownership` with their own ``running`` flag (they track
-their own process handle; this module doesn't):
+report their own ``running`` flag (they track their own process handle;
+this module doesn't) and classify into:
 
 * ``OWNERSHIP_OURS`` — the caller reports it holds the process itself.
 * ``OWNERSHIP_EXTERNAL`` — port is held by someone else's process. We
@@ -18,9 +18,9 @@ This module does not spawn or own the hub process itself — the tray
 drives the hub through its own ``HubProcess`` (``tray/tray.py``) and the
 admin restart goes through ``src/hub_process_control.py``'s
 ``_respawn_watchdog``. What's left here is the cross-platform PID/port
-lookup (``find_port_pids``, ``snapshot_listening_pids``, ``kill_pid``) and
-the ownership tri-state, both still used by ``backend_process.py`` and the
-admin routers.
+lookup (``find_port_pids``, ``snapshot_listening_pids``, ``kill_pid``,
+:func:`resolve_external_pid`) and the ownership constants, both still used
+by ``backend_process.py`` and the admin routers.
 """
 
 from __future__ import annotations
@@ -174,24 +174,14 @@ def find_port_pids(port: int) -> list[int]:
     return snapshot_listening_pids().get(port, [])
 
 
-def resolve_ownership(running: bool, port: int) -> str:
-    """Shared tri-state (``OURS``/``EXTERNAL``/``NONE``) check for one port.
-
-    Shared so :mod:`backend_process` — which tracks a *dict* of per-model
-    states instead of a single process handle — reuses the identical
-    decision instead of reimplementing it per model (issue #242). This
-    module has no process handle of its own for the hub's port, so its
-    own callers always pass ``running=False`` (see :func:`external_pid`).
-    """
-    if running:
-        return OWNERSHIP_OURS
-    if find_port_pids(port):
-        return OWNERSHIP_EXTERNAL
-    return OWNERSHIP_NONE
-
-
 def resolve_external_pid(running: bool, port: int) -> Optional[int]:
-    """Shared "who's holding this port" lookup — see :func:`resolve_ownership`."""
+    """The external-PID half of the ownership check (see module docstring).
+
+    ``running=True`` means the caller already holds the port itself, so
+    there is nothing external to report. This module has no process
+    handle of its own for the hub's port, so its own callers always pass
+    ``running=False`` (see :func:`external_pid`).
+    """
     if running:
         return None
     pids = find_port_pids(port)

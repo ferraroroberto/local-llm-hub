@@ -23,12 +23,10 @@ Design points:
   trace ID, so clients that pass ``X-Trace-Id: <uuid4>`` instead of a
   full W3C ``traceparent`` still get correlated traces.
 
-The hub's hot path uses three things from here:
+The hub's hot path uses two things from here:
 
 1. ``init_otel()`` — once, near the top of ``src/server.py``.
-2. ``genai_meters()`` — returns the pre-created histogram + counters
-   the middleware updates per request.
-3. ``set_genai_payload(span, prompt, completion)`` — called by the
+2. ``set_genai_payload(span, prompt, completion)`` — called by the
    handlers after collecting the request + response bodies.
 """
 
@@ -101,11 +99,6 @@ class _Meters:
 
 
 _METERS: Optional[_Meters] = None
-
-
-def genai_meters() -> Optional[_Meters]:
-    """Return the GenAI meter instruments, or None when OTel is disabled."""
-    return _METERS
 
 
 # ----------------------------------------------------------------- helpers
@@ -544,10 +537,11 @@ def init_otel(
                 logger.debug("HTTPXClientInstrumentor failed to install", exc_info=True)
 
             # Silence the OTLP exporter's connect-refused retry/error log
-            # noise. When Langfuse is offline the admin SPA's Telemetry
-            # tab already shows "Stack offline" — duplicating that as
-            # ERROR lines in the Hub log pane just spams the UI. Real
-            # protocol-level failures still surface at WARNING.
+            # noise. Langfuse offline/unreachable is already surfaced via
+            # the Hub's Langfuse sheet, so duplicating that as log lines
+            # just spams the UI. CRITICAL silences everything below it
+            # too, including genuine protocol-level export failures —
+            # there is currently no WARNING/ERROR escape hatch for those.
             for noisy in (
                 "opentelemetry.exporter.otlp.proto.http.trace_exporter",
                 "opentelemetry.exporter.otlp.proto.http.metric_exporter",

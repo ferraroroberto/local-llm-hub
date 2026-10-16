@@ -36,7 +36,7 @@ def test_init_otel_disabled_is_idempotent():
     obs._reset_for_tests()
     assert obs.init_otel("test-service") is False
     assert obs.init_otel("test-service") is False
-    assert obs.genai_meters() is None
+    assert obs._METERS is None
 
 
 def test_backend_to_genai_system_mapping():
@@ -117,7 +117,7 @@ def test_set_genai_request_attrs_no_op_on_none_span():
 
 def test_record_genai_metrics_no_op_without_meters():
     # No meters when OTel is disabled. Must not raise.
-    assert obs.genai_meters() is None
+    assert obs._METERS is None
     obs.record_genai_metrics(
         model="x", backend="claude", route="/v1/messages",
         client_id="t", duration_ms=42.0, input_tokens=10, output_tokens=20,

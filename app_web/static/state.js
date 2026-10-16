@@ -38,7 +38,7 @@ export const state = {
   hubStreamCtl: null,     // EventSource abort handles
   hubLogStreamCtl: null,
 
-  // Telemetry tab — its own state slice (issue #4).
+  // Hub Langfuse sheet state slice (issue #4).
   otelHealth: null,         // GET /admin/api/telemetry/health (langfuse.js): the Hub Langfuse sheet, trace links
   otelHealthFailed: false,  // the last health read failed: the Langfuse sheet says "unreachable" (#738)
   // Claude Code (host CLI) OTel-sourced usage panel (issue #68).
