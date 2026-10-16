@@ -108,8 +108,10 @@
               <div class="hub-figure"><span class="hub-figure-value" id="hubErrCount">—</span><span class="hub-figure-label">Errors</span></div>
               <div class="hub-figure"><span class="hub-figure-value" id="hubP50">—</span><span class="hub-figure-label">Median</span></div>
             </div>
-            <div class="sparklines" id="hubSparklines"></div>
-            <div class="segmented hub-series" id="hubSeries" role="group" aria-label="Load history to show"></div>
+            <!-- Drawn at first paint with dashes (hub.js drawSparklines replaces them), so the
+                 card never grows when the first reading lands (LAYOUT-10). -->
+            <div class="sparklines" id="hubSparklines"><div class="sparkline"><div class="sparkline-label"><span>CPU</span><span>—</span></div><svg viewBox="0 0 140 64" preserveAspectRatio="none" aria-hidden="true"></svg></div></div>
+            <div class="segmented hub-series" id="hubSeries" role="group" aria-label="Load history to show"><button type="button" class="segmented-item" data-series="cpu" aria-pressed="true">CPU —</button><button type="button" class="segmented-item" data-series="gpu" aria-pressed="false">GPU —</button><button type="button" class="segmented-item" data-series="ram" aria-pressed="false">RAM —</button><button type="button" class="segmented-item" data-series="vram" aria-pressed="false">VRAM —</button></div>
             <p class="hub-proc muted">Up <span id="hubUptime">—</span></p>
           </section>
 
@@ -525,7 +527,7 @@
           </button>
               </div>
               <!-- The one note that applies now: shown only while Claude figures are in view. -->
-              <p id="cldUndercountNote" class="cld-note muted" hidden><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg><span>Claude figures undercount: see ⓘ.</span></p>
+              <p id="cldUndercountNote" class="cld-note muted"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg><span>Claude figures undercount: see ⓘ.</span></p>
             </div>
 
             <!-- Sub-agents (OTel) source (#739): Claude Code's own OTel export, for the
