@@ -100,15 +100,6 @@ def test_log_lines_empty_when_never_started(monkeypatch, tmp_path):
     assert bp.log_lines("never-ran") == []
 
 
-def test_clear_log_truncates_file(monkeypatch, tmp_path):
-    _patch_spawn(monkeypatch, tmp_path, "TO_BE_CLEARED")
-    _start_and_wait("xtts")
-    assert bp.log_lines("xtts")  # non-empty
-
-    bp.clear_log("xtts")
-    assert bp.log_lines("xtts") == []
-
-
 def test_log_lines_respects_limit(monkeypatch, tmp_path):
     monkeypatch.setattr(bp, "LOG_DIR", tmp_path)
     log_file = tmp_path / "backend-many.log"

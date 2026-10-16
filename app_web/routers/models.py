@@ -172,8 +172,9 @@ async def _forward_admin_call(
 def _ownership_from_snapshot(m: Model, listening: Dict[int, list]) -> tuple[str, Any]:
     """Compute (ownership, pid) for a controllable model from a port→pids map.
 
-    Avoids the per-model netstat invocation that ``bp.ownership`` does
-    when checking each model in isolation.
+    Takes the pre-snapshotted ``listening`` map instead of doing its own
+    netstat lookup per model, so listing every model costs one snapshot
+    rather than one per row.
     """
     if bp.is_running(m.id):
         return OWNERSHIP_OURS, bp.pid(m.id)

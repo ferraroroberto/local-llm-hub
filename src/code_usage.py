@@ -202,11 +202,6 @@ def _gather_records(vendor: str = "all") -> List[UsageRecord]:
 # ---------------------------------------------------------------------------
 
 
-def _tok_k(n: int) -> float:
-    """Round to one decimal in thousands."""
-    return round(n / 1000, 1)
-
-
 _VALID_PERIODS = {"today", "week", "month", "all"}
 
 
