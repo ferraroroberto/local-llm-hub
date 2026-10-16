@@ -69,6 +69,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # write it for the user; we only read the first ingress hostname.
 TUNNEL_CONFIG_PATH = PROJECT_ROOT / "webapp" / "cloudflared.yml"
 
+# How long a tray-started model gets to open its port before the toast gives up
+# on it, seconds: room for a large GGUF to load from disk (not measured; the
+# value predates this name and is kept as is).
+_MODEL_READY_TIMEOUT_S = 120.0
+
 
 # --------------------------------------------------------------- TrayConfig
 
@@ -498,14 +503,14 @@ class TrayApp:
         model = next((m for m in self._models if m.id == model_id), None)
         if model is None or model.port is None:
             return
-        deadline = time.time() + 120.0
+        deadline = time.time() + _MODEL_READY_TIMEOUT_S
         while time.time() < deadline:
             if _tcp_reachable("127.0.0.1", model.port, 0.8):
                 self._notify(model_id, "✅ Ready")
                 self._update_menu()
                 return
             time.sleep(1.0)
-        self._notify(model_id, "⚠️ not reachable after 120s")
+        self._notify(model_id, f"⚠️ not reachable after {_MODEL_READY_TIMEOUT_S:.0f}s")
         self._update_menu()
 
     def _admin_request(self, method: str, path: str) -> Tuple[bool, str]:
