@@ -151,7 +151,7 @@ button.cld-counter[aria-pressed="true"] { border-color: var(--accent-border-stro
 .cld-delta[hidden] { display: block !important; visibility: hidden; }
 /* An empty cost or delta still has a text line, so the phone grid's baseline
  * alignment lands where it will once the figure arrives. */
-.cld-counter-cost:empty::before, .cld-delta:empty::before { content: "b"; }
+.cld-counter-cost:empty::before, .cld-delta:empty::before { content: "\200b"; }
 .cld-delta.up   { color: var(--on); }
 .cld-delta.down { color: var(--danger); }
 

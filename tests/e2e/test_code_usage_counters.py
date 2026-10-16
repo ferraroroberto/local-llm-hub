@@ -116,6 +116,17 @@ def test_token_figures_group_thousands(page, admin_url):
     assert page.inner_text("#cldTotalCost").replace(",", "").replace(".", "") == "≈ $1644"
 
 
+
+def test_empty_cost_line_draws_nothing(page, admin_url):
+    """The requests card has no cost, so its cost line is empty; the line keeps
+    its height with a zero-width space, never a visible glyph (#812)."""
+    _open_code_tab(page, admin_url, DESKTOP, "light")
+    content = page.evaluate(
+        "() => getComputedStyle(document.querySelector('#cldCounterGrid .cld-counter-cost:empty'), '::before').content"
+    )
+    assert content == '"\u200b"', content
+
+
 @pytest.mark.parametrize(
     "n, expected",
     [
