@@ -93,18 +93,19 @@ def test_overlay_ignores_unknown_host_ids(write_config):
     ["hosts: [not, a, mapping]", "*** not: valid: yaml: ["],
     ids=["hosts-not-a-mapping", "unparseable"],
 )
-def test_broken_overlay_never_stops_the_hub_booting(write_config, capsys, bad):
+def test_broken_overlay_never_stops_the_hub_booting(write_config, caplog, bad):
     """A dead overlay degrades to 'no identity', loudly — never an exception on
     the boot path, and never a silent one either."""
     cfg = write_config(BASE)
     (cfg.parent / "machines.local.yaml").write_text(bad, encoding="utf-8")
     host_profile._CONFIG_CACHE.clear()
 
-    hosts = all_hosts()  # must not raise
+    with caplog.at_level("WARNING", logger="src.host_profile"):
+        hosts = all_hosts()  # must not raise
 
     assert {h.id for h in hosts} == {"alpha", "beta"}
     assert all(h.address is None for h in hosts)
-    assert "machines.local.yaml" in capsys.readouterr().err
+    assert "machines.local.yaml" in caplog.text
 
 
 def test_shipped_example_overlay_is_valid(config_with_example_identity):
