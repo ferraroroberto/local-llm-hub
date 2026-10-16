@@ -814,6 +814,17 @@ async function showLog(m) {
 }
 
 // --------------------------------------------------------------- actions
+// Pauses after a Start / Stop / Force stop request (none of them measured; they
+// predate their names and are kept as they were):
+//  - SETTLE: before re-reading the model list, so the backend's new state has
+//    reached the hub (a spawn takes longer to show than a stop).
+//  - MEMORY: before the memory re-read, long enough for the backend to take its
+//    memory (a start loads the weights) or give it back (a stop).
+const START_SETTLE_MS = 800;
+const STOP_SETTLE_MS = 400;
+const START_MEMORY_MS = 4000;
+const STOP_MEMORY_MS = 1500;
+
 /* Memory is a live-probe read (seconds), so it is never polled: it is read on
  * tab open and once after a Start / Stop / Force stop settles, long enough
  * for the backend to take or release its memory. */
@@ -842,9 +853,9 @@ async function onForceStopConfirmed() {
   try {
     await postJson('/admin/api/models/' + encodeURIComponent(m.id) + '/force-stop', {});
     toast('Force-stopped ' + m.display_name, 'good');
-    await sleep(400);
+    await sleep(STOP_SETTLE_MS);
     fetchModels();
-    refreshMemorySoon(1500);
+    refreshMemorySoon(STOP_MEMORY_MS);
   } catch (exc) { toast(String(exc.message || exc), 'error'); }
 }
 
@@ -855,17 +866,17 @@ async function handleAction(m, act) {
     try {
       await postJson('/admin/api/models/' + encodeURIComponent(m.id) + '/start', {});
       toast('Starting ' + m.display_name + '…', 'good');
-      await sleep(800);
+      await sleep(START_SETTLE_MS);
       fetchModels();
-      refreshMemorySoon(4000);
+      refreshMemorySoon(START_MEMORY_MS);
     } catch (exc) { toast(String(exc.message || exc), 'error'); }
   } else if (act === 'stop') {
     try {
       await postJson('/admin/api/models/' + encodeURIComponent(m.id) + '/stop', {});
       toast('Stopped ' + m.display_name, 'good');
-      await sleep(400);
+      await sleep(STOP_SETTLE_MS);
       fetchModels();
-      refreshMemorySoon(1500);
+      refreshMemorySoon(STOP_MEMORY_MS);
     } catch (exc) { toast(String(exc.message || exc), 'error'); }
   } else if (act === 'force-stop') {
     openForceStopConfirm(m);
