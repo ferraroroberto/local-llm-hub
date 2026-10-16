@@ -142,6 +142,9 @@ button.cld-counter[aria-pressed="true"] { border-color: var(--accent-border-stro
   min-height: 14px;
   color: var(--muted);
 }
+/* Hidden still holds its row: a delta appearing after first paint must not grow
+ * the totals card (LAYOUT-10). */
+.cld-delta[hidden] { display: block; visibility: hidden; }
 .cld-delta.up   { color: var(--on); }
 .cld-delta.down { color: var(--danger); }
 
