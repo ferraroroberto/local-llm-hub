@@ -19,7 +19,7 @@
  */
 
 import { els, state, MACHINES_POLL_MS } from './state.js';
-import { jsonApi, postJson, api, toast, escapeHtml, fmtClock, shortGpu, fmtGbValue, isAuthError } from './api.js';
+import { jsonApi, postJson, api, toast, escapeHtml, codeHtml, fmtClock, shortGpu, fmtGbValue, isAuthError } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { row, chip, setHeadLine, infoButton, defineInfo, isWide, onWideChange } from './rows.js';
 import { openMachinesTerminal, wireMachinesTerminal } from './machines_terminal.js';
@@ -283,15 +283,16 @@ function networkText(net) {
 }
 
 /* Address, MAC, link and tailnet state behind one row (a disclosure). The
- * address and MAC are config-sourced, so they show even on a down peer. */
+ * address and MAC are config-sourced, so they show even on a down peer. Both
+ * are identifiers, so they render in <code>, never as prose (COMP-11, #810). */
 function connectionSection(m, connOpen) {
   const net = networkText(m.network);
   const q = m.network && signalQuality(m.network.signal_dbm);
   const weak = q === 'Weak' || q === 'Fair';
   const tailnet = m.via_tailscale ? 'Reached via tailnet' : (m.has_tailscale ? 'Available' : '');
   const pairs = [];
-  if (m.ip) pairs.push(['Address', m.ip, null]);
-  if (m.mac) pairs.push(['MAC', m.mac, null]);
+  if (m.ip) pairs.push(['Address', m.ip, null, true]);
+  if (m.mac) pairs.push(['MAC', m.mac, null, true]);
   if (net) pairs.push(['Network', net, weak ? 'attention' : null]);
   if (tailnet) pairs.push(['Tailnet', tailnet, m.via_tailscale ? 'attention' : null]);
   if (m.flaky) pairs.push(['Link', 'Flaky (answered on retry)', 'attention']);
@@ -302,11 +303,12 @@ function connectionSection(m, connOpen) {
   return '<div class="sheet-section"><details class="sheet-disclosure"' + (connOpen ? ' open' : '') + '>'
     + '<summary class="sheet-row">' + icon('signal')
     + '<span class="sheet-row-label">Connection</span>'
-    + '<span class="sheet-row-value"' + summaryTone + '>' + escapeHtml(summaryValue) + '</span>'
+    + '<span class="sheet-row-value"' + summaryTone + '>'
+    + (summaryValue === m.ip ? codeHtml(summaryValue) : escapeHtml(summaryValue)) + '</span>'
     + icon('chevron-right', 'sheet-chevron') + '</summary>'
     + '<dl class="sheet-pairs">' + pairs.map(function (p) {
       return '<dt>' + escapeHtml(p[0]) + '</dt><dd' + (p[2] ? ' data-tone="' + p[2] + '"' : '') + '>'
-        + escapeHtml(p[1]) + '</dd>';
+        + (p[3] ? codeHtml(p[1]) : escapeHtml(p[1])) + '</dd>';
     }).join('') + '</dl></details></div>';
 }
 

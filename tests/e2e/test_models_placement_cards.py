@@ -375,3 +375,13 @@ def test_placement_menu_opens_from_the_keyboard(page, admin_url):
     assert page.evaluate("document.activeElement.classList.contains('row-menu-item')")
     page.keyboard.press("Escape")
     assert page.evaluate("document.activeElement.classList.contains('row-kebab')")
+
+
+def test_aliases_render_as_code(page, admin_url):
+    """A model's aliases are ids a caller sends as ``model``: its details list
+    each one inside <code>, never as prose (design review COMP-11, #810)."""
+    _open_models_tab(page, admin_url)
+
+    body = _open_details_without_placement(page, "qwen35_4b_nothink")
+    aliases = body.locator("dt", has_text="Aliases").locator("xpath=following-sibling::dd[1]")
+    assert aliases.locator("code").all_inner_texts() == ["agentic_light_nothink"]

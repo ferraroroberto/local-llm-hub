@@ -48,6 +48,8 @@ FAKE_STATUS = {
             "id": "desktop", "display_name": "Desktop", "icon": "monitor",
             "state": "up", "is_host": False, "runs_hub": True,
             "role": "peer", "uptime_seconds": 7200,
+            # Documentation-range address and a made-up MAC (COMP-11, #810).
+            "ip": "192.0.2.10", "mac": "02:00:00:00:00:01",
             "actions": {"wake": True, "reboot": True, "shutdown": True, "ssh_terminal": True, "rdp": True},
             "hub": {"reachable": True, "git_sha_match": False,
                     "local_git_sha": "aaa1111", "remote_git_sha": "bbb2222"},
@@ -241,3 +243,18 @@ def test_wake_is_non_destructive_and_posts(phone_page, admin_url):
     toast = page.locator("#toast")
     toast.wait_for(state="visible", timeout=5000)
     assert "Wake packet sent to Mac Mini" in toast.inner_text()
+
+
+def test_address_and_mac_render_as_code(phone_page, admin_url):
+    """An address and a MAC are identifiers: the Connection row and its pairs
+    show them inside <code>, never as prose (design review COMP-11, #810)."""
+    page = phone_page
+    _open_machines(page, admin_url)
+
+    _row(page, "desktop").locator(".action-row-main").click()
+    page.wait_for_selector("#machineSheet[open]", timeout=5000)
+    sheet = page.locator("#machineSheetBody")
+    sheet.locator(".sheet-disclosure > summary").first.click()
+    codes = sheet.locator(".sheet-disclosure code").all_inner_texts()
+    assert codes.count("192.0.2.10") == 2, codes  # the row value and the Address pair
+    assert "02:00:00:00:00:01" in codes, codes

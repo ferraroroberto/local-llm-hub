@@ -18,7 +18,7 @@
  */
 
 import { els, state, MODELS_ACTIVE_ONLY_KEY } from './state.js';
-import { jsonApi, postJson, putJson, toast, escapeHtml, fmtGb, isAuthError } from './api.js';
+import { jsonApi, postJson, putJson, toast, escapeHtml, codeHtml, fmtGb, isAuthError } from './api.js';
 import { mountGlossaryEditor } from './glossary.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createRowMenu } from './_vendored/row-menu/row-menu.js';
@@ -135,7 +135,8 @@ function fullMetaPairs(m) {
   if (m.port) pairs.push(['Port', ':' + m.port]);
   if (m.pid && m.ownership === 'external') pairs.push(['Process', String(m.pid)]);
   if (m.device) pairs.push(['Device', m.device]);
-  if (m.aliases && m.aliases.length) pairs.push(['Aliases', m.aliases.join(', ')]);
+  // Aliases are ids a caller sends as `model`: a list of identifiers (COMP-11).
+  if (m.aliases && m.aliases.length) pairs.push(['Aliases', m.aliases]);
   if (m.placement && m.placement.est_vram_mb) pairs.push(['Footprint', '~' + fmtGb(m.placement.est_vram_mb)]);
   return pairs;
 }
@@ -423,7 +424,8 @@ function modelInfoHtml(m) {
   return '<div class="sheet-section">'
     + (chips.length ? '<div class="sheet-chips">' + chips.map(function (c) { return chip(c.text, c.tone); }).join('') + '</div>' : '')
     + '<dl class="sheet-pairs">' + pairs.map(function (p) {
-      return '<dt>' + escapeHtml(p[0]) + '</dt><dd>' + escapeHtml(p[1]) + '</dd>';
+      const value = Array.isArray(p[1]) ? p[1].map(codeHtml).join(', ') : escapeHtml(p[1]);
+      return '<dt>' + escapeHtml(p[0]) + '</dt><dd>' + value + '</dd>';
     }).join('') + '</dl></div>'
     + (m.placement ? '<div class="sheet-section"><p class="sheet-label">Placement</p>' + placementHtml(m) + '</div>' : '')
     + (buttons ? '<div class="sheet-section"><div class="sheet-buttons sheet-buttons--flow">' + buttons + '</div></div>' : '')
