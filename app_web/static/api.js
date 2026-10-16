@@ -206,6 +206,12 @@ export function escapeHtml(s) {
   });
 }
 
+/* An identifier (an address, a MAC, a model alias) shown in a detail sheet:
+ * escaped and wrapped in <code>, so it reads as a name, not prose (COMP-11). */
+export function codeHtml(s) {
+  return '<code>' + escapeHtml(s) + '</code>';
+}
+
 /* Plain-text label for a request record's model: the requested name, the model
  * that actually served it when the hub resolved one to the other, and the host
  * that served it ("audio_transcribe, served by parakeet @mac-mini-m4"). The served host
