@@ -97,13 +97,15 @@ button.cld-counter[aria-pressed="true"] { border-color: var(--accent-border-stro
 }
 
 .cld-counter-label {
-  font-size: var(--font-caption);
+  font-size: var(--font-body-sm);
   color: var(--muted);
 }
 
-/* Equivalent metered-API cost, sits just under the token value (issue #52). */
+/* Equivalent metered-API cost, sits just under the token value (issue #52).
+ * The label and the cost are lines people read, so body-sm, never caption
+ * (design.md typography; TYPE-01, #810). */
 .cld-counter-cost {
-  font-size: var(--font-caption);
+  font-size: var(--font-body-sm);
   font-weight: 500;
   color: var(--on);
   min-height: 15px;
@@ -195,11 +197,13 @@ ul.cld-sessions > li > .cld-sess-project {
   font-size: var(--font-label);
   font-weight: 500;
 }
-ul.cld-sessions > li > .cld-sess-model  { grid-area: model;   color: var(--muted); font-size: var(--font-caption); }
+/* The model and the meta line are secondary lines: body-sm, so the session-id
+ * chip at 0.875em of them stays readable (TYPE-01/TYPE-03, #810). */
+ul.cld-sessions > li > .cld-sess-model  { grid-area: model;   color: var(--muted); font-size: var(--font-body-sm); }
 ul.cld-sessions > li > .cld-sess-meta  {
   grid-area: meta;
   color: var(--muted);
-  font-size: var(--font-caption);
+  font-size: var(--font-body-sm);
 }
 /* The one deliberate monospace survivor outside <pre> panes (#215): a session
  * id is console output — the mono chip is what makes it read as one. The

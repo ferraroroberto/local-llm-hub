@@ -62,7 +62,9 @@ def test_listing_and_session_chip_follow_the_code_recipes(page, admin_url, theme
     assert m["preBg"] != m["cardOff"]
     assert m["preBorder"] == 1.0
 
-    # code-inline: 0.875em of the surrounding text, on neutral-soft.
+    # code-inline: 0.875em of the surrounding text, on neutral-soft. The meta
+    # line is body-sm, so the chip never drops under 11px (TYPE-03, #810).
+    assert m["metaSize"] == 14.0
     assert m["codeSize"] == pytest.approx(m["metaSize"] * 0.875, abs=0.01)
     assert m["codeBg"] == m["neutralSoft"]
     assert m["codeBg"] != m["cardOff"]
