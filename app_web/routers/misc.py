@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from functools import lru_cache
 from typing import Any, Dict
@@ -14,6 +15,8 @@ from src.build_info import git_sha
 from src.static_versioning import fleet_hash_of, rewrite_index_html
 
 from ._helpers import PROJECT_ROOT, STATIC_DIR
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -35,7 +38,8 @@ def _icon_sprite() -> str:
     sprite_path = STATIC_DIR / "icons-sprite.html"
     try:
         text = sprite_path.read_text(encoding="utf-8")
-    except OSError:
+    except OSError as exc:
+        logger.warning("icon sprite unreadable at %s: %s", sprite_path, exc)
         return ""
     # Strip the leading HTML comment (its prose contains literal `<svg>`
     # examples, so a naive find("<svg") would land mid-comment and leak a

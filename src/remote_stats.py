@@ -549,9 +549,11 @@ async def remote_models(
     from src.remote_proxy import remote_auth_token
 
     if owner.dormant:  # intentionally off (#765): never dialled
+        logger.debug("remote_models(%s): dormant — not dialled", owner.id)
         return None
     address = await dial_address_async(owner)
     if not address:
+        logger.info("remote_models(%s): no dial address resolved", owner.id)
         return None
     base = f"http://{address}:{hub_port()}"
     token = remote_auth_token(owner.id)
@@ -567,11 +569,13 @@ async def remote_models(
             timeout=timeout_s,
         )
         if r.status_code >= 400:
+            logger.info("remote_models(%s): HTTP %s from %s", owner.id, r.status_code, base)
             return None
         body = r.json()
         rows = body.get("models") if isinstance(body, dict) else None
         return rows if isinstance(rows, list) else None
-    except Exception:  # noqa: BLE001 — network / connection / DNS / bad JSON
+    except Exception as exc:  # noqa: BLE001 — network / connection / DNS / bad JSON
+        logger.info("remote_models(%s): probe failed: %s", owner.id, exc)
         return None
 
 
