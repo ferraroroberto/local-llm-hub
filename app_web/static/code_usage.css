@@ -107,6 +107,7 @@ button.cld-counter[aria-pressed="true"] { border-color: var(--accent-border-stro
   font-weight: 500;
   color: var(--on);
   min-height: 15px;
+  min-height: 1lh;  /* the filled line's height, so the row does not grow when the cost lands (LAYOUT-10) */
   letter-spacing: -0.2px;
 }
 
@@ -140,11 +141,15 @@ button.cld-counter[aria-pressed="true"] { border-color: var(--accent-border-stro
   font-weight: 500;
   text-align: right;
   min-height: 14px;
+  min-height: 1lh;
   color: var(--muted);
 }
 /* Hidden still holds its row: a delta appearing after first paint must not grow
- * the totals card (LAYOUT-10). */
-.cld-delta[hidden] { display: block; visibility: hidden; }
+ * the totals card (LAYOUT-10). !important beats the global [hidden] rule. */
+.cld-delta[hidden] { display: block !important; visibility: hidden; }
+/* An empty cost or delta still has a text line, so the phone grid's baseline
+ * alignment lands where it will once the figure arrives. */
+.cld-counter-cost:empty::before, .cld-delta:empty::before { content: "b"; }
 .cld-delta.up   { color: var(--on); }
 .cld-delta.down { color: var(--danger); }
 
