@@ -26,7 +26,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .atomic_write import atomic_write_text
+from .atomic_write import atomic_write_text, read_json
 
 logger = logging.getLogger(__name__)
 
@@ -77,12 +77,7 @@ def load_fleet_maintenance(path: Optional[str] = None) -> Dict[str, Dict[str, An
     if not target.exists():
         result: Dict[str, Dict[str, Any]] = {}
     else:
-        try:
-            data = json.loads(target.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("⚠️ could not load fleet maintenance %s: %s", target, exc)
-            data = None
-        result = _coerce(data)
+        result = _coerce(read_json(target, "fleet maintenance"))
 
     _MAINTENANCE_CACHE[key] = result
     return result

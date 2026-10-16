@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
+from src.atomic_write import read_json
 from src.transcription_glossary import load_glossary
 
 logger = logging.getLogger(__name__)
@@ -86,12 +87,9 @@ def load_miner_config(path: Optional[str] = None) -> Dict[str, Any]:
     target = Path(path) if path else DEFAULT_CONFIG_PATH
     cfg = dict(_DEFAULTS)
     if target.exists():
-        try:
-            raw = json.loads(target.read_text(encoding="utf-8"))
-            if isinstance(raw, dict):
-                cfg.update({k: v for k, v in raw.items() if v is not None})
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("⚠️ could not read miner config %s: %s", target, exc)
+        raw = read_json(target, "miner config")
+        if isinstance(raw, dict):
+            cfg.update({k: v for k, v in raw.items() if v is not None})
     return cfg
 
 

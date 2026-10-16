@@ -13,12 +13,12 @@ edit.
 
 from __future__ import annotations
 
-import json
 import logging
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ..atomic_write import read_json
 from . import store
 
 logger = logging.getLogger(__name__)
@@ -72,15 +72,12 @@ def load_thresholds() -> Dict[str, Any]:
     target = _rules_path or DEFAULT_RULES_PATH
     merged = {k: dict(v) for k, v in _DEFAULTS.items()}
     if target.exists():
-        try:
-            data = json.loads(target.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                for section, values in data.items():
-                    if section.startswith("_") or not isinstance(values, dict):
-                        continue
-                    merged.setdefault(section, {}).update(values)
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("⚠️ could not load %s: %s", target.name, exc)
+        data = read_json(target, "diagnostics rules")
+        if isinstance(data, dict):
+            for section, values in data.items():
+                if section.startswith("_") or not isinstance(values, dict):
+                    continue
+                merged.setdefault(section, {}).update(values)
     _rules_cache.update(merged)
     return _rules_cache
 

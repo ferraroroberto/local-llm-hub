@@ -16,7 +16,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from ..atomic_write import atomic_write_text
+from ..atomic_write import atomic_write_text, read_json
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +66,7 @@ def load_settings() -> DiagnosticsSettings:
 
     result = _DEFAULT
     if target.exists():
-        try:
-            data = json.loads(target.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("⚠️ could not load diagnostics settings: %s", exc)
-            data = None
+        data = read_json(target, "diagnostics settings")
         if isinstance(data, dict):
             result = normalize(data)
     _cache[key] = result
