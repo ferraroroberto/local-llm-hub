@@ -32,7 +32,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
-from .atomic_write import atomic_write_text
+from .atomic_write import atomic_write_text, read_json
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +77,7 @@ def load_rules(path: Optional[str] = None) -> Tuple[Rule, ...]:
     target = Path(path) if path else DEFAULT_GLOSSARY_PATH
     if not target.exists():
         return tuple()
-    try:
-        data = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ could not load transcription glossary %s: %s", target, exc)
-        return tuple()
+    data = read_json(target, "transcription glossary")
     replacements = data.get("replacements", []) if isinstance(data, dict) else []
     return tuple(_compile_rules(replacements))
 
@@ -105,24 +101,14 @@ def load_boost_terms(
     """
     target = Path(path) if path else DEFAULT_GLOSSARY_PATH
     terms: List[str] = []
-    if target.exists():
-        try:
-            data = json.loads(target.read_text(encoding="utf-8"))
-            raw = data.get("boost_terms", []) if isinstance(data, dict) else []
-            terms.extend(t for t in raw if isinstance(t, str) and t.strip())
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("⚠️ could not load transcription glossary %s: %s", target, exc)
+    data = read_json(target, "transcription glossary")
+    raw = data.get("boost_terms", []) if isinstance(data, dict) else []
+    terms.extend(t for t in raw if isinstance(t, str) and t.strip())
 
     local_target = Path(local_path) if local_path else DEFAULT_LOCAL_BOOST_PATH
-    if local_target.exists():
-        try:
-            local_data = json.loads(local_target.read_text(encoding="utf-8"))
-            raw_local = local_data.get("boost_terms", []) if isinstance(local_data, dict) else []
-            terms.extend(t for t in raw_local if isinstance(t, str) and t.strip())
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.warning(
-                "⚠️ could not load local transcription glossary %s: %s", local_target, exc
-            )
+    local_data = read_json(local_target, "local transcription glossary")
+    raw_local = local_data.get("boost_terms", []) if isinstance(local_data, dict) else []
+    terms.extend(t for t in raw_local if isinstance(t, str) and t.strip())
 
     return terms
 
@@ -137,11 +123,7 @@ def load_glossary(path: Optional[str] = None) -> Dict[str, Any]:
     target = Path(path) if path else DEFAULT_GLOSSARY_PATH
     if not target.exists():
         return {"replacements": [], "boost_terms": []}
-    try:
-        data = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ could not load transcription glossary %s: %s", target, exc)
-        return {"replacements": [], "boost_terms": []}
+    data = read_json(target, "transcription glossary")
     if not isinstance(data, dict):
         return {"replacements": [], "boost_terms": []}
     return {

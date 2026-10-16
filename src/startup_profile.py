@@ -38,7 +38,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .atomic_write import atomic_write_text
+from .atomic_write import atomic_write_text, read_json
 
 logger = logging.getLogger(__name__)
 
@@ -99,11 +99,7 @@ def load_startup_profile(path: Optional[str] = None) -> StartupProfile:
     if not source.exists():
         result = _DEFAULT
     else:
-        try:
-            data = json.loads(source.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("⚠️ could not load startup profile %s: %s", source, exc)
-            data = None
+        data = read_json(source, "startup profile")
         if not isinstance(data, dict):
             result = _DEFAULT
         else:

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from src import server_common, usage_pricing
-from src.atomic_write import atomic_write_text
+from src.atomic_write import atomic_write_text, read_json
 from src.usage_common import iter_jsonl
 
 
@@ -90,3 +91,34 @@ def test_committed_pricing_files_load():
         assert "pro" in usage_pricing.load_gemini_pricing()
     finally:
         cache.clear()
+
+
+def test_read_json_returns_the_parsed_document(tmp_path: Path, caplog):
+    target = tmp_path / "cfg.json"
+    atomic_write_text(target, '{"a": [1, 2]}\n')
+    with caplog.at_level(logging.WARNING):
+        assert read_json(target, "test config") == {"a": [1, 2]}
+    assert caplog.text == ""
+
+
+def test_read_json_missing_file_is_none_and_silent(tmp_path: Path, caplog):
+    with caplog.at_level(logging.WARNING):
+        assert read_json(tmp_path / "absent.json", "test config") is None
+    assert caplog.text == ""
+
+
+def test_read_json_malformed_file_is_none_and_names_what_it_was(tmp_path: Path, caplog):
+    target = tmp_path / "cfg.json"
+    target.write_text("{not json", encoding="utf-8")
+    with caplog.at_level(logging.WARNING):
+        assert read_json(target, "test config") is None
+    assert "could not load test config" in caplog.text
+    assert str(target) in caplog.text
+
+
+def test_read_json_unreadable_path_is_none_and_logged(tmp_path: Path, caplog):
+    # A directory where the file should be: read_text raises an OSError
+    # subclass (PermissionError on Windows, IsADirectoryError on POSIX).
+    with caplog.at_level(logging.WARNING):
+        assert read_json(tmp_path, "test config") is None
+    assert "could not load test config" in caplog.text

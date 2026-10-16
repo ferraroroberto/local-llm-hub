@@ -30,7 +30,6 @@ Linux, so a single cross-platform table cannot be right for both.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import sys
@@ -38,6 +37,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import psutil
+
+from ..atomic_write import read_json
 
 logger = logging.getLogger(__name__)
 
@@ -112,12 +113,9 @@ def load_rules(platform: Optional[str] = None) -> Dict[str, Any]:
     target = _rules_path or DEFAULT_RULES_PATH
     data: Dict[str, Any] = {}
     if target.exists():
-        try:
-            loaded = json.loads(target.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
-                data = loaded
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("⚠️ could not load %s: %s", target.name, exc)
+        loaded = read_json(target, "attribution rules")
+        if isinstance(loaded, dict):
+            data = loaded
     # Longest prefix first, so `/system/library/` is decided before `/system/`
     # and the table stays order-independent as it grows.
     path_prefixes = sorted(

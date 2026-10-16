@@ -33,7 +33,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .atomic_write import atomic_write_text
+from .atomic_write import atomic_write_text, read_json
 from .webapp_config import WebappConfig
 
 logger = logging.getLogger(__name__)
@@ -131,10 +131,8 @@ class WebAuthnGate:
     def load_devices(self) -> List[Dict[str, Any]]:
         if not self._devices_path.exists():
             return []
-        try:
-            raw = json.loads(self._devices_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.warning(f"⚠️  Could not read {self._devices_path}: {exc}")
+        raw = read_json(self._devices_path, "WebAuthn device store")
+        if raw is None:
             return []
         return list(raw.get("devices") or [])
 
