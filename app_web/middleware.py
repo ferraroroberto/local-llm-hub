@@ -210,7 +210,11 @@ def _caller_is_trusted(
     # Such a request names itself in ``Origin`` and has to present the token
     # like any other unrecognised caller.
     if _is_foreign_origin_request(headers, method):
-        return bool(token and presented and hmac.compare_digest(presented, token))
+        return bool(
+            token
+            and presented
+            and hmac.compare_digest(presented.encode(), token.encode())
+        )
 
     if not token and raw_token is not None:
         return True
@@ -221,7 +225,9 @@ def _caller_is_trusted(
     if _client_in_allowlist(client_host, extra):
         return True
 
-    return bool(presented and hmac.compare_digest(presented, token))
+    return bool(
+        presented and hmac.compare_digest(presented.encode(), token.encode())
+    )
 
 
 def admin_token_from_state(app_state) -> Optional[str]:
