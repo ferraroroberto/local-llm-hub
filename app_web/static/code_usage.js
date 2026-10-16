@@ -163,6 +163,9 @@ export function wireCodeUsage() {
 }
 
 export function startCodeUsagePolls() {
+  // A re-tap of the already-active tab calls this again; a second interval would
+  // orphan the first (stop clears only the latest handle) and poll forever (#787).
+  if (_pollHandle !== null) return;
   pollSummary();
   _pollHandle = setInterval(pollSummary, POLL_MS);
 }
