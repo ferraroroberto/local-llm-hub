@@ -28,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src import win_job  # noqa: E402
+from src.no_window import NO_WINDOW  # noqa: E402
 
 logger = logging.getLogger("design_review_synthetic")
 STARTUP_TIMEOUT_S = 60.0
@@ -52,7 +53,7 @@ def main() -> int:
         [sys.executable, "-m", "tests.e2e._isolated_hub", "--port", str(port),
          "--state-dir", str(state_dir), "--seed-demo"],
         cwd=str(ROOT), stdout=log_fp, stderr=subprocess.STDOUT,
-        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        creationflags=NO_WINDOW,
     )
     job = win_job.create_kill_on_close_job(f"local-llm-hub-synthetic-{port}")
     if job:

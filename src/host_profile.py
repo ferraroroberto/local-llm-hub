@@ -26,6 +26,7 @@ from Settings, so it lives machine-local too and never reaches a commit.
 
 from __future__ import annotations
 
+import logging
 import os
 import socket
 import sys
@@ -34,6 +35,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = PROJECT_ROOT / "config" / "models.yaml"
@@ -140,12 +143,12 @@ def _merge_identity(data: Dict[str, Any]) -> Dict[str, Any]:
         # Visible, not silent: a dead overlay is why peer dialling would
         # suddenly go quiet, and a silent None is exactly what makes that
         # class of failure take weeks to find.
-        print(f"[WARN] ignoring unreadable {path.name}: {exc}", file=sys.stderr)
+        logger.warning("ignoring unreadable %s: %s", path.name, exc)
         return data
 
     rows = overlay.get("hosts") or {}
     if not isinstance(rows, dict):
-        print(f"[WARN] ignoring {path.name}: 'hosts:' is not a mapping", file=sys.stderr)
+        logger.warning("ignoring %s: 'hosts:' is not a mapping", path.name)
         return data
 
     hosts = data.get("hosts") or {}

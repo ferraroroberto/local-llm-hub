@@ -70,8 +70,12 @@ export function renderHeadLine() {
   if (state.hubStatusOk === null) { setHeadLine(el, [], 'Reading hub…'); return; }
   const parts = [];
   if (state.hubStatusOk === false) parts.push({ text: 'Hub unreachable', tone: 'danger' });
-  serviceRows().filter(function (s) { return s.failing; }).forEach(function (s) {
+  const svcRows = serviceRows();
+  svcRows.filter(function (s) { return s.failing; }).forEach(function (s) {
     parts.push({ text: s.name + ' down', tone: s.key === 'agentsview' ? 'attention' : 'danger' });
+  });
+  svcRows.filter(function (s) { return s.unknown; }).forEach(function (s) {
+    parts.push({ text: s.name + ' not confirmed', tone: 'attention' });
   });
   const errs = (state.recentErrors || []).length;
   if (errs) parts.push({ text: errs + (errs === 1 ? ' error' : ' errors'), tone: 'attention' });
@@ -306,7 +310,10 @@ export async function fetchServicesStatus() {
 
 /* The three services as facts: whether each counts as failing (down when it
  * should be up; AgentsView only when it is enabled and installed) and whether
- * it can be started from here. */
+ * it can be started from here. When the status probe itself failed (#788),
+ * docker/langfuse are `unknown` — not confirmed down — since we never got an
+ * answer; no Start verb for either, and the caller must not render them as
+ * failing. */
 function serviceRows() {
   const body = state.services;
   if (!body) return [];
@@ -314,6 +321,15 @@ function serviceRows() {
   const lf = body.langfuse || {};
   const av = body.agentsview || {};
   const avEnabled = !!av.host;
+  if (body.probeFailed) {
+    return [
+      { key: 'docker', name: 'Docker', glyph: 'container', unknown: true, failing: false, canStart: false },
+      { key: 'langfuse', name: 'Langfuse', glyph: 'radio', unknown: true, failing: false, canStart: false },
+      { key: 'agentsview', name: 'AgentsView', glyph: 'code',
+        failing: avEnabled && av.installed !== false && !av.reachable,
+        canStart: !!(avEnabled && !av.reachable && av.installed) },
+    ];
+  }
   return [
     { key: 'docker', name: 'Docker', glyph: 'container', failing: !docker.running,
       canStart: !!(body.launchable && !docker.running) },
@@ -336,16 +352,18 @@ function renderServiceRows() {
     return;
   }
   const failing = rows.filter(function (s) { return s.failing; });
-  const html = failing.map(function (s) {
+  const unknown = rows.filter(function (s) { return s.unknown; });
+  const exceptions = failing.concat(unknown);
+  const html = exceptions.map(function (s) {
     const busy = !!state[SERVICE_BUSY[s.key]];
     return row({
       cls: 'service-row',
       attrs: ' data-svc="' + s.key + '"',
       glyph: s.glyph,
-      badge: 'down',
+      badge: s.unknown ? null : 'down',
       title: s.name,
-      lead: 'Down',
-      meta: s.key === 'langfuse' ? 'traces and previews unavailable' : '',
+      lead: s.unknown ? 'Not confirmed' : 'Down',
+      meta: s.key === 'langfuse' && !s.unknown ? 'traces and previews unavailable' : '',
       mainAttrs: ' data-act="' + (s.key === 'langfuse' ? 'langfuse' : 'services') + '" aria-haspopup="dialog"',
       verb: s.canStart ? {
         attrs: ' data-act="svc-start" aria-label="Start ' + s.name + '"',
@@ -354,12 +372,12 @@ function renderServiceRows() {
       } : null,
     });
   });
-  const up = rows.length - failing.length;
+  const up = rows.length - exceptions.length;
   html.push(row({
     cls: 'services-summary',
     glyph: 'layers',
     title: 'Services',
-    lead: failing.length ? up + ' of ' + rows.length + ' up' : 'All up',
+    lead: exceptions.length ? up + ' of ' + rows.length + ' up' : 'All up',
     meta: rows.map(function (s) { return s.name; }).join(' · '),
     mainAttrs: ' data-act="services" aria-haspopup="dialog"',
   }));
