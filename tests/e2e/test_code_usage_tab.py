@@ -93,6 +93,46 @@ def _await_first_summary(page):
     )
 
 
+_COUNT_POLL_INTERVALS = """
+(() => {
+  // Live 30 s intervals (the Code usage poll cadence), tracked by handle so a
+  // clearInterval on the wrong handle leaves the orphan counted.
+  const live = new Set();
+  const set = window.setInterval, clear = window.clearInterval;
+  window.setInterval = function (fn, ms, ...rest) {
+    const id = set.call(window, fn, ms, ...rest);
+    if (ms === 30000) live.add(id);
+    return id;
+  };
+  window.clearInterval = function (id) { live.delete(id); return clear.call(window, id); };
+  window.__livePollIntervals = () => live.size;
+})();
+"""
+
+
+def test_retapping_the_active_tab_leaves_one_poll_interval(page, admin_url):
+    """#787: the nav re-fires onChange on a tap of the already-active tab, and
+    each repeat used to start another 30 s interval whose handle was then lost,
+    so leaving the tab could not stop it."""
+    page.add_init_script(_COUNT_POLL_INTERVALS)
+    page.goto(admin_url, wait_until="domcontentloaded")
+    page.wait_for_selector("#tabCodeUsage", state="visible", timeout=5000)
+    baseline = page.evaluate("window.__livePollIntervals()")
+
+    page.click("#tabCodeUsage")
+    page.wait_for_selector("#paneCodeUsage", state="visible", timeout=PANE_TIMEOUT)
+    _await_first_summary(page)
+    assert page.evaluate("window.__livePollIntervals()") == baseline + 1
+
+    for _ in range(3):
+        page.click("#tabCodeUsage")
+    assert page.evaluate("window.__livePollIntervals()") == baseline + 1
+
+    page.click("#tabHub")
+    page.wait_for_selector("#paneCodeUsage", state="hidden", timeout=PANE_TIMEOUT)
+    assert page.evaluate("window.__livePollIntervals()") == baseline
+
+
 def test_code_usage_tab_loads(page, admin_url):
     page.goto(admin_url, wait_until="domcontentloaded")
     # Tab button must be present and visible.
