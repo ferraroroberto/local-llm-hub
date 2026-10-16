@@ -149,7 +149,7 @@ def test_services_status_peers_cover_every_hub_running_host(monkeypatch):
     assert "tower" not in peer_ids  # never lists the active host as its own peer
 
     gaming = next(p for p in peers if p["host_id"] == "gaming")
-    assert gaming["display_name"] == "gaming"
+    assert gaming["display_name"] == "Gaming"
     assert gaming["reachable"] is True
     assert gaming["git_sha_match"] is True
 

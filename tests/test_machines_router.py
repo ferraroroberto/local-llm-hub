@@ -54,6 +54,14 @@ def test_all_hosts_enrolls_managed_machines():
     assert {"tower", "mac-mini-m4", "openclaw", "gaming"} <= ids
 
 
+def test_every_host_display_name_reads_as_a_name():
+    """A display name titles the machine's sheet and its memory row, so it is
+    capitalised like a name, never the lowercase id: two lowercase names
+    among capitalised ones read as two casings (design review TYPE-06, #810)."""
+    lower = [h.id for h in all_hosts() if h.display_name and not h.display_name[0].isupper()]
+    assert not lower, f"lowercase host display_name: {lower}"
+
+
 def test_openclaw_has_ssh_and_rdp():
     h = get_host("openclaw")
     assert h is not None
