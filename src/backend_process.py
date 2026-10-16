@@ -53,6 +53,10 @@ VENDOR_COMFYUI = PROJECT_ROOT / "vendor" / "comfyui"
 LOG_DIR = PROJECT_ROOT / "data" / "logs"
 # Tail size returned by ``log_lines`` — replaces the old 1000-line ring.
 LOG_TAIL_LINES = 400
+# "Is this backend/hub up" liveness-probe budget, seconds: short because a dead
+# backend is the common case on a box that only runs a subset of the registry,
+# so every adopt-check and reachability sweep would otherwise stall on it.
+LIVENESS_PROBE_TIMEOUT_S = 0.4
 
 
 def _log_path(model_id: str) -> Path:
@@ -515,7 +519,7 @@ def start(model_id: str) -> tuple[bool, str]:
     try:
         return ProcessSupervisor(
             already_running=lambda: is_running(model_id),
-            reachable=lambda: is_reachable(model, timeout=0.4),
+            reachable=lambda: is_reachable(model, timeout=LIVENESS_PROBE_TIMEOUT_S),
             external_pid=lambda: external_pid(model_id),
             build_spawn_spec=build_spawn_spec,
             set_process=lambda proc: setattr(state, "proc", proc),
