@@ -36,13 +36,12 @@ from fastapi import HTTPException
 from .chat_translation import (
     MessagesRequest,
     _content_to_text,
-    _remote_headers,
     _system_to_text,
 )
 from .http_client import get_sync_client
 from .model_registry import Model
 from .openai_upstream import anthropic_to_openai_messages
-from .remote_proxy import remote_base_url
+from .remote_proxy import remote_auth_headers, remote_base_url
 
 # Characters per token for the heuristic used on the subscription-CLI
 # backends. The widely-published English rule of thumb; it is a budgeting
@@ -255,7 +254,7 @@ def _count_via_remote_hub(
     body["model"] = model.id
     try:
         r = get_sync_client().post(
-            url, json=body, headers=_remote_headers(model), timeout=_UPSTREAM_TIMEOUT_S
+            url, json=body, headers=remote_auth_headers(model), timeout=_UPSTREAM_TIMEOUT_S
         )
     except httpx.HTTPError as exc:
         raise HTTPException(

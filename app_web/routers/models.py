@@ -26,7 +26,7 @@ from src.model_registry import (
     enabled_models,
     resolve as resolve_model,
 )
-from src.remote_proxy import remote_auth_token_for_model, remote_base_url
+from src.remote_proxy import remote_auth_headers, remote_base_url
 from app_web.admin_forward import forward_admin_request
 from src.server_process import (
     OWNERSHIP_EXTERNAL,
@@ -37,11 +37,6 @@ from src.server_process import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _remote_admin_headers(model: Model) -> Dict[str, str]:
-    token = remote_auth_token_for_model(model)
-    return {"Authorization": f"Bearer {token}"} if token else {}
 
 
 def _offline_remote_row(m: Model, host_id: str) -> Dict[str, Any]:
@@ -163,7 +158,7 @@ async def _forward_admin_call(
         remote,
         f"/admin/api/models/{target.id}{suffix}",
         method=method,
-        headers=_remote_admin_headers(target),
+        headers=remote_auth_headers(target),
         unreachable_detail=f"host {owner!r} (owns {target.id!r}) unreachable",
         **kwargs,
     )

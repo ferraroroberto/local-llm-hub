@@ -12,7 +12,7 @@ control) shares it rather than re-deriving the address.
 from __future__ import annotations
 
 import os
-from typing import Optional
+from typing import Dict, Optional, Union
 
 from . import remote_stats
 from .host_profile import get_host, hub_port
@@ -88,3 +88,22 @@ def remote_auth_token_for_model(model: Model) -> Optional[str]:
 
     owner = effective_owner(model)
     return remote_auth_token(owner) if owner else None
+
+
+def remote_auth_headers(target: Union[str, Model]) -> Dict[str, str]:
+    """``Authorization`` header for a call to a peer hub — the one place the
+    ``Bearer <token>`` shape is built. ``target`` is a host id (resolved with
+    :func:`remote_auth_token`) or a :class:`Model` (resolved with
+    :func:`remote_auth_token_for_model`, so it follows the failover owner).
+
+    ``{}`` when no token is configured (the usual case — the receiving hub's IP
+    allowlist does the work), so callers can splat or pass it straight to
+    ``httpx``. A caller that must store ``None`` for "no headers" says so at its
+    own call site with ``or None``.
+    """
+    token = (
+        remote_auth_token(target)
+        if isinstance(target, str)
+        else remote_auth_token_for_model(target)
+    )
+    return {"Authorization": f"Bearer {token}"} if token else {}

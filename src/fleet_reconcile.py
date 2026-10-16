@@ -54,6 +54,7 @@ from typing import Any, Dict, List
 import httpx
 
 from .http_client import get_async_client
+from .remote_proxy import remote_auth_headers
 from .wake_on_lan import WakeOnLanError, send_wake
 
 logger = logging.getLogger(__name__)
@@ -86,12 +87,6 @@ def _peer_base(owner: Any) -> str:
     return f"http://{address}:{hub_port()}"
 
 
-def _peer_headers(host_id: str) -> Dict[str, str]:
-    from .remote_proxy import remote_auth_token
-    token = remote_auth_token(host_id)
-    return {"Authorization": f"Bearer {token}"} if token else {}
-
-
 async def _remote_model_action(host_id: str, base: str, model_id: str, action: str) -> Dict[str, Any]:
     """POST ``/admin/api/models/{id}/{start|stop}`` to a peer hub.
 
@@ -102,7 +97,7 @@ async def _remote_model_action(host_id: str, base: str, model_id: str, action: s
     try:
         r = await get_async_client().post(
             f"{base}/admin/api/models/{model_id}/{action}",
-            headers=_peer_headers(host_id),
+            headers=remote_auth_headers(host_id),
             timeout=_PEER_TIMEOUT_S,
         )
     except httpx.HTTPError as exc:

@@ -546,7 +546,7 @@ async def remote_models(
     """
     # Local import: remote_proxy imports this module, so a module-level
     # import here would be circular.
-    from src.remote_proxy import remote_auth_token
+    from src.remote_proxy import remote_auth_headers
 
     if owner.dormant:  # intentionally off (#765): never dialled
         logger.debug("remote_models(%s): dormant — not dialled", owner.id)
@@ -556,8 +556,7 @@ async def remote_models(
         logger.info("remote_models(%s): no dial address resolved", owner.id)
         return None
     base = f"http://{address}:{hub_port()}"
-    token = remote_auth_token(owner.id)
-    headers = {"Authorization": f"Bearer {token}"} if token else None
+    headers = remote_auth_headers(owner.id)
     try:
         # local_only=true: two bidirectionally cross-enabled hosts would
         # otherwise recurse into each other's /api/models forever.

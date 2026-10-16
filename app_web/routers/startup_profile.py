@@ -23,7 +23,7 @@ from app_web.admin_forward import forward_admin_request
 from src import startup_profile as sp
 from src.host_profile import get_host
 from src.host_profile import resolve as resolve_host
-from src.remote_proxy import remote_auth_token, remote_base_url_for_host
+from src.remote_proxy import remote_auth_headers, remote_base_url_for_host
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -59,11 +59,6 @@ def _remote_target(host: Optional[str]) -> Optional[str]:
     return remote
 
 
-def _host_headers(host: str) -> Dict[str, str]:
-    token = remote_auth_token(host)
-    return {"Authorization": f"Bearer {token}"} if token else {}
-
-
 @router.get("/api/startup-profile")
 async def get_startup_profile(host: Optional[str] = Query(None)) -> Dict[str, Any]:
     """The addressed host's startup profile + service items.
@@ -77,7 +72,7 @@ async def get_startup_profile(host: Optional[str] = Query(None)) -> Dict[str, An
             remote,
             "/admin/api/startup-profile",
             method="GET",
-            headers=_host_headers(host),
+            headers=remote_auth_headers(host),
             unreachable_detail=f"host {host!r} unreachable",
         )
     profile = sp.load_startup_profile()
@@ -103,7 +98,7 @@ async def patch_startup_profile(
             remote,
             "/admin/api/startup-profile",
             method="PATCH",
-            headers=_host_headers(host),
+            headers=remote_auth_headers(host),
             json=payload,
             unreachable_detail=f"host {host!r} unreachable",
         )
