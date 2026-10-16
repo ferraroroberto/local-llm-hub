@@ -44,6 +44,20 @@ _DEFAULTS: Dict[str, Any] = {
     "llm_model": "claude-haiku-5-5",
 }
 
+# None of these four were measured: they predate their names and are kept as
+# they were, so treat each as a guess rather than a derived budget.
+# Seconds to wait on the session-API bulk transcript export (loopback, one
+# round trip).
+_TRANSCRIPT_FETCH_TIMEOUT_S = 30.0
+# Seconds to wait on the hub for the LLM clustering pass, a single completion.
+_LLM_CLUSTER_TIMEOUT_S = 60.0
+# Characters of raw transcript text sent as context to the clustering pass,
+# to keep that one prompt small (a size guess, not a token count).
+_LLM_SAMPLE_CHARS = 6000
+# Most heuristic candidates handed to the clustering pass, again to keep the
+# prompt small.
+_LLM_MAX_CANDIDATES = 40
+
 # Common words that are capitalised at sentence start but are not domain
 # vocabulary — excluded so the heuristic doesn't propose "The", "And", …
 _STOPWORDS = {
@@ -97,7 +111,7 @@ async def fetch_transcripts(
     """
     base = base_url.rstrip("/")
     try:
-        async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
+        async with httpx.AsyncClient(verify=False, timeout=_TRANSCRIPT_FETCH_TIMEOUT_S) as client:
             resp = await client.get(
                 f"{base}/api/sessions/transcripts", params={"days": days}
             )
@@ -213,7 +227,7 @@ async def llm_cluster_replacements(
     if not terms:
         return []
     vocab = sorted({*terms, *existing_boost})
-    sample = "\n".join(transcripts)[:6000]
+    sample = "\n".join(transcripts)[:_LLM_SAMPLE_CHARS]
     prompt = (
         "You are curating a speech-to-text correction dictionary. Below is "
         "a list of known/likely-correct domain terms, then a sample of raw "
@@ -235,7 +249,7 @@ async def llm_cluster_replacements(
     }
     base = hub_base_url.rstrip("/")
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=_LLM_CLUSTER_TIMEOUT_S) as client:
             resp = await client.post(f"{base}/v1/messages", json=payload)
             resp.raise_for_status()
             data = resp.json()
@@ -338,7 +352,7 @@ async def mine_suggestions(days: Optional[int] = None) -> Dict[str, Any]:
 
         hub_url = f"http://127.0.0.1:{hub_port()}"
         replacements = await llm_cluster_replacements(
-            [c["term"] for c in boost_candidates[:40]],
+            [c["term"] for c in boost_candidates[:_LLM_MAX_CANDIDATES]],
             transcripts,
             existing_boost,
             hub_base_url=hub_url,
