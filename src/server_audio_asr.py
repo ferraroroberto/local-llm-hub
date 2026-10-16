@@ -32,14 +32,14 @@ from . import on_demand as _on_demand
 from .audio_proxy import build_whisper_upstream_request, default_language_from_args
 from .http_client import get_async_client
 from .model_registry import Model
-from .remote_proxy import remote_base_url
+from .remote_proxy import remote_auth_headers, remote_base_url
 from .server_audio_common import (
     HEADER_REQUESTED_MODEL,
     HEADER_SERVED_HOST,
     HEADER_SERVED_MODEL,
     _audio_upstream_error,
     _header_safe,
-    _remote_audio_headers,
+
 )
 from .server_common import (
     current_otel_span,
@@ -488,7 +488,7 @@ async def _forward_to_candidate(
     url = f"{base}{upstream_path}"
     headers = dict(send.get("headers") or {})
     if remote:
-        headers.update(_remote_audio_headers(target) or {})
+        headers.update(remote_auth_headers(target))
     # A dead primary should fail over fast (short connect); the last resort keeps
     # a patient connect. Read stays long — a transcription can take a while.
     timeout = _httpx.Timeout(4.0 if connect_fast else 30.0, read=300.0, write=60.0, pool=10.0)

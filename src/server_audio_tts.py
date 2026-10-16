@@ -20,9 +20,9 @@ from fastapi.responses import Response, StreamingResponse
 from . import on_demand as _on_demand
 from .http_client import get_async_client
 from .model_registry import Model
-from .remote_proxy import remote_base_url
+from .remote_proxy import remote_auth_headers, remote_base_url
 from .server_audio_asr import router
-from .server_audio_common import _audio_upstream_error, _remote_audio_headers
+from .server_audio_common import _audio_upstream_error
 from .server_common import current_otel_span, ensure_backend_ready_or_503, set_span_attrs, stash_trace_id_on_ctx
 
 logger = logging.getLogger(__name__)
@@ -112,7 +112,7 @@ async def audio_speech(request: Request) -> Response:
         if k.lower() in {"content-type", "accept"}
     }
     if remote:
-        headers.update(_remote_audio_headers(target) or {})
+        headers.update(remote_auth_headers(target))
 
     # On-demand lifecycle (#422): a cold ``startup: on_demand`` local TTS
     # backend is spawned here and the request blocks until it answers

@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from src import chat_translation
+from src import chat_translation, remote_proxy
 from src.model_registry import Model
 from src.openai_upstream import UpstreamError
 
@@ -38,7 +38,7 @@ def test_local_model_targets_its_own_url_by_display_name(monkeypatch):
 
 def test_remote_model_targets_peer_hub_by_id_with_its_token(monkeypatch):
     monkeypatch.setattr(chat_translation, "remote_base_url", lambda m: "http://peer:8000")
-    monkeypatch.setattr(chat_translation, "remote_auth_token_for_model", lambda m: "tok")
+    monkeypatch.setattr(remote_proxy, "remote_auth_token_for_model", lambda m: "tok")
 
     upstream = chat_translation.resolve_openai_upstream(_model())
 

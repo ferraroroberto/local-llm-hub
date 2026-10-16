@@ -17,12 +17,10 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Optional
 
 from fastapi import HTTPException
 
 from .model_registry import Model
-from .remote_proxy import remote_auth_token_for_model
 
 logger = logging.getLogger(__name__)
 
@@ -50,15 +48,6 @@ def _header_safe(value: str) -> str:
     (#412). Strip to printable ASCII and cap the length instead.
     """
     return _NON_PRINTABLE_ASCII.sub("", value or "")[:_HEADER_VALUE_MAX]
-
-
-def _remote_audio_headers(model: Model) -> Optional[dict]:
-    """``Authorization`` header for a remote-hub audio call, mirrors
-    ``server._remote_headers`` — kept local to avoid a circular import
-    (``server.py`` imports these modules' routers).
-    """
-    token = remote_auth_token_for_model(model)
-    return {"Authorization": f"Bearer {token}"} if token else None
 
 
 def _audio_upstream_error(exc: Exception, *, backend: str, port: int) -> HTTPException:

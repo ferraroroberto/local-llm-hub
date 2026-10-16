@@ -46,7 +46,7 @@ from .openai_upstream import (
     call_openai_chat,
     openai_to_anthropic_envelope,
 )
-from .remote_proxy import remote_auth_token_for_model, remote_base_url
+from .remote_proxy import remote_auth_headers, remote_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -916,16 +916,6 @@ def _run_gemini_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     return _run_cli_backend(model, req, call_gemini, GeminiCLIError)
 
 
-def _remote_headers(model: Model) -> Optional[Dict[str, str]]:
-    """``Authorization`` header for a remote-hub call, if a token is
-    configured for that host — see ``remote_proxy.remote_auth_token``.
-    Most setups rely on the receiving hub's IP allowlist instead, so this
-    is commonly ``None``.
-    """
-    token = remote_auth_token_for_model(model)
-    return {"Authorization": f"Bearer {token}"} if token else None
-
-
 @dataclass(frozen=True)
 class OpenAIUpstream:
     """Where an ``openai``-backend chat call is sent (see
@@ -955,7 +945,7 @@ def resolve_openai_upstream(model: Model) -> OpenAIUpstream:
         remote=remote,
         base_url=base_url,
         model_name=model.id if remote else model.display_name,
-        headers=_remote_headers(model) if remote else None,
+        headers=(remote_auth_headers(model) or None) if remote else None,
     )
 
 
