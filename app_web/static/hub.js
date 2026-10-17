@@ -386,13 +386,16 @@ function renderServiceRows() {
 
 /* A Services sheet row's detail is a raw error or version line (#647, J-10).
  * A short one stays inline; a long one is a one-line, ellipsised disclosure
- * whose full text opens in place. Nothing is dropped. */
+ * whose full text opens in place, in the disclosure's body (#817) while the
+ * preview in the summary gives way to it. Nothing is dropped. */
 const DETAIL_INLINE_MAX = 40;
 
 function longDetailHtml(text) {
+  const safe = escapeHtml(text);
   return '<details class="services-detail"><summary title="Show the full detail">'
-    + '<span class="services-detail-text">' + escapeHtml(text) + '</span>'
-    + icon('chevron-down') + '</summary></details>';
+    + '<span class="services-detail-text">' + safe + '</span>'
+    + icon('chevron-down') + '</summary>'
+    + '<p class="services-detail-body">' + safe + '</p></details>';
 }
 
 // Re-rendering on every poll must not snap an open disclosure shut, so a row

@@ -1200,7 +1200,8 @@ summary.opt-group-title {
   min-width: 0;
 }
 /* A long detail is one ellipsised line that opens to its full text (#647). The
- * summary is the 44px tap target; the text span wraps once the row is open. */
+ * summary is the 44px tap target; open, the preview gives way to the body so the
+ * text shows once and the disclosure is never an empty container (#817). */
 details.services-detail > summary {
   display: flex;
   align-items: center;
@@ -1217,8 +1218,9 @@ details.services-detail > summary::-webkit-details-marker { display: none; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-details.services-detail[open] .services-detail-text { white-space: normal; overflow: visible; }
-details.services-detail > summary .icon { flex: none; }
+details.services-detail[open] > summary .services-detail-text { display: none; }
+.services-detail-body { margin: 0; }
+details.services-detail > summary .icon { flex: none; margin-left: auto; }
 details.services-detail[open] > summary .icon { transform: rotate(180deg); }
 .services-detail:empty { display: none; }
 /* Phone: name, status and the action share the first line, the detail takes the
