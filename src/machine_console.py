@@ -12,7 +12,7 @@ not whether the hub happens to run there:
     the hub user's own SSH (``remote_stats.collect``);
   * a **dormant** node (intentionally off, #765) is shown as a neutral card
     and never SSH'd or hub-probed; only a cached TCP connect tells whether it
-    is answering again.
+    is answering again (background-refreshed, never awaited, #821).
 
 Power actions (reboot/shutdown) live in ``remote_bootstrap`` and run over the
 hub user's own general SSH (#311); this module only computes *which* actions
@@ -175,7 +175,7 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
     # itself, and no automated path (failover, placement, sync) does this.
     if host.dormant:
         card = _card_base(host, is_host=False, reachable=None)
-        answering = bool(host.address) and await remote_stats.is_reachable(host)
+        answering = bool(host.address) and await remote_stats.is_answering_cached(host)
         card.update(
             state="dormant", reachable=None, answering=answering,
             uptime_seconds=None, stats=None,

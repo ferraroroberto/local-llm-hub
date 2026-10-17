@@ -286,6 +286,7 @@ def _hermetic_remote_probes(monkeypatch):
     caches = (
         remote_stats._cache,
         remote_stats._liveness_cache,
+        remote_stats._dormant_cache,
         remote_stats._dial_cache,
         remote_stats._active_route,
     )

@@ -10,6 +10,9 @@ real machine, port or MAC is ever touched.
 
 from __future__ import annotations
 
+import threading
+import time
+
 import yaml
 import pytest
 from fastapi.testclient import TestClient
@@ -160,7 +163,7 @@ def test_dormant_card_is_neutral_and_never_sshd_or_hub_probed(write_config, monk
 
     monkeypatch.setattr(mc.remote_stats, "collect", _no)
     monkeypatch.setattr(mc.remote_stats, "peer_health", _no)
-    monkeypatch.setattr(mc.remote_stats, "is_reachable", _off)
+    monkeypatch.setattr(mc.remote_stats, "is_answering_cached", _off)
     card = _run(mc._probe_machine(host_profile.get_host("beta"), "alpha"))
     assert card["state"] == "dormant" and card["answering"] is False
     assert card["hub"] is None and card["detail"] == "Dormant"
@@ -173,10 +176,99 @@ def test_a_woken_dormant_machine_reads_as_answering_without_flipping_the_flag(wr
     async def _on(host):
         return True
 
-    monkeypatch.setattr(mc.remote_stats, "is_reachable", _on)
+    monkeypatch.setattr(mc.remote_stats, "is_answering_cached", _on)
     card = _run(mc._probe_machine(host_profile.get_host("beta"), "alpha"))
     assert card["state"] == "dormant" and card["answering"] is True
     assert host_profile.get_host("beta").dormant is True  # the flag didn't change by itself
+
+
+# --------------------------- the answering hint never holds the poll (#821)
+def _wait_idle(host_id, timeout=2.0):
+    """Block until the background dormant probe for ``host_id`` has finished."""
+    deadline = time.monotonic() + timeout
+    while host_id in remote_stats._dormant_inflight:
+        assert time.monotonic() < deadline, "background probe never finished"
+        time.sleep(0.005)
+
+
+def _dormant_host(host_id="beta"):
+    return host_profile.HostProfile(
+        id=host_id, platform="linux", address="10.0.0.2", enabled=[], dormant=True
+    )
+
+
+def test_a_cold_answering_check_returns_at_once_and_probes_in_the_background(monkeypatch):
+    """A powered-off box's probe costs two candidates x two passes x the TCP
+    timeout (8.5 s live) - the check must hand back "not answering" without
+    waiting for it, then serve the finished answer from the cache."""
+    release = threading.Event()
+    calls = []
+
+    def slow_locate_once(host):
+        calls.append(host.id)
+        release.wait(2.0)
+        return host.address
+
+    monkeypatch.setattr(remote_stats, "_locate_once", slow_locate_once)
+    host = _dormant_host()
+    started = time.monotonic()
+    assert _run(remote_stats.is_answering_cached(host)) is False
+    assert time.monotonic() - started < 1.0  # did not wait on the probe
+    release.set()
+    _wait_idle(host.id)
+    assert _run(remote_stats.is_answering_cached(host)) is True  # now cached
+    assert calls == [host.id]
+
+
+def test_a_fresh_answer_is_served_without_reprobing(monkeypatch):
+    calls = []
+    monkeypatch.setattr(remote_stats, "_locate_once", lambda host: calls.append(host.id) or None)
+    host = _dormant_host()
+    _run(remote_stats.is_answering_cached(host))
+    _wait_idle(host.id)
+    assert _run(remote_stats.is_answering_cached(host)) is False
+    assert _run(remote_stats.is_answering_cached(host)) is False
+    assert calls == [host.id]
+
+
+def test_a_stale_answer_is_served_while_one_refresh_runs(monkeypatch):
+    """After the TTL the last answer is still returned at once, and a burst of
+    polls starts a single refresh - a box that came back flips on the next one."""
+    release = threading.Event()
+    answers = iter([None, "10.0.0.2"])
+    calls = []
+
+    def locate_once(host):
+        calls.append(host.id)
+        if len(calls) > 1:
+            release.wait(2.0)
+        return next(answers)
+
+    monkeypatch.setattr(remote_stats, "_locate_once", locate_once)
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(remote_stats.time, "monotonic", lambda: clock["now"])
+    host = _dormant_host()
+    _run(remote_stats.is_answering_cached(host))
+    _wait_idle(host.id)
+    assert _run(remote_stats.is_answering_cached(host)) is False
+    clock["now"] += remote_stats._DORMANT_TTL_S + 0.1
+    assert _run(remote_stats.is_answering_cached(host)) is False  # stale, served at once
+    assert _run(remote_stats.is_answering_cached(host)) is False  # refresh still in flight
+    release.set()
+    _wait_idle(host.id)
+    assert len(calls) == 2  # one refresh for the burst
+    assert _run(remote_stats.is_answering_cached(host)) is True
+
+
+def test_a_failing_probe_leaves_the_answer_not_answering(monkeypatch):
+    def boom(host):
+        raise OSError("network unreachable")
+
+    monkeypatch.setattr(remote_stats, "_locate_once", boom)
+    host = _dormant_host()
+    assert _run(remote_stats.is_answering_cached(host)) is False
+    _wait_idle(host.id)
+    assert _run(remote_stats.is_answering_cached(host)) is False
 
 
 # -------------------------------------------------- never reached by anything
