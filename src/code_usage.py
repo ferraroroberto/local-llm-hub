@@ -10,8 +10,10 @@ Design constraints (from issue #20):
   shelling out to ``bunx ccusage``.
 - **Passive** — nothing runs on the Claude Code request path; the SPA
   polls this module on its own 30 s interval.
-- **Mtime cache** — each file is only re-parsed when its mtime changes,
-  so repeated polls are cheap.
+- **Mtime cache** — each file is only re-parsed when its mtime changes.
+- **Summary cache** — the built summary is cached per ``(period, vendor)``
+  and refreshed ahead while polled (#811), so a poll doesn't pay the
+  several-second walk over every record.
 
 Token fields used from each ``assistant`` entry::
 
@@ -34,9 +36,12 @@ time-series/period-comparison bucketing in ``usage_charts.py``.
 from __future__ import annotations
 
 import logging
+import threading
+import time
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from src.usage_charts import MAX_DAILY_DAYS, build_prev_totals, build_time_series
 from src.usage_common import (
@@ -421,31 +426,36 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
     ))
 
     # ---- recent sessions (always all-time, newest first) ----
+    # first/last stay datetimes until the cut: formatting every record's
+    # timestamp to compare strings was ~40% of a warm build (#811).
     session_map: Dict[Tuple[str, str], dict] = {}
     for r in records:
         k = (r.project_key, r.session_id)
-        if k not in session_map:
-            session_map[k] = {
+        s = session_map.get(k)
+        if s is None:
+            s = session_map[k] = {
                 "session_id": r.session_id,
                 "project_key": r.project_key,
                 "project": r.project_name,
                 "model": r.model,
-                "first_ts": r.ts.isoformat(),
-                "last_ts": r.ts.isoformat(),
+                "first_ts": r.ts,
+                "last_ts": r.ts,
                 **_blank_counts(),
             }
-        s = session_map[k]
         _add_record(s, r)
-        if r.ts.isoformat() < s["first_ts"]:
-            s["first_ts"] = r.ts.isoformat()
-        if r.ts.isoformat() > s["last_ts"]:
-            s["last_ts"] = r.ts.isoformat()
+        if r.ts < s["first_ts"]:
+            s["first_ts"] = r.ts
+        if r.ts > s["last_ts"]:
+            s["last_ts"] = r.ts
         s["model"] = r.model
 
     sessions_sorted = sorted(
         session_map.values(), key=lambda x: x["last_ts"], reverse=True
     )
     recent_sessions = sessions_sorted[:_MAX_RECENT_SESSIONS]
+    for s in recent_sessions:
+        s["first_ts"] = s["first_ts"].isoformat()
+        s["last_ts"] = s["last_ts"].isoformat()
 
     time_series = build_time_series(records, period, today)
     prev_totals = build_prev_totals(records, period, today)
@@ -464,3 +474,131 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
     if prev_totals is not None:
         result["prev_totals"] = prev_totals
     return result
+
+
+# ---------------------------------------------------------------------------
+# Built-summary cache (#811)
+# ---------------------------------------------------------------------------
+#
+# The mtime caches above make re-reading cheap, but a warm get_summary() still
+# walks every live record (~745k on the tower, several passes) — 4-9 s per
+# call, paid on every 30 s Code-tab poll. So the built summary is cached per
+# ``(period, vendor)``, and a key that is still being polled is rebuilt in the
+# background before it expires: a lone tab polling every 30 s would otherwise
+# miss any cache younger than its own poll interval.
+
+_SUMMARY_MAX_AGE_S = 25.0  # never serve a summary older than this (< 30 s poll)
+_SUMMARY_REFRESH_S = 15.0  # refresh-ahead rebuilds a polled key at this age
+_SUMMARY_WATCH_S = 65.0    # a key counts as polled this long after its last request
+_SUMMARY_TICK_S = 1.0      # refresh-ahead thread wake-up interval
+
+_now = time.monotonic  # test seam
+
+
+@dataclass
+class _SummaryEntry:
+    # One lock per key: concurrent callers wait for one build, not N.
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    body: Optional[dict] = None
+    built_at: float = 0.0      # _now() when the build *started* (data as-of)
+    last_request: float = 0.0
+    retry_at: float = 0.0      # refresh-ahead back-off after a failed build
+
+
+_summary_cache: Dict[Tuple[str, str], _SummaryEntry] = {}
+_summary_cache_lock = threading.Lock()
+_refresher_started = False
+_refresher_enabled = True
+
+
+def _reset_summary_cache_for_tests() -> None:
+    """Drop every cached summary and keep the refresh-ahead thread off."""
+    global _refresher_enabled
+    with _summary_cache_lock:
+        _summary_cache.clear()
+        _refresher_enabled = False
+
+
+def _rebuild(key: Tuple[str, str], entry: _SummaryEntry, why: str) -> None:
+    """Build ``key``'s summary into ``entry`` (call with ``entry.lock`` held)."""
+    started = _now()
+    body = get_summary(*key)
+    entry.body = body
+    entry.built_at = started
+    _log.debug(
+        "code_usage: summary %s/%s rebuilt (%s) in %.2fs",
+        key[0], key[1], why, _now() - started,
+    )
+
+
+def _fresh(entry: _SummaryEntry) -> bool:
+    return entry.body is not None and _now() - entry.built_at < _SUMMARY_MAX_AGE_S
+
+
+def get_summary_cached(period: str = "today", vendor: str = "all") -> dict:
+    """:func:`get_summary`, served from a per-``(period, vendor)`` cache.
+
+    A summary is never served older than ``_SUMMARY_MAX_AGE_S``; past that the
+    caller rebuilds, and concurrent callers share that one build. A failed
+    build raises and is not cached. Returns a shallow copy, so the caller may
+    add top-level keys without touching what the next caller is served.
+    """
+    if period not in _VALID_PERIODS:
+        period = "today"
+    if not is_valid_vendor(vendor):
+        vendor = "all"
+    key = (period, vendor)
+    with _summary_cache_lock:
+        entry = _summary_cache.setdefault(key, _SummaryEntry())
+    entry.last_request = _now()
+    _start_refresher()
+
+    if not _fresh(entry):
+        with entry.lock:
+            # A caller that waited on the lock finds the build it waited for.
+            if not _fresh(entry):
+                _rebuild(key, entry, "expired" if entry.body else "cold")
+                return dict(entry.body)
+    _log.debug(
+        "code_usage: summary %s/%s served from cache (age %.1fs)",
+        period, vendor, _now() - entry.built_at,
+    )
+    return dict(entry.body)
+
+
+def _refresh_due_summaries() -> None:
+    """Rebuild every still-polled key whose summary is due (one tick)."""
+    with _summary_cache_lock:
+        items = list(_summary_cache.items())
+    for key, entry in items:
+        now = _now()
+        if entry.body is None or now - entry.last_request > _SUMMARY_WATCH_S:
+            continue
+        if now - entry.built_at < _SUMMARY_REFRESH_S or now < entry.retry_at:
+            continue
+        if not entry.lock.acquire(blocking=False):
+            continue  # a caller is already building this key
+        try:
+            _rebuild(key, entry, "refresh-ahead")
+        except Exception as exc:  # noqa: BLE001 — the next caller rebuilds and reports
+            entry.retry_at = now + _SUMMARY_REFRESH_S
+            _log.warning("⚠️ code_usage: refresh-ahead of %s/%s failed: %s", *key, exc)
+        finally:
+            entry.lock.release()
+
+
+def _refresher_loop() -> None:
+    while True:
+        time.sleep(_SUMMARY_TICK_S)
+        _refresh_due_summaries()
+
+
+def _start_refresher() -> None:
+    global _refresher_started
+    with _summary_cache_lock:
+        if _refresher_started or not _refresher_enabled:
+            return
+        _refresher_started = True
+    threading.Thread(
+        target=_refresher_loop, daemon=True, name="code-usage-refresh"
+    ).start()

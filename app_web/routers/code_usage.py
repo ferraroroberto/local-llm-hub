@@ -16,7 +16,7 @@ import logging
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
-from src.code_usage import _VALID_PERIODS, get_summary, is_valid_vendor
+from src.code_usage import _VALID_PERIODS, get_summary_cached, is_valid_vendor
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -35,8 +35,9 @@ async def code_usage_summary(
 ) -> dict | JSONResponse:
     """Return totals, per-model / per-project / per-vendor breakdowns, and
     recent sessions for the requested period and vendor.  Safe to call
-    frequently — the underlying parsers cache by file mtime so unchanged files
-    are not re-read.  The ``agentsview`` block carries the optional external
+    frequently — the built summary is cached per period/vendor (never served
+    older than 25 s, #811) on top of the parsers' per-file mtime caches.  The
+    ``agentsview`` block carries the optional external
     AgentsView service's reachability + discovered gap-fill vendors (#280) —
     the Code-tab mirror of the Telemetry tab's ``langfuse_reachable``.
 
@@ -56,7 +57,7 @@ async def code_usage_summary(
     try:
         # Off the loop: a cold/changed-file parse would otherwise stall every
         # /v1/* request this process serves (#559).
-        body = await asyncio.to_thread(get_summary, period, vendor)
+        body = await asyncio.to_thread(get_summary_cached, period, vendor)
         body["agentsview"] = agentsview_usage.status()
         return body
     except Exception as exc:

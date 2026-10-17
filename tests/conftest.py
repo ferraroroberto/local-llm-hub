@@ -254,6 +254,20 @@ def _isolate_claude_code_otel_store(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_code_usage_summary_cache():
+    """Start every test with an empty summary cache and no refresh-ahead
+    thread (#811) — otherwise one test's cached summary answers the next
+    test's request, and a background rebuild races the test's own patches.
+    Tests drive refresh-ahead through ``_refresh_due_summaries()`` directly.
+    """
+    from src import code_usage
+
+    code_usage._reset_summary_cache_for_tests()
+    yield
+    code_usage._reset_summary_cache_for_tests()
+
+
+@pytest.fixture(autouse=True)
 def _hermetic_remote_probes(monkeypatch):
     """Keep unit tests off the real network and remote-stats caches clean (#396).
 
