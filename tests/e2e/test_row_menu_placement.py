@@ -50,15 +50,34 @@ def _json(route, body):
     route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
 
-def _open_phone_models(browser, admin_url):
+def _open_phone_models(browser, admin_url, models=MODELS):
+    """Open the Models tab on a phone once its list has settled.
+
+    Opening the tab reads fleet-placement, and its landing repaints every row
+    (models.js). Left to land on its own, that repaint can replace a row the
+    test is already acting on (#829), so the read is held until the rows are
+    painted, then released, and the rows it replaces are waited out.
+    """
     context = browser.new_context(viewport=PHONE, has_touch=True)
     page = context.new_page()
+    held = []
     page.add_init_script("localStorage.setItem('llmhub.models.activeOnly', 'false');")
-    page.route("**/admin/api/models", lambda route: _json(route, MODELS))
-    page.route("**/admin/api/fleet-placement", lambda route: _json(route, {"hosts": []}))
+    page.route("**/admin/api/models", lambda route: _json(route, models))
+    page.route("**/admin/api/fleet-placement", lambda route: held.append(route))
     page.goto(admin_url, wait_until="load")
     page.click("#tabModels")
     page.wait_for_selector("#modelsList .model-row", state="visible", timeout=10000)
+    for _ in range(100):  # the route handler runs while Playwright waits
+        if held:
+            break
+        page.wait_for_timeout(50)
+    assert held, "opening the Models tab should read fleet-placement"
+    page.evaluate("window.__preRepaintRow = document.querySelector('#modelsList .model-row')")
+    page.unroute("**/admin/api/fleet-placement")
+    page.route("**/admin/api/fleet-placement", lambda route: _json(route, {"hosts": []}))
+    for route in held:
+        _json(route, {"hosts": []})
+    page.wait_for_function("!window.__preRepaintRow.isConnected", timeout=10000)
     return context, page
 
 
@@ -109,16 +128,8 @@ def test_open_menu_stays_anchored_while_the_models_list_refreshes(browser, admin
     """The poll rebuilds every row; the open menu follows its row to the new
     kebab instead of closing or parking in a corner (project-scaffolding#373)."""
     live = json.loads(json.dumps(MODELS))
-    context = browser.new_context(viewport=PHONE, has_touch=True)
-    page = context.new_page()
+    context, page = _open_phone_models(browser, admin_url, live)
     try:
-        page.add_init_script("localStorage.setItem('llmhub.models.activeOnly', 'false');")
-        page.route("**/admin/api/models", lambda route: _json(route, live))
-        page.route("**/admin/api/fleet-placement", lambda route: _json(route, {"hosts": []}))
-        page.goto(admin_url, wait_until="load")
-        page.click("#tabModels")
-        page.wait_for_selector("#modelsList .model-row", state="visible", timeout=10000)
-
         page.locator("#modelsList .model-row").nth(2).locator(".row-kebab").click()
         page.wait_for_selector("body > .row-menu .row-menu-item", state="visible", timeout=5000)
         page.evaluate("window.__oldKebab = document.querySelector('.row-menu-anchor[aria-expanded=\"true\"]')")
