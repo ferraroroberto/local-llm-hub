@@ -45,6 +45,9 @@ _ROW_FACTS = """() => [...document.querySelectorAll('#servicesSheet .services-ro
     const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
         if (!n.textContent.trim()) continue;
+        // A closed disclosure's body is not rendered, so it is not a line.
+        const closed = n.parentElement.closest('details:not([open])');
+        if (closed && !n.parentElement.closest('summary')) continue;
         const g = document.createRange(); g.selectNodeContents(n);
         for (const r of g.getClientRects()) {
             if (r.width === 0 || r.height === 0) continue;
@@ -113,6 +116,51 @@ def test_service_rows_read_in_two_lines_and_the_detail_opens(page, admin_url, vi
     assert first.get_attribute("open") is not None
     assert "Max retries exceeded" in first.inner_text()
     assert LONG_ERROR in first.inner_text()
+
+
+def test_an_open_long_detail_holds_its_text_in_the_body_once(page, admin_url):
+    # #817: the full text lives in the disclosure's body (design.md: an open
+    # disclosure is never an empty container); the ellipsised preview in the
+    # summary gives way to it, so the line shows once and never twice.
+    _open_hub(page, admin_url, PHONE)
+    _open_sheet(page)
+    detail = page.locator("#servicesSheet .services-row details.services-detail").first
+    body = detail.locator(".services-detail-body")
+    summary_text = detail.locator("summary .services-detail-text")
+
+    # Closed: the one ellipsised preview line; the body is not shown.
+    assert summary_text.is_visible()
+    assert body.is_hidden()
+
+    detail.locator("summary").click()
+    assert detail.get_attribute("open") is not None
+    assert body.is_visible()
+    assert body.inner_text().strip() == LONG_ERROR
+    assert summary_text.is_hidden()
+    # Once: the text is not outside the body and visible in the summary as well.
+    assert detail.inner_text().count("Max retries exceeded") == 1
+
+    # The summary stays the tap target to close it again.
+    detail.locator("summary").click()
+    assert detail.get_attribute("open") is None
+    assert summary_text.is_visible()
+
+
+def test_a_poll_with_unchanged_text_leaves_an_open_detail_open(page, admin_url):
+    _open_hub(page, admin_url, DESKTOP)
+    _open_sheet(page)
+    detail = page.locator("#servicesSheet .services-row details.services-detail").first
+    detail.locator("summary").click()
+    assert detail.get_attribute("open") is not None
+
+    # The hub polls services every 5 s; let one land and render.
+    with page.expect_response("**/admin/api/services/status*", timeout=9000):
+        pass
+    page.wait_for_timeout(300)
+
+    detail = page.locator("#servicesSheet .services-row details.services-detail").first
+    assert detail.get_attribute("open") is not None, "the poll snapped the disclosure shut"
+    assert detail.locator(".services-detail-body").inner_text().strip() == LONG_ERROR
 
 
 def test_healthy_services_fold_and_a_short_detail_stays_inline(page, admin_url):
