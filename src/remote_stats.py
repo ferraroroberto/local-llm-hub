@@ -74,6 +74,13 @@ _cache: Dict[str, tuple[float, Optional[Dict[str, Any]]]] = {}
 # so the Machines card can badge a peer as reached "via tailnet".
 _liveness_cache: Dict[str, tuple[float, Optional[str]]] = {}
 
+# host_id -> (expiry_monotonic, answering) for dormant hosts (#821), plus the
+# ids with a background probe in flight. Kept apart from ``_liveness_cache`` so
+# the dormant hint's long TTL never stretches a live peer's Online/Offline dot.
+_DORMANT_TTL_S = 60.0
+_dormant_cache: Dict[str, tuple[float, bool]] = {}
+_dormant_inflight: set = set()
+
 # host_id -> (expiry_monotonic, address) — the last-known-good address the
 # peer-connect paths should dial (#396). Deliberately a separate cache from
 # ``_liveness_cache`` (#369) so the two never fight: liveness may expire and
@@ -318,6 +325,50 @@ async def is_reachable(host: HostProfile) -> bool:
     """Cached liveness, keyed by host id (#369) — see :func:`located_address`,
     which this simply booleanizes."""
     return await located_address(host) is not None
+
+
+def _refresh_dormant(host: HostProfile) -> None:
+    """Probe a dormant host now (blocking, one pass) and cache the answer."""
+    answering = _locate_once(host) is not None
+    _dormant_cache[host.id] = (time.monotonic() + _DORMANT_TTL_S, answering)
+
+
+def _kick_dormant_refresh(host: HostProfile) -> None:
+    """Run :func:`_refresh_dormant` on a daemon thread, at most one per host at
+    a time — the same fire-and-forget shape as :func:`_kick_refresh`."""
+    with _refresh_lock:
+        if host.id in _dormant_inflight:
+            return
+        _dormant_inflight.add(host.id)
+
+    def _worker() -> None:
+        try:
+            _refresh_dormant(host)
+        except Exception:  # noqa: BLE001 — a failed probe leaves the last answer standing
+            logger.debug("dormant answering probe for %s failed", host.id, exc_info=True)
+        finally:
+            with _refresh_lock:
+                _dormant_inflight.discard(host.id)
+
+    threading.Thread(target=_worker, daemon=True, name=f"dormant-probe-{host.id}").start()
+
+
+async def is_answering_cached(host: HostProfile) -> bool:
+    """Is a dormant (intentionally off) host answering again? Never waits for a
+    probe (#821).
+
+    A box that really is off exhausts every candidate address on both
+    :func:`locate` passes (~8.5 s live), and :func:`is_reachable`'s 5 s cache is
+    shorter than the 10 s Machines poll, so awaiting it held every
+    ``/admin/api/machines/status`` response for that long. The answer is only a
+    "switch dormant off?" hint, so it is served from a ``_DORMANT_TTL_S`` cache
+    (stale included) and refreshed on a background thread with one liveness
+    pass. Before the first probe finishes it reads ``False``; a box that came
+    back shows within a poll or two of the probe landing."""
+    cached = _dormant_cache.get(host.id)
+    if cached is None or cached[0] <= time.monotonic():
+        _kick_dormant_refresh(host)
+    return cached[1] if cached is not None else False
 
 
 # Host ids with a background dial-route refresh currently in flight (#396) —
