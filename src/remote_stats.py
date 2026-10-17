@@ -215,9 +215,15 @@ def _probe_liveness_ports(address: str) -> bool:
     probing in parallel bounds one pass at the slowest single port (~2 s), so
     the #333 two-pass warm-up costs ~4.5 s instead of ~8.5 s for a peer that's
     genuinely off (#369)."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(_LIVENESS_PORTS)) as pool:
+    # Not a ``with`` block: its exit joins every worker, so an up box with one
+    # port filtered still waited out that port's timeout after another had
+    # already answered (#824). ``wait=False`` lets the straggler finish alone.
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=len(_LIVENESS_PORTS))
+    try:
         futures = [pool.submit(_probe_port, address, port) for port in _LIVENESS_PORTS]
         return any(f.result() for f in concurrent.futures.as_completed(futures))
+    finally:
+        pool.shutdown(wait=False)
 
 
 def _candidates(host: HostProfile) -> List[str]:
