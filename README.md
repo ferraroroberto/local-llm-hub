@@ -2272,6 +2272,13 @@ served more than 25 s old. While a tab keeps polling, the hub rebuilds it in the
 background, so the 30 s poll answers from cache instead of re-walking every
 transcript (a warm build is several seconds on a busy machine).
 
+**Prewarm (#826).** At hub start the opening view (Day, All vendors) is built in
+the background, off the startup path. A restarted hub parses every transcript
+once (about 50 s on the tower); doing that at start means the first tab open
+finds a fresh summary, and every later build runs off warm parser caches. The
+log carries `prewarmed summary today/all in …s`, or a `prewarm … failed`
+warning (the first request then builds for itself).
+
 **Layout (#739).** The tab opens on totals and cost: the **Day / Week / Month /
 All** switch over the four counters (requests, input, output, cache reads), each
 with its ≈ $ cost and a delta badge (green ↑ / red ↓) vs. the previous
