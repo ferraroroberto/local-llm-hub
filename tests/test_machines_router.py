@@ -684,6 +684,31 @@ def test_probe_liveness_ports_true_when_one_port_accepts(monkeypatch):
     assert remote_stats._probe_liveness_ports("10.0.0.9") is True
 
 
+def test_probe_liveness_ports_does_not_wait_on_a_slower_port_once_one_accepted(monkeypatch):
+    """SSH answering must end the pass - a filtered RDP port's full TCP
+    timeout is not waited out (#824; it held every other machines poll ~2 s)."""
+    import threading
+    import time
+
+    from src import remote_stats
+
+    release = threading.Event()
+
+    def probe(address, port):
+        if port == 22:
+            return True
+        release.wait(5.0)  # RDP: the dropped-SYN timeout
+        return False
+
+    monkeypatch.setattr(remote_stats, "_probe_port", probe)
+    started = time.monotonic()
+    try:
+        assert remote_stats._probe_liveness_ports("10.0.0.9") is True
+        assert time.monotonic() - started < 2.0
+    finally:
+        release.set()
+
+
 def test_probe_liveness_ports_false_when_none_accept(monkeypatch):
     from src import remote_stats
 
