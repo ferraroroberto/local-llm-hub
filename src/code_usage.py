@@ -566,6 +566,39 @@ def get_summary_cached(period: str = "today", vendor: str = "all") -> dict:
     return dict(entry.body)
 
 
+def prewarm_default_summary() -> bool:
+    """Build the key the Code tab opens with, so the first request after a
+    restart is a cache hit instead of a cold build (#826).
+
+    Blocking — the hub runs it on a worker thread at start. It goes through
+    :func:`get_summary_cached`, so the key then counts as polled for
+    ``_SUMMARY_WATCH_S`` and refresh-ahead keeps it warm for that one window;
+    a key nobody opens stops being rebuilt after it, as before. A fresh process
+    parses every transcript once (~50 s on the tower), which is older than
+    ``_SUMMARY_MAX_AGE_S`` the moment it lands — so one more build, off the
+    now-warm parser caches (a few seconds), leaves the entry actually fresh.
+    Never raises: a failed prewarm is logged and the first real request builds
+    for itself.
+    """
+    if not _refresher_enabled:
+        return False
+    key = ("today", "all")
+    started = _now()
+    try:
+        get_summary_cached(*key)
+        with _summary_cache_lock:
+            entry = _summary_cache[key]
+        if not _fresh(entry):
+            get_summary_cached(*key)
+    except Exception as exc:  # noqa: BLE001 — startup must never fail on this
+        _log.warning("⚠️ code_usage: prewarm of %s/%s failed: %s", *key, exc)
+        return False
+    _log.info(
+        "ℹ️ code_usage: prewarmed summary %s/%s in %.2fs", *key, _now() - started,
+    )
+    return True
+
+
 def _refresh_due_summaries() -> None:
     """Rebuild every still-polled key whose summary is due (one tick)."""
     with _summary_cache_lock:

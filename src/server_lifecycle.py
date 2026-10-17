@@ -160,6 +160,20 @@ async def wire_observatory_loop() -> None:
     # that missed a push-triggered sync (e.g. it was powered off). The task
     # returns immediately on every non-writer host.
     _BACKGROUND_TASKS.append(loop.create_task(_config_drift_loop()))
+    # Code-tab summary (#826): build the opening view once so the first tab
+    # open after a restart is a cache hit, not a multi-second cold build.
+    _BACKGROUND_TASKS.append(loop.create_task(_prewarm_code_usage()))
+
+
+async def _prewarm_code_usage() -> None:
+    """Build the Code tab's opening summary in the background (#826).
+
+    Off the event loop and off the startup path: the build walks every usage
+    record (5-10 s on the tower) and nothing at start waits for it.
+    """
+    from . import code_usage
+
+    await asyncio.to_thread(code_usage.prewarm_default_summary)
 
 
 async def _autostart_configured_backends() -> None:

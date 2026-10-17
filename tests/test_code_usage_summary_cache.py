@@ -199,6 +199,87 @@ def test_hit_and_rebuild_log_distinct_debug_lines(clock, builds, caplog):
     assert any("served from cache" in m for m in messages), messages
 
 
+@pytest.fixture
+def prewarm_on(monkeypatch):
+    """Switch the test-off refresher flag back on, without the real thread."""
+    monkeypatch.setattr(code_usage, "_refresher_enabled", True)
+    monkeypatch.setattr(code_usage, "_start_refresher", lambda: None)
+
+
+def test_prewarm_serves_the_first_default_request_from_cache(clock, builds, prewarm_on):
+    """A fresh process builds the Code tab's opening key at start (#826), so the
+    first request after a restart pays no multi-second cold build."""
+    assert code_usage.prewarm_default_summary() is True
+    assert builds == [("today", "all")]
+
+    clock.t += 3  # the hub has been up a few seconds when the tab opens
+    first = code_usage.get_summary_cached("today", "all")
+
+    assert builds == [("today", "all")]  # still the one prewarm build
+    assert first["build"] == 1
+
+
+def test_prewarm_rebuilds_when_the_cold_build_outlasts_the_max_age(clock, monkeypatch, prewarm_on):
+    """A restarted hub's first build parses every transcript (~50 s) — already
+    older than the max age when it lands. Prewarm builds once more off the
+    warm parser caches so the first request still finds a fresh entry."""
+    calls: list = []
+
+    def slow_then_fast(period, vendor):
+        calls.append((period, vendor))
+        if len(calls) == 1:
+            clock.t += code_usage._SUMMARY_MAX_AGE_S * 2  # the cold parse
+        return {"build": len(calls)}
+
+    monkeypatch.setattr(code_usage, "get_summary", slow_then_fast)
+
+    assert code_usage.prewarm_default_summary() is True
+    assert len(calls) == 2
+
+    assert code_usage.get_summary_cached("today", "all") == {"build": 2}
+    assert len(calls) == 2  # the first request was a cache hit
+
+
+def test_prewarm_only_builds_the_default_key(clock, builds, prewarm_on):
+    code_usage.prewarm_default_summary()
+    code_usage.get_summary_cached("month", "all")
+
+    assert builds == [("today", "all"), ("month", "all")]
+
+
+def test_prewarm_logs_an_info_breadcrumb(clock, builds, prewarm_on, caplog):
+    caplog.set_level(logging.INFO, logger=code_usage.__name__)
+    code_usage.prewarm_default_summary()
+
+    infos = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO]
+    assert any("prewarmed" in m and "today/all" in m for m in infos), infos
+
+
+def test_failed_prewarm_warns_and_caches_nothing(clock, monkeypatch, prewarm_on, caplog):
+    def boom(period, vendor):
+        raise RuntimeError("disk gone")
+
+    monkeypatch.setattr(code_usage, "get_summary", boom)
+    caplog.set_level(logging.INFO, logger=code_usage.__name__)
+
+    assert code_usage.prewarm_default_summary() is False  # never raises
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert any("prewarm" in m and "disk gone" in m for m in warnings), warnings
+    assert not any("prewarmed" in r.getMessage() for r in caplog.records)
+
+    # The first real request still builds (and reports) for itself.
+    monkeypatch.setattr(code_usage, "get_summary", lambda p, v: {"build": "real"})
+    assert code_usage.get_summary_cached("today", "all") == {"build": "real"}
+
+
+def test_prewarm_is_off_while_the_cache_is_disabled(builds):
+    """The suite-wide fixture turns the background machinery off; hub startup
+    in a TestClient must not parse the real session logs."""
+    assert code_usage.prewarm_default_summary() is False
+    assert builds == []
+
+
 def test_recent_sessions_keep_iso_timestamps_newest_first(monkeypatch):
     """The build-cost cut in the recent-sessions loop (#811) compares
     datetimes instead of strings; the payload must not change shape."""
