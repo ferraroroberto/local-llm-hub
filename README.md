@@ -2267,6 +2267,11 @@ subprocesses, no wrapper around any binary, no impact on the running CLIs:
   or PATH). Setup and behaviour:
   [docs/code-usage-agentsview.md](docs/code-usage-agentsview.md).
 
+**Freshness (#811).** The summary is cached per period × vendor and is never
+served more than 25 s old. While a tab keeps polling, the hub rebuilds it in the
+background, so the 30 s poll answers from cache instead of re-walking every
+transcript (a warm build is several seconds on a busy machine).
+
 **Layout (#739).** The tab opens on totals and cost: the **Day / Week / Month /
 All** switch over the four counters (requests, input, output, cache reads), each
 with its ≈ $ cost and a delta badge (green ↑ / red ↓) vs. the previous

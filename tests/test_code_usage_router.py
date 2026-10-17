@@ -133,7 +133,7 @@ def test_summary_parse_runs_off_the_event_loop(monkeypatch):
             seen["on_loop"] = False
         return {"period": period, "vendor": vendor}
 
-    monkeypatch.setattr(router_mod, "get_summary", fake_get_summary)
+    monkeypatch.setattr(code_usage, "get_summary", fake_get_summary)
     r = _client().get("/admin/api/code/usage/summary")
     assert r.status_code == 200, r.text
     assert seen == {"on_loop": False}
@@ -151,7 +151,7 @@ def test_failed_summary_is_not_a_zero_usage_day(monkeypatch):
     def boom(period, vendor):
         raise RuntimeError("transcript store unreadable")
 
-    monkeypatch.setattr(router_mod, "get_summary", boom)
+    monkeypatch.setattr(code_usage, "get_summary", boom)
     r = _client().get("/admin/api/code/usage/summary?period=today&vendor=all")
 
     assert r.status_code == 503, r.text
@@ -179,7 +179,7 @@ def test_zero_usage_day_still_renders_as_data(monkeypatch):
             "recent_sessions": [],
         }
 
-    monkeypatch.setattr(router_mod, "get_summary", empty)
+    monkeypatch.setattr(code_usage, "get_summary", empty)
     r = _client().get("/admin/api/code/usage/summary?period=today&vendor=all")
 
     assert r.status_code == 200, r.text
