@@ -45,6 +45,8 @@ import weakref
 from pathlib import Path
 from typing import Any, List, Optional
 
+from src.runtime_data import app_dir_env_var
+
 # Spawned for build identity (``/admin/api/version``'s git sha and config
 # sha). Local and read-only — not a service.
 ALLOWED_EXECUTABLES = frozenset({"git"})
@@ -247,6 +249,13 @@ def isolate_from_live_services(state_dir: Path) -> None:
     os.environ["OTEL_SDK_DISABLED"] = "true"
     # The usage log (#777) writes to the e2e state dir, never the real store.
     os.environ["LLM_HUB_USAGE_DB_PATH"] = str(state_dir / "usage.sqlite3")
+    # Every other runtime database (the diagnostics store the Machines tab
+    # opens) resolves under the app's data directory, so point that at the
+    # e2e state dir too: a per-file override covers only the file it names
+    # (project-scaffolding#404, #832). A diagnostics-file override inherited
+    # from the caller's shell would outrank the directory, so drop it.
+    os.environ.pop("LLM_HUB_DIAGNOSTICS_DB_PATH", None)
+    os.environ[app_dir_env_var("local-llm-hub")] = str(state_dir / "runtime-data")
     _pin_config(state_dir)
     _isolate_usage_data(state_dir)
 
