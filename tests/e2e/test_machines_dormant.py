@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import json
 
+from tests.e2e._surface import surface
+
 PHONE = {"width": 390, "height": 844}
 
 STATUS = {"machines": [
@@ -61,9 +63,11 @@ def test_dormant_machines_raise_no_alert_and_sort_last(browser, admin_url):
         assert "Reachable" in loft.inner_text()
         assert loft.locator('.action-row-avatar[data-badge="up"]').count() == 1
         assert loft.locator('[data-machine-action="wake"]').count() == 0, "it is up: no Wake"
+        surface(page, "machines.dormant")
         loft.locator(".action-row-main").click()
         page.wait_for_selector("#machineSheet[open]", timeout=5000)
         assert "Switch Dormant off in Settings" in page.locator("#machineSheetBody").inner_text()
+        surface(page, "machines.dormant-sheet")
     finally:
         context.close()
 
@@ -105,5 +109,6 @@ def test_settings_switch_marks_a_machine_dormant(browser, admin_url):
         )
         assert puts == [("attic", {"dormant": True})], puts
         assert page.inner_text("#dormantSummary") == "1 of 2 dormant"
+        surface(page, "settings.machines-dormant")
     finally:
         context.close()

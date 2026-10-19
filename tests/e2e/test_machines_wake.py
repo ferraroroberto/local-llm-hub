@@ -28,6 +28,8 @@ import json
 
 import pytest
 
+from tests.e2e._surface import surface
+
 PHONE_VIEWPORT = {"width": 390, "height": 844}
 WIDE_VIEWPORT = {"width": 1440, "height": 900}
 
@@ -141,6 +143,7 @@ def test_wake_button_on_a_down_mac_equipped_machine(phone_page, admin_url):
     assert "Offline" in _row(page, "mini").inner_text()
     # The header line names the offline count (two machines are down).
     assert page.locator("#machinesHeadLine").inner_text().startswith("2 offline")
+    surface(page, "machines.down-wakeable")
 
 
 def test_no_wake_button_without_the_mac_flag(phone_page, admin_url):

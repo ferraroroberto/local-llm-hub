@@ -26,6 +26,8 @@ from pathlib import Path
 import httpx
 import pytest
 
+from tests.e2e._surface import surface
+
 pytestmark = pytest.mark.usefixtures("admin_url")
 
 SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
@@ -311,6 +313,7 @@ def test_hub_tab_phone_screenshot(page, admin_url, browser_name):
     # Peer-hub rows and the Model decisions card left Hub (Steps 1 and 2).
     assert page.locator("#paneHub #peerRows, #paneHub #rolesCard").count() == 0
     _snapshot(page, "hub-390x844", browser_name)
+    surface(page, "hub.tab")
 
 
 def test_models_tab_phone_screenshot(page, admin_url, browser_name):
@@ -320,6 +323,7 @@ def test_models_tab_phone_screenshot(page, admin_url, browser_name):
     page.click("#tabModels")
     page.wait_for_selector("#paneModels", state="visible", timeout=3000)
     _snapshot(page, "models-390x844", browser_name)
+    surface(page, "models.tab")
 
 
 def test_playground_tab_phone_screenshot(page, admin_url, browser_name):
@@ -332,6 +336,7 @@ def test_playground_tab_phone_screenshot(page, admin_url, browser_name):
         timeout=10000,
     )
     _snapshot(page, "playground-390x844", browser_name)
+    surface(page, "playground.tab")
     # Decide shows its third-party privacy line without a tap, at phone width
     # and on a wide window, in both themes (#740).
     page.click('#playMode [data-mode="decide"]')
@@ -446,3 +451,9 @@ def test_auth_error_is_a_typed_contract(page, admin_url):
         ])"""
     )
     assert got == [True, False]
+
+    # The overlay a 401 raises: api() calls showLogin() before it throws.
+    page.evaluate("() => import('/admin/static/api.js').then(m => m.showLogin())")
+    page.wait_for_selector("#loginOverlay", state="visible", timeout=3000)
+    assert page.locator("#loginPassword").is_visible()
+    surface(page, "login.overlay")

@@ -102,6 +102,7 @@ action-row  = { src = "app/webapp/static/_vendored/action-row", sha = "59ae763c4
 segmented   = { src = "app/webapp/static/_vendored/segmented", sha = "f52eb75625cbfd8dcef8a71731390a47b795508d", dest = "app_web/static/_vendored/segmented" }
 usage-log    = { src = "app/webapp/static/_vendored/usage-log", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "app_web/static/_vendored/usage-log" }
 usage_log    = { src = "src/usage_log.py", sha = "a457e41cd3004d8b9493408498eb9e3d51cdc9c3", dest = "src/usage_log.py" }
+surface_capture = { src = "tests/e2e/_surface.py", sha = "5c4d3a7947dae8b3b4a028bf636c0f052ea3b1f7", dest = "tests/e2e/_surface.py" }
 
 # Views that span the width right of the rail on a wide window (design.md
 # layout.wide): Hub's glance + services | Activity columns (#738) and Code's
