@@ -26,6 +26,8 @@ from __future__ import annotations
 import copy
 import json
 
+from tests.e2e._surface import surface
+
 BASE_CONFIG = {
     "sha": "abc1234",
     "write_enabled": True,
@@ -151,6 +153,7 @@ def test_config_sha_chip_renders(page, admin_url):
     # Settings › About carries the models.yaml version since #741.
     page.click("#paneModels .home-settings")
     assert page.locator("#settingsDialog #modelsConfigSha").inner_text() == "abc1234"
+    surface(page, "settings.about")
 
 
 def test_no_edit_affordance_when_not_write_host(page, admin_url):
@@ -186,6 +189,7 @@ def test_full_edit_drives_put_payload(page, admin_url):
 
     _open_models_tab(page, admin_url, _payload(), put_handler=put_handler)
     editor = _open_editor(page, "whisper")
+    surface(page, "models.placement-editor")
 
     # Chain: [gaming, mac-mini-m4, tower·cpu] → remove mac-mini-m4, move
     # tower to the front, clear its cpu flag, then add mac-mini-m4 back.
@@ -234,6 +238,7 @@ def test_validation_rejection_shows_inline_and_keeps_editor_open(page, admin_url
     err = editor.locator(".pe-error")
     page.wait_for_selector(".placement-editor .pe-error", state="visible", timeout=5000)
     assert "overcommits" in err.inner_text()
+    surface(page, "models.placement-error")
     # Editor stays open with the draft intact for correction — also across the
     # 5 s models poll, which repaints the pane's info but never its editor slot.
     assert editor.locator(".pe-startup").input_value() == "eager"

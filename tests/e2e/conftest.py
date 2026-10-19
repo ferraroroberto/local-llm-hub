@@ -27,6 +27,7 @@ import pytest
 
 from src import win_job
 from tests.e2e._isolated_hub import VIOLATIONS_FILE
+from tests.e2e._surface import pytest_collection_modifyitems  # noqa: F401
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 

@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import json
 
+from tests.e2e._surface import surface
+
 PHONE = {"width": 390, "height": 844}
 
 MODELS = {"models": [
@@ -120,6 +122,7 @@ def test_first_row_menu_opens_downward_and_uses_the_fleet_menu_size(browser, adm
         assert g["list"]["bottom"] <= g["nav"]["top"], g
         assert g["fontPx"] == 16, f"menu text should be body size: {g}"
         assert g["itemMinPx"] == 44 and g["glyphPx"] == 16, g
+        surface(page, "models.row-menu-phone")
     finally:
         context.close()
 

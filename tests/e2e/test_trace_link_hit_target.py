@@ -15,6 +15,8 @@ import json
 
 import pytest
 
+from tests.e2e._surface import surface
+
 pytestmark = pytest.mark.usefixtures("admin_url")
 
 PHONE = {"width": 390, "height": 844}
@@ -77,6 +79,7 @@ def test_trace_links_are_44px_targets_that_never_overlap(page, admin_url, viewpo
     ordered = sorted(rects, key=lambda r: r["top"])
     for a, b in zip(ordered, ordered[1:]):
         assert a["bottom"] <= b["top"] + 0.5, f"trace targets overlap: {ordered}"
+    surface(page, "hub.activity-requests")
 
     # The trace sheet: preview fallback, both scores, the Langfuse link.
     page.locator('#liveRequestsList [data-act="trace"]').first.click()
@@ -97,3 +100,4 @@ def test_trace_links_are_44px_targets_that_never_overlap(page, admin_url, viewpo
     assert "trace-0002-abcdef" in link.get_attribute("href")
     box = link.bounding_box()
     assert box["height"] >= 44, box
+    surface(page, "hub.trace-sheet-offline")

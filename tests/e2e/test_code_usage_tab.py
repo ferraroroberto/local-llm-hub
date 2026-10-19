@@ -26,6 +26,8 @@ from pathlib import Path
 import httpx
 import pytest
 
+from tests.e2e._surface import surface
+
 pytestmark = pytest.mark.usefixtures("admin_url")
 
 SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
@@ -299,6 +301,7 @@ def test_code_usage_tab_phone_screenshot(page, admin_url, browser_name):
     out = SNAPSHOT_DIR / f"code-usage-390x844-{browser_name}.png"
     page.screenshot(path=str(out), full_page=True)
     assert out.exists() and out.stat().st_size > 0
+    surface(page, "code-usage.tab")
 
 
 # The shape render() needs for a genuinely idle period: a *successful* summary
@@ -360,6 +363,7 @@ def test_failed_summary_renders_as_error_not_zero_usage(page, admin_url):
     page.wait_for_selector("#cldChartsCard", state="hidden", timeout=PANE_TIMEOUT)
     # The header line names the failure too (#739).
     assert "Usage not loaded" in page.inner_text("#codeHeadLine")
+    surface(page, "code-usage.error")
 
     # --- recovery into a real zero-usage period: zeroes, no error ---
     state["fail"] = False
@@ -375,3 +379,4 @@ def test_failed_summary_renders_as_error_not_zero_usage(page, admin_url):
     )
     assert page.inner_text("#cldSessionsBadge") == "0 sessions"
     assert "Usage not loaded" not in page.inner_text("#codeHeadLine")
+    surface(page, "code-usage.idle-period")

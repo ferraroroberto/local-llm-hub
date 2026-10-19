@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import pytest
 
+from tests.e2e._surface import surface
+
 PHONE_VIEWPORT = {"width": 390, "height": 844}
 
 
@@ -66,6 +68,7 @@ def test_diagnostics_dialog_has_a_visible_body_on_a_phone(phone_page, admin_url)
     card = page.locator(".machines-diag-card").bounding_box()
     header = page.locator(".machines-diag-card .detail-header").bounding_box()
     assert card["height"] > header["height"] * 2, "card is header-only"
+    surface(page, "machines.diagnostics-dialog")
 
 
 def test_diagnostics_dialog_defers_to_the_vendored_scroller(phone_page, admin_url):

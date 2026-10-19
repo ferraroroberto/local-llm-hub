@@ -31,6 +31,8 @@ import json
 
 from playwright.sync_api import expect
 
+from tests.e2e._surface import surface
+
 # A fixed fleet: the local tower (online), an offline Mac Mini, and a
 # nothing-placeable machine.
 FAKE_PLACEMENT = {
@@ -123,6 +125,7 @@ def test_fleet_summary_renders_read_only_host_groups(page, admin_url):
     claw_row = page.locator('.memory-row[data-host-id="openclaw"]')
     assert "not confirmed" in claw_row.locator(".memory-meter").inner_text()
     assert claw_row.locator(".meter-track").count() == 0
+    surface(page, "models.memory-glance")
 
     tower = _open_host(page, "tower")
     assert "This machine" in tower.locator(".fleet-host-state").inner_text()
@@ -149,6 +152,7 @@ def test_fleet_summary_renders_read_only_host_groups(page, admin_url):
 
     # #431: a summary, not a control plane — no control in the summary.
     assert tower.locator("button").count() == 0
+    surface(page, "models.host-summary")
 
     # A machine with nothing placeable still shows, with an honest note naming
     # the control that fills it (J-09, #647), rather than silently vanishing.
@@ -156,6 +160,7 @@ def test_fleet_summary_renders_read_only_host_groups(page, admin_url):
     assert claw.locator(".startup-row").count() == 0
     note = claw.locator(".fleet-host-note").inner_text().lower()
     assert "no models placeable" in note and "edit placement" in note
+    surface(page, "models.host-nothing-placeable")
 
 
 def test_offline_host_shows_deferred_note_not_error(page, admin_url):

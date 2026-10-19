@@ -13,6 +13,8 @@ import json
 
 import pytest
 
+from tests.e2e._surface import surface
+
 pytestmark = pytest.mark.usefixtures("admin_url")
 
 PHONE = {"width": 390, "height": 844}
@@ -96,12 +98,14 @@ def test_service_rows_read_in_two_lines_and_the_detail_opens(page, admin_url, vi
     assert face.locator('[data-act="svc-start"]').count() == 3
     head = page.locator("#hubHeadLine").text_content()
     assert "Docker down" in head, head
+    surface(page, "hub.services-stopped")
 
     _open_sheet(page)
     rows = page.evaluate(_ROW_FACTS)
     assert len(rows) == 3, rows
     for row in rows:
         assert row["lines"] <= 2, f"{row['name']} face is {row['lines']} lines: {row}"
+    surface(page, "hub.services-sheet-stopped")
 
     # Every long detail keeps its full text, one tap away on its own row.
     long_rows = page.locator("#servicesSheet .services-row details.services-detail")

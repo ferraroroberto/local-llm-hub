@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import json
 
+from tests.e2e._surface import surface
+
 FAKE_ROLES = {
     "roles": {
         "agentic_light": {
@@ -95,6 +97,7 @@ def test_roles_reach_the_model_sheet_on_models(page, admin_url):
             "(t) => (document.querySelector('#modelSheet[open]')?.innerText || '').includes(t)",
             arg=role, timeout=5000,
         )
+        surface(page, "models.model-sheet")
         page.click("#modelSheetCloseBtn")
 
 

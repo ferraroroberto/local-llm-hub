@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import pytest
 
+from tests.e2e._surface import surface
+
 PHONE = {"width": 390, "height": 844}
 DESKTOP = {"width": 1280, "height": 900}
 
@@ -61,6 +63,7 @@ def test_text_size_steps_change_the_root_and_persist(page, admin_url):
     pressed = page.locator('#textSizeControl .segmented-item[aria-pressed="true"]')
     assert pressed.count() == 1
     assert pressed.get_attribute("data-textsize") == "large"
+    surface(page, "settings.display")
 
     # Theme sits beside it in Display (#741): an explicit choice persists, and
     # System hands the page back to the device.

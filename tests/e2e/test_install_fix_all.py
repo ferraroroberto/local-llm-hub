@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 
+from tests.e2e._surface import surface
+
 
 def _status(checks):
     worst = "ok"
@@ -53,6 +55,7 @@ def test_fix_all_is_hidden_when_nothing_needs_fixing(page, admin_url):
     _open(page, admin_url, ALL_OK)
     assert page.locator("#installFixAllBtn").is_hidden()
     assert page.locator("#installRefreshBtn").is_visible()
+    surface(page, "settings.health-all-ok")
 
 
 def test_fix_all_appears_when_a_check_has_a_fix(page, admin_url):
@@ -61,3 +64,4 @@ def test_fix_all_appears_when_a_check_has_a_fix(page, admin_url):
     # The failing check is the row's value and Hub's header exception.
     assert "1 check failing" in page.inner_text("#installSummary")
     assert "install check failing" in page.inner_text("#hubHeadLine")
+    surface(page, "settings.health-fix-all")

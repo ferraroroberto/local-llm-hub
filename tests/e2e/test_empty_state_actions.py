@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import time
 
+from tests.e2e._surface import surface
+
 PHONE = {"width": 390, "height": 844}
 
 
@@ -43,6 +45,7 @@ def test_code_cards_wait_for_the_first_summary_then_name_their_control(page, adm
     page.wait_for_selector("#cldPending", state="visible", timeout=5000)
     for card in ("#cldProjectCard", "#cldChartsCard"):
         assert page.locator(card).is_hidden(), f"{card} is showing before the first summary"
+    surface(page, "code-usage.loading")
 
     released.append(True)
     for route in held:
@@ -53,15 +56,16 @@ def test_code_cards_wait_for_the_first_summary_then_name_their_control(page, adm
     # visible where it lives (the card, or the sheet its row opens) and names
     # the control that changes it (the period switch or agent filter above) or
     # carries its own action button.
-    for opener, empty in (
-        (None, "#cldProjectEmpty"),
-        ("#cldModelOpenBtn", "#cldModelEmpty"),
-        ("#cldSessionsOpenBtn", "#cldSessionsEmpty"),
+    for opener, empty, name in (
+        (None, "#cldProjectEmpty", "code-usage.project-empty"),
+        ("#cldModelOpenBtn", "#cldModelEmpty", "code-usage.model-sheet-empty"),
+        ("#cldSessionsOpenBtn", "#cldSessionsEmpty", "code-usage.sessions-sheet-empty"),
     ):
         if opener:
             page.click(opener)
         page.wait_for_selector(empty, state="visible", timeout=5000)
         text = page.locator(f"{empty} .empty-state-message").inner_text().lower()
+        surface(page, name)
         if opener:
             page.keyboard.press("Escape")
             page.wait_for_selector(empty, state="hidden", timeout=3000)
@@ -96,6 +100,7 @@ def test_hub_counters_and_errors_empties_name_what_to_do(page, admin_url):
     action = page.locator("#recentErrorsEmpty .empty-state-action")
     assert action.count() == 1, "recent errors empty state has no action"
     assert action.get_attribute("data-open-tab") == "playground"
+    surface(page, "hub.empty-counters")
 
 
 def test_playground_chat_empty_card_shows_only_its_sentence(page, admin_url):
@@ -120,6 +125,7 @@ def test_playground_chat_empty_card_shows_only_its_sentence(page, admin_url):
     assert card.locator(".opt-group-title").count() == 2
     assert card.locator(".opt-group-title:visible").count() == 0
     assert page.locator("#playgroundReply").is_hidden()
+    surface(page, "playground.chat-empty")
 
     page.fill("#playgroundPrompt", "An invented test prompt.")
     page.click("#playgroundSendBtn")

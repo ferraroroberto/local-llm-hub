@@ -17,6 +17,8 @@ import json
 
 import pytest
 
+from tests.e2e._surface import surface
+
 pytestmark = pytest.mark.usefixtures("admin_url")
 
 PANE_TIMEOUT = 10000
@@ -86,6 +88,7 @@ def test_trend_is_stacked_vendor_bars_with_a_total_tooltip(page, admin_url):
         ("Other", f"rgba({_GREY},1)"),
     ], got["sets"]
     assert got["sets"][0]["data"] == [4, 5, 3]
+    surface(page, "code-usage.trend")
 
     # Tooltip on Oct 11: Fable (zero that day) is left out, the total closes it.
     tip = page.evaluate("""() => {
