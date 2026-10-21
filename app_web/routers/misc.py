@@ -11,7 +11,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 
-from src.build_info import git_sha
+from src.process_identity import git_sha
 from src.static_versioning import fleet_hash_of, rewrite_index_html
 
 from ._helpers import PROJECT_ROOT, STATIC_DIR

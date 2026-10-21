@@ -651,7 +651,7 @@ async def peer_health(
     reachable-but-erroring version fetch never flips ``reachable`` back to
     ``False``.
     """
-    from src.build_info import git_sha
+    from src.process_identity import git_sha
     from src.host_profile import get_host
 
     owner = get_host(host_id)
