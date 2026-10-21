@@ -1242,7 +1242,8 @@ local-llm-hub/
 │   ├── cors_policy.py        # CORS policy — loopback-by-default origins, SDK request headers,
 │   │                         #   exposed response headers; installed outermost (#462)
 │   ├── event_loop.py         # Windows proactor-loop shim so uvicorn survives client aborts (#222)
-│   ├── build_info.py         # single source of truth for "what commit is this process running"
+│   ├── build_info.py         # vendored scaffold helper: build_identity() -> git_sha + built_at
+│   ├── process_identity.py   # this process's one build_identity() capture, shared by /admin/api/version, the index ETag and peer_health
 │   ├── services.py           # host-side service helpers: Docker engine + Langfuse stack (#27)
 │   ├── agentsview_service.py # optional AgentsView process lifecycle: probe/launch/stop
 │   │                         #   (moved from services.py, #533)
