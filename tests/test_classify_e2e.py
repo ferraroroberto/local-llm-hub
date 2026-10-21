@@ -50,6 +50,7 @@ def test_real_rules_route_representative_paths() -> None:
     assert tier("tests/test_server_process.py") == "skip"
     assert tier("docs/architecture.mmd") == "skip"
     assert tier("README.md") == "skip"
+    assert tier(".static-ratchet-baseline.json") == "skip"
 
     # Mixed real diff (backend + admin SPA) -> full.
     assert tier("src/server_process.py", "app_web/routers/hub.py") == "full"
