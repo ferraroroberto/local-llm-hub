@@ -6,8 +6,12 @@
 #
 # Steps:
 #   1. byte-compile every .py file under src/, app_web/, tray/, scripts/
-#   2. `pytest -q` (unit tests, no GPU / no real CLIs)
-#   3. `pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml`
+#   2. static ratchet: no new duplicate block (jscpd via npx) or unused
+#      import/variable (ruff F401,F841) beyond .static-ratchet-baseline.json.
+#      Whole tree, never routed; exit 3 (a detector could not run) is NOT
+#      CONFIRMED and fails, never a pass or a skip.
+#   3. `pytest -q` (unit tests, no GPU / no real CLIs)
+#   4. `pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml`
 #
 # Stops on the first failure.
 
@@ -34,6 +38,13 @@ function Step($label, $block) {
 
 Step "byte-compile" {
     & $Python -m compileall -q src app_web tray scripts
+}
+
+Step "static ratchet" {
+    # The wrapper maps the script's exit 3 to NOT CONFIRMED
+    # (tests/test_static_ratchet_gate.py pins it); call it, never
+    # scripts/static_ratchet.py directly.
+    & $Python -m scripts.static_ratchet_gate
 }
 
 Step "pytest (unit)" {
