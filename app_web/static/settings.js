@@ -132,8 +132,14 @@ function wireInstall() {
       const original = els.installFixAllBtn.textContent;
       els.installFixAllBtn.textContent = 'Running…';
       try {
-        await postJson('/admin/api/install/fix-all', {});
-        toast('Fix-all complete.', 'good');
+        const body = await postJson('/admin/api/install/fix-all', {});
+        const ran = (body && body.ran) || [];
+        const failed = ran.filter(function (r) { return !r.ok; });
+        if (failed.length) {
+          toast('Fix-all: ' + failed.map(function (r) { return r.fix_id + ' (' + r.error + ')'; }).join(', '), 'error');
+        } else {
+          toast('Fix-all complete.', 'good');
+        }
         await fetchInstallStatus();
       } catch (exc) {
         toast(String(exc.message || exc), 'error');

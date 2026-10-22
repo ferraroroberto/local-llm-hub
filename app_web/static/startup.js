@@ -59,6 +59,11 @@ function buildRow(label, on, apply) {
   labelSpan.textContent = label;
   li.appendChild(labelSpan);
 
+  // Mirrors dormant.js: `current` tracks the last-saved value so a failed
+  // toggle after an earlier successful one reverts to what is actually
+  // saved, not to the value captured when the row was built.
+  let current = on;
+
   const sw = switchEl(on, {
     label: label,
     onToggle: function (next, btn) {
@@ -66,12 +71,13 @@ function buildRow(label, on, apply) {
       btn.disabled = true;
       apply(next)
         .then(function (body) {
+          current = next;
           setSwitch(btn, next);
           if (body && body.profile) state.startupProfile.profile = body.profile;
           renderSummary();
         })
         .catch(function (exc) {
-          setSwitch(btn, on);
+          setSwitch(btn, current);
           toast(String(exc.message || exc), 'error');
         })
         .finally(function () { btn.disabled = false; });
