@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "entries": [
+    {"key": "docs/add-tts.md", "markers": 4},
+    {"key": "docs/ci-e2e-decision.md", "markers": 4},
+    {"key": "docs/code-usage-agentsview.md", "markers": 6},
+    {"key": "docs/coding-agent-usage.md", "markers": 1},
+    {"key": "docs/diagnostics.md", "markers": 12},
+    {"key": "docs/fleet-maintenance.md", "markers": 6},
+    {"key": "docs/frontier-workflow.md", "markers": 5},
+    {"key": "docs/frontier/local-findings.md", "markers": 17},
+    {"key": "docs/gemini-agy-backend.md", "markers": 1},
+    {"key": "docs/glm-5.2-evaluation.md", "markers": 2},
+    {"key": "docs/glm-performance-assessment.md", "markers": 2},
+    {"key": "docs/image-generation.md", "markers": 21},
+    {"key": "docs/jev-call-site-survey.md", "markers": 9},
+    {"key": "docs/machines.md", "markers": 25},
+    {"key": "docs/model-comparison.md", "markers": 17},
+    {"key": "docs/models-and-roles.md", "markers": 1},
+    {"key": "docs/orpheus-throughput.md", "markers": 6},
+    {"key": "docs/parakeet-asr-evaluation.md", "markers": 64},
+    {"key": "docs/playbook-cli-backend-migration.md", "markers": 1},
+    {"key": "docs/project-structure.md", "markers": 10},
+    {"key": "docs/telemetry-langfuse.md", "markers": 10},
+    {"key": "docs/voice-benchmark.md", "markers": 6},
+    {"key": "docs/webapp-architecture-notes.md", "markers": 2},
+    {"key": "docs/webapp-design-language.md", "markers": 18},
+    {"key": "docs/whisper-asr.md", "markers": 2},
+    {"key": "docs/whisper-turbo-vs-large-v3.md", "markers": 1}
+  ]
+}

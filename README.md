@@ -218,6 +218,17 @@ PR that removes some:
 .venv\Scripts\python -m scripts.static_ratchet_gate
 ```
 
+Docs ratchet (the history-free docs convention: `README.md` stays under
+40 KiB, and `README.md` plus `docs/**/*.md` gain no issue reference, dated
+heading or changelog heading). Existing markers live in
+`.docs-ratchet-baseline.json` and can only shrink; run
+`.venv\Scripts\python scripts\docs_ratchet.py --update-baseline` in the PR
+that rewrites some as present-tense prose:
+
+```bat
+.venv\Scripts\python -m scripts.docs_ratchet_gate
+```
+
 End-to-end smoke test (requires hub + whichever backends you care
 about running):
 
