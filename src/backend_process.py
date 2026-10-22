@@ -574,6 +574,17 @@ def inherit_running_backends() -> int:
         return 0
 
     listening = snapshot_listening_pids()
+    if listening is None:
+        # Snapshot itself failed (already logged there) — we cannot tell
+        # which ports are bound, so adopt nothing rather than guess. Note
+        # this loudly: a silent 0 here reads as "nothing to inherit" when
+        # the real answer is "couldn't check".
+        import logging
+        logging.getLogger(__name__).warning(
+            "inherit_running_backends: listening-port snapshot unknown — "
+            "adopting nothing this restart"
+        )
+        return 0
     count = 0
     for m in local_models():
         if m.backend not in SPAWNABLE_BACKENDS:

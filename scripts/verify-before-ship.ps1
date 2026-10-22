@@ -14,8 +14,11 @@
 #      heading in README.md or docs/**/*.md, and a README no larger than its
 #      baseline, beyond .docs-ratchet-baseline.json. Whole tree, never
 #      routed; exit 3 (a doc could not be read) is NOT CONFIRMED and fails.
-#   4. `pytest -q` (unit tests, no GPU / no real CLIs)
-#   5. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
+#   4. comment ratchet: no file's count of `#NNN` issue references inside
+#      source comments rises beyond .comment-ratchet-baseline.json. Whole
+#      tree, never routed; exit 3 (a file could not be scanned) fails.
+#   5. `pytest -q` (unit tests, no GPU / no real CLIs)
+#   6. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
 #      the .fleet.toml [e2e] rules): nothing for a docs/backend-only diff, a
 #      smoke target or one surface's slice for a narrow one, otherwise
 #      `pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml`.
@@ -60,6 +63,13 @@ Step "docs ratchet" {
     # CONFIRMED (tests/test_docs_ratchet_gate.py pins it); call it, never
     # scripts/docs_ratchet.py directly.
     & $Python -m scripts.docs_ratchet_gate
+}
+
+Step "comment ratchet" {
+    # No gate wrapper needed (unlike static/docs ratchet): exit 3 (a file
+    # could not be scanned) already propagates as a failure here, same as
+    # exit 1/2 — never a pass or a skip.
+    & $Python scripts/comment_ratchet.py
 }
 
 Step "pytest (unit)" {

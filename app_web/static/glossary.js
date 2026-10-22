@@ -225,7 +225,7 @@ export function mountGlossaryEditor(container) {
     head.className = 'glossary-suggest-head';
     head.innerHTML = icon('sparkles');
     head.append(' Suggestions · ' + (meta.n_sessions || 0) + ' transcript(s), last ' + (meta.days || '?') + 'd'
-      + (meta.llm_used ? ' · LLM-assisted' : ''));
+      + (meta.llm_used ? ' · LLM-assisted' : (meta.llm_failed ? ' · LLM pass failed' : '')));
     suggestWrap.appendChild(head);
 
     const boosts = body.boost_terms || [];

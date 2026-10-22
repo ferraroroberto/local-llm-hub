@@ -421,31 +421,38 @@ function renderServices() {
   if (!body) return;
   const docker = body.docker || {};
   const lf = body.langfuse || {};
+  // When the status probe itself failed, docker/langfuse are `unknown`, not
+  // confirmed down — render "not confirmed" with no tone and hide their
+  // Start/Stop buttons rather than painting a confident "down".
+  const probeFailed = !!body.probeFailed;
 
-  setStatusPill(els.dockerStatus, els.dockerStatusText, docker.running ? '' : 'danger', docker.running ? 'up' : 'down');
-  setDetail(els.dockerDetail, docker.running
+  setStatusPill(els.dockerStatus, els.dockerStatusText,
+    probeFailed ? '' : (docker.running ? '' : 'danger'),
+    probeFailed ? 'not confirmed' : (docker.running ? 'up' : 'down'));
+  setDetail(els.dockerDetail, probeFailed ? '' : (docker.running
     ? (docker.server_version ? 'engine ' + docker.server_version : '')
-    : (docker.error || ''));
+    : (docker.error || '')));
   // Start/Stop (#284) — only offered where launch_docker_desktop() actually
   // knows how (win32 + a found Docker Desktop install).
   if (els.dockerStartBtn) {
-    els.dockerStartBtn.hidden = !(body.launchable && !docker.running);
+    els.dockerStartBtn.hidden = probeFailed || !(body.launchable && !docker.running);
     els.dockerStartBtn.disabled = state.dockerBusy;
   }
   if (els.dockerStopBtn) {
-    els.dockerStopBtn.hidden = !(body.launchable && docker.running);
+    els.dockerStopBtn.hidden = probeFailed || !(body.launchable && docker.running);
     els.dockerStopBtn.disabled = state.dockerBusy;
   }
 
   setStatusPill(els.langfuseStatus, els.langfuseStatusText,
-    lf.reachable ? '' : (docker.running ? 'warn' : 'danger'), lf.reachable ? 'up' : 'down');
-  setDetail(els.langfuseDetail, lf.reachable ? '' : (lf.error || ''));
+    probeFailed ? '' : (lf.reachable ? '' : (docker.running ? 'warn' : 'danger')),
+    probeFailed ? 'not confirmed' : (lf.reachable ? 'up' : 'down'));
+  setDetail(els.langfuseDetail, probeFailed ? '' : (lf.reachable ? '' : (lf.error || '')));
   if (els.langfuseStartBtn) {
-    els.langfuseStartBtn.hidden = lf.reachable;
+    els.langfuseStartBtn.hidden = probeFailed || lf.reachable;
     els.langfuseStartBtn.disabled = state.langfuseBusy;
   }
   if (els.langfuseStopBtn) {
-    els.langfuseStopBtn.hidden = !lf.reachable;
+    els.langfuseStopBtn.hidden = probeFailed || !lf.reachable;
     els.langfuseStopBtn.disabled = state.langfuseBusy;
   }
 

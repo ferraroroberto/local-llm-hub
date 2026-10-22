@@ -22,7 +22,7 @@ from .server_process import snapshot_listening_pids
 
 
 async def local_reachability(
-    models: Sequence[Model], listening: Dict[int, Any]
+    models: Sequence[Model], listening: Optional[Dict[int, Any]]
 ) -> List[bool]:
     """Reachability of host-local ``models``, in order.
 
@@ -30,12 +30,19 @@ async def local_reachability(
     port that isn't bound is reported down without an HTTP probe, which would
     otherwise cost a timeout per dead backend. Subscription-backed rows
     (claude/gemini) are always "live" when the hub itself answered.
+
+    ``listening=None`` means the snapshot itself failed (already logged
+    there) — every port is probed directly over HTTP instead of being
+    short-circuited to "down", so one failed port-scan doesn't paint every
+    local model as stopped.
     """
 
     async def _probe(m: Model) -> bool:
         if m.backend in ("claude", "gemini"):
             return True
-        if not m.port or m.port not in listening:
+        if not m.port:
+            return False
+        if listening is not None and m.port not in listening:
             return False
         return await asyncio.to_thread(bp.is_reachable, m, bp.LIVENESS_PROBE_TIMEOUT_S)
 
