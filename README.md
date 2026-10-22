@@ -194,7 +194,9 @@ LAN access: [docs/running.md](docs/running.md).
 ## Test
 
 The verification gate runs byte-compile, unit tests and the Chromium e2e suite
-(same steps as CI):
+(same steps as CI, except that locally the e2e stage is routed by the diff: a
+docs-only change skips it and prints why, and anything the router cannot read
+runs the full suite):
 
 ```powershell
 .\scripts\verify-before-ship.ps1

@@ -11,7 +11,11 @@
 #      Whole tree, never routed; exit 3 (a detector could not run) is NOT
 #      CONFIRMED and fails, never a pass or a skip.
 #   3. `pytest -q` (unit tests, no GPU / no real CLIs)
-#   4. `pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml`
+#   4. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
+#      the .fleet.toml [e2e] rules): nothing for a docs/backend-only diff, a
+#      smoke target or one surface's slice for a narrow one, otherwise
+#      `pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml`.
+#      Anything the router cannot read runs the full suite, never less.
 #
 # Stops on the first failure.
 
@@ -51,10 +55,44 @@ Step "pytest (unit)" {
     & $Python -m pytest -q --ignore=tests/e2e
 }
 
-Step "pytest (e2e · chromium)" {
-    # JUnit record of the run: /e2e-audit reads per-test seconds from it
-    # ([e2e] junit_xml in .fleet.toml). Git-ignored, overwritten each run.
-    & $Python -m pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml
+# Diff-proportionate e2e (#843): the router prints E2E_* lines and owns the
+# fail-safe (scripts/e2e_route.py). The only doubt left here is the wrapper
+# itself dying before it prints a tier, which also runs the whole suite.
+$tier = "full"; $e2eTarget = "tests/e2e"; $e2eBrowsers = "chromium"
+$routeReason = "e2e router gave no verdict -- running the full suite (fail-safe)"
+$routeOut = & $Python -m scripts.e2e_route
+$routeExit = $LASTEXITCODE
+$kv = @{}
+foreach ($line in $routeOut) {
+    if ($line -match '^(E2E_[A-Z_]+)=(.*)$') { $kv[$matches[1]] = $matches[2] }
+}
+if ($routeExit -eq 0 -and $kv["E2E_TIER"]) {
+    $tier = $kv["E2E_TIER"]
+    $e2eTarget = $kv["E2E_PYTEST_TARGET"]
+    $e2eBrowsers = $kv["E2E_BROWSERS"]
+    $routeReason = $kv["E2E_REASON"]
+}
+
+if ($tier -eq "skip") {
+    Write-Host ""
+    Write-Host "▶ pytest (e2e) · skipped, diff touches no e2e surface" -ForegroundColor Cyan
+    Write-Host "   reason: $routeReason" -ForegroundColor DarkGray
+    Write-Host "✅ pytest (e2e) skipped" -ForegroundColor Green
+} else {
+    Write-Host ""
+    Write-Host "e2e routing: $tier" -ForegroundColor Cyan
+    Write-Host "   reason: $routeReason" -ForegroundColor DarkGray
+    # A surface slice over several modules arrives space-joined; pytest needs
+    # each as its own argument.
+    $e2eArgs = @($e2eTarget -split '\s+' | Where-Object { $_ })
+    foreach ($b in ($e2eBrowsers -split ',' | Where-Object { $_ })) {
+        $e2eArgs += @("--browser", $b)
+    }
+    Step "pytest (e2e · ${tier}: $e2eTarget · $e2eBrowsers)" {
+        # JUnit record of the run: /e2e-audit reads per-test seconds from it
+        # ([e2e] junit_xml in .fleet.toml). Git-ignored, overwritten each run.
+        & $Python -m pytest @e2eArgs -q --junitxml=data/e2e-junit.xml
+    }
 }
 
 Write-Host ""
