@@ -18,13 +18,10 @@ These tests verify:
 
 from __future__ import annotations
 
-import io
 import os
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
-import pytest  # noqa: E402
-import httpx  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from src import server as server_mod  # noqa: E402
@@ -65,7 +62,7 @@ def _patch_async_client(monkeypatch, calls: list):
 
 def _minimal_wav_bytes() -> bytes:
     """Return a tiny but valid WAV payload (44-byte header, zero frames)."""
-    import struct, wave, io as _io
+    import wave, io as _io
     buf = _io.BytesIO()
     with wave.open(buf, "wb") as w:
         w.setnchannels(1)

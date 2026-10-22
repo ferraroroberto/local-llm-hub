@@ -24,7 +24,6 @@ a port held by someone else.
 from __future__ import annotations
 
 import os
-import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -37,7 +36,6 @@ from .model_registry import (
     Model,
     enabled_models,
     local_models,
-    resolve as resolve_model,
 )
 from .process_supervisor import ProcessSupervisor, SpawnSpec
 from .server_process import (

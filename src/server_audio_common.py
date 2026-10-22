@@ -20,8 +20,6 @@ import re
 
 from fastapi import HTTPException
 
-from .model_registry import Model
-
 logger = logging.getLogger(__name__)
 
 # Response headers naming the model/host pair behind an audio request (#412).

@@ -9,7 +9,6 @@ end to end without waiting on a timed run.
 
 from __future__ import annotations
 
-import asyncio
 import time
 
 import pytest

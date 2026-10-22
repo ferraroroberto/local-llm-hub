@@ -8,7 +8,6 @@ Code actually sends (verified against a real capture during planning).
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import pytest
 

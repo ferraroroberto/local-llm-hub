@@ -20,6 +20,14 @@ from src import chat_translation as chat_translation_mod
 from src import server as server_mod
 
 
+def _ok_envelope(text: str = "ok"):
+    return {
+        "type": "result", "is_error": False, "result": text,
+        "stop_reason": "end_turn",
+        "usage": {"input_tokens": 0, "output_tokens": 0},
+    }
+
+
 def _fake_openai_response(text: str = "pong"):
     return {
         "id": "chatcmpl-xyz",
@@ -130,13 +138,7 @@ def test_messages_routes_gemini_backend(monkeypatch):
         captured["prompt"] = prompt
         captured["model"] = model
         captured["system"] = system
-        return {
-            "type": "result",
-            "is_error": False,
-            "result": "g-pong",
-            "stop_reason": "end_turn",
-            "usage": {"input_tokens": 0, "output_tokens": 0},
-        }
+        return _ok_envelope("g-pong")
 
     monkeypatch.setattr(chat_translation_mod, "call_gemini", fake_call)
 
@@ -164,11 +166,7 @@ def test_messages_routes_gemini_alias(monkeypatch):
 
     def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         captured["model"] = model
-        return {
-            "type": "result", "is_error": False, "result": "ok",
-            "stop_reason": "end_turn",
-            "usage": {"input_tokens": 0, "output_tokens": 0},
-        }
+        return _ok_envelope()
 
     monkeypatch.setattr(chat_translation_mod, "call_gemini", fake_call)
 
@@ -191,11 +189,7 @@ def test_messages_routes_claude_alias(monkeypatch):
 
     def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         captured["model"] = model
-        return {
-            "type": "result", "is_error": False, "result": "ok",
-            "stop_reason": "end_turn",
-            "usage": {"input_tokens": 0, "output_tokens": 0},
-        }
+        return _ok_envelope()
 
     monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
 
@@ -214,11 +208,7 @@ def test_messages_routes_claude_alias(monkeypatch):
 
 def test_chat_completions_routes_gemini(monkeypatch):
     def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
-        return {
-            "type": "result", "is_error": False, "result": "chat-ok",
-            "stop_reason": "end_turn",
-            "usage": {"input_tokens": 0, "output_tokens": 0},
-        }
+        return _ok_envelope("chat-ok")
 
     monkeypatch.setattr(server_mod, "call_gemini", fake_call)
 
@@ -246,11 +236,7 @@ def test_chat_completions_multi_turn_flattens_same_as_messages(monkeypatch):
     def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         captured["prompt"] = prompt
         captured["system"] = system
-        return {
-            "type": "result", "is_error": False, "result": "ok",
-            "stop_reason": "end_turn",
-            "usage": {"input_tokens": 0, "output_tokens": 0},
-        }
+        return _ok_envelope()
 
     monkeypatch.setattr(server_mod, "call_claude", fake_call)
 
@@ -281,11 +267,7 @@ def test_chat_completions_single_turn_unwraps_like_messages(monkeypatch):
 
     def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         captured["prompt"] = prompt
-        return {
-            "type": "result", "is_error": False, "result": "ok",
-            "stop_reason": "end_turn",
-            "usage": {"input_tokens": 0, "output_tokens": 0},
-        }
+        return _ok_envelope()
 
     monkeypatch.setattr(server_mod, "call_claude", fake_call)
 
@@ -310,11 +292,7 @@ def test_chat_completions_refuses_image_url_instead_of_dropping_it(monkeypatch):
 
     def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         called["n"] += 1
-        return {
-            "type": "result", "is_error": False, "result": "ok",
-            "stop_reason": "end_turn",
-            "usage": {"input_tokens": 0, "output_tokens": 0},
-        }
+        return _ok_envelope()
 
     monkeypatch.setattr(server_mod, "call_claude", fake_call)
 
@@ -451,11 +429,7 @@ def test_chat_completions_still_accepts_all_text_parts(monkeypatch):
 
     def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         captured["prompt"] = prompt
-        return {
-            "type": "result", "is_error": False, "result": "ok",
-            "stop_reason": "end_turn",
-            "usage": {"input_tokens": 0, "output_tokens": 0},
-        }
+        return _ok_envelope()
 
     monkeypatch.setattr(server_mod, "call_claude", fake_call)
 

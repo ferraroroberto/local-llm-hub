@@ -13,7 +13,6 @@ import os
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
-import pytest  # noqa: E402
 
 from src.transcription_glossary import (  # noqa: E402
     apply_rules,

@@ -59,6 +59,31 @@ def _on_demand_config(write_config, monkeypatch, *, transcribe: dict, extra_mode
     monkeypatch.setattr(transcription_glossary, "load_rules", lambda: [])
 
 
+def _stub_ok_upstream(monkeypatch) -> list:
+    """Make every candidate ready and answer 200; returns the kwargs of each POST."""
+    monkeypatch.setattr(server_audio_asr, "ensure_backend_ready_or_503", lambda m: None)
+    calls = []
+
+    def handler(url, kwargs):
+        calls.append(kwargs)
+        return _FakeResp(200, b'{"text":"ok"}')
+
+    monkeypatch.setattr(server_audio_asr, "get_async_client", lambda: _FakeClient(handler))
+    return calls
+
+
+def _wv_auto_language_config(write_config, monkeypatch) -> None:
+    _on_demand_config(
+        write_config, monkeypatch,
+        transcribe={"model_id": "wv"},
+        extra_models={
+            "wv": {"display_name": "whisper-vanilla", "backend": "whisper",
+                   "engine": "whisper-server", "port": 9004,
+                   "args": ["--language", "auto"]},
+        },
+    )
+
+
 # --------------------------------------------------------------------------- #
 # on-demand spawn + idle tracking (#422/#530)
 # --------------------------------------------------------------------------- #
@@ -151,23 +176,8 @@ def test_on_demand_spawn_failure_fails_over_to_next_candidate(monkeypatch, write
 # default-language injection (#128, folded in from the shim by #530)
 # --------------------------------------------------------------------------- #
 def test_default_language_injected_when_caller_omits_one(monkeypatch, write_config):
-    _on_demand_config(
-        write_config, monkeypatch,
-        transcribe={"model_id": "wv"},
-        extra_models={
-            "wv": {"display_name": "whisper-vanilla", "backend": "whisper",
-                   "engine": "whisper-server", "port": 9004,
-                   "args": ["--language", "auto"]},
-        },
-    )
-    monkeypatch.setattr(server_audio_asr, "ensure_backend_ready_or_503", lambda m: None)
-    calls = []
-
-    def handler(url, kwargs):
-        calls.append(kwargs)
-        return _FakeResp(200, b'{"text":"ok"}')
-
-    monkeypatch.setattr(server_audio_asr, "get_async_client", lambda: _FakeClient(handler))
+    _wv_auto_language_config(write_config, monkeypatch)
+    calls = _stub_ok_upstream(monkeypatch)
     req = _FakeFormReq(data={}, body=_model_body("wv"))
     resp = _proxy(req)
     assert resp.status_code == 200
@@ -176,23 +186,8 @@ def test_default_language_injected_when_caller_omits_one(monkeypatch, write_conf
 
 
 def test_caller_supplied_language_is_never_overwritten(monkeypatch, write_config):
-    _on_demand_config(
-        write_config, monkeypatch,
-        transcribe={"model_id": "wv"},
-        extra_models={
-            "wv": {"display_name": "whisper-vanilla", "backend": "whisper",
-                   "engine": "whisper-server", "port": 9004,
-                   "args": ["--language", "auto"]},
-        },
-    )
-    monkeypatch.setattr(server_audio_asr, "ensure_backend_ready_or_503", lambda m: None)
-    calls = []
-
-    def handler(url, kwargs):
-        calls.append(kwargs)
-        return _FakeResp(200, b'{"text":"ok"}')
-
-    monkeypatch.setattr(server_audio_asr, "get_async_client", lambda: _FakeClient(handler))
+    _wv_auto_language_config(write_config, monkeypatch)
+    calls = _stub_ok_upstream(monkeypatch)
     req = _FakeFormReq(data={"language": "es"}, body=_model_body("wv"))
     resp = _proxy(req)
     assert resp.status_code == 200
@@ -211,14 +206,7 @@ def test_no_default_language_stays_on_raw_bytes_path(monkeypatch, write_config):
                    "engine": "whisper-server", "port": 9001},
         },
     )
-    monkeypatch.setattr(server_audio_asr, "ensure_backend_ready_or_503", lambda m: None)
-    calls = []
-
-    def handler(url, kwargs):
-        calls.append(kwargs)
-        return _FakeResp(200, b'{"text":"ok"}')
-
-    monkeypatch.setattr(server_audio_asr, "get_async_client", lambda: _FakeClient(handler))
+    calls = _stub_ok_upstream(monkeypatch)
     resp = _proxy(_FakeReq())   # no .form() on this fake — would blow up if called
     assert resp.status_code == 200
     assert "content" in calls[0]

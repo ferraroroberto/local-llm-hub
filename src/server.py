@@ -273,12 +273,8 @@ install_cors(app, getattr(app.state, "webapp_config", None))
 
 # Startup/shutdown handlers + the background resource sampler live in
 # server_lifecycle.py (issue #198) — server.py stays app construction +
-# route registration. ``_stop_backend_children`` is re-exported under its
-# original name since tests/test_restart_keepalive.py calls it directly.
-from .server_lifecycle import (  # noqa: E402
-    register as _register_lifecycle,
-    stop_backend_children as _stop_backend_children,
-)
+# route registration.
+from .server_lifecycle import register as _register_lifecycle  # noqa: E402
 
 _register_lifecycle(app)
 

@@ -47,6 +47,29 @@ def _stub_envelope(text: str = "described"):
     }
 
 
+def _assert_temp_dir_cleaned_up(monkeypatch, block: dict) -> None:
+    """Post one attachment block down the claude path; its temp dir must be gone after."""
+    seen_path: dict = {}
+
+    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
+        assert attachments and len(attachments) == 1
+        seen_path["path"] = Path(attachments[0])
+        assert seen_path["path"].exists()
+        return _stub_envelope()
+
+    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
+
+    client = TestClient(server_mod.app)
+    r = client.post("/v1/messages", json={
+        "model": "claude-haiku-5-5",
+        "messages": [{"role": "user", "content": [block]}],
+    })
+    assert r.status_code == 200
+    # After the response, the dir is gone.
+    assert not seen_path["path"].exists()
+    assert not seen_path["path"].parent.exists()
+
+
 def _err_message(response) -> str:
     """Message out of /v1/messages' Anthropic error envelope (#460)."""
     return response.json()["error"]["message"]
@@ -91,33 +114,9 @@ def test_claude_path_writes_image_and_passes_to_cli(monkeypatch):
 
 def test_claude_path_temp_dir_cleaned_up_after_call(monkeypatch):
     """The per-request temp dir must not survive the response."""
-    seen_path: dict = {}
-
-    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
-        assert attachments and len(attachments) == 1
-        seen_path["path"] = Path(attachments[0])
-        assert seen_path["path"].exists()
-        return _stub_envelope()
-
-    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
-
-    client = TestClient(server_mod.app)
-    r = client.post("/v1/messages", json={
-        "model": "claude-haiku-5-5",
-        "messages": [{
-            "role": "user",
-            "content": [
-                {"type": "image", "source": {
-                    "type": "base64", "media_type": "image/png",
-                    "data": _RED_PIXEL_B64,
-                }},
-            ],
-        }],
-    })
-    assert r.status_code == 200
-    # After the response, the dir is gone.
-    assert not seen_path["path"].exists()
-    assert not seen_path["path"].parent.exists()
+    _assert_temp_dir_cleaned_up(monkeypatch, {"type": "image", "source": {
+        "type": "base64", "media_type": "image/png", "data": _RED_PIXEL_B64,
+    }})
 
 
 def test_gemini_path_writes_image_and_passes_to_cli(monkeypatch):
@@ -335,32 +334,9 @@ def test_gemini_path_writes_pdf_and_passes_to_cli(monkeypatch):
 
 def test_claude_path_pdf_temp_dir_cleaned_up_after_call(monkeypatch):
     """The per-request temp dir must not survive the response."""
-    seen_path: dict = {}
-
-    def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
-        assert attachments and len(attachments) == 1
-        seen_path["path"] = Path(attachments[0])
-        assert seen_path["path"].exists()
-        return _stub_envelope()
-
-    monkeypatch.setattr(chat_translation_mod, "call_claude", fake_call)
-
-    client = TestClient(server_mod.app)
-    r = client.post("/v1/messages", json={
-        "model": "claude-haiku-5-5",
-        "messages": [{
-            "role": "user",
-            "content": [
-                {"type": "document", "source": {
-                    "type": "base64", "media_type": "application/pdf",
-                    "data": _TINY_PDF_B64,
-                }},
-            ],
-        }],
-    })
-    assert r.status_code == 200
-    assert not seen_path["path"].exists()
-    assert not seen_path["path"].parent.exists()
+    _assert_temp_dir_cleaned_up(monkeypatch, {"type": "document", "source": {
+        "type": "base64", "media_type": "application/pdf", "data": _TINY_PDF_B64,
+    }})
 
 
 def test_url_document_falls_back_to_text_reference(monkeypatch):
