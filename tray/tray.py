@@ -37,7 +37,6 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import httpx
-import psutil
 import pystray
 import yaml
 

@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-from app_web.routers import code_usage as router_mod
 from src import agentsview_usage as av
 from src import claude_code_otel, code_usage, codex_usage, copilot_usage
 from src import server as server_mod

@@ -40,14 +40,8 @@ from ..model_registry import Model
 from .chatterbox import ChatterboxEngine
 from .common import PROJECT_ROOT, SpeechRequest, TTSEngine, VOICES_DIR, resolve_device, resolve_voice_clip
 from .kokoro import KokoroEngine
-from .orpheus import (
-    OrpheusEngine,
-    _MAX_CHARS_PER_CHUNK,
-    _N_PREDICT,
-    _ORPHEUS_TOKEN_RE,
-    _SNAC_CODEBOOK,
-)
-from .piper import PiperEngine, _PiperProc
+from .orpheus import OrpheusEngine
+from .piper import PiperEngine
 
 __all__ = [
     "TTSEngine",

@@ -9,10 +9,8 @@ OTLP endpoint.
 
 from __future__ import annotations
 
-import os
 import uuid
 
-import pytest
 
 from src import observability as obs
 

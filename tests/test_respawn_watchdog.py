@@ -119,7 +119,6 @@ def test_run_full_orchestration_waits_dies_relaunches_and_logs_success(monkeypat
     relaunch -> poll-for-reachable -> log correctly.
     """
     import subprocess as sp
-    import time as _time
 
     # A short-lived real process to be "parent" — dies almost immediately.
     dying_parent = sp.Popen([sys.executable, "-c", "pass"])

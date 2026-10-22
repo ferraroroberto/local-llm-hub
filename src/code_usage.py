@@ -47,7 +47,6 @@ from src.usage_charts import MAX_DAILY_DAYS, build_prev_totals, build_time_serie
 from src.usage_common import (
     FileStats,
     UsageRecord,
-    encode_project_key,
     iter_jsonl,
     load_cached,
     model_display,

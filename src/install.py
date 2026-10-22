@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 
 from .backend_process import llama_server_binary, whisper_server_binary
 from .host_profile import hub_port, resolve as resolve_host
-from .model_registry import SPAWNABLE_BACKENDS, Model, local_models
+from .model_registry import SPAWNABLE_BACKENDS, local_models
 from .no_window import NO_WINDOW
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

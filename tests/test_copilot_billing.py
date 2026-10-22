@@ -14,7 +14,7 @@ one re-fetch the first time a not-yet-settled day is seen as no longer
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -53,7 +53,6 @@ def _set_now(monkeypatch, when: datetime) -> None:
 
 def test_day_cached_pre_midnight_is_refetched_once_after_rollover(monkeypatch):
     aug27 = date(2026, 8, 27)
-    aug28 = date(2026, 8, 28)
 
     calls_for_aug27: list[float] = []
 

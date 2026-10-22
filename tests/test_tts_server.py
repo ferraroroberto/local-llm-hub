@@ -245,7 +245,7 @@ def test_speech_non_streaming_unchanged(tmp_path, monkeypatch):
 
 def _tok(code: int, pos: int) -> str:
     """Build the <custom_token_N> text that decodes to ``code`` at ``pos``."""
-    from src.tts_engines import _SNAC_CODEBOOK
+    from src.tts_engines.orpheus import _SNAC_CODEBOOK
 
     return f"<custom_token_{code + 10 + (pos % 7) * _SNAC_CODEBOOK}>"
 
@@ -497,7 +497,7 @@ def test_split_into_chunks_short_input_is_returned_unchanged():
 
 
 def test_split_into_chunks_long_input_packs_under_budget():
-    from src.tts_engines import OrpheusEngine, _MAX_CHARS_PER_CHUNK
+    from src.tts_engines.orpheus import OrpheusEngine, _MAX_CHARS_PER_CHUNK
 
     text = _sentences(200)
     chunks = OrpheusEngine._split_into_chunks(text)
@@ -509,7 +509,7 @@ def test_split_into_chunks_long_input_packs_under_budget():
 
 
 def test_split_into_chunks_hard_wraps_oversized_sentence():
-    from src.tts_engines import OrpheusEngine, _MAX_CHARS_PER_CHUNK
+    from src.tts_engines.orpheus import OrpheusEngine, _MAX_CHARS_PER_CHUNK
 
     giant = ("word " * 300).strip()  # one ~1500-char sentence, no terminator
     chunks = OrpheusEngine._split_into_chunks(giant)
@@ -528,8 +528,8 @@ def test_synthesize_long_input_is_not_truncated(monkeypatch):
     from types import SimpleNamespace
 
     np = pytest.importorskip("numpy")
-    from src import tts_engines
-    from src.tts_engines import OrpheusEngine, SpeechRequest, _N_PREDICT
+    from src.tts_engines import OrpheusEngine, SpeechRequest
+    from src.tts_engines.orpheus import _N_PREDICT
 
     eng = OrpheusEngine(SimpleNamespace(internal_port=18093), device="cpu")
     monkeypatch.setattr(eng, "ready", lambda: True)
@@ -580,7 +580,8 @@ def test_synthesize_stream_long_input_streams_past_cap(monkeypatch):
     from types import SimpleNamespace
 
     np = pytest.importorskip("numpy")
-    from src.tts_engines import OrpheusEngine, SpeechRequest, _N_PREDICT
+    from src.tts_engines import OrpheusEngine, SpeechRequest
+    from src.tts_engines.orpheus import _N_PREDICT
 
     eng = OrpheusEngine(SimpleNamespace(internal_port=18093), device="cpu")
     monkeypatch.setattr(eng, "ready", lambda: True)

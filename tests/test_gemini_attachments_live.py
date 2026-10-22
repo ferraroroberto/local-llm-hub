@@ -25,10 +25,8 @@ from __future__ import annotations
 import os
 import shutil
 import string
-import tempfile
 import random
 from pathlib import Path
-from typing import Optional
 
 import pytest
 

@@ -7,7 +7,7 @@ path, and the requests-weight flow through get_summary.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from src import code_usage, code_usage_history as hist
 from src.usage_common import UsageRecord

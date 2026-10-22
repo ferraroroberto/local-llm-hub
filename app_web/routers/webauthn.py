@@ -26,7 +26,7 @@ from src.webapp_config import WebappConfig
 from src.webauthn_gate import WebAuthnGate
 
 from ..middleware import LOOPBACK_HOSTS, _is_proxied
-from ._helpers import client_ip, loaded_webapp_config, maybe_json
+from ._helpers import loaded_webapp_config, maybe_json
 
 router = APIRouter()
 
