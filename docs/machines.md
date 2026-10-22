@@ -38,8 +38,8 @@ dispatcher (`linux/bin/hub-remote-ctl.sh`, #368) and the
 the unit via `sudo -n tee`. All use `sudo -n`, so a missing/incorrect drop-in
 fails fast with "a password is required" instead of hanging. The bootstrap/sync
 verbs themselves ride the dedicated **forced-command** SSH key (the
-`authorized_keys` line is documented in the README's "Linux satellite
-lifecycle" section), separate from this general-SSH sudo channel.
+`authorized_keys` line is documented in
+[model-lifecycle.md](model-lifecycle.md)), separate from this general-SSH sudo channel.
 
 ### GPU-VRAM capacity ceilings (issue #375)
 

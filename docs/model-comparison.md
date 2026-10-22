@@ -104,7 +104,7 @@ model was still thinking.
 
 - **Gemma 3 family** (`gemma3-12b-it`, `gemma3-27b-it`,
   `gemma3n-e4b-it`) — superseded by the Gemma 4 entries above.
-  Per the [latest-only policy](../README.md#latest-only-policy),
+  Per the [latest-only policy](models-and-roles.md#latest-only-policy),
   older entries in the same family are removed once a comparable
   newer one ships.
 - **Gemma PaliGemma / vision variants** — no image inputs in

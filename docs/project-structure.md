@@ -6,7 +6,7 @@ An LLM-oriented map of `local-llm-hub`. What lives **here** is the
 the project. The two structural maps this file used to carry are owned
 elsewhere and deliberately not restated: the **component diagram** in
 [`architecture.mmd`](architecture.mmd) and the **filesystem layout** in
-README.md's ["Layout"](../README.md#layout) section (`#452`).
+[`layout.md`](layout.md).
 
 For per-model specs, quantisation, and docs links see
 [model-comparison.md](model-comparison.md). For **which machine owns which
@@ -26,8 +26,8 @@ before `#452`. See it there rather than restating it in this file.
 
 ## Module diagram (filesystem)
 
-Superseded as a standalone listing — README.md's ["Layout"](../README.md#layout)
-section is the repo's one hand-maintained filesystem tree; keeping a second
+Superseded as a standalone listing — [`layout.md`](layout.md)
+is the repo's one hand-maintained filesystem tree; keeping a second
 one here let the two drift out of sync with each other and with the code
 (`#452`). See it there rather than restating it in this file.
 
@@ -238,8 +238,8 @@ use this path; it stays on the gemini backend.
   host's own hub `base_url` and the request is forwarded there verbatim —
   a client never needs to know or care which machine actually runs a
   model, with [`src/model_failover.py`](../src/model_failover.py) picking
-  the live owner along a chain; see the README's "Multi-host: the Mac
-  Mini" section for the full walkthrough. Placement (which host owns which
+  the live owner along a chain; see [multi-host.md](multi-host.md)
+  for the full walkthrough. Placement (which host owns which
   row) is [`config/models.yaml`](../config/models.yaml)'s to state — read
   it there, never from a doc.
 - **The three backend-invocation entry points** are

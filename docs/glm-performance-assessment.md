@@ -4,8 +4,8 @@
 > 2026-05-10** and are no longer in any host's active rotation (kept
 > defined in `config/models.yaml` for ad-hoc bring-up only). The
 > openclaw routing advice below — "route most turns to Qwen3.5-9B" — is
-> superseded: see the README's active rotation and "Demoted candidates"
-> section ([README.md](../README.md)). `agentic_light` is now
+> superseded: see the active rotation and "Demoted candidates"
+> sections ([models-and-roles.md](models-and-roles.md)). `agentic_light` is now
 > `qwen3.5-4b` and `agentic_heavy` is `gemma4-26b-a4b-it`. This doc is
 > kept as the durable performance record behind the demotion.
 
@@ -244,7 +244,7 @@ Concrete guidance:
    GLM only when you explicitly want the bigger model for a hard
    task.
 2. **Ship streaming (SSE) before heavy openclaw use.** It's already in
-   the backlog in the README. llama-server emits SSE natively; the
+   the backlog. llama-server emits SSE natively; the
    hub just has to forward it. With streaming, time-to-first-token
    is all the user perceives, and GLM at 10 tok/s feels noticeably
    better even without any flag changes.

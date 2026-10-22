@@ -105,9 +105,11 @@ Will run: python scripts/download_models.py --only qwen3_4b   (~3 GB)
 Will append to docs/frontier/runs/<latest>/report.md §10
 
 Will sync code + docs (§5b — required for upgrade/retire):
-  ~ README.md                (active-rotation bullet, role table, ASCII
+  ~ docs/models-and-roles.md, architecture-overview.md, layout.md,
+    running.md, api-usage.md  (active-rotation bullet, role table, ASCII
                               diagram, autostart default, launcher list,
                               run_backend examples, Python SDK example)
+  ~ README.md                (install description, only if it names the model)
   ~ docs/model-comparison.md (registry table row + role row)
   ~ docs/project-structure.md (local-backend lifecycle header, entry-points
                               bullet, key-facts "Purpose" paragraph)
@@ -163,21 +165,24 @@ ex-incumbent.
    already updated in §5; don't touch it again. Everything else is fair
    game.
 
-2. **README.md.** Update every place that named the old role-holder:
-   - the "Active rotation" bullet at the top
-   - the role table under "Roles & bi-weekly refresh"
-   - the ASCII architecture diagram
-   - the launcher list under "Layout"
-   - the install description (model file sizes / what gets downloaded)
-   - the launcher commands under "Run" (Active rotation block; add a
-     "Fallback / ad-hoc" block if the previous holder is kept enabled)
-   - the tray autostart default
-   - the `python -m src.run_backend …` example list
-   - the Python SDK code sample for the agentic_light / agentic_heavy
-     role (whichever one swapped)
+2. **README.md and the docs it indexes.** Update every place that named
+   the old role-holder:
+   - `docs/models-and-roles.md`: the "Active rotation" bullet and the
+     role table under "Roles & bi-weekly refresh"
+   - `docs/architecture-overview.md`: the ASCII architecture diagram
+   - `docs/layout.md`: the launcher list
+   - `README.md` "Setup": the install description (model file sizes /
+     what gets downloaded)
+   - `docs/running.md`: the launcher commands (Active rotation block; add
+     a "Fallback / ad-hoc" block if the previous holder is kept enabled),
+     the tray autostart default and the `python -m src.run_backend …`
+     example list
+   - `docs/api-usage.md`: the Python SDK code sample for the
+     agentic_light / agentic_heavy role (whichever one swapped)
 
    When the previous holder is kept in `enabled:` for fallback (the
-   default), add a one-line note in the "Demoted / fallback" section
+   default), add a one-line note in the "Demoted candidates" section of
+   `docs/models-and-roles.md`
    explaining when it fires and which launcher brings it up. Don't
    silently delete it — readers need to know the row in `enabled:`
    isn't a bug.
@@ -197,7 +202,7 @@ ex-incumbent.
 4. **`docs/project-structure.md`.** Carries role-bound names in the
    request-lifecycle sequences and the "Key facts for LLM context" prose
    (it no longer holds a component diagram or a `models/` listing — those
-   live in `docs/architecture.mmd` and README's "Layout", #475):
+   live in `docs/architecture.mmd` and `docs/layout.md`):
    - The **Local backend** request-lifecycle section header — list the
      new model in the active set, demote the ex-incumbent into the
      ad-hoc parenthetical.
@@ -408,7 +413,7 @@ requires it.
 - (If requested) weights downloaded to `models/`
 - `docs/frontier/runs/<latest>/report.md` §10 reflects the new
   decision with today's date
-- README.md, `docs/model-comparison.md`, and
+- `docs/models-and-roles.md`, `docs/model-comparison.md`, and
   `docs/project-structure.md` describe the new role-holder as the
   *current* role-holder, and the previous one (if kept) is clearly
   labelled as fallback / ad-hoc
