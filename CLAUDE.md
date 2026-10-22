@@ -3,7 +3,7 @@
 Claude Code reads this file directly as project memory; other agents reach it via the `AGENTS.md` pointer.
 
 ## This repository
-Local HTTP hub routing Anthropic- and OpenAI-shaped requests to multiple LLM/ASR backends, with a FastAPI + static-JS admin SPA at `/admin`. See `README.md` for setup, layout, usage.
+Local HTTP hub routing Anthropic- and OpenAI-shaped requests to multiple LLM/ASR backends, with a FastAPI + static-JS admin SPA at `/admin`. See `README.md` for setup, run and the doc index; [`docs/layout.md`](docs/layout.md) holds the file tree.
 
 ## Internal architecture
 
