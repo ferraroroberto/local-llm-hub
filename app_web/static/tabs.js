@@ -23,7 +23,9 @@ export function wireTabs() {
     storageKey: TAB_KEY,
     onChange: function (tab) {
       state.tab = tab;
-      onTabChangeCallbacks.forEach(function (fn) { try { fn(tab); } catch (_) {} });
+      onTabChangeCallbacks.forEach(function (fn) {
+        try { fn(tab); } catch (err) { console.error('tab-change hook failed', tab, err); }
+      });
     },
   });
 }
