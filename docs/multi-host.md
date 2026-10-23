@@ -316,20 +316,10 @@ that host — the installer treats chain members as local candidates). The
 Models tab tags a model served off-preference with a
 `failover (prefers <host>)` note on its tile.
 
-**The live chains.** `whisper` is the production row that
-uses one:
-
-```yaml
-  hosts: [gaming, mac-mini-m4, {id: tower, cpu: true}]
-```
-
-It is the pilot because it is the transcribe role's *fallback*
-(`parakeet` on the Mac is primary, via the role chain), so a wrong
-failover decision degrades a backup path rather than taking fleet STT down.
-`tower` is flagged `cpu: true` because its 16 GB is already ~97% committed to
-the agentic lanes — the degraded-but-up CPU tier is the honest last rung
-there, not a compromise. `orpheus` uses
-`hosts: [tower, gaming]` — tower primary (1.84x real-time), gaming the
-degraded fallback (0.71x — audible but slower than real-time). Every other
-row still carries a bare `host:`.
+**The live chains.** A row opts into failover with `hosts: [...]` instead of
+a bare `host:` — the first entry is primary, the rest are fallbacks tried in
+order, and `{id: <host>, cpu: true}` flags a degraded-but-up CPU tier rather
+than a compromise. Which rows currently carry a `hosts:` chain, and in what
+order, is [`config/models.yaml`](../config/models.yaml)'s alone to say —
+never restated here.
 

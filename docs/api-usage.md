@@ -220,7 +220,8 @@ curl -s -F file=@clip.wav -F response_format=json \
 ```
 
 Translate non-English audio to English via the translate slot (medium runs
-eager on CPU, ~1.5 GB RAM, on the owning host):
+on-demand on CPU, ~1.5 GB RAM when loaded, idle-unloads after 5 minutes,
+on the owning host):
 
 ```bash
 # portable: through the hub proxy, which bridges task=translate → translate=true

@@ -126,13 +126,11 @@ regardless (see [Multi-host topology](multi-host.md)):
 - **`whisper-medium-translate`** — sibling whisper-server running
   `ggml-medium.bin` on CPU. Same OpenAI-compatible `/v1/audio/transcriptions`
   shape; supports `task=translate` (turbo is transcription-only — its decoder
-  distill drops translation). Eager-loaded (~1.5 GB RAM, 0 MB VRAM, always
-  ready). Fills the `audio_translate` role; address it through this hub's
-  `:8000/v1/audio/translations`. A lazy-load mode is also available —
-  add `startup: on_demand` + `idle_unload_minutes` to the row (the same
-  generic mechanism `whisper-vanilla` below uses) — for hosts that
-  need to reclaim RAM when translate is rare. Current host placement lives
-  in [`config/models.yaml`](../config/models.yaml).
+  distill drops translation). On-demand (~1.5 GB RAM, 0 MB VRAM when
+  loaded, idle-unloads after 5 minutes — the same generic mechanism
+  `whisper-vanilla` below uses). Fills the `audio_translate` role; address
+  it through this hub's `:8000/v1/audio/translations`. Current host
+  placement lives in [`config/models.yaml`](../config/models.yaml).
 - **`whisper-vanilla`** — the same `ggml-large-v3-turbo.bin` as the turbo
   row, configured for **unbiased language auto-detection**. The escape
   hatch for callers transcribing general multilingual audio (e.g. Spanish
@@ -299,7 +297,7 @@ is the authority; this table is a snapshot of it:
 | `agentic_light` | `qwen35_4b_nothink` | OpenClaw fast lane / classify / edge — no-think by default; reasoning via `agentic_light_think` |
 | `agentic_heavy` | `gemma4_26b` | Deep agentic, transcripts, docs, ES↔EN↔CA |
 | `audio_transcribe` | `parakeet` (fallback: `whisper`) | EN/ES audio → text — parakeet on the Mac ANE is primary; whisper-turbo takes over if it is down |
-| `audio_translate` | `whisper_translate` | ES audio → English (eager CPU sibling) |
+| `audio_translate` | `whisper_translate` | ES audio → English (on-demand CPU sibling) |
 | `audio_speech` | `piper` | text → speech (Piper fast default; Orpheus/Kokoro/Chatterbox on demand) |
 
 Two Claude Code entry points drive the refresh:
@@ -351,7 +349,8 @@ backend has two slots — `whisper` (turbo, 8090, transcription) and
 `whisper_translate` (medium, 8091, translation). Turbo is
 distill-decoded and was *not* trained on the translate task, so we
 keep medium in a sibling slot for the rare cases when translation is
-needed. Medium runs eager on CPU (~1.5 GB RAM) so the first translate
-call is instant. The single-slot rule still applies *per role* —
-there is one transcription model and one translation model.
+needed. Medium runs on-demand on CPU (~1.5 GB RAM when loaded,
+idle-unloads after 5 minutes). The single-slot rule still applies
+*per role* — there is one transcription model and one translation
+model.
 

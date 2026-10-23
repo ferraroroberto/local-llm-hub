@@ -15,8 +15,13 @@ local-llm-hub/
 ├── requirements.txt
 ├── requirements-dev.txt      # e2e + passkey deps (Playwright, pytest-playwright, webauthn)
 ├── requirements-tts.txt      # TTS deps (chatterbox-tts, snac, kokoro-onnx, soundfile — torch); Piper is a downloaded binary
+├── .env.example               # template for the gitignored .env (host override, Langfuse/OTel flags, keys)
 ├── tray.bat                  # Windows-only system-tray launcher (silent)
 ├── run_hub.bat / .sh         # start the FastAPI hub on :8000
+├── start_langfuse.bat / .sh   # idempotent Langfuse stack start (docker/langfuse)
+├── stop_langfuse.bat / .sh    # idempotent Langfuse stack stop (keeps named volumes)
+├── start_searxng.bat          # idempotent SearXNG start (docker/searxng)
+├── stop_searxng.bat           # idempotent SearXNG stop (keeps settings.yml)
 ├── launchers/                # per-model backends (.bat + .sh)
 │   ├── run_model.* <id>          # parameterized launcher — title/port/banner
 │   │                              #   pulled live from config/models.yaml; covers every
@@ -26,6 +31,7 @@ local-llm-hub/
 │   └── run_all.*                # start everything enabled on this host
 ├── config/
 │   ├── models.yaml                   # hosts + models + roles — placement truth (hosts chains + startup policy)
+│   ├── machines.local.example.yaml   # template for the gitignored machines.local.yaml — private per-host addressing (#525)
 │   ├── diagnostics_apps.json         # process -> fleet-app attribution rules (committed)
 │   ├── diagnostics_rules.json        # health-verdict thresholds (committed)
 │   ├── diagnostics_settings.json     # retention + scheduled snapshot (gitignored)
@@ -82,6 +88,10 @@ local-llm-hub/
 │   ├── fleet_maintenance.py  # config/fleet_maintenance.json load/save — reconcile drain markers
 │   ├── on_demand.py          # spawn-on-first-request / unload-when-idle model lifecycle
 │   ├── host_profile.py       # pick active host row
+│   ├── atomic_write.py       # atomic text-file write + tolerant JSON read for the hub's JSON config/state stores
+│   ├── no_window.py          # shared NO_WINDOW flag — suppresses the console flash on every windowless subprocess spawn (#450)
+│   ├── runtime_data.py       # one machine-stable path for an always-on service's SQLite state (project-scaffolding#243)
+│   ├── win_job.py            # Windows Job Object containment — kills a subprocess tree when the last handle closes (#468)
 │   ├── remote_proxy.py       # resolve a non-local model row's owning host + forward verbatim
 │   ├── remote_bootstrap.py   # SSH-triggered remote hub bootstrap/sync + machine power
 │   ├── remote_stats.py       # remote machine liveness + stats for the Machines console;
@@ -163,10 +173,11 @@ local-llm-hub/
 │                             #   usage.js + styles.css +
 │                             #   manifest.webmanifest + icon-*.png/favicon.ico (generated
 │                             #   by scripts/gen_icons.py, committed)
-│       └── _vendored/        #   project-scaffolding components: button / card /
-│                             #   disclosure / empty-state / icons (Lucide sprite) /
-│                             #   modal / nav / segmented / switch / text-size /
-│                             #   xterm — SPA UI glyphs +
+│       └── _vendored/        #   project-scaffolding components: action-row / button /
+│                             #   card / disclosure / empty-state / home-head /
+│                             #   icon-button / icons (Lucide sprite) / modal / nav /
+│                             #   row-menu / segmented / select-native / switch /
+│                             #   text-size / usage-log / xterm — SPA UI glyphs +
 │                             #   primitives per design.md; chartjs (Chart.js
 │                             #   4.4.7 UMD, byte-for-byte) — trend charts
 ├── tray/                     # Windows system-tray launcher (silent pythonw)
@@ -210,6 +221,17 @@ local-llm-hub/
 ├── vendor/
 │   ├── llama.cpp/            # prebuilt llama-server binary (gitignored)
 │   └── whisper.cpp/          # prebuilt whisper-server binary (gitignored)
+├── docker/                   # compose stacks for sidecar services
+│   ├── langfuse/              # Langfuse v3 self-hosted stack: web/API+OTLP, worker, postgres,
+│   │                         #   clickhouse, redis, minio — all bound to 127.0.0.1
+│   └── searxng/               # self-hosted SearXNG meta-search (home-automation#321)
+├── mac/                       # macOS-host process supervision + ASR worker
+│   ├── launchagent/           #   LaunchAgent template: boot-time start + keep-alive (#323)
+│   ├── bin/hub-remote-ctl.sh  #   forced-command SSH dispatcher for the remote-ctl key (#181)
+│   └── parakeet-worker/       #   Swift package: FluidAudio Parakeet CoreML ASR worker
+├── linux/                     # Linux-satellite process supervision
+│   ├── systemd/                #   systemd unit: boot-time start + keep-alive (#323)
+│   └── bin/hub-remote-ctl.sh   #   forced-command SSH dispatcher, systemd counterpart (#181, #368)
 ├── models/                   # downloaded GGUFs (gitignored):
 │                             #   Qwen3.5-4B (Q4_K_M), gemma-4-26B-A4B-it (IQ4_XS),
 │                             #   gemma-4-E4B-it (fallback, still enabled),

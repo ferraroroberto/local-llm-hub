@@ -209,7 +209,7 @@ the hub's only internet egress (#611)"]
   end
   SRV --> HUBLOG
   SRV --> OTEL
-  OTEL -->|OTLP/gRPC| LANGFUSE["Langfuse stack\ndocker/langfuse/docker-compose.yml"]
+  OTEL -->|OTLP/HTTP| LANGFUSE["Langfuse stack\ndocker/langfuse/docker-compose.yml"]
   OTELRECV --> CCOTEL
   WROUT -->|Code tab: Sub-agents OTel source| CCOTEL
   WROUT -->|Code tab: AGY vendor via src/agentsview_usage.py| AGENTSVIEW

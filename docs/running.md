@@ -4,23 +4,9 @@
 run_hub.bat                      :: FastAPI hub on :8000 (the admin
                                  :: webapp lives inside it at /admin)
 
-:: Active rotation — one parameterized launcher, id from config/models.yaml
-launchers\run_model.bat qwen35_4b          :: agentic_light  on :8088
-launchers\run_model.bat gemma4_26b         :: agentic_heavy  on :8087
-launchers\run_model.bat whisper            :: audio_transcribe on :8090
-launchers\run_model.bat whisper_translate  :: audio_translate on :8091 (eager CPU)
-launchers\run_model.bat piper              :: audio_speech (piper) on :8096
-launchers\run_model.bat orpheus            :: orpheus TTS on :8093 (on demand)
-launchers\run_model.bat kokoro             :: kokoro TTS on :8095 (on demand)
-launchers\run_model.bat chatterbox         :: chatterbox TTS on :8092 (on demand)
+:: One parameterized launcher, id from config/models.yaml
+launchers\run_model.bat <id>               :: see config/models.yaml for ids, roles and placement
 launchers\run_all.bat                      :: start every backend in `enabled:` for this host
-
-:: Fallback / ad-hoc (still in `enabled:` on tower, not autostarted)
-launchers\run_model.bat gemma4_e4b         :: previous agentic_light on :8086
-launchers\run_model.bat qwen               :: cross-enabled for proxy only — see config/models.yaml for the owning host
-
-:: Demoted candidates — present but not in `enabled:` by default
-launchers\run_model.bat glm                :: llama-server for GLM on :8082
 ```
 
 (macOS / Linux: `./run_hub.sh`, `./launchers/run_all.sh`, etc. For
