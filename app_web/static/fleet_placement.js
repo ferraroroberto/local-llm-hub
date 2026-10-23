@@ -116,8 +116,13 @@ function figureText(fig) {
 function memoryRow(host, confirmed) {
   const fig = confirmed ? meterFigure(host) : null;
   const running = (host.running || []).length;
+  // A reachable peer whose hub didn't answer the probe is "not confirmed",
+  // never a confident "0 running" — that's the stopped-hub case the
+  // Machines tab offers "Start hub" for.
   const meta = !confirmed ? ''
-    : (host.dormant ? 'dormant' : (!host.local && !host.reachable ? 'off' : running + ' running'));
+    : (host.dormant ? 'dormant'
+      : (!host.local && !host.reachable ? 'off'
+        : (host.running_unknown ? 'not confirmed' : running + ' running')));
   return row({
     cls: 'memory-row' + (confirmed && host.capacity_warning ? ' is-over' : ''),
     attrs: ' data-host-id="' + escapeHtml(host.id) + '"',
@@ -298,11 +303,13 @@ function buildHostGroup(host) {
   const list = document.createElement('ul');
   list.className = 'startup-list';
 
-  const runningHtml = running.length
-    ? running.map(function (id) {
-        return modelLine(modelNameHtml(byId[id], id, !!externalSet[id]));
-      }).join('')
-    : '<span class="muted small">none</span>';
+  const runningHtml = host.running_unknown
+    ? '<span class="muted small">not confirmed</span>'
+    : running.length
+      ? running.map(function (id) {
+          return modelLine(modelNameHtml(byId[id], id, !!externalSet[id]));
+        }).join('')
+      : '<span class="muted small">none</span>';
   list.appendChild(summaryRow('Running', runningHtml,
     'Models serving on this machine right now (live state)'));
 

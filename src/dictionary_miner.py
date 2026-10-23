@@ -213,14 +213,15 @@ async def llm_cluster_replacements(
     *,
     hub_base_url: str,
     model: str,
-) -> List[Dict[str, str]]:
+) -> Optional[List[Dict[str, str]]]:
     """Ask the hub itself to cluster terms with their common mis-hearings.
 
     Sends the candidate terms + a sample of context to the hub's
     Anthropic-shaped endpoint and asks for ``{canonical, variants[]}``
     clusters, which become ``{from: variant, to: canonical}`` replacement
-    candidates. Best-effort: any transport/parse failure returns ``[]`` so
-    the heuristic suggestions still come back.
+    candidates. Returns ``None`` (not ``[]``) when the hub call itself
+    fails — ``[]`` must mean "the pass ran and found nothing", not "the
+    pass never ran", so the caller can tell the two apart.
     """
     if not terms:
         return []
@@ -252,8 +253,8 @@ async def llm_cluster_replacements(
             resp.raise_for_status()
             data = resp.json()
     except httpx.HTTPError as exc:
-        logger.info("ℹ️ miner LLM pass skipped (hub call failed: %s)", exc)
-        return []
+        logger.info("ℹ️ miner LLM pass failed (hub call failed: %s)", exc)
+        return None
 
     text = _extract_anthropic_text(data)
     clusters = _parse_clusters(text)
@@ -345,18 +346,26 @@ async def mine_suggestions(days: Optional[int] = None) -> Dict[str, Any]:
 
     replacements: List[Dict[str, str]] = []
     llm_used = False
+    llm_failed = False
     if cfg.get("use_llm") and boost_candidates:
         from src.host_profile import hub_port
 
         hub_url = f"http://127.0.0.1:{hub_port()}"
-        replacements = await llm_cluster_replacements(
+        llm_result = await llm_cluster_replacements(
             [c["term"] for c in boost_candidates[:_LLM_MAX_CANDIDATES]],
             transcripts,
             existing_boost,
             hub_base_url=hub_url,
             model=str(cfg["llm_model"]),
         )
-        llm_used = True
+        # `None` means the hub call itself failed — the pass never ran, so
+        # `llm_used` must stay False rather than claim an LLM-assisted
+        # result over a pass that produced nothing because it errored.
+        if llm_result is None:
+            llm_failed = True
+        else:
+            replacements = llm_result
+            llm_used = True
 
     # Don't propose a replacement whose target collides with an existing rule.
     have_repl = {
@@ -374,5 +383,6 @@ async def mine_suggestions(days: Optional[int] = None) -> Dict[str, Any]:
             "n_sessions": len(transcripts),
             "vt_git_sha": vt_sha,
             "llm_used": llm_used,
+            "llm_failed": llm_failed,
         },
     }

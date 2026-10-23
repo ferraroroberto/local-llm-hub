@@ -124,6 +124,35 @@ def test_get_returns_registry_derived_placement(monkeypatch):
     assert by_id["parakeet"]["device"] is None
 
 
+def test_reachable_peer_with_unanswering_hub_reports_running_unknown(monkeypatch):
+    """#851 — a reachable peer (TCP up) whose hub doesn't answer the models
+    probe (stopped, or slower than the grid timeout) must report
+    `running_unknown: True` with an empty `running` list, never fold the
+    failed probe into "0 running" — that's indistinguishable from a
+    confirmed-idle hub and is exactly the case the Machines tab's
+    "Start hub" button targets."""
+    monkeypatch.setattr(bp, "running_backends", lambda: {"piper": object()})
+
+    async def is_reachable(host):
+        return True
+
+    async def remote_models(owner, **kw):
+        return None  # the hub call itself failed
+
+    monkeypatch.setattr(remote_stats, "is_reachable", is_reachable)
+    monkeypatch.setattr(remote_stats, "remote_models", remote_models)
+    _stub_collect(monkeypatch)
+
+    client = TestClient(server_mod.app)
+    body = client.get("/admin/api/fleet-placement").json()
+    hosts = {h["id"]: h for h in body["hosts"]}
+
+    assert hosts["mac-mini-m4"]["reachable"] is True
+    assert hosts["mac-mini-m4"]["runs_hub"] is True
+    assert hosts["mac-mini-m4"]["running"] == []
+    assert hosts["mac-mini-m4"]["running_unknown"] is True
+
+
 def test_patch_is_gone(monkeypatch):
     """#430: desired state is registry-derived — the old editable PATCH
     surface must not exist any more (405 Method Not Allowed)."""

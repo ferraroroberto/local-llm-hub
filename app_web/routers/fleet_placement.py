@@ -185,15 +185,23 @@ async def _host_status(
     # runs a hub. A dormant node is never live-probed (it's declared powered down).
     reachable = False if profile.dormant else await remote_stats.is_reachable(profile)
     running: List[str] = []
+    # A reachable peer whose hub doesn't answer (stopped, or slower than the
+    # grid timeout) must not be reported as "running: none" — that's exactly
+    # the case the Machines tab offers "Start hub" for. `None` means
+    # "couldn't tell"; only an actual empty list means "confirmed idle".
+    running_unknown = False
     ram = None
     gpu = None
     if reachable and runs_hub:
         # Only a hub-running peer exposes a models API for live running badges.
-        rows = await remote_stats.remote_models(profile, timeout_s=_GRID_PROBE_TIMEOUT_S) or []
-        running = [
-            r["id"] for r in rows
-            if isinstance(r, dict) and r.get("id") in eligible_set and r.get("reachable")
-        ]
+        rows = await remote_stats.remote_models(profile, timeout_s=_GRID_PROBE_TIMEOUT_S)
+        if rows is None:
+            running_unknown = True
+        else:
+            running = [
+                r["id"] for r in rows
+                if isinstance(r, dict) and r.get("id") in eligible_set and r.get("reachable")
+            ]
     if reachable and profile.can_ssh:
         # Live RAM + GPU over the same cached SSH probe the Machines tab uses
         # (#434, GPU #436) — remote_stats.collect keeps a 30 s cache and this
@@ -205,7 +213,8 @@ async def _host_status(
         gpu = _gpu_snapshot(stats.get("gpus")) if stats else None
     return {
         **base, "local": False, "reachable": reachable,
-        "dormant": profile.dormant, "running": running, "external": [],
+        "dormant": profile.dormant, "running": running, "running_unknown": running_unknown,
+        "external": [],
         "ram": ram, "gpu": gpu,
         **_capacity(profile, placed, running, vram, devices),
     }

@@ -164,16 +164,18 @@ async def _forward_admin_call(
     )
 
 
-def _ownership_from_snapshot(m: Model, listening: Dict[int, list]) -> tuple[str, Any]:
+def _ownership_from_snapshot(m: Model, listening: Optional[Dict[int, list]]) -> tuple[str, Any]:
     """Compute (ownership, pid) for a controllable model from a port→pids map.
 
     Takes the pre-snapshotted ``listening`` map instead of doing its own
     netstat lookup per model, so listing every model costs one snapshot
-    rather than one per row.
+    rather than one per row. ``listening=None`` means the snapshot itself
+    failed (already logged there) — there is no "external owner" PID to
+    report, so this degrades to ``OWNERSHIP_NONE`` same as "nothing found".
     """
     if bp.is_running(m.id):
         return OWNERSHIP_OURS, bp.pid(m.id)
-    if not m.port:
+    if not m.port or listening is None:
         return OWNERSHIP_NONE, None
     pids = listening.get(m.port) or []
     if pids:

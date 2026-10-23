@@ -173,7 +173,8 @@ def test_mine_suggestions_heuristics_only(monkeypatch):
     assert any(c["term"] == "Claude Code" for c in out["boost_terms"])
 
 
-def test_mine_suggestions_llm_failure_falls_back(monkeypatch):
+def test_mine_suggestions_llm_empty_result_still_used(monkeypatch):
+    """The LLM pass ran and found nothing — ``llm_used`` is still True."""
     monkeypatch.setattr(dm, "load_miner_config", lambda path=None: {
         "voice_transcriber_base_url": "https://x",
         "default_days": 7, "max_tokens": 1000, "min_count": 2,
@@ -183,14 +184,68 @@ def test_mine_suggestions_llm_failure_falls_back(monkeypatch):
     async def _fake_fetch(base, days, budget):
         return list(_CORPUS), None
 
-    async def _boom_llm(*a, **kw):
-        return []  # simulates graceful degradation inside the LLM pass
+    async def _empty_llm(*a, **kw):
+        return []  # ran successfully, found nothing to cluster
 
     monkeypatch.setattr(dm, "fetch_transcripts", _fake_fetch)
     monkeypatch.setattr(dm, "load_glossary", lambda path=None: {"replacements": [], "boost_terms": []})
-    monkeypatch.setattr(dm, "llm_cluster_replacements", _boom_llm)
+    monkeypatch.setattr(dm, "llm_cluster_replacements", _empty_llm)
 
     out = _run(dm.mine_suggestions(days=3))
     assert out["meta"]["llm_used"] is True
+    assert out["meta"]["llm_failed"] is False
     assert out["replacements"] == []
     assert out["boost_terms"]  # heuristics still produced suggestions
+
+
+def test_mine_suggestions_llm_hub_call_failure_not_used(monkeypatch):
+    """A failed hub call (`None`) must not be reported as `llm_used` (#851) —
+    the earlier bug set `llm_used = True` the instant the pass was attempted,
+    so a failed call still painted the Glossary panel "LLM-assisted"."""
+    monkeypatch.setattr(dm, "load_miner_config", lambda path=None: {
+        "voice_transcriber_base_url": "https://x",
+        "default_days": 7, "max_tokens": 1000, "min_count": 2,
+        "use_llm": True, "llm_model": "claude-haiku-5-5",
+    })
+
+    async def _fake_fetch(base, days, budget):
+        return list(_CORPUS), None
+
+    async def _failed_llm(*a, **kw):
+        return None  # the hub call itself failed
+
+    monkeypatch.setattr(dm, "fetch_transcripts", _fake_fetch)
+    monkeypatch.setattr(dm, "load_glossary", lambda path=None: {"replacements": [], "boost_terms": []})
+    monkeypatch.setattr(dm, "llm_cluster_replacements", _failed_llm)
+
+    out = _run(dm.mine_suggestions(days=3))
+    assert out["meta"]["llm_used"] is False
+    assert out["meta"]["llm_failed"] is True
+    assert out["replacements"] == []
+    assert out["boost_terms"]  # heuristics still produced suggestions
+
+
+def test_llm_cluster_replacements_returns_none_on_hub_failure(monkeypatch):
+    """`llm_cluster_replacements` itself signals a failed hub call with
+    `None`, distinct from a successful pass that found nothing (`[]`)."""
+    import httpx
+
+    class _FailingClient:
+        def __init__(self, *a, **kw):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, **kw):
+            raise httpx.ConnectError("refused")
+
+    monkeypatch.setattr(dm.httpx, "AsyncClient", _FailingClient)
+
+    out = _run(dm.llm_cluster_replacements(
+        ["Claude Code"], _CORPUS, [], hub_base_url="https://x", model="claude-haiku-5-5",
+    ))
+    assert out is None

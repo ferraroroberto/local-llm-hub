@@ -88,7 +88,7 @@ def is_reachable(timeout: float = 1.5) -> bool:
         return False
 
 
-def snapshot_listening_pids() -> dict[int, list[int]]:
+def snapshot_listening_pids() -> dict[int, list[int]] | None:
     """One-shot map of every listening TCP port → PID list.
 
     The legacy :func:`find_port_pids` shells out per-port. The admin
@@ -99,8 +99,9 @@ def snapshot_listening_pids() -> dict[int, list[int]]:
     netstat / lsof kept as the fallback if psutil refuses (Windows
     sometimes denies access without admin for system-wide queries).
 
-    Returns an empty dict if all paths fail — callers must tolerate
-    that and treat it as "no information; fall back to ``[]``".
+    Returns ``None`` — not ``{}`` — when every lookup path failed: an empty
+    dict must mean "confirmed nothing listening", never "couldn't tell".
+    Callers must treat ``None`` as "unknown", not "down".
     """
     try:
         import psutil
@@ -115,11 +116,11 @@ def snapshot_listening_pids() -> dict[int, list[int]]:
         if result:
             return {p: sorted(pids) for p, pids in result.items()}
     except ImportError:
-        pass
-    except (psutil.AccessDenied, RuntimeError):
-        pass
-    except Exception:  # noqa: BLE001 — never let observability poison the hub
-        pass
+        logger.debug("snapshot_listening_pids: psutil not installed — falling back")
+    except (psutil.AccessDenied, RuntimeError) as exc:
+        logger.warning("snapshot_listening_pids: psutil refused (%s) — falling back", exc)
+    except Exception as exc:  # noqa: BLE001 — never let observability poison the hub
+        logger.warning("snapshot_listening_pids: psutil lookup failed (%s) — falling back", exc)
 
     # Fallback: shell out. ~1 s on Windows; only triggered if psutil
     # refused (admin denial on a locked-down box) or hit an OS error.
@@ -159,8 +160,12 @@ def snapshot_listening_pids() -> dict[int, list[int]]:
                         except ValueError:
                             continue
                         result_fb.setdefault(port, set()).add(pid)
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        return {}
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        logger.warning(
+            "snapshot_listening_pids: netstat/lsof fallback failed (%s) — "
+            "listening ports could not be determined", exc,
+        )
+        return None
     return {p: sorted(pids) for p, pids in result_fb.items()}
 
 
@@ -169,9 +174,13 @@ def find_port_pids(port: int) -> list[int]:
 
     A thin lookup over :func:`snapshot_listening_pids` (psutil fast path,
     ``netstat`` / ``lsof`` fallback), so there is one listener parser in this
-    module. Returns [] if nothing is listening or no lookup path works.
+    module. Returns [] both when nothing is listening and when the snapshot
+    itself is unknown (``None``) — this call site only ever uses the result
+    to pick a PID to act on, so "nothing to act on" is the right fallback
+    either way; the ambiguity is already logged inside the snapshot call.
     """
-    return snapshot_listening_pids().get(port, [])
+    listening = snapshot_listening_pids()
+    return listening.get(port, []) if listening is not None else []
 
 
 def resolve_external_pid(running: bool, port: int) -> Optional[int]:

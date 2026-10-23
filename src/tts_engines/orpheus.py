@@ -124,7 +124,8 @@ class OrpheusEngine(TTSEngine):
         """
         from ..server_process import kill_pid, snapshot_listening_pids
 
-        for pid in snapshot_listening_pids().get(self.internal_port, []) or []:
+        listening = snapshot_listening_pids() or {}
+        for pid in listening.get(self.internal_port, []) or []:
             log.warning("reclaiming stale process %s on internal port %s", pid, self.internal_port)
             kill_pid(int(pid))
 

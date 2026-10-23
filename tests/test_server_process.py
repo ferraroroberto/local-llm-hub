@@ -39,6 +39,34 @@ def test_snapshot_listening_pids_posix_lsof_fallback(monkeypatch):
     assert server_process.find_port_pids(1234) == []
 
 
+def test_snapshot_listening_pids_returns_none_when_every_path_fails(monkeypatch, caplog):
+    """#851 — a total lookup failure must report `None` ("unknown"), never
+    `{}` ("confirmed nothing listening"); callers fold those two into the
+    same false "down" otherwise. The failure is also logged (recurring
+    gotcha: a helper returning `None` on failure must log it)."""
+    import logging
+
+    import psutil
+
+    def denied(**_kwargs):
+        raise psutil.AccessDenied()
+
+    def fake_run(command, **_kwargs):
+        raise OSError("netstat not found")
+
+    monkeypatch.setattr(psutil, "net_connections", denied)
+    monkeypatch.setattr(server_process.sys, "platform", "darwin")
+    monkeypatch.setattr(server_process.subprocess, "run", fake_run)
+
+    with caplog.at_level(logging.WARNING):
+        assert server_process.snapshot_listening_pids() is None
+    assert "could not be determined" in caplog.text
+
+    # The thin find_port_pids() wrapper must not crash on `None` — "no info"
+    # degrades to "nothing found at this port", not an AttributeError.
+    assert server_process.find_port_pids(8098) == []
+
+
 def test_port_and_base_url_follow_hub_port_from_config(write_config, monkeypatch):
     """#483 — server_process must not hardcode :8000; it must track hub.port.
 
