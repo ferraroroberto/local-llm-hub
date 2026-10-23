@@ -17,8 +17,13 @@
 #   4. comment ratchet: no file's count of `#NNN` issue references inside
 #      source comments rises beyond .comment-ratchet-baseline.json. Whole
 #      tree, never routed; exit 3 (a file could not be scanned) fails.
-#   5. `pytest -q` (unit tests, no GPU / no real CLIs)
-#   6. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
+#   5. structure ratchet: no new file over 1,000 lines, function over 100
+#      lines or directory over 40 modules, and no baselined one growing,
+#      beyond .structure-ratchet-baseline.json; the root folders must match
+#      the `service` shape plus extra_roots. Whole tree, never routed; exit 3
+#      (git unusable, an unparseable file, an unknown shape) fails.
+#   6. `pytest -q` (unit tests, no GPU / no real CLIs)
+#   7. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
 #      the .fleet.toml [e2e] rules): nothing for a docs/backend-only diff, a
 #      smoke target or one surface's slice for a narrow one, otherwise
 #      `pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml`.
@@ -70,6 +75,13 @@ Step "comment ratchet" {
     # could not be scanned) already propagates as a failure here, same as
     # exit 1/2 — never a pass or a skip.
     & $Python scripts/comment_ratchet.py
+}
+
+Step "structure ratchet" {
+    # Same as the comment ratchet: Step fails on any non-zero exit, so exit 3
+    # (git unusable, an unparseable file, an unknown shape) is a failure here,
+    # never a pass or a skip.
+    & $Python scripts/structure_ratchet.py
 }
 
 Step "pytest (unit)" {
