@@ -13,9 +13,9 @@ are not present.
 
 Sibling to ``server_process.py`` (hub-process lifecycle) and
 ``backend_process.py`` (per-model llama-server / whisper-server
-lifecycle). The cross-host peer-probe trio (``remote_models`` /
-``peer_health`` / ``hub_peers``) lives in ``remote_stats.py`` (issue
-#533 — that module already owns peer I/O); the optional AgentsView
+lifecycle). The cross-host peer-probe pair (``remote_models`` /
+``peer_health``) lives in ``remote_stats.py`` (that module already owns
+peer I/O); the optional AgentsView
 process lifecycle lives in ``agentsview_service.py``. :func:`poll_until`
 is shared with that module's own ``wait_for_agentsview``.
 """

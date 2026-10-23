@@ -131,9 +131,9 @@ def _hub_facts_down(host: HostProfile) -> Optional[Dict[str, Any]]:
 async def _hub_facts(host: HostProfile) -> Optional[Dict[str, Any]]:
     """Peer-hub reachability + build identity for a machine that runs its own
     hub (#736), so the Machines tab owns Sync, the out-of-sync state and
-    bootstrap before the Hub tab drops its peer rows. The same probe the
-    Services card runs (``remote_stats.peer_health``), minus its raw error
-    text: the SPA shows a sanitized state, never an exception string."""
+    bootstrap before the Hub tab drops its peer rows. The shared
+    ``remote_stats.peer_health`` probe, minus its raw error text: the SPA
+    shows a sanitized state, never an exception string."""
     if not host.enabled:
         return None
     health = await remote_stats.peer_health(host.id)

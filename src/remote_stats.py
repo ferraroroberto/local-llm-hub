@@ -1,7 +1,6 @@
 """Remote machine liveness + stats + hub-peer probing (#309, #533).
 
-Answers the questions the Machines console and the Services card care
-about, all **independent of whether the hub runs on the peer** except
+Answers the questions the Machines console cares about, all **independent of whether the hub runs on the peer** except
 where noted:
 
   * :func:`is_reachable` — *is the machine powered on?* A plain TCP connect to
@@ -14,9 +13,8 @@ where noted:
     This same general-SSH channel also carries the destructive reboot/shutdown
     power actions (``remote_bootstrap``, #311); the forced-command key is now
     solely the hub-lifecycle (bootstrap/sync) path.
-  * :func:`remote_models` / :func:`peer_health` / :func:`hub_peers` — the
-    cross-host peer-probe trio (does the peer run a hub, is it reachable,
-    what does it report), moved here from ``services.py`` (issue #533) since
+  * :func:`remote_models` / :func:`peer_health` — the cross-host peer-probe
+    pair (what does the peer report, is its hub reachable), here because
     this module already owns ``dial_address``, the address resolver every
     peer-connect path — including these — dials through.
 
@@ -699,32 +697,3 @@ async def peer_health(
         except Exception:  # noqa: BLE001 — version probe is best-effort
             pass
     return result
-
-
-async def hub_peers(active_id: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Every other hub-running host's reachability + build identity (#372).
-
-    Generalizes the old Mac-Mini-only Services-card probe into a peer list:
-    every declared host besides ``active_id`` that runs its own hub — has at
-    least one launchable local model, the same test the fleet placement grid
-    already applies per host row (``model_registry.hub_peer_ids``) — is
-    probed in parallel via :func:`peer_health`. Drives the Services card's
-    per-peer status/detail/Wake/Sync rows; a future satellite with a
-    non-empty ``enabled:`` list appears here automatically, no code change.
-    """
-    from src.host_profile import get_host, resolve as resolve_host
-    from src.model_registry import hub_peer_ids
-
-    active = active_id if active_id is not None else resolve_host().id
-    peer_ids = hub_peer_ids(active)
-
-    async def _one(host_id: str) -> Dict[str, Any]:
-        owner = get_host(host_id)
-        health = await peer_health(host_id)
-        return {
-            "host_id": host_id,
-            "display_name": (owner.display_name if owner else None) or host_id,
-            **health,
-        }
-
-    return list(await asyncio.gather(*(_one(hid) for hid in peer_ids)))
