@@ -378,11 +378,10 @@ def hub_peer_ids(active_id: Optional[str] = None) -> List[str]:
     rather than re-deriving it: a host with at least one launchable local
     model spawns a hub process, so a managed-only machine with an empty
     ``enabled:`` list (e.g. ``openclaw``) is correctly excluded. This is the
-    peer set the Services card's Wake/Sync rows enumerate — mac-mini-m4 and
+    peer set the sync fan-out and the drift loop enumerate — mac-mini-m4 and
     gaming today, any future hub-running satellite automatically once it
     declares a non-empty ``enabled:``. A dormant host (intentionally off,
-    #765) is not a peer: the sync fan-out, the drift loop and the Services
-    card must not reach for it.
+    #765) is not a peer: neither of them may reach for it.
     """
     active = active_id if active_id is not None else resolve_host().id
     return [

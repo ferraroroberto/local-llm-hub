@@ -3,8 +3,8 @@
 Verifies the status endpoint shape, the launch endpoint orchestration
 (with the heavy helpers monkeypatched out — we don't want to spawn
 Docker Desktop or run docker compose from a unit test), and a couple
-of pure-Python behaviours on the helpers module. The peer-probe trio
-(``peer_health``/``hub_peers``) moved to ``src/remote_stats.py`` (#533) —
+of pure-Python behaviours on the helpers module. The peer-probe pair
+(``remote_models``/``peer_health``) lives in ``src/remote_stats.py`` —
 patched there below, not on ``svc``.
 """
 
@@ -106,61 +106,35 @@ def test_langfuse_health_unreachable_returns_clean_payload(monkeypatch):
     assert result["host"]  # always set
 
 
-async def _fake_peer_health(host_id, timeout_s=None):
-    """Stub for remote_stats.peer_health — no real network I/O against any peer."""
-    return {
-        "reachable": host_id == "gaming",
-        "status_code": 200 if host_id == "gaming" else 0,
-        "error": "" if host_id == "gaming" else "down",
-        "address": "http://x:8000",
-        "local_git_sha": "abc123",
-        "remote_git_sha": "abc123" if host_id == "gaming" else None,
-        "git_sha_match": host_id == "gaming",
-    }
-
-
-def test_services_status_endpoint_shape(monkeypatch):
-    monkeypatch.setattr(remote_stats, "peer_health", _fake_peer_health)
+def test_services_status_endpoint_shape():
     r = _client().get("/admin/api/services/status")
     assert r.status_code == 200, r.text
     body = r.json()
-    for key in ("docker", "langfuse", "peers", "launchable", "platform"):
+    for key in ("docker", "langfuse", "agentsview", "launchable", "platform"):
         assert key in body, body
     assert isinstance(body["docker"], dict)
     assert "running" in body["docker"]
     assert isinstance(body["langfuse"], dict)
     assert "reachable" in body["langfuse"]
     assert isinstance(body["launchable"], bool)
-    assert isinstance(body["peers"], list)
 
 
-def test_services_status_peers_cover_every_hub_running_host(monkeypatch):
-    """#372: gaming (owns a Linux hub since #323/#370's non-empty `enabled:`)
-    and mac-mini-m4 both surface as peer rows; openclaw (managed-only, no
-    `enabled:`) must not — same `runs_hub` test the fleet placement grid
-    already applies per host (model_registry.hub_peer_ids)."""
-    monkeypatch.setattr(remote_stats, "peer_health", _fake_peer_health)
+def test_services_status_does_not_probe_hub_peers(monkeypatch):
+    """Per-peer health lives on the Machines tab; the Services poll must not
+    wait on (or return) a peer probe nothing reads."""
+
+    async def _boom(*_a, **_kw):
+        raise AssertionError("services status must not probe hub peers")
+
+    monkeypatch.setattr(remote_stats, "peer_health", _boom)
     r = _client().get("/admin/api/services/status")
     assert r.status_code == 200, r.text
-    peers = r.json()["peers"]
-    peer_ids = {p["host_id"] for p in peers}
-    assert peer_ids == {"mac-mini-m4", "gaming"}
-    assert "openclaw" not in peer_ids
-    assert "tower" not in peer_ids  # never lists the active host as its own peer
-
-    gaming = next(p for p in peers if p["host_id"] == "gaming")
-    assert gaming["display_name"] == "Gaming"
-    assert gaming["reachable"] is True
-    assert gaming["git_sha_match"] is True
-
-    mac_mini = next(p for p in peers if p["host_id"] == "mac-mini-m4")
-    assert mac_mini["display_name"] == "Mac Mini M4"
-    assert mac_mini["reachable"] is False
+    assert "peers" not in r.json()
 
 
 def test_hub_peer_ids_excludes_managed_only_and_active_host():
-    """Pure-Python pin on the shared helper backing the peers list — no
-    router/network involved (#372)."""
+    """Pure-Python pin on the shared hub-peer helper — no router/network
+    involved (#372)."""
     from src.model_registry import hub_peer_ids
 
     peers = hub_peer_ids("tower")

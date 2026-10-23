@@ -451,7 +451,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   font-weight: 600;
 }
 
-/* ---------- card lists (Hub: live requests, recent errors) ---------- */
+/* ---------- card lists (Code: recent sessions) ---------- */
 .card-list { list-style: none; padding: 0; margin: 0; }
 .card-list.dense > li {
   padding: 6px 0;
@@ -461,23 +461,9 @@ h2 { display: flex; align-items: center; gap: 8px; }
   /* Name first (J-10): the model leads, status and tokens follow, the clock trails. */
   grid-template-columns: 1fr auto auto auto;
   gap: 8px;
+  align-items: center;
 }
 .card-list.dense > li:last-child { border-bottom: 0; }
-.card-list .req-status.ok { color: var(--on); }
-.card-list .req-status.err { color: var(--danger); }
-.card-list .req-status.warn { color: var(--attention); }
-/* A row's trace link is a real 44px target, not a 26x16 inline word (TOUCH-01,
- * #647): real geometry rather than an invisible expansion, because the links
- * of neighbouring rows sit closer together than 44px and expansions must not
- * overlap. */
-.card-list.dense > li { align-items: center; }
-.card-list.dense > li a[target="_blank"] {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: var(--hit-min);
-  min-height: var(--hit-min);
-}
 
 /* ---------- counters table (scrollable wrap on phone) ---------- */
 .counters-wrap { overflow-x: auto; }

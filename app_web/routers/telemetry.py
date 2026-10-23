@@ -1,9 +1,10 @@
-"""Telemetry tab API — Langfuse health, trace feed, per-model leaderboard,
+"""Telemetry API — Langfuse health (the Hub glance and the Langfuse sheet),
+per-model counters, trace detail (the trace sheet), Claude Code OTel usage,
 feedback endpoint. Mounts under ``/admin/api/telemetry`` plus a sibling
 ``/admin/api/trace/{id}/feedback`` for client-side score posting.
 
 Reuses the in-memory ``OBS`` ring (already populated by every routed
-request) for the live trace feed and the per-model leaderboard rather
+request) for the recent-trace feed and the per-model counters rather
 than re-querying Langfuse on every poll — Langfuse is the durable
 store, OBS is the cheap "what's happening right now" surface. The two
 agree because each routed request stashes the OTel trace_id onto the
@@ -25,13 +26,12 @@ import time
 from typing import Any, Dict, Optional
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field, conint
 
 from src.claude_code_otel import get_usage_summary as _claude_code_otel_summary
 from src.http_client import get_async_client
-from src.hub_observability import OBS, _rec_to_dict
+from src.hub_observability import OBS
 from src.observability import (
     hash_prompts_enabled,
     is_sdk_disabled,
@@ -40,7 +40,6 @@ from src.observability import (
     service_instance_id,
 )
 
-from ._helpers import sse_stream
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -199,33 +198,16 @@ async def telemetry_recent(limit: int = 50) -> Dict[str, Any]:
     return {"traces": OBS.recent_requests(limit=bounded)}
 
 
-# ---------------------------------------------------------------- live stream
-
-
-@router.get("/api/telemetry/stream")
-async def telemetry_stream(request: Request) -> StreamingResponse:
-    """SSE stream of new routed requests. Same fan-out as the Hub tab's
-    ``/api/hub/requests/stream`` but exposed under the telemetry prefix
-    so the Telemetry tab's UI code is self-contained."""
-    return sse_stream(
-        request, OBS.subscribe, OBS.unsubscribe,
-        seed=OBS.recent_requests(limit=20),
-        to_dict=_rec_to_dict,
-        reverse_seed=True,
-    )
-
-
 # ---------------------------------------------------------------- metrics / leaderboard
 
 
 @router.get("/api/telemetry/metrics")
 async def telemetry_metrics() -> Dict[str, Any]:
-    """Per-model leaderboard from OBS counters + a couple of summary stats.
+    """Per-model counters from OBS + a couple of summary stats.
 
-    OBS counters reset on hub restart (volatile). The Telemetry tab
-    surfaces a "Reset at <uptime>" muted line so the user knows the
-    window. For longer-window aggregates the user opens Langfuse via
-    the deep link.
+    OBS counters reset on hub restart (volatile); ``since_uptime_s`` tells
+    the Hub glance how long the window is. For longer-window aggregates the
+    user opens Langfuse via the deep link.
     """
     counters = OBS.counters_snapshot()
     started = OBS.started_at()

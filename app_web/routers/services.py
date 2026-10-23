@@ -1,8 +1,7 @@
 """Services tab API — Docker engine + Langfuse stack health & launch.
 
-Surfaces the host-side ``src.services`` (Docker/Langfuse), ``src.remote_stats``
-(hub-peer probing, #533) and ``src.agentsview_service`` (AgentsView, #533)
-helpers behind these endpoints:
+Surfaces the host-side ``src.services`` (Docker/Langfuse) and
+``src.agentsview_service`` (AgentsView) helpers behind these endpoints:
 
   * ``GET  /admin/api/services/status`` — quick combined probe used by
     the Hub tab's services card; polls every few seconds while the Hub
@@ -29,9 +28,8 @@ from typing import Any, Awaitable, Dict
 
 from fastapi import APIRouter
 
-from src import agentsview_service, remote_stats
+from src import agentsview_service
 from src import services as svc
-from src.host_profile import resolve as resolve_host
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -58,19 +56,15 @@ async def _service_action(
 
 @router.get("/api/services/status")
 async def services_status() -> Dict[str, Any]:
-    """Combined Docker + Langfuse + hub-peer probe.
+    """Combined Docker + Langfuse + AgentsView probe.
 
     All probes have a short timeout so the worst case is a few seconds
     when everything is down; in steady state each returns in <100 ms.
+    Per-peer hub health lives on the Machines tab, not here.
     """
     docker = await svc.docker_status()
     langfuse = await svc.langfuse_health()
     agentsview = await agentsview_service.agentsview_health()
-    # Informational only (#179) — every other hub-running host (#372: was a
-    # single hardcoded Mac Mini, now a generic peer list) gets probed in
-    # parallel; the indicator exists to tell each peer's own story.
-    active = resolve_host()
-    peers = await remote_stats.hub_peers(active.id)
 
     # The "launch" button is only meaningful on platforms where we know
     # how to spawn Docker Desktop. Surface that to the SPA so the card
@@ -84,7 +78,6 @@ async def services_status() -> Dict[str, Any]:
         "docker": docker,
         "langfuse": langfuse,
         "agentsview": agentsview,
-        "peers": peers,
         "launchable": launchable,
         "platform": sys.platform,
     }

@@ -27,7 +27,6 @@ _SERVICES = {
     "docker": {"running": True, "server_version": "27.0"},
     "langfuse": {"reachable": True},
     "agentsview": {"host": None},
-    "peers": [],
 }
 
 

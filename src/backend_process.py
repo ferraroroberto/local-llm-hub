@@ -23,6 +23,7 @@ a port held by someone else.
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
@@ -128,6 +129,10 @@ class _BackendState:
         # the per-backend log file (the child owns that fd), so ``log_lines``
         # returns its tail across a hub restart — see ``_log_path``.
         self.inherited_pid: Optional[int] = None
+        # The inherited process's create-time, read when it was adopted:
+        # Windows reuses PIDs aggressively, so a matching PID alone doesn't
+        # prove it is still the backend. ``None`` = unreadable at adoption.
+        self.inherited_create_time: Optional[float] = None
 
 
 _STATES: Dict[str, _BackendState] = {}
@@ -226,9 +231,18 @@ def _inherited_alive(state: "_BackendState") -> bool:
         if not psutil.pid_exists(pid_):
             state.inherited_pid = None
             return False
-        # Verify it's still the same process — PID reuse on Windows is
-        # aggressive; if the create-time has changed, our PID is stale.
         proc = psutil.Process(pid_)
+        # Verify it's still the same process — PID reuse on Windows is
+        # aggressive; if the create-time has changed, our PID is stale and
+        # ``stop`` would kill an unrelated process.
+        recorded = state.inherited_create_time
+        if recorded is not None and proc.create_time() != recorded:
+            logging.getLogger(__name__).info(
+                "ℹ️ Inherited PID %s was reused by another process; dropping it", pid_,
+            )
+            state.inherited_pid = None
+            state.inherited_create_time = None
+            return False
         if proc.status() in (psutil.STATUS_ZOMBIE, psutil.STATUS_DEAD):
             state.inherited_pid = None
             return False
@@ -538,6 +552,7 @@ def stop(model_id: str) -> tuple[bool, str]:
         if _inherited_alive(state):
             pid_ = state.inherited_pid
             state.inherited_pid = None
+            state.inherited_create_time = None
             ok, msg = kill_pid(int(pid_))
             return ok, msg
         return False, "not running"
@@ -579,7 +594,6 @@ def inherit_running_backends() -> int:
         # which ports are bound, so adopt nothing rather than guess. Note
         # this loudly: a silent 0 here reads as "nothing to inherit" when
         # the real answer is "couldn't check".
-        import logging
         logging.getLogger(__name__).warning(
             "inherit_running_backends: listening-port snapshot unknown — "
             "adopting nothing this restart"
@@ -609,8 +623,11 @@ def inherit_running_backends() -> int:
         if _looks_like_backend_binary(exe, m, cmdline):
             state = _state_for(m.id)
             state.inherited_pid = candidate
+            try:
+                state.inherited_create_time = proc.create_time()
+            except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
+                state.inherited_create_time = None
             count += 1
-            import logging
             logging.getLogger(__name__).info(
                 "📎 Inherited %s on :%s (PID %s) — log tail at %s",
                 m.id, m.port, candidate, _log_path(m.id),

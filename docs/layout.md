@@ -95,8 +95,7 @@ local-llm-hub/
 │   ├── remote_proxy.py       # resolve a non-local model row's owning host + forward verbatim
 │   ├── remote_bootstrap.py   # SSH-triggered remote hub bootstrap/sync + machine power
 │   ├── remote_stats.py       # remote machine liveness + stats for the Machines console;
-│   │                         #   + the cross-host peer-probe trio: remote_models/peer_health/
-│   │                         #   hub_peers
+│   │                         #   + the cross-host peer-probe pair: remote_models/peer_health
 │   ├── machine_console.py    # Machines-tab data layer: per-machine CPU/RAM/GPU/disk/uptime
 │   ├── ssh_terminal.py       # in-browser SSH terminal, reusing app-launcher's session-host PTY
 │   ├── ssh_exec.py           # the one `ssh <user>@<host> <cmd>` builder (remote_stats + remote_bootstrap)

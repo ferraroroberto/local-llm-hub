@@ -1,19 +1,19 @@
 """WebAuthn passkey gate for the /admin webapp.
 
-When configured (``webauthn_rp_id`` + ``webauthn_origin`` set in
-``webapp_config.json``), the admin webapp can require a platform
-passkey assertion on top of the bearer token. The token alone gets a
-client onto the page; the passkey gate is the second factor for the
-write endpoints if/when the user opts in.
+Parked reference implementation: the ceremonies and the device whitelist
+work and are tested, but no request path checks the session token and the
+SPA has no enrollment UI, so it gates nothing. Why it stays unwired, and how
+to exercise it by hand, is in docs/running.md ("Passkey (WebAuthn) gate —
+parked").
 
 Single-user by design: one logical user, a small whitelist of devices.
-Enrollment can only be triggered from the loopback PC (tray menu), so
-adding a new device is always a deliberate act.
+Enrollment can only be triggered from the loopback PC (the
+``/enroll/window`` route), so adding a new device is always a deliberate act.
 
 This module owns:
   * the enrolled-credential store (``config/webauthn_devices.json``),
   * the registration / authentication ceremonies (py_webauthn),
-  * a one-time enrollment window opened from the tray,
+  * a one-time, loopback-only enrollment window,
   * short-lived **session tokens** minted by a successful passkey assertion.
 
 The dependency on ``webauthn`` is *optional* — importing this module
@@ -47,7 +47,7 @@ _USER_NAME = "local-llm-hub"
 
 _CHALLENGE_TTL = 300.0           # 5 min to complete a ceremony
 _SESSION_TOKEN_TTL = 12 * 3600.0  # a passkey unlock is good for 12 h
-_ENROLL_WINDOW_DEFAULT = 300.0    # tray "enroll device" window length
+_ENROLL_WINDOW_DEFAULT = 300.0    # default enrollment window length
 
 try:
     from webauthn import (  # type: ignore
@@ -239,7 +239,7 @@ class WebAuthnGate:
             raise PermissionError("webauthn package not installed")
         devices = self.load_devices()
         if not devices:
-            raise PermissionError("no passkey enrolled — open the tray window")
+            raise PermissionError("no passkey enrolled — open the enrollment window")
         allow = [
             PublicKeyCredentialDescriptor(
                 id=base64url_to_bytes(d["credential_id"])
@@ -304,11 +304,10 @@ class WebAuthnGate:
     def valid_session_token(self, token: str) -> bool:
         """Check a session token minted by a passkey assertion.
 
-        Not called anywhere yet — nothing in the request path checks a
-        session token against a passkey unlock (the SPA has no ceremony
-        caller to mint one in the first place). Kept for the frontend
-        integration tracked in
-        https://github.com/ferraroroberto/local-llm-hub/issues/247.
+        Not called anywhere: nothing in the request path checks a session
+        token against a passkey unlock (the SPA has no ceremony caller to
+        mint one in the first place). Parked with the rest of this module —
+        see docs/running.md.
         """
         if not token:
             return False
@@ -324,8 +323,7 @@ class WebAuthnGate:
     def revoke_session_tokens(self) -> None:
         """Invalidate all minted session tokens.
 
-        Not called anywhere yet — see ``valid_session_token`` above;
-        tracked in https://github.com/ferraroroberto/local-llm-hub/issues/247.
+        Not called anywhere — see ``valid_session_token`` above.
         """
         with self._lock:
             self._session_tokens.clear()
