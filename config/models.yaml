@@ -741,21 +741,17 @@ models:
       - "--inference-path"
       - "/v1/audio/transcriptions"
 
-  # --- Eager-loaded translate-capable whisper instance (CPU, medium) ---
+  # --- On-demand translate-capable whisper instance (CPU, medium) ---
   # Sibling slot to `whisper`. Turbo (above) is transcription-only — the
   # decoder distill drops translation training. This second slot fills
   # the translate role with `ggml-medium.bin`, a non-distilled model.
   #
-  # Engine `whisper-server` runs medium eagerly on `port` (8091) —
-  # always resident (~1.5 GB RAM), always ready, no cold-start latency.
+  # Engine `whisper-server` spawns medium on request on `port` (8091) and
+  # idle-unloads after 5 minutes — the generic on-demand lifecycle
+  # (src/on_demand.py, #530), same as `whisper_vanilla` below.
   #
   # CPU-only (`-ng`) by design — leaves VRAM for gemma4_26b. Medium on
   # CPU is real-time-ish for short dictation clips.
-  #
-  # To switch to lazy mode (spawn-on-request, idle-unload after N minutes):
-  # add `startup: on_demand` and `idle_unload_minutes: <int>` — the generic
-  # on-demand lifecycle (src/on_demand.py, #530), same as `whisper_vanilla`
-  # below. Use on RAM-constrained hosts; the active rotation runs eager.
   #
   # Sister project (transcribe_voice / voice-transcriber) hits this on
   # 8091 with `task=translate` form-field. Same OpenAI-compatible shape.
@@ -1046,6 +1042,6 @@ roles:
       model_id: parakeet           # Parakeet Ultra (tdt-0.6b-v3 derivative) on the Mac ANE (#350, #640)
       fallback: [whisper]          # → whisper-large-v3-turbo on :8090 if parakeet is down (#348)
     translate:
-      model_id: whisper_translate  # whisper-medium on :8091, eager CPU
+      model_id: whisper_translate  # whisper-medium on :8091, on-demand CPU (5 min idle unload)
     speech:
       model_id: piper              # piper-tts on :8096 (orpheus/kokoro on demand)

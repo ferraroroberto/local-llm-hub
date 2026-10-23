@@ -241,8 +241,9 @@ whose port isn't reachable, and reports per-model pass/fail.
 
 ## Observability
 
-The hub emits OpenTelemetry traces + metrics via OTLP/gRPC into a local
-Langfuse stack started by `start_langfuse.bat`. The admin SPA's
+The hub emits OpenTelemetry traces + metrics via OTLP/HTTP into Langfuse's
+`/api/public/otel` receiver on `:3000`, authenticated by the project key
+pair, in a local Langfuse stack started by `start_langfuse.bat`. The admin SPA's
 **Hub** tab shows stack health, a per-model leaderboard, and a
 live trace feed with deep-links into the Langfuse UI for inspection.
 

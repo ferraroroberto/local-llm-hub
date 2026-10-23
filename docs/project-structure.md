@@ -206,14 +206,16 @@ use this path; it stays on the gemini backend.
     the parameterized launcher — #448) — starts the matching
     `llama-server` / `whisper-server` / TTS-shim child with args from
     `models.yaml`. The `whisper_translate` slot uses the
-    `whisper-server` engine (eager-load, medium on CPU, ~1.5 GB RAM).
+    `whisper-server` engine (on-demand, medium on CPU, ~1.5 GB RAM
+    when loaded, idle-unloads after 5 minutes).
     The `piper` / `chatterbox` / `orpheus` / `kokoro` slots use the `tts-server` engine —
     the in-repo FastAPI shim `src/tts_server.py` (Orpheus runs a
     loopback `llama-server` child for its GGUF + SNAC decode).
-    A lazy-load alternative exists — add `startup: on_demand` +
-    `idle_unload_minutes` to the row (`src/on_demand.py`, #530: also the
-    mechanism `whisper_vanilla` uses), which spawns/unloads the child
-    around an idle window — but the active rotation runs eager.
+    An on-demand row — add `startup: on_demand` +
+    `idle_unload_minutes` (`src/on_demand.py`, #530) — spawns/unloads
+    the child around an idle window, the mechanism `whisper_translate`
+    and `whisper_vanilla` both use; see `config/models.yaml` for which
+    rows run eager versus on-demand on each host.
   - `python -m src.install [--fix]` — runs every health check, fixes
     the fixable (CLI-only).
   - **Admin UI** — the `app_web/` SPA is a FastAPI sub-app mounted at

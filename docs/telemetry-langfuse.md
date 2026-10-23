@@ -1,11 +1,12 @@
 # Telemetry & observability — OpenTelemetry + Langfuse
 
 The hub emits OpenTelemetry traces, metrics, and log-record correlation
-via OTLP/gRPC into a local Langfuse stack. Trace data is portable
-(Langfuse is the durable store; the OTel side is vendor-neutral so the
-hub can repoint at Phoenix / Grafana / Honeycomb later with one env
-var change). Everything below is local-only and personal-scale by
-design — no auth on the OTel pipe, default-on prompt capture, single-host
+via OTLP/HTTP into Langfuse's `/api/public/otel` receiver on `:3000`,
+authenticated by the project key pair, in a local Langfuse stack. Trace
+data is portable (Langfuse is the durable store; the OTel side is
+vendor-neutral so the hub can repoint at Phoenix / Grafana / Honeycomb
+later with one env var change). Everything below is local-only and
+personal-scale by design — default-on prompt capture, single-host
 Langfuse.
 
 ## Host prerequisite: WSL memory cap
@@ -458,7 +459,7 @@ Sessions that hit neither path show "—" in the panel's Project column.
  |  +-> src/openai_upstream.py   httpx auto-span + TTFT |
  |  +-> whisper proxy            whisper.proxy span     |
  +-------------------+----------------------------------+
-                     | OTLP/gRPC (localhost:4317)
+                     | OTLP/HTTP (localhost:3000/api/public/otel)
                      v
  +------------------------------------------------------+
  |  Langfuse (docker compose, localhost:3000)           |
