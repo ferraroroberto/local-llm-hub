@@ -197,11 +197,11 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
     merge in A's rows by calling A's `/api/models` again, and so on.
 
     Two pieces are expensive: probing reachability over HTTP per backend
-    (each costs up to 0.5 s) and resolving port → PID via netstat (one
-    shell-out per call). We fan the HTTP probes out concurrently, and
-    do a single netstat snapshot up front instead of one per backend —
-    O(N) → O(1) subprocesses, O(N) → O(0.5 s) wall time when all
-    backends are alive.
+    (each costs up to ``bp.LIVENESS_PROBE_TIMEOUT_S``, 0.4 s) and resolving
+    port → PID via netstat (one shell-out per call). We fan the HTTP probes
+    out concurrently, and do a single netstat snapshot up front instead of
+    one per backend — O(N) → O(1) subprocesses, O(N) → O(0.4 s) wall time
+    when all backends are alive.
 
     A reachable TTS row also gets a second, equally-fanned-out probe for
     its resolved ``device`` (cuda/cpu/mps) — see ``_probe_device`` below.
@@ -233,7 +233,7 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
         # that would be actively misleading — omit rather than guess wrong.
         if not reachable or m.backend != "tts":
             return None
-        body = await asyncio.to_thread(bp.probe_health, m, 0.4)
+        body = await asyncio.to_thread(bp.probe_health, m, bp.LIVENESS_PROBE_TIMEOUT_S)
         dev = body.get("device") if isinstance(body, dict) else None
         if isinstance(dev, str) and dev.strip().lower() in ("cpu", "cuda", "mps"):
             return dev.strip().lower()

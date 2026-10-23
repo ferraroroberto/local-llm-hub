@@ -18,7 +18,7 @@
  * install check still reaches this tab's header line.
  */
 
-import { els, state } from './state.js';
+import { els, state, HUB_STATS_POLL_MS, HUB_LOG_MAX_LINES } from './state.js';
 import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, renderCounterTable, shortGpu, modelLabelText, applyListFilter, isAuthError, tokPair } from './api.js';
 import { langfuseTraceUrl, langfuseUiBase, fetchOtelHealth, hydrateTraceDetail, postFeedback } from './langfuse.js';
 import { icon } from './_vendored/icons/icons.js';
@@ -262,7 +262,7 @@ let logBuf = [];
 function appendLogLine(line) {
   if (state.logPaused) return;
   logBuf.push(line);
-  if (logBuf.length > 800) logBuf = logBuf.slice(-800);
+  if (logBuf.length > HUB_LOG_MAX_LINES) logBuf = logBuf.slice(-HUB_LOG_MAX_LINES);
   const pre = els.hubLog;
   if (!pre) return;
   pre.textContent = logBuf.join('\n');
@@ -286,8 +286,8 @@ export function startHubStreams() {
 }
 
 export function stopHubStreams() {
-  if (state.hubStreamCtl) { try { state.hubStreamCtl.close(); } catch (_) {} state.hubStreamCtl = null; }
-  if (state.hubLogStreamCtl) { try { state.hubLogStreamCtl.close(); } catch (_) {} state.hubLogStreamCtl = null; }
+  if (state.hubStreamCtl) { try { state.hubStreamCtl.close(); } catch (_) { /* already closed */ } state.hubStreamCtl = null; }
+  if (state.hubLogStreamCtl) { try { state.hubLogStreamCtl.close(); } catch (_) { /* already closed */ } state.hubLogStreamCtl = null; }
 }
 
 // --------------------------------------------------------- services (issue #27)
@@ -712,7 +712,7 @@ export function wireHub() {
   setInterval(function () {
     if (state.tab !== 'hub') return;
     renderSparklines();
-  }, 2500);
+  }, HUB_STATS_POLL_MS);
 
   // Services + telemetry health every 5 s: two small probes, and the health
   // feeds the Langfuse sheet and every trace link's project id.

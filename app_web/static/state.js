@@ -23,6 +23,11 @@ export const COUNTERS_POLL_MS = 4000;
 export const MODELS_POLL_MS = 5000;
 /* Machines tab (issue #309) — only polled while that tab is active. */
 export const MACHINES_POLL_MS = 10000;
+/* Hub tab sparklines — redrawn on this cadence while the tab is active. */
+export const HUB_STATS_POLL_MS = 2500;
+/* Log tail ring buffer cap — bounds the DOM text node so a chatty backend
+ * can't grow the pane unbounded. */
+export const HUB_LOG_MAX_LINES = 800;
 
 export const state = {
   tab: 'hub',
