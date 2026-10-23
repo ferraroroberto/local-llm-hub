@@ -409,8 +409,7 @@ function agentFigures(v) {
   if (!cache || cache.period !== state.cldPeriod) return '';
   const r = v === 'all' ? cache.totals : (cache.rows || []).find(function (x) { return x.vendor === v; });
   if (!r) return v === 'all' ? '' : 'no usage';
-  const cost = (r.input_cost || 0) + (r.output_cost || 0) + (r.cache_read_cost || 0);
-  return fmtNum(r.requests) + ' req · ' + (fmtCost(cost) || '≈ $0.00');
+  return fmtNum(r.requests) + ' req · ' + (fmtCost(totalCost(r)) || '≈ $0.00');
 }
 
 function agentRow(v, meta, chips) {
@@ -555,12 +554,10 @@ function renderCldCounters(body) {
   const bucket = body.totals || {};
   set(els.cldRequests, fmtNum(bucket.requests));
   // Grand-total equivalent metered cost, the figure the owner reads first (#71, #739).
-  const totalCost = (bucket.input_cost || 0) + (bucket.output_cost || 0) + (bucket.cache_read_cost || 0);
-  _lastCost = totalCost;
-  set(els.cldTotalCost, fmtCost(totalCost) || '≈ $0.00');
-  set(els.cldInputTok, fmtTok(
-    (bucket.input_tokens || 0) + (bucket.cache_creation_tokens || 0)
-  ));
+  const cost = totalCost(bucket);
+  _lastCost = cost;
+  set(els.cldTotalCost, fmtCost(cost) || '≈ $0.00');
+  set(els.cldInputTok, fmtTok(billedInput(bucket)));
   set(els.cldOutputTok, fmtTok(bucket.output_tokens));
   set(els.cldCacheRead, fmtTok(bucket.cache_read_tokens));
   // Equivalent metered-API cost under the three token tiles (issue #52, #71).
@@ -579,14 +576,12 @@ function renderCldCounters(body) {
 
 function renderVendorTable(rows) {
   renderTable(els.cldVendorTable, els.cldVendorEmpty, rows, function (r) {
-    const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
-    const cost = (r.input_cost || 0) + (r.output_cost || 0) + (r.cache_read_cost || 0);
     return '<tr>' +
       '<td>' + escapeHtml(vendorLabel(r.vendor)) + '</td>' +
       '<td>' + fmtNum(r.requests) + '</td>' +
-      '<td>' + tokPair(totalIn, r.output_tokens) + '</td>' +
+      '<td>' + tokPair(billedInput(r), r.output_tokens) + '</td>' +
       '<td class="muted">' + fmtTok(r.cache_read_tokens) + '</td>' +
-      '<td>' + (fmtCost(cost) || '—') + '</td>' +
+      '<td>' + (fmtCost(totalCost(r)) || '—') + '</td>' +
       '</tr>';
   });
 }
@@ -602,11 +597,10 @@ function vendorLabel(v) {
 
 function renderModelTable(rows) {
   renderTable(els.cldModelTable, els.cldModelEmpty, rows, function (r) {
-    const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
     return '<tr>' +
       '<td class="td-trunc" title="' + escapeHtml(r.model) + '">' + escapeHtml(r.model) + '</td>' +
       '<td>' + fmtNum(r.requests) + '</td>' +
-      '<td>' + tokPair(totalIn, r.output_tokens) + '</td>' +
+      '<td>' + tokPair(billedInput(r), r.output_tokens) + '</td>' +
       '<td class="muted">' + fmtTok(r.cache_read_tokens) + '</td>' +
       '</tr>';
   });
@@ -620,24 +614,22 @@ function renderModelTable(rows) {
 function renderProjects(rows) {
   if (els.cldProjectList) {
     els.cldProjectList.innerHTML = rows.slice(0, PROJECT_ROWS).map(function (r) {
-      const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
       return row({
         cls: 'cld-project-row is-static',
         title: r.project || r.project_key || '—',
         lead: fmtNum(r.requests) + ' req',
-        meta: tokPair(totalIn, r.output_tokens) + ' tok',
+        meta: tokPair(billedInput(r), r.output_tokens) + ' tok',
         mainAttrs: ' tabindex="-1"',
       });
     }).join('');
   }
   if (els.cldProjectEmpty) els.cldProjectEmpty.hidden = rows.length > 0;
   renderTable(els.cldProjectTable, null, rows, function (r) {
-    const totalIn = (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
     const name = r.project || r.project_key;
     return '<tr>' +
       '<td class="td-trunc" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</td>' +
       '<td>' + fmtNum(r.requests) + '</td>' +
-      '<td>' + tokPair(totalIn, r.output_tokens) + '</td>' +
+      '<td>' + tokPair(billedInput(r), r.output_tokens) + '</td>' +
       '</tr>';
   });
   set(els.cldProjectsMeta, rows.length
@@ -658,7 +650,7 @@ function renderSessions(sessions) {
   if (empty) empty.hidden = true;
 
   els.cldSessionsList.innerHTML = sessions.map(function (s) {
-    const totalIn = (s.input_tokens || 0) + (s.cache_creation_tokens || 0);
+    const totalIn = billedInput(s);
     const firstTs = fmtTs(s.first_ts);
     const lastTs = fmtTs(s.last_ts);
     const proj = escapeHtml(s.project || s.project_key || '');
@@ -704,8 +696,8 @@ function renderDeltas(body) {
     el.textContent = pct > 0 ? '+' + pct + '%' : pct < 0 ? pct + '%' : '±0%';
   }
 
-  const prevIn  = prev ? (prev.input_tokens || 0) + (prev.cache_creation_tokens || 0) : 0;
-  const currIn  = (curr.input_tokens || 0) + (curr.cache_creation_tokens || 0);
+  const prevIn  = prev ? billedInput(prev) : 0;
+  const currIn  = billedInput(curr);
   const prevOut = prev ? (prev.output_tokens || 0) : 0;
   const prevReq = prev ? (prev.requests || 0) : 0;
 
@@ -900,6 +892,18 @@ function setFreshness(text) {
 function fmtNum(n) {
   if (n === undefined || n === null) return '—';
   return Number(n).toLocaleString();
+}
+
+/* Billed input = net new input plus cache creation (both metered); shared by
+ * every counter/table/delta that reports an "input" figure. */
+function billedInput(r) {
+  return (r.input_tokens || 0) + (r.cache_creation_tokens || 0);
+}
+
+/* Equivalent metered-API cost across the three billed token tiers; shared by
+ * every total-cost figure. */
+function totalCost(r) {
+  return (r.input_cost || 0) + (r.output_cost || 0) + (r.cache_read_cost || 0);
 }
 
 /* fmtTok / fmtCost live in api.js (shared with the Hub/OTel tables, #215). */
