@@ -105,6 +105,10 @@ path = ".structure-ratchet-baseline.json"
 tier = "none"
 path = ".instruction-ratchet-baseline.json"
 
+[[e2e.rule]]             # the doc-refs-ratchet baseline -> none
+tier = "none"
+path = ".doc-refs-ratchet-baseline.json"
+
 # Components vendored byte-for-byte from project-scaffolding. Re-vendored by
 # `/propagate-vendored <key>`; never edit a copy here — fix it in the scaffold
 # and propagate. `sha` is the scaffold commit the current bytes came from.
@@ -135,6 +139,7 @@ docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "0d41425ff2797c98d1d3eb7
 comment_ratchet = { src = "scripts/comment_ratchet.py", sha = "e56308e1c099712cf5a006557c94e3f9ae4fe8aa", dest = "scripts/comment_ratchet.py" }
 structure_ratchet = { src = "scripts/structure_ratchet.py", sha = "84d2b12ab416551762e4a615e4a706df91cea69f", dest = "scripts/structure_ratchet.py" }
 instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "60fdd0350f18d28838428b2e773f7868f6381fbf", dest = "scripts/instruction_ratchet.py" }
+doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "23dbefa46635c952d3c871bda4e80b740e7f2859", dest = "scripts/doc_refs_ratchet.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet.py, which fails on a
@@ -199,6 +204,26 @@ exclude  = ["docs/frontier/runs/**"]
 [instruction_ratchet]
 enabled  = true
 baseline = ".instruction-ratchet-baseline.json"
+
+# [doc_refs_ratchet] -- the scaffold's baseline-and-ratchet for references in
+# README.md, CLAUDE.md and docs/**/*.md to a repo path, `python -m` module, relative
+# link or loopback port that does not exist. The gate (scripts/verify-before-ship.ps1)
+# runs scripts/doc_refs_ratchet.py, which fails on a dangling reference not in
+# .doc-refs-ratchet-baseline.json. Not path-routed: a code change can strand a doc
+# reference without touching the doc. Exit 3 (could not measure) fails the gate.
+# allow_refs lists the ports of the other services the docs name on purpose (llama-server
+# backends, whisper, TTS, ComfyUI, the satellites); the hub's own :8000 is `port` above.
+# Procedure + limits: project-scaffolding docs/doc-refs-ratchet.md.
+[doc_refs_ratchet]
+enabled    = true
+baseline   = ".doc-refs-ratchet-baseline.json"
+exclude    = ["docs/frontier/runs/**"]
+allow_refs = [
+  ":3000", ":8080", ":8085", ":8087", ":8088", ":8089", ":8090", ":8091", ":8092",
+  ":8093", ":8094", ":8095", ":8096", ":8098", ":8188", ":8190", ":18093",
+  ":162",
+  "src/python/llm/**", "src/model-client.js", "src/hub_gemini_backend.py", "src/voice_command.py",
+]
 
 # Views that span the width right of the rail on a wide window (design.md
 # layout.wide): Hub's glance + services | Activity columns (#738) and Code's
