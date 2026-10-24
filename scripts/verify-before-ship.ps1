@@ -130,7 +130,7 @@ Step "pytest (unit)" {
     & $Python -m pytest -q --ignore=tests/e2e
 }
 
-# Diff-proportionate e2e (#843): the router prints E2E_* lines and owns the
+# Diff-proportionate e2e: the router prints E2E_* lines and owns the
 # fail-safe (scripts/e2e_route.py). The only doubt left here is the wrapper
 # itself dying before it prints a tier, which also runs the whole suite.
 $tier = "full"; $e2eTarget = "tests/e2e"; $e2eBrowsers = "chromium"

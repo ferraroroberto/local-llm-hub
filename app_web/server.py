@@ -189,7 +189,7 @@ def create_app() -> FastAPI:
     app.include_router(diagnostics.router)
     app.include_router(telemetry.router)
     app.include_router(code_usage.router, prefix="/api/code")
-    # Local-only view/tap log (#777). No router dependency: the whole sub-app
+    # Local-only view/tap log. No router dependency: the whole sub-app
     # already sits behind the bearer gate, so a phone must present the token.
     app.include_router(usage_router(runtime_db_path(
         "local-llm-hub", "usage.sqlite3", env_var="LLM_HUB_USAGE_DB_PATH", create=True,

@@ -1,4 +1,4 @@
-/* Playground tab — one composer with Chat, Image, Speech and Decide (#740):
+/* Playground tab — one composer with Chat, Image, Speech and Decide:
  * stacked label/input pairs, rare parameters under More options, segmented
  * max-tokens with a numeric override, full-width Send. Each mode owns its
  * composer card and its result card; the switch only shows and hides them,
@@ -75,8 +75,8 @@ function renderPlayHeadLine() {
   const fact = MODE_LABEL[playMode] + (n ? ' · ' + n + (n === 1 ? ' model' : ' models') : '');
   if (parts.length) { setHeadLine(el, parts, fact); return; }
   // Nothing wrong: a plain subtitle, not a live line, so on a phone it yields
-  // to the Traces button and the OTel pane stays one tap away (#740; Step 6
-  // retires the button).
+  // to the Traces button and the OTel pane stays one tap away (the
+  // Traces button is slated to retire).
   el.classList.remove('head-line');
   el.textContent = fact;
   el.title = fact;
@@ -149,7 +149,7 @@ export async function fetchImageModels() {
     imageModels = models;
     imageSizes = body.sizes || [];
     if (!els.imageModel) return;
-    // No image-generation backend on this host → the mode says so (#740).
+    // No image-generation backend on this host → the mode says so.
     setModeModels('image', models.length);
     els.imageModel.innerHTML = '';
     models.forEach(function (m) {
@@ -239,7 +239,7 @@ export async function fetchTtsModels() {
     ttsModels = models;
     if (!els.ttsModel) return;
     els.ttsModel.innerHTML = '';
-    // No TTS backend on this host, or none running → the mode says so (#740).
+    // No TTS backend on this host, or none running → the mode says so.
     setModeModels('speech', models.filter(function (m) { return m.reachable; }).length, models.length);
     models.forEach(function (m) {
       const opt = document.createElement('option');
@@ -261,7 +261,7 @@ export async function fetchTtsModels() {
   }
 }
 
-/* Hidden-input file picker (#215): a ghost "Choose file" button proxies the
+/* Hidden-input file picker: a ghost "Choose file" button proxies the
  * native input; the selected filename shows in the label to its right. */
 function wireFilePicker(input, btn, nameEl) {
   if (!input || !btn) return;
@@ -515,7 +515,7 @@ async function speak() {
 // Streaming synthesis: request headerless PCM16 with stream_format=audio and
 // schedule each chunk on a Web Audio timeline so playback starts as soon as
 // the first frames arrive. Reports time-to-first-audio vs total — the whole
-// point of the streaming endpoint (issue #102). The native <audio> element
+// point of the streaming endpoint. The native <audio> element
 // can't consume a chunked POST, hence Web Audio rather than ttsAudio.src.
 async function speakStream(text) {
   const fd = ttsFormData(text, els.ttsModel.value, true);

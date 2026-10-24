@@ -84,7 +84,7 @@ class TrayConfig:
 
 def load_tray_config() -> TrayConfig:
     # Model autostart is not a tray concern: hub startup derives it from the
-    # registry (model_registry.desired_model_ids, #430) — the legacy
+    # registry (model_registry.desired_model_ids) — the legacy
     # `tray.autostart_models` list is gone.
     raw_path = Path(CONFIG_PATH)
     try:
@@ -151,7 +151,7 @@ class HubProcess:
         )
 
     def start(self) -> Tuple[bool, str]:
-        # Race-safe adopt-or-spawn (project-scaffolding#39): serialize the
+        # Race-safe adopt-or-spawn: serialize the
         # is_running/is_reachable check-then-Popen across processes so two trays
         # can't both spawn the hub. self._lock is in-process only;
         # cross_process_lock adds the cross-process guarantee and fails open so
@@ -238,7 +238,7 @@ class TrayApp:
         # The webapp config holds the bearer token we append to copied URLs.
         # Generate one on first boot so we never have an unprotected non-
         # loopback hub by accident. ``None`` = the config exists but can't
-        # be read: leave the file alone rather than mint over it (#585), and
+        # be read: leave the file alone rather than mint over it, and
         # treat the token as unknown in every URL helper below.
         self.webapp_cfg: Optional[WebappConfig] = None
         try:

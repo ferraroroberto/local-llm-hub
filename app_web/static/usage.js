@@ -1,4 +1,4 @@
-/* Usage log wiring (#777): which views and controls the owner uses, and on
+/* Usage log wiring: which views and controls the owner uses, and on
  * which device class — the contract is _vendored/usage-log/README.md.
  *
  * The desktop is loopback and bypasses the bearer gate; a phone on the tunnel

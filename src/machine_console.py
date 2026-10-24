@@ -101,13 +101,13 @@ def _card_base(
         # comment) — the SPA uses this to decide whether a peer card should
         # point the user at that machine's own /admin for Diagnostics.
         "runs_hub": bool(host.enabled),
-        # Wired-NIC MAC from config (#356's Wake-on-LAN field) — surfaced
-        # here too (#397) so it's visible on the card itself, not just used
+        # Wired-NIC MAC from config (the Wake-on-LAN field) — surfaced
+        # here too so it's visible on the card itself, not just used
         # internally to gate the Wake button. Static, so it shows even on a
         # down/dormant/unreachable peer, unlike the live-probed `network`
         # block below (which needs a successful SSH round-trip).
         "mac": host.mac,
-        # LAN address (#408) — same static config value used to dial this
+        # LAN address — same static config value used to dial this
         # peer, so it shows even when the peer is down/dormant. `None` here
         # on the active host's own row; `_probe_machine`'s `is_host` branch
         # fills that in with a live `lan_ip()` lookup, since a machine that
@@ -115,7 +115,7 @@ def _card_base(
         "ip": host.address,
         "actions": _actions_for(host, is_host=is_host, reachable=reachable),
         # A probed peer that runs its own hub overrides this with its hub's
-        # reachability + build identity (#736, `_hub_facts`).
+        # reachability + build identity (`_hub_facts`).
         "hub": None,
     }
 
@@ -154,7 +154,7 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
     is_host = host.id == active_id
 
     # This machine — full local snapshot, always "up". No live network probe
-    # here (#397 scopes connection type/AP/signal to *peers* — you already
+    # here (connection type/AP/signal is a *peer* concern — you already
     # know how the box you're looking at is connected).
     if is_host:
         card = _card_base(host, is_host=True)
@@ -168,7 +168,7 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
             card["ip"] = lan_ip()
         return card
 
-    # Dormant node (#765) — intentionally off: a neutral card, never SSH'd,
+    # Dormant node — intentionally off: a neutral card, never SSH'd,
     # hub-probed or counted as an outage. The one thing this view does is a
     # cached TCP connect, so a box that came back (after Wake, say) reads as
     # `answering` with a hint to switch dormant off; the flag never flips by
@@ -187,7 +187,7 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
     # A peer with a network address — liveness by TCP (is the box on?),
     # then the same CPU/RAM/GPU/disk/uptime snapshot over general SSH. The
     # probe reports WHICH address answered (LAN, or the tailscale name when
-    # only the tailnet does — #396) so a silent wired failure surfaces as a
+    # only the tailnet does) so a silent wired failure surfaces as a
     # "via tailnet" badge on the card instead of being masked by the fallback.
     if host.address:
         located = await remote_stats.located_address(host)
@@ -206,12 +206,12 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
             ),
             uptime_seconds=stats.get("uptime_seconds") if stats else None,
             stats=stats,
-            # Live connection type/MAC/AP/signal (#397) — riding the same SSH
+            # Live connection type/MAC/AP/signal — riding the same SSH
             # round-trip as the rest of `stats`, so no extra probe cost. None
             # when the platform has no probe for it, or the box is down.
             network=stats.get("network") if stats else None,
-            # Connection-health proxy (#397): did the liveness probe that
-            # produced this very card need its #333 warm-up retry? Only
+            # Connection-health proxy: did the liveness probe that
+            # produced this very card need its warm-up retry? Only
             # meaningful for a peer we're reporting reachable right now.
             flaky=remote_stats.connection_flaky(host) if reachable else None,
             detail="" if reachable else "Offline",

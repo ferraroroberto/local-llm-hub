@@ -1,4 +1,4 @@
-/* Code tab (issue #20; redesigned by #739).
+/* Code tab.
  * Inherits .card, .counters, .card-list.dense, .badge, .empty from styles.css.
  */
 
@@ -24,7 +24,7 @@
 }
 .cld-agent-btn > span { overflow: hidden; text-overflow: ellipsis; }
 
-/* The total cost leads the figures: the one number read first (#739). */
+/* The total cost leads the figures: the one number read first. */
 .cld-total {
   display: flex;
   align-items: baseline;
@@ -73,7 +73,7 @@
   flex-direction: column;
   gap: 4px;
 }
-/* A counter is a button (#739): its tap picks the trend metric. The chosen one
+/* A counter is a button: its tap picks the trend metric. The chosen one
  * carries the accent hairline. */
 button.cld-counter {
   font: inherit;
@@ -86,7 +86,7 @@ button.cld-counter[aria-pressed="true"] { border-color: var(--accent-border-stro
 .cld-counter-grid.cld-single { grid-template-columns: 1fr; }
 
 /* The big figure is right-aligned in tabular numerals so the four cards share a
- * right edge and their digits line up (#692). */
+ * right edge and their digits line up. */
 .cld-counter-value {
   font-size: var(--font-heading-lg);
   font-weight: 600;
@@ -101,9 +101,9 @@ button.cld-counter[aria-pressed="true"] { border-color: var(--accent-border-stro
   color: var(--muted);
 }
 
-/* Equivalent metered-API cost, sits just under the token value (issue #52).
+/* Equivalent metered-API cost, sits just under the token value.
  * The label and the cost are lines people read, so body-sm, never caption
- * (design.md typography; TYPE-01, #810). */
+ * (design.md typography; TYPE-01). */
 .cld-counter-cost {
   font-size: var(--font-body-sm);
   font-weight: 500;
@@ -114,9 +114,9 @@ button.cld-counter[aria-pressed="true"] { border-color: var(--accent-border-stro
 }
 
 /* On a phone the four counters stack as label-left / value-right rows rather
- * than sharing a band (#647). Every card is the same two-row grid — label and
+ * than sharing a band. Every card is the same two-row grid — label and
  * figure, then cost and delta — so the heights match and the cost and the delta
- * share one row (#692). */
+ * share one row. */
 @media (max-width: 480px) {
   .cld-counter-grid {
     grid-template-columns: 1fr;
@@ -135,7 +135,7 @@ button.cld-counter[aria-pressed="true"] { border-color: var(--accent-border-stro
   .cld-delta { grid-area: delta; text-align: right; }
 }
 
-/* Delta badge — sits below the counter label, coloured green/red (issue #50).
+/* Delta badge — sits below the counter label, coloured green/red.
  * Right-aligned under the figure; the min-height keeps a card with no delta
  * (the All period) the same height as one with it. */
 .cld-delta {
@@ -156,9 +156,9 @@ button.cld-counter[aria-pressed="true"] { border-color: var(--accent-border-stro
 .cld-delta.down { color: var(--danger); }
 
 /* First-column truncation is the shared .counters td.td-trunc rule in
- * styles.css (#215 — also used by the Hub counters + OTel leaderboard). */
+ * styles.css (also used by the Hub counters + OTel leaderboard). */
 
-/* The one trend chart (issue #50; one chart since #739). */
+/* The one trend chart. */
 .cld-chart-inner {
   position: relative;
   height: 180px;
@@ -168,7 +168,7 @@ button.cld-counter[aria-pressed="true"] { border-color: var(--accent-border-stro
 #cldProjectCard .empty-state { margin: 0; }
 .cld-links { border-top: 1px solid var(--line-muted); }
 
-/* The full per-agent table is the wide window's (#739); a phone reads each
+/* The full per-agent table is the wide window's; a phone reads each
  * agent's figures in the agent sheet. */
 #cldVendorCard { display: none; }
 @media (min-width: 1100px) and (pointer: fine) {
@@ -198,14 +198,14 @@ ul.cld-sessions > li > .cld-sess-project {
   font-weight: 500;
 }
 /* The model and the meta line are secondary lines: body-sm, so the session-id
- * chip at 0.875em of them stays readable (TYPE-01/TYPE-03, #810). */
+ * chip at 0.875em of them stays readable (TYPE-01/TYPE-03). */
 ul.cld-sessions > li > .cld-sess-model  { grid-area: model;   color: var(--muted); font-size: var(--font-body-sm); }
 ul.cld-sessions > li > .cld-sess-meta  {
   grid-area: meta;
   color: var(--muted);
   font-size: var(--font-body-sm);
 }
-/* The one deliberate monospace survivor outside <pre> panes (#215): a session
+/* The one deliberate monospace survivor outside <pre> panes: a session
  * id is console output — the mono chip is what makes it read as one. The
  * `code-inline` recipe (design.md): 0.875em of the line around it, neutral-soft
  * fill (never canvas-subtle, the dark black hole). */
@@ -218,7 +218,7 @@ ul.cld-sessions > li > .cld-sess-meta code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* Load-failure banner (issue #580). Danger tone, matching .login-card .error —
+/* Load-failure banner. Danger tone, matching .login-card .error —
  * "could not load" must read as a fault, never as a quiet zero-usage day. The
  * tokens are theme-derived (--danger-soft/--danger-border are color-mix over
  * --danger), so light and dark both follow the palette with no second rule. */

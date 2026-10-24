@@ -56,17 +56,17 @@ class HostProfile:
     # proxies to (today, that's fine; only a host that owns a remote-tagged
     # model row needs one). See src/remote_proxy.py.
     address: Optional[str] = None
-    # SSH login for the remote-bootstrap/sync endpoints (#181) — not a
+    # SSH login for the remote-bootstrap/sync endpoints — not a
     # secret, just which account to log in as; the private key path lives
     # in .env (LOCAL_LLM_HUB_SSH_KEY), never in this committed file. Unset
     # on hosts nothing ever SSHes into. See src/remote_bootstrap.py.
     ssh_user: Optional[str] = None
-    # --- Machines-tab console metadata (#309) — never touches model routing.
+    # --- Machines-tab console metadata — never touches model routing.
     # A human label + one-line role + Lucide glyph id for the machine card.
     display_name: Optional[str] = None
     role: Optional[str] = None
     icon: Optional[str] = None
-    # Intentionally off (#765): a neutral card, never alerted on and never
+    # Intentionally off: a neutral card, never alerted on and never
     # reached by failover, placement, reconcile or sync. Set from Settings
     # into the machine-local overlay (or by hand in either file).
     dormant: bool = False
@@ -75,18 +75,18 @@ class HostProfile:
     # Remote-Desktop launch target: {"address": ..., "user": ...}. Unset on
     # hosts with no RDP path (e.g. the local host, or SSH/VNC-only peers).
     rdp: Optional[Dict[str, str]] = None
-    # Wired-NIC MAC address for Wake-on-LAN (#356), e.g. "aa:bb:cc:dd:ee:ff".
+    # Wired-NIC MAC address for Wake-on-LAN, e.g. "aa:bb:cc:dd:ee:ff".
     # WiFi WOL is unsupported — unset on hosts with no wired NIC (e.g. a
     # laptop) or that nothing ever wakes remotely.
     mac: Optional[str] = None
-    # Discrete-GPU VRAM ceiling in MB (#375), promoted from docs/machines.md's
+    # Discrete-GPU VRAM ceiling in MB, promoted from docs/machines.md's
     # prose hardware facts. The fleet placement grid sums a host's placed
     # models' ``est_vram_mb`` and warns (advisory only, never blocks) when the
     # total exceeds this. Unset on hosts with no discrete-VRAM notion to check
     # against — the Apple-silicon Mac Mini (unified memory) and managed-only
     # boxes that serve no models; a host with no ceiling never warns.
     vram_mb: Optional[int] = None
-    # Total system RAM in MB (#431), promoted from docs/machines.md's prose
+    # Total system RAM in MB, promoted from docs/machines.md's prose
     # hardware facts like ``vram_mb`` above. Display-only context on the
     # Models tab's fleet summary — never feeds a warning or a routing
     # decision. Unset where the fact isn't documented.
@@ -110,12 +110,12 @@ _CONFIG_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
 # Per-host identity fields the public config never carries -- supplied by the
-# gitignored overlay instead (#525). Kept as one tuple so the merge, the
+# gitignored overlay instead. Kept as one tuple so the merge, the
 # example file and the docs can't drift apart silently.
 IDENTITY_FIELDS = ("address", "tailscale", "mac", "ssh_user", "rdp")
 
-# Everything the overlay may set: identity plus the operator's dormant flag
-# (#765). `dormant: false` is a real value (it overrides a committed `true`),
+# Everything the overlay may set: identity plus the operator's dormant flag.
+# `dormant: false` is a real value (it overrides a committed `true`),
 # which is why the merge below tests `is not None`, never truthiness.
 OVERLAY_FIELDS = IDENTITY_FIELDS + ("dormant",)
 

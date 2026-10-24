@@ -181,7 +181,7 @@ def read_marker() -> Optional[Dict[str, Any]]:
         return None
 
 
-# 4x ESRGAN upscaler backing the >2 MP / 4K path (#497). Provisioned here
+# 4x ESRGAN upscaler backing the >2 MP / 4K path. Provisioned here
 # rather than by scripts/download_models.py because that script only fetches
 # `hf_repo` rows from config/models.yaml, and this is an *engine asset* shared
 # by every image model rather than a model in its own right. Without it the
@@ -189,9 +189,9 @@ def read_marker() -> Optional[Dict[str, Any]]:
 UPSCALE_MODEL_REPO = "lokCX/4x-Ultrasharp"
 UPSCALE_MODEL_FILE = "4x-UltraSharp.pth"
 
-# NOTE: #498 also installed city96's ComfyUI-GGUF custom node, needed because
-# stock ComfyUI cannot load a `.gguf` diffusion model at all. It was removed in
-# #501 along with the only row that used one (FLUX.2 [dev] 32B, unusable on this
+# NOTE: this script once also installed city96's ComfyUI-GGUF custom node, needed because
+# stock ComfyUI cannot load a `.gguf` diffusion model at all. It was removed
+# along with the only row that used one (FLUX.2 [dev] 32B, unusable on this
 # GPU). Re-adding any quantized model means restoring that install *and* a
 # corresponding check in src/install.py — a missing custom node is invisible
 # until generation time.
@@ -205,7 +205,7 @@ UPSCALE_MODEL_FILE = "4x-UltraSharp.pth"
 # `MistralConverter(vocab=..., additional_special_tokens=...)`. The mismatch is
 # invisible until a FLUX.2 generation actually loads its text encoder, where it
 # surfaces as `CLIPLoader raised TypeError: MistralConverter.__init__()
-# missing 1 required positional argument: 'vocab_file'` (#498). 4.57.6 is the
+# missing 1 required positional argument: 'vocab_file'`. 4.57.6 is the
 # newest release carrying the signature ComfyUI expects. Re-check on a ComfyUI
 # bump — upstream will move to the 5.x call shape eventually.
 PINNED_DEPS = ["transformers==4.57.6"]
@@ -269,7 +269,7 @@ def write_extra_model_paths() -> Path:
         "  diffusion_models: diffusion_models\n"
         # Without this ComfyUI cannot find 4x-UltraSharp and the >2 MP /
         # 4K path fails at UpscaleModelLoader with a bare "value not in
-        # list" node error (#497).
+        # list" node error.
         "  upscale_models: upscale_models\n",
         encoding="utf-8",
     )
@@ -351,7 +351,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         log.info("ComfyUI already installed at %s", VENDOR_DIR)
         write_extra_model_paths()  # cheap; keeps the path file in sync
         # Backfill assets an older install predates, so adding the upscaler
-        # (#497) or bumping a pinned dep does not require a --force wipe of an
+        # or bumping a pinned dep does not require a --force wipe of an
         # otherwise working install.
         ensure_upscale_model()
         apply_pinned_deps()

@@ -1,7 +1,7 @@
 /* Langfuse helpers: the OTel stack's health, the client-reachable Langfuse
  * address, one trace's prompt and completion preview, and the thumbs score.
  *
- * Split out of the retired OTel pane's telemetry.js (#741); the Hub's
+ * Split out of the retired OTel pane's telemetry.js; the Hub's
  * Langfuse sheet and its Activity trace sheet are the callers now.
  */
 

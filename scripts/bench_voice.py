@@ -63,7 +63,7 @@ try:
 except Exception:  # noqa: BLE001
     pass
 
-# Domain terms the hub's #90/#91 boosting line of work cares about — tracked so
+# Domain terms the hub's vocabulary-boosting work cares about — tracked so
 # a placement swap can't silently regress jargon recognition. Matched as
 # normalised substrings; only terms present in a clip's reference are scored.
 DEFAULT_JARGON = [

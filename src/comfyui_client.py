@@ -86,7 +86,7 @@ _LATENT = "empty_latent"
 _SAMPLER = "sampler"
 _DECODE = "vae_decode"
 _OUTPUT = "output"
-# Upscale / refine tail (#497), only present for above-native sizes.
+# Upscale / refine tail, only present for above-native sizes.
 _UPSCALE_MODEL = "upscale_model"
 _UPSCALE = "upscale"
 _RESIZE = "resize_exact"
@@ -148,7 +148,7 @@ _F2_DECODE = "vae_decode"
 # default for the dev checkpoint. Fallback only: a row that wants different
 # sampling (the distilled klein sibling wants fewer steps and lower guidance)
 # carries its own `image_steps`/`image_guidance` in models.yaml, wired through
-# by `server_images.model_spec_for` into `ModelSpec.steps`/`.guidance` (#619).
+# by `server_images.model_spec_for` into `ModelSpec.steps`/`.guidance`.
 DEFAULT_FLUX2_STEPS = 24
 DEFAULT_FLUX2_GUIDANCE = 4.0
 
@@ -385,7 +385,7 @@ def add_upscale_tail(
     it the model actually redraws at the higher resolution — roughly doubling
     generation time, which is why the caller opts in.
     """
-    # Defaults to the FLUX.1 graph's edges so pre-#498 callers are unchanged.
+    # Defaults to the FLUX.1 graph's edges so callers that pass no handles are unchanged.
     h = handles or flux1_handles()
 
     workflow[_UPSCALE_MODEL] = {

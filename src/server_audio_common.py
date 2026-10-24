@@ -22,7 +22,7 @@ from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
-# Response headers naming the model/host pair behind an audio request (#412).
+# Response headers naming the model/host pair behind an audio request.
 # Additive metadata — every OpenAI/Anthropic client ignores unknown headers —
 # and the only way a caller can tell "whisper answered" from "the role chain
 # fell through to parakeet" without reading the hub's admin API.

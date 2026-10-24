@@ -13,15 +13,15 @@ export const THEME_KEY = 'llmhub.theme';
  * where you left it (fleet nav contract). */
 export const TAB_KEY = 'llmhub.tab';
 /* Models tab "Active only" filter — persisted like Plugs' show-hidden
- * toggle in home-automation (#266). */
+ * toggle in home-automation. */
 export const MODELS_ACTIVE_ONLY_KEY = 'llmhub.models.activeOnly';
-// The Playground's last mode on this device (#740): chat | image | speech | decide.
+// The Playground's last mode on this device: chat | image | speech | decide.
 export const PLAYGROUND_MODE_KEY = 'llmhub.playground.mode';
 
 export const STATUS_POLL_MS = 4000;
 export const COUNTERS_POLL_MS = 4000;
 export const MODELS_POLL_MS = 5000;
-/* Machines tab (issue #309) — only polled while that tab is active. */
+/* Machines tab — only polled while that tab is active. */
 export const MACHINES_POLL_MS = 10000;
 /* Hub tab sparklines — redrawn on this cadence while the tab is active. */
 export const HUB_STATS_POLL_MS = 2500;
@@ -43,59 +43,59 @@ export const state = {
   hubStreamCtl: null,     // EventSource abort handles
   hubLogStreamCtl: null,
 
-  // Hub Langfuse sheet state slice (issue #4).
+  // Hub Langfuse sheet state slice.
   otelHealth: null,         // GET /admin/api/telemetry/health (langfuse.js): the Hub Langfuse sheet, trace links
-  otelHealthFailed: false,  // the last health read failed: the Langfuse sheet says "unreachable" (#738)
-  // Claude Code (host CLI) OTel-sourced usage panel (issue #68).
+  otelHealthFailed: false,  // the last health read failed: the Langfuse sheet says "unreachable"
+  // Claude Code (host CLI) OTel-sourced usage panel.
 
-  // Code-usage tab — host Claude Code session data (issue #20).
+  // Code-usage tab — host Claude Code session data.
   cldSummary: null,
   cldPeriod: 'today',   // 'today' | 'week' | 'month' | 'all'
-  cldMetric: 'input_tokens', // the trend chart's metric: the counter last tapped (#739)
-  cldVendorTotals: null,     // {period, rows, totals} from the last All read: the agent sheet's figures (#739)
-  cldVendor: 'all',     // 'all' | 'claude' | 'codex' | 'copilot' | <agentsview agent> | 'subagents' (Claude Code OTel, #739) (issues #71, #231, #280)
+  cldMetric: 'input_tokens', // the trend chart's metric: the counter last tapped
+  cldVendorTotals: null,     // {period, rows, totals} from the last All read: the agent sheet's figures
+  cldVendor: 'all',     // 'all' | 'claude' | 'codex' | 'copilot' | <agentsview agent> | 'subagents' (Claude Code OTel)
 
-  // Services card — Docker + Langfuse status (issue #27).
+  // Services card — Docker + Langfuse status.
   services: null,
   servicesLaunching: false,
-  hubSeries: 'cpu',       // which load history the Hub glance sparkline shows (#738)
-  activityScope: 'requests', // Hub Activity: 'requests' | 'errors' (#738)
-  hubMetrics: null,       // last /admin/api/telemetry/metrics payload (glance + By model, #738)
+  hubSeries: 'cpu',       // which load history the Hub glance sparkline shows
+  activityScope: 'requests', // Hub Activity: 'requests' | 'errors'
+  hubMetrics: null,       // last /admin/api/telemetry/metrics payload (glance + By model)
   hubMetricsOk: null,     // null before the first read; false after a failed one (glance says "not confirmed")
   hubStatusOk: null,      // null until the first status read; false when the hub did not answer
-  agentsviewBusy: false,   // AgentsView start/stop in flight (#280, #284)
-  dockerBusy: false,   // Docker Desktop start/stop in flight (#284)
-  langfuseBusy: false,   // Langfuse stack start/stop in flight (#284)
+  agentsviewBusy: false,   // AgentsView start/stop in flight
+  dockerBusy: false,   // Docker Desktop start/stop in flight
+  langfuseBusy: false,   // Langfuse stack start/stop in flight
 
-  // Startup card — what autostarts with the hub (issue #265).
+  // Startup card — what autostarts with the hub.
   startupProfile: null,   // /admin/api/startup-profile payload
-  dormantMachines: null,  // /admin/api/machines/dormant rows (Settings › Machines, #765)
+  dormantMachines: null,  // /admin/api/machines/dormant rows (Settings › Machines)
 
-  // Fleet placement card — fleet-wide desired state (issue #354).
+  // Fleet placement card — fleet-wide desired state.
   fleetPlacement: null,          // /admin/api/fleet-placement payload
   fleetPlacementState: 'loading',// loading | ready | empty | stale | error
   fleetPlacementUpdated: 0,      // Date.now() of the last good fetch
 
-  // Models tab — "Active only" filter, default on (issue #266).
+  // Models tab — "Active only" filter, default on.
   modelsActiveOnly: true,
-  modelsSelected: null,          // { kind: 'model' | 'host', id } — sheet / wide detail (#737)
-  roles: null,                   // /admin/api/roles payload, read on Models tab open (#737)
-  // Models tab — config-as-code context (#424): models.yaml HEAD sha,
+  modelsSelected: null,          // { kind: 'model' | 'host', id } — sheet / wide detail
+  roles: null,                   // /admin/api/roles payload, read on Models tab open
+  // Models tab — config-as-code context: models.yaml HEAD sha,
   // whether this hub may write (tower only), and the fleet host list the
   // chain editor offers. Null until the first /admin/api/models fetch.
   modelsConfig: null,
 
-  // Machines tab — fleet status/actions/terminal (issue #309).
+  // Machines tab — fleet status/actions/terminal.
   machinesStatus: null,     // last good /admin/api/machines/status payload
   machinesDataState: 'loading',  // loading | ready | empty | stale | error
   machinesLastUpdated: 0,   // Date.now() of the last good fetch
   machinesErrorMsg: '',     // sanitized message for the error empty-state
   machinesBusyIds: {},      // machine id -> true while a reboot/shutdown POST is in flight
   machinesRecheckIds: {},   // machine id -> true while a fresh status re-check is pending
-  machinesHubBusyIds: {},   // machine id -> true while a peer-hub bootstrap/sync POST is in flight (#736)
-  machinesSelectedId: null, // machine whose sheet / wide detail pane is open (#736)
+  machinesHubBusyIds: {},   // machine id -> true while a peer-hub bootstrap/sync POST is in flight
+  machinesSelectedId: null, // machine whose sheet / wide detail pane is open
 
-  // Diagnostics drill-in (issue #315)
+  // Diagnostics drill-in
   diagStatus: null,         // last /admin/api/diagnostics/status payload
   diagDataState: 'loading', // loading | ready | empty | stale | error
   diagRuns: [],             // recent capture runs (newest first)
@@ -110,13 +110,13 @@ export const els = {
   // Tab buttons + panes are owned by the vendored nav (_vendored/nav) —
   // it discovers them from the markup; no element handles needed here.
 
-  // Telemetry tab — health strip + leaderboard + live trace feed (issue #4)
+  // Telemetry tab — health strip + leaderboard + live trace feed
 
   // Hub card — live status indicator lives inside the card header
   // (replaces the old always-on status strip).
   // One theme toggle per pane header (the vendored home-head).
   themeToggleBtns: Array.from(document.querySelectorAll('.theme-toggle')),
-  // Settings (#741): the dialog, its layout, the theme row and the About values
+  // Settings: the dialog, its layout, the theme row and the About values
   settingsDialog: document.getElementById('settingsDialog'),
   settingsCloseBtn: document.getElementById('settingsCloseBtn'),
   settingsLayout: document.getElementById('settingsLayout'),
@@ -131,7 +131,7 @@ export const els = {
   hubUptime: document.getElementById('hubUptime'),
   hubSparklines: document.getElementById('hubSparklines'),
 
-  // Services card — Docker + Langfuse (issue #27)
+  // Services card — Docker + Langfuse
   dockerStatus: document.getElementById('dockerStatus'),
   dockerStatusText: document.getElementById('dockerStatusText'),
   dockerDetail: document.getElementById('dockerDetail'),
@@ -148,7 +148,7 @@ export const els = {
   agentsviewStartBtn: document.getElementById('agentsviewStartBtn'),
   agentsviewStopBtn: document.getElementById('agentsviewStopBtn'),
   servicesActions: document.getElementById('servicesActions'),
-  // Hub (#738): header line, glance, services rows, activity, sheets
+  // Hub: header line, glance, services rows, activity, sheets
   hubHeadLine: document.getElementById('hubHeadLine'),
   hubWindow: document.getElementById('hubWindow'),
   hubReqCount: document.getElementById('hubReqCount'),
@@ -185,7 +185,7 @@ export const els = {
   installFixAllBtn: document.getElementById('installFixAllBtn'),
   installRefreshBtn: document.getElementById('installRefreshBtn'),
 
-  // Activity feed (#738): requests, errors, the By model counters table
+  // Activity feed: requests, errors, the By model counters table
   liveRequestsList: document.getElementById('liveRequestsList'),
   liveRequestsFilter: document.getElementById('liveRequestsFilter'),
   liveRequestsEmpty: document.getElementById('liveRequestsEmpty'),
@@ -208,10 +208,10 @@ export const els = {
   modelSheetBody: document.getElementById('modelSheetBody'),
   modelSheetCloseBtn: document.getElementById('modelSheetCloseBtn'),
 
-  // Startup card (issue #265)
+  // Startup card
   startupList: document.getElementById('startupList'),
 
-  // Fleet placement (issue #354): the memory glance's stale note (#737)
+  // Fleet placement: the memory glance's stale note
   fleetPlacementStaleNote: document.getElementById('fleetPlacementStaleNote'),
 
   // Playground
@@ -228,16 +228,16 @@ export const els = {
   playgroundLatency: document.getElementById('playgroundLatency'),
   playgroundReply: document.getElementById('playgroundReply'),
   playgroundUsage: document.getElementById('playgroundUsage'),
-  // Playground — image generation / editing tester (issue #114)
+  // Playground — image generation / editing tester
   imageCard: document.getElementById('imageCard'),
   imageNone: document.getElementById('imageNone'),
-  // Playground composer (#740): the mode switch and the header line
+  // Playground composer: the mode switch and the header line
   playMode: document.getElementById('playMode'),
   playHeadLine: document.getElementById('playHeadLine'),
   imageModel: document.getElementById('imageModel'),
   imageModelNote: document.getElementById('imageModelNote'),
   imagePrompt: document.getElementById('imagePrompt'),
-  // Size presets + upscale refine (issue #497)
+  // Size presets + upscale refine
   imageSize: document.getElementById('imageSize'),
   imageSizeNote: document.getElementById('imageSizeNote'),
   imageRefine: document.getElementById('imageRefine'),
@@ -252,7 +252,7 @@ export const els = {
   imagePreview: document.getElementById('imagePreview'),
   imageDownload: document.getElementById('imageDownload'),
   imageDownloadRow: document.getElementById('imageDownloadRow'),
-  // Playground — text-to-speech tester (issue #98)
+  // Playground — text-to-speech tester
   ttsModel: document.getElementById('ttsModel'),
   ttsAvailability: document.getElementById('ttsAvailability'),
   ttsInput: document.getElementById('ttsInput'),
@@ -275,7 +275,7 @@ export const els = {
   ttsAudio: document.getElementById('ttsAudio'),
   ttsCard: document.getElementById('ttsCard'),
   ttsNone: document.getElementById('ttsNone'),
-  // Playground — TypeSafe Jev decision tester (issue #611)
+  // Playground — TypeSafe Jev decision tester
   jevKeyNote: document.getElementById('jevKeyNote'),
   jevModel: document.getElementById('jevModel'),
   jevState: document.getElementById('jevState'),
@@ -289,9 +289,9 @@ export const els = {
   jevAnswers: document.getElementById('jevAnswers'),
   jevUsage: document.getElementById('jevUsage'),
 
-  // Code-usage tab (issue #20)
+  // Code-usage tab
   cldFreshness: document.getElementById('cldFreshness'),
-  // Code (#739): header line, agent sheet, figures, Sub-agents (OTel), one
+  // Code: header line, agent sheet, figures, Sub-agents (OTel), one
   // trend chart, breakdown rows and sheets
   codeHeadLine: document.getElementById('codeHeadLine'),
   cldAgentBtn: document.getElementById('cldAgentBtn'),
@@ -342,20 +342,20 @@ export const els = {
   cldVendorCard: document.getElementById('cldVendorCard'),
   cldVendorTable: document.getElementById('cldVendorTable'),
   cldVendorEmpty: document.getElementById('cldVendorEmpty'),
-  // Copilot official billing card (issue #231)
+  // Copilot official billing card
   cldCopilotBillingCard: document.getElementById('cldCopilotBillingCard'),
   cldCopilotBillingAsOf: document.getElementById('cldCopilotBillingAsOf'),
   cldCopilotBillingTotal: document.getElementById('cldCopilotBillingTotal'),
   cldCopilotBillingTable: document.getElementById('cldCopilotBillingTable'),
   cldCopilotBillingEmpty: document.getElementById('cldCopilotBillingEmpty'),
   cldCopilotBillingEmptyMsg: document.getElementById('cldCopilotBillingEmptyMsg'),
-  // Charts (issue #50)
+  // Charts
   cldChartsCard: document.getElementById('cldChartsCard'),
   cldSessionsList: document.getElementById('cldSessionsList'),
   cldSessionsBadge: document.getElementById('cldSessionsBadge'),
   cldSessionsEmpty: document.getElementById('cldSessionsEmpty'),
 
-  // Machines tab (issue #309)
+  // Machines tab
   machinesLoading: document.getElementById('machinesLoading'),
   machinesError: document.getElementById('machinesError'),
   machinesErrorMsg: document.getElementById('machinesErrorMsg'),

@@ -44,16 +44,16 @@ class RequestRecord:
     # requested name to something else — a role alias (``audio_transcribe``)
     # landing on a chain member, or a chain fallback taking over. Empty when
     # nothing resolved it (the ordinary chat paths) — never guess: a consumer
-    # reads "requested=X served=Y" only when this is set (issue #412).
+    # reads "requested=X served=Y" only when this is set.
     served_model: str = ""
     # Host id that actually served the request — the missing dimension behind
-    # the #405 false pass: a `model=whisper` answered 200 by a host with no
+    # the earlier false pass: a `model=whisper` answered 200 by a host with no
     # whisper bound was a legitimate remote hop to whisper's owner, and the
     # record had no field that said so (``client`` is the *caller*, not the
     # server). Set on the audio paths: the active host for a locally-served
     # request, the owning host for a remote-proxy hop, and whatever the peer
     # hub reports when it answers with its own ``X-Hub-Served-Host``. Empty
-    # when nothing resolved it (issue #412).
+    # when nothing resolved it.
     served_host: str = ""
     backend: str = ""         # "claude" | "gemini" | "openai" | "whisper" | ""
     status: int = 0           # HTTP status of the response
@@ -67,7 +67,7 @@ class RequestRecord:
     error_detail: str = ""    # filled when status >= 400
     trace_id: str = ""        # Langfuse trace id (set per routed request)
     # Free-form, route-specific one-liner for a dimension no other field
-    # carries — e.g. "3 questions" on /v1/systemone (#611). Never payload
+    # carries — e.g. "3 questions" on /v1/systemone. Never payload
     # content: the ring is not subject to OTEL_HASH_PROMPTS.
     detail: str = ""
 
@@ -151,7 +151,7 @@ class Observatory:
             # Count against the model that *served*: a role-addressed audio
             # request would otherwise pile every call onto the alias
             # ("audio_transcribe") and hide which backend actually carried the
-            # traffic (issue #412). ``served_model`` is only ever set once a
+            # traffic. ``served_model`` is only ever set once a
             # model has really answered, so a request nothing served (a strict
             # rejection, or a chain where every candidate was down) falls back
             # to the requested name and is never charged to a model that never

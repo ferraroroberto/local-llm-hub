@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 # The hub is on around the clock and writes a diagnostics row per request, so
 # its default belongs on a fast local drive rather than on whichever drive this
-# repo was cloned onto — a spinning HDD here (project-scaffolding#243).
+# repo was cloned onto — a spinning HDD here.
 # ``LLM_HUB_DIAGNOSTICS_DB_PATH`` (env) overrides it for a single process;
 # :func:`set_db_path` still wins over both for tests.
 DEFAULT_DB_PATH = runtime_db_path(
@@ -63,7 +63,7 @@ def set_db_path(path: Optional[Path]) -> None:
 # --------------------------------------------------------------- connection
 
 
-# Concurrent first-open retry (#326). Several connections opening a brand-new
+# Concurrent first-open retry. Several connections opening a brand-new
 # DB at once all try to change the journal mode to WAL, which needs a brief
 # exclusive lock — and SQLite does *not* run the busy handler for a journal-mode
 # change, so the losers get "database is locked" returned immediately, not after
@@ -132,8 +132,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.executescript(_SCHEMA_V1)   # CREATE TABLE IF NOT EXISTS — idempotent
     if current < 2:
         # Per-collector coverage: which signals could actually be read this run,
-        # so "we weren't allowed to look" stops rendering as "nothing there"
-        # (#322). Unlike v1's CREATE-IF-NOT-EXISTS, `ALTER TABLE ADD COLUMN` has
+        # so "we weren't allowed to look" stops rendering as "nothing there".
+        # Unlike v1's CREATE-IF-NOT-EXISTS, `ALTER TABLE ADD COLUMN` has
         # no idempotent form, so two connections opening a fresh DB at once (a
         # write racing the hub's background `_init_diagnostics`) would both pass
         # the version gate and both ALTER — the loser raising "duplicate column".

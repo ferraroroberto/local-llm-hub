@@ -43,7 +43,7 @@ _JS_IMPORT_RE = re.compile(
 # The path segment allows subdirs (e.g. ``_vendored/nav/nav-tabs.css``) so a
 # vendored stylesheet linked from index.html is stamped too — any user-visible
 # asset outside the ?v= scheme rides iOS Safari's heuristic cache across
-# deploys (the app-launcher#372 lesson). The captured group is already the
+# deploys. The captured group is already the
 # static-dir-relative path, so it maps directly onto a ``hashes`` key.
 _INDEX_ASSET_RE = re.compile(
     r"""(href|src)=(['"])/admin/static/((?:[\w\-.]+/)*[\w\-.]+\.(?:css|js))(\?v=[^'"]*)?(['"])"""

@@ -56,7 +56,7 @@ async def code_usage_summary(
         vendor = "all"
     try:
         # Off the loop: a cold/changed-file parse would otherwise stall every
-        # /v1/* request this process serves (#559).
+        # /v1/* request this process serves.
         body = await asyncio.to_thread(get_summary_cached, period, vendor)
         body["agentsview"] = agentsview_usage.status()
         return body

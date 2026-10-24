@@ -175,7 +175,7 @@ export function toast(msg, kind) {
   }, kind === 'error' ? 4500 : 2200);
 }
 
-/* A toast that stays up while a user-started load runs (#693): no auto-hide.
+/* A toast that stays up while a user-started load runs: no auto-hide.
  * Returns `done(errorMsg?)` — it hides the toast, or swaps it for an error toast
  * when given a message. A later toast (or a newer pending one) supersedes this
  * one, and its `done` then does nothing, so a stale load can never hide the
@@ -199,7 +199,7 @@ export function toastPending(msg) {
 
 // --------------------------------------------------------------- fmt
 /* Shared across hub.js / models.js / code_usage.js — one definition (the
- * sibling-dedup pass of local-llm-hub#211; the copies had drifted). */
+ * earlier per-file copies had drifted). */
 export function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
     return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]);
@@ -215,10 +215,10 @@ export function codeHtml(s) {
 /* Plain-text label for a request record's model: the requested name, the model
  * that actually served it when the hub resolved one to the other, and the host
  * that served it ("audio_transcribe, served by parakeet @mac-mini-m4"). The served host
- * is the dimension the #405 drill was missing — a `model=whisper` answered by
+ * is the dimension the old drill-down was missing — a `model=whisper` answered by
  * a machine with no whisper bound was a legitimate remote hop, and no field
  * said so. Only the audio paths populate the served pair, so ordinary chat
- * rows render exactly as before (#412). */
+ * rows render exactly as before. */
 export function modelLabelText(rec, fallback) {
   const requested = (rec && rec.model) || '';
   const served = (rec && rec.served_model) || '';
@@ -231,7 +231,7 @@ export function modelLabelText(rec, fallback) {
 
 /* Trim the vendor prefix off an nvidia-smi GPU name ("NVIDIA GeForce RTX
  * 4080" -> "RTX 4080") — shared by the Hub sparkline labels and the
- * Machines-tab stats card (#309 sibling-dedup, same pattern as escapeHtml). */
+ * Machines-tab stats card (same shared-helper pattern as escapeHtml). */
 export function shortGpu(name) {
   if (!name) return '';
   return name.replace('NVIDIA ', '').replace('GeForce ', '').trim();
@@ -246,8 +246,8 @@ export function fmtClock(ts) {
 }
 
 /* Compact token count — 1.2k / 3.4M / 2,323.7M (shared by the Hub counters, OTel
- * leaderboard, and Code-usage tables; #215 dedup). Millions group their integer
- * part so a four-digit figure stays readable (#692). The grouping is pinned to
+ * leaderboard, and Code-usage tables). Millions group their integer
+ * part so a four-digit figure stays readable. The grouping is pinned to
  * en-US: the decimal point of every existing figure ("1.0M") must not move with
  * the browser's locale, and the figure then reads the same on every device. */
 export function fmtTok(n) {
@@ -260,7 +260,7 @@ export function fmtTok(n) {
 }
 
 /* Latency in seconds — two decimals under 1s, one above ("0.35s", "12.4s"),
- * so the p50/p95 columns stay narrow on a phone (#215). */
+ * so the p50/p95 columns stay narrow on a phone. */
 export function fmtSecs(ms) {
   const n = Number(ms) || 0;
   return (n / 1000).toFixed(n < 995 ? 2 : 1) + 's';
@@ -284,8 +284,8 @@ export function tokPair(inTok, outTok) {
   return one(inTok) + ' / ' + one(outTok);
 }
 
-/* Shared plumbing behind every table-render function in this file (and, as
- * of #530, in code_usage.js too): resolve `table`'s
+/* Shared plumbing behind every table-render function in this file (and
+ * in code_usage.js too): resolve `table`'s
  * <tbody>, bail silently (-1) if either isn't in the DOM, else fill it from
  * `rows` via `cellsFn` — one row's full '<tr>...</tr>' markup — and return
  * the row count so the caller can drive its own empty-state UI (an inline
@@ -305,8 +305,8 @@ function fillTableBody(table, rows, cellsFn) {
  * row per record with the same Backend/Model · Req · Err · p50 · p95 ·
  * I/O-tok cells. Shared by the Hub tab's /hub/counters table and the
  * Telemetry tab's per-model leaderboard, which had the whole scaffold
- * copy-pasted even though their cell formatters were already deduped here
- * (#470). No-op when the table (or its tbody) isn't in the DOM. */
+ * copy-pasted even though their cell formatters were already deduped here.
+ * No-op when the table (or its tbody) isn't in the DOM. */
 export function renderCounterTable(table, rows) {
   const count = fillTableBody(table, rows, function (r) {
     return '<tr>' +
@@ -330,7 +330,7 @@ export function renderCounterTable(table, rows) {
  * usage table) each re-derived by hand: resolve tbody, bail if absent,
  * clear + fill, toggle `emptyEl.hidden` on `rows.length`. `renderCounterTable`
  * above was already the deduplicated version of this exact shape for the two
- * counter tables; #530 widens it into this general form so newer tables stop
+ * counter tables; this widens it into the general form so newer tables stop
  * walking past it. `cellsFn(row)` returns one row's full '<tr>...</tr>'
  * markup. `emptyEl` is optional — pass a falsy value to skip the toggle
  * (e.g. a caller that drives its own empty-state text). No-op when `table`
@@ -343,7 +343,7 @@ export function renderTable(table, emptyEl, rows, cellsFn) {
 
 /* Equivalent metered-API dollar cost — "≈ $1.23" / "≈ <$0.01" / "" when
  * zero/absent (shared by Code-usage tables and the OTel tab's Claude Code
- * panel, #215-style dedup). */
+ * panel). */
 export function fmtCost(n) {
   if (!n) return '';
   if (n < 0.01) return '≈ <$0.01';
@@ -352,15 +352,15 @@ export function fmtCost(n) {
 }
 
 /* MB (VRAM/RAM figure) -> compact "X.X GB" label, unit baked in. Shared by
- * the Models fleet-editor and Machines/Placement tabs (#448 dedup — was
+ * the Models fleet-editor and Machines/Placement tabs (was
  * defined verbatim in both). */
 export function fmtGb(mb) {
   return (Number(mb || 0) / 1024).toFixed(1) + ' GB';
 }
 
 /* Bare "X.X" (no unit suffix) for a value already in GB — distinct contract
- * from fmtGb, which takes raw MB and bakes the unit in (design-drift audit
- * #384; #448 dedup — was defined verbatim in both Machines and Placement). */
+ * from fmtGb, which takes raw MB and bakes the unit in (was
+ * defined verbatim in both Machines and Placement). */
 export function fmtGbValue(n) {
   return Number.isFinite(n) ? n.toFixed(1) : '—';
 }

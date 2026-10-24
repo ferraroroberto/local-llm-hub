@@ -100,11 +100,11 @@ def _add_placement_fields(
         return
     row["placement"] = {
         # Declared chain in priority order; ``cpu`` marks the *effective*
-        # device on that host (#434) — sourced from
+        # device on that host — sourced from
         # ``model_registry.cpu_resident_map`` (the same source the fleet
         # summary's device hints read), so an always-CPU row (piper, a
-        # whisper ``-ng`` row, #265) is tagged everywhere, not just a chain's
-        # degraded ``cpu: true`` tier (#342). A bare ``host:`` row is a
+        # whisper ``-ng`` row) is tagged everywhere, not just a chain's
+        # degraded ``cpu: true`` tier. A bare ``host:`` row is a
         # 1-element chain.
         "chain": [
             {"id": h, "cpu": m.id in cpu_map.get(h, ())} for h in m.host_chain
@@ -112,7 +112,7 @@ def _add_placement_fields(
         "startup": m.startup,
         "idle_unload_minutes": m.idle_unload_minutes,
         "est_vram_mb": m.est_vram_mb,
-        # #424: a virtual alias shares its parent row's process — its
+        # A virtual alias shares its parent row's process — its
         # placement is the parent's, so the editor never opens on it.
         "editable": not m.virtual,
     }
@@ -208,7 +208,7 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
     """
     active = resolve_host()
     all_enabled = list(enabled_models())
-    # Split by *effective* owner (#342): a multi-host-chain model counts as
+    # Split by *effective* owner: a multi-host-chain model counts as
     # local while this host currently serves it (failover), and as remote
     # while another candidate does — so the tiles always describe the host
     # actually running the process. Single-host rows resolve statically to
@@ -244,7 +244,7 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
     )
 
     rows: List[Dict[str, Any]] = []
-    cpu_map = cpu_resident_map()  # effective per-(model, host) device (#434)
+    cpu_map = cpu_resident_map()  # effective per-(model, host) device
     for m, reachable, device in zip(local_models, reach_results, device_results):
         # Virtual aliases share an existing backend's port and own no process,
         # so they're reachable but never independently start/stop-able.
@@ -299,7 +299,7 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
             _add_placement_fields(row, m, cpu_map)
             rows.append(row)
 
-    # TypeSafe Jev (#611): a read-only tile for this hub's third-party egress.
+    # TypeSafe Jev: a read-only tile for this hub's third-party egress.
     # Not a registry model and never in the peer-merge (`local_only`) listing —
     # each hub reports only its own key state.
     rows.append(server_systemone.admin_model_row(active.id))
@@ -308,7 +308,7 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------- #
-# Editable placement (#424) — the write-through-to-git path. Tower-only;
+# Editable placement — the write-through-to-git path. Tower-only;
 # validation + the git transaction live in src.config_write.
 # --------------------------------------------------------------------- #
 

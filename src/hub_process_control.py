@@ -152,7 +152,7 @@ def _spawn_respawn_watchdog() -> None:
     logger.info("🔄 respawn watchdog: relaunch log → %s", log_path)
     # Same flags used for the hub's own subprocess spawns —
     # DETACHED_PROCESS is deliberately omitted, it's mutually exclusive
-    # with CREATE_NO_WINDOW per the Win32 CreateProcess docs (#282/#283).
+    # with CREATE_NO_WINDOW per the Win32 CreateProcess docs.
     creationflags = WIN_NEW_GROUP
     # Capture the watchdog's own stdout/stderr to the same log so a
     # failure *before* it opens its own handle (e.g. a bad argv) is still

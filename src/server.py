@@ -142,7 +142,7 @@ logging.basicConfig(
 install_root_handler()
 logger = logging.getLogger(__name__)
 
-# Bring up OpenTelemetry (issue #4). Soft-fails if the SDK or the OTLP
+# Bring up OpenTelemetry. Soft-fails if the SDK or the OTLP
 # endpoint is unreachable — the hub keeps serving traffic and the SPA's
 # Telemetry tab shows "stack offline" until Langfuse comes up.
 init_otel("local-llm-hub")
@@ -155,7 +155,7 @@ def _envelope_to_anthropic(env: Dict[str, Any], requested_model: str) -> Dict[st
     text = env.get("result") or ""
     usage_raw = env.get("usage") or {}
     # Backends that can return structured content (the openai path, which may
-    # emit tool_use blocks — #552) supply "content"; the CLI backends return
+    # emit tool_use blocks) supply "content"; the CLI backends return
     # text only and fall back to a single text block.
     content = env.get("content") or [{"type": "text", "text": text}]
     return {
@@ -184,7 +184,7 @@ def _envelope_to_anthropic(env: Dict[str, Any], requested_model: str) -> Dict[st
 app = FastAPI(title="Local LLM Hub", version="0.3.0")
 # Errors raised on the Anthropic-shape routes serialise as Anthropic's
 # {"type": "error", "error": {...}} envelope instead of FastAPI's
-# {"detail": ...} (#460), so the anthropic SDK's typed exceptions and
+# {"detail": ...}, so the anthropic SDK's typed exceptions and
 # retry logic behave against the hub as they do against the real API.
 # Path-scoped: /v1/chat/completions keeps its existing shape.
 install_anthropic_error_handlers(app)
@@ -260,7 +260,7 @@ def _load_startup_webapp_config() -> Optional[WebappConfig]:
 
 app.state.webapp_config = _load_startup_webapp_config()
 
-# CORS for browser-based clients (#462) — added LAST so it sits outside
+# CORS for browser-based clients — added LAST so it sits outside
 # every layer above, including the bearer gate. A preflight OPTIONS
 # carries no Authorization header by the browser's design, so it has to
 # be answered here rather than 401'd downstream; real requests still
@@ -272,7 +272,7 @@ install_cors(app, getattr(app.state, "webapp_config", None))
 
 
 # Startup/shutdown handlers + the background resource sampler live in
-# server_lifecycle.py (issue #198) — server.py stays app construction +
+# server_lifecycle.py — server.py stays app construction +
 # route registration.
 from .server_lifecycle import register as _register_lifecycle  # noqa: E402
 
@@ -342,7 +342,7 @@ def health() -> Dict[str, str]:
 def list_models() -> Dict[str, Any]:
     data = []
     for m in enabled_models():
-        # Don't advertise a Gemini picker model agy is known not to offer (#629).
+        # Don't advertise a Gemini picker model agy is known not to offer.
         # Unknown catalogue (None) keeps the row listed — only a positive
         # "not in the catalogue" hides it.
         if (m.backend == "gemini" and not m.image_gen
@@ -773,7 +773,7 @@ def _stream_openai_passthrough(
     """
     upstream = resolve_openai_upstream(model)
     extra = _build_openai_extra(model, req)
-    # On-demand idle tracking (#422): a locally-served on_demand model must
+    # On-demand idle tracking: a locally-served on_demand model must
     # not be idle-unloaded while a stream is in flight — pair the start here
     # with the finish in the generator's ``finally`` (which also runs on a
     # client disconnect, via GeneratorExit).
@@ -891,7 +891,7 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
     start_ns = time.monotonic_ns()
 
     if model.backend == "openai":
-        # On-demand lifecycle (#422): a cold ``startup: on_demand`` local
+        # On-demand lifecycle: a cold ``startup: on_demand`` local
         # backend is spawned here and the request blocks until it answers
         # (distinct 503 on load failure). No-op for eager/remote/virtual rows.
         _ensure_backend_ready(model)
@@ -918,9 +918,9 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
     try:
         if model.backend in ("claude", "gemini"):
             # Normalize OpenAI-shape dict messages to Message objects and
-            # flatten with the same helper /v1/messages uses (issue #195).
+            # flatten with the same helper /v1/messages uses.
             # Inline file parts become document blocks here, then reuse the
-            # request-scoped attachment extractor used by /v1/messages (#554).
+            # request-scoped attachment extractor used by /v1/messages.
             try:
                 turns, sys_text = _openai_messages_to_anthropic(
                     req.messages, model_label=model.id,
@@ -979,7 +979,7 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
                 error_type = "config_error"
                 raise
             extra = _build_openai_extra(model, req)
-            # On-demand idle tracking (#422) and the UpstreamError -> 502
+            # On-demand idle tracking and the UpstreamError -> 502
             # mapping both live in call_openai_upstream, shared with the
             # /v1/messages buffered path. It raises only that 502, so the
             # catch below labels exactly the upstream failure for the ring.
@@ -1051,10 +1051,10 @@ def _flatten_openai_prompt(messages: List[Dict[str, Any]]) -> str:
 
 # ---- Image, audio + TypeSafe routes (split into sibling modules) ----
 # The /v1/images/* handlers live in server_images.py and the TypeSafe
-# /v1/systemone passthrough in server_systemone.py (#611); the /v1/audio/* proxy
+# /v1/systemone passthrough in server_systemone.py; the /v1/audio/* proxy
 # is split across server_audio_asr.py (transcriptions/translations/health —
 # owns the router object) and server_audio_tts.py (speech, registered onto
-# that same router via the import above — #451). All are plain APIRouters
+# that same router via the import above). All are plain APIRouters
 # mounted here so the admin sub-app's auth boundary and the observability
 # middleware still cover them. See those modules for the handler bodies.
 app.include_router(_images_router)

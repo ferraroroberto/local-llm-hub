@@ -155,7 +155,7 @@ async def langfuse_health(timeout_s: float = LANGFUSE_PROBE_TIMEOUT_S) -> Dict[s
     """
     host = langfuse_host()
     try:
-        # Shared pooled client (#165/#392): a fresh AsyncClient builds an SSL
+        # Shared pooled client: a fresh AsyncClient builds an SSL
         # context (~0.26 s on Windows, cert-store scan) *on the event loop* —
         # the SPA polls this constantly, and those constructions stacked into
         # multi-second loop stalls that tripped 5 s e2e httpx timeouts.
@@ -438,7 +438,7 @@ async def launch_stack() -> Dict[str, Any]:
 
 
 # ------------------------------------------------------------------ stop
-# Issue #284 — the Services card's Start-only buttons get Stop siblings,
+# The Services card's Start-only buttons get Stop siblings,
 # mirroring the Models tab's per-row start/stop pattern.
 
 DOCKER_STOP_TIMEOUT_S = 60.0

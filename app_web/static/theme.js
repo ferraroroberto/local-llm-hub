@@ -1,4 +1,4 @@
-/* Theme: System, Light or Dark (#741).
+/* Theme: System, Light or Dark.
  *
  * The pre-paint boot script in index.html already stamped html[data-theme]
  * (a stored light/dark, else prefers-color-scheme). This module owns the

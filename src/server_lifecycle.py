@@ -132,35 +132,35 @@ async def wire_observatory_loop() -> None:
     # The hub owns configured backend autostart so every launch surface
     # (tray, run_hub.bat, python -m src.run_backend hub) behaves the same.
     _BACKGROUND_TASKS.append(loop.create_task(_autostart_configured_backends()))
-    # Same idea for Docker/Langfuse/AgentsView (issue #265) — the startup
+    # Same idea for Docker/Langfuse/AgentsView — the startup
     # profile's non-model service flags.
     _BACKGROUND_TASKS.append(loop.create_task(_autostart_services()))
-    # Fleet always-on control plane (issue #353): converge every host to its
-    # registry-derived desired state on boot + every few minutes (#430 — the
-    # placement comes from models.yaml's hosts chains + startup policy). Since
-    # #374 this is also the *sole* peer wake/sync mechanism (a peer with
+    # Fleet always-on control plane: converge every host to its
+    # registry-derived desired state on boot + every few minutes (the
+    # placement comes from models.yaml's hosts chains + startup policy).
+    # This is also the *sole* peer wake/sync mechanism (a peer with
     # desired models is woken + started here; one with none is left asleep).
     _BACKGROUND_TASKS.append(loop.create_task(_fleet_reconcile_loop()))
-    # Dynamic model fallback (issue #342): probe the hosts of every
+    # Dynamic model fallback: probe the hosts of every
     # multi-host ``hosts:`` chain and move ownership down/up the chain with
     # hysteresis. The task exits immediately when no enabled model declares
-    # a multi-host chain, so pre-#342 configs pay nothing.
+    # a multi-host chain, so single-host configs pay nothing.
     _BACKGROUND_TASKS.append(loop.create_task(_model_failover_loop()))
-    # Diagnostics (issue #315): close any capture orphaned by a previous hub
+    # Diagnostics: close any capture orphaned by a previous hub
     # and arm the scheduled snapshot if it's enabled. No task is created when
     # it's off — the feature costs nothing until asked for.
     _BACKGROUND_TASKS.append(loop.create_task(_init_diagnostics()))
-    # On-demand idle watchdog (issue #422): periodically unloads a
+    # On-demand idle watchdog: periodically unloads a
     # ``startup: on_demand`` model that has sat idle past its
     # ``idle_unload_minutes`` window. Cheap when no row opts in — the pass
     # scans the registry and finds no candidates.
     _BACKGROUND_TASKS.append(loop.create_task(_on_demand_idle_loop()))
-    # Config drift convergence (#424): on the single write host only, poll
-    # hub peers' models.yaml sha and re-fire the #181 sync at any satellite
+    # Config drift convergence: on the single write host only, poll
+    # hub peers' models.yaml sha and re-fire the peer sync at any satellite
     # that missed a push-triggered sync (e.g. it was powered off). The task
     # returns immediately on every non-writer host.
     _BACKGROUND_TASKS.append(loop.create_task(_config_drift_loop()))
-    # Code-tab summary (#826): build the opening view once so the first tab
+    # Code-tab summary: build the opening view once so the first tab
     # open after a restart is a cache hit, not a multi-second cold build.
     _BACKGROUND_TASKS.append(loop.create_task(_prewarm_code_usage()))
 
@@ -177,7 +177,7 @@ async def _prewarm_code_usage() -> None:
 
 
 async def _autostart_configured_backends() -> None:
-    # The registry-derived desired set (#430): eager rows preferred-owned by
+    # The registry-derived desired set: eager rows preferred-owned by
     # (or unowned and launchable on) this host. This is how an offline
     # satellite applies its models when it powers up — its own synced
     # models.yaml, no tower involvement needed.

@@ -1,4 +1,4 @@
-/* Code tab: coding-agent usage (issues #20, #50; redesigned by #739).
+/* Code tab: coding-agent usage.
  *
  * Totals and cost first: the period switch over the four counters (requests,
  * input, output, cache reads) with their equivalent cost and deltas, and the
@@ -13,7 +13,7 @@
  * Polls /admin/api/code/usage/summary?period=&vendor= every 30 s while the
  * tab is visible (or the OTel usage route while Sub-agents is chosen).
  *
- * Charts (issue #50): requires Chart.js 4.x loaded globally via CDN before
+ * Charts: requires Chart.js 4.x loaded globally via CDN before
  * this module executes (see the <script> tag just before main.js in index.html).
  */
 
@@ -37,10 +37,10 @@ defineInfo('code-usage', 'About these figures',
   + 'prefix is stripped). Long names are cut with “…”.</p>');
 
 // ---------------------------------------------------------------------------
-// Chart constants (issue #50)
+// Chart constants
 // ---------------------------------------------------------------------------
 
-// Vendor hues for the trend's stacked bars (#751). Hardcoded (not from CSS
+// Vendor hues for the trend's stacked bars. Hardcoded (not from CSS
 // vars) because the Chart.js canvas cannot read CSS custom properties; each
 // holds at least 3:1 against the card on both themes (white and #161b22).
 // Order is the stack order, base first. `point` is the legend's shape, the
@@ -57,7 +57,7 @@ const VENDOR_ORDER = ['anthropic', 'openai', 'google', 'microsoft', 'other'];
 // ones step down; any further model keeps the floor.
 const OPACITY_STEPS = [1, 0.75, 0.5, 0.25];
 
-// The trend chart's four metrics, one per counter (#739).
+// The trend chart's four metrics, one per counter.
 const METRICS = {
   requests:          { label: 'Requests',      isTok: false },
   input_tokens:      { label: 'Input tokens',  isTok: true },
@@ -78,7 +78,7 @@ let _lastTs = null;
 const POLL_MS = 30_000;
 let _pollHandle = null;
 
-// A vendor/period switch (#693): the loading toast goes up at once, the fetch
+// A vendor/period switch: the loading toast goes up at once, the fetch
 // starts once the clicks settle, and any earlier load is aborted, so a burst of
 // clicks sends one request for the final choice. `_choice` is the live switch;
 // `_pollCtl` the latest background poll, which a switch aborts and which never
@@ -90,7 +90,7 @@ let _pollCtl = null;
 let _gen = 0;
 
 // Empty-state blocks whose copy swaps to a "could not load" line while the
-// summary is failing (#580), and the pristine markup to restore on recovery.
+// summary is failing, and the pristine markup to restore on recovery.
 const EMPTY_STATE_KEYS = [
   'cldVendorEmpty', 'cldModelEmpty', 'cldProjectEmpty', 'cldSessionsEmpty', 'cldSubEmpty',
 ];
@@ -164,7 +164,7 @@ export function wireCodeUsage() {
 
 export function startCodeUsagePolls() {
   // A re-tap of the already-active tab calls this again; a second interval would
-  // orphan the first (stop clears only the latest handle) and poll forever (#787).
+  // orphan the first (stop clears only the latest handle) and poll forever.
   if (_pollHandle !== null) return;
   pollSummary();
   _pollHandle = setInterval(pollSummary, POLL_MS);
@@ -214,7 +214,7 @@ function startChoiceLoad() {
 /* Fetch + render the current choice: the summary, or the Sub-agents (OTel)
  * rollup while that source is chosen. Resolves 'ok', 'aborted' (superseded —
  * nothing rendered), 'auth' (the sign-in overlay owns it) or the failure
- * reason (already shown through the #580 banner). */
+ * reason (already shown through the load-failure banner). */
 async function fetchSummary(ctl, gen) {
   const sub = state.cldVendor === SUBAGENTS;
   try {
@@ -224,7 +224,7 @@ async function fetchSummary(ctl, gen) {
       { signal: ctl.signal }
     );
     if (ctl.signal.aborted || gen !== _gen) return 'aborted';
-    // Belt and braces (#580): the route now answers 503 on a failed build, so
+    // Belt and braces: the route now answers 503 on a failed build, so
     // jsonApi throws and the catch below owns the error state. A 200 that
     // still carries `error` (an older hub on a peer machine) is a failure too
     // — read the field rather than trusting the status alone.
@@ -256,13 +256,13 @@ function renderSummary(body) {
     state.cldVendorTotals = { period: state.cldPeriod, rows: body.by_vendor || [], totals: body.totals || {} };
   }
   render(body);
-  // Copilot billing is a separate authoritative source (issue #231, part B):
+  // Copilot billing is a separate authoritative source:
   // only fetched while that vendor is chosen, so the GitHub API isn't hit on
   // every 30 s poll regardless.
   if (state.cldVendor === 'copilot') fetchCopilotBilling().catch(function () {});
 }
 
-/* Render "the summary could not be built" as its own state (#580).
+/* Render "the summary could not be built" as its own state.
  *
  * The whole point is that this is NOT a zero-usage day: every counter goes to
  * the unknown dash rather than 0, the trend chart is torn down instead of
@@ -330,7 +330,7 @@ function setLoadError(reason) {
 }
 
 // ---------------------------------------------------------------------------
-// Which blocks show (#739): the figures or the Sub-agents table, the chart,
+// Which blocks show: the figures or the Sub-agents table, the chart,
 // the breakdowns, Copilot's credits, the note that applies now.
 // ---------------------------------------------------------------------------
 
@@ -343,7 +343,7 @@ function applyView() {
     els.cldUndercountNote.hidden = sub || _loadFailed || !(all || state.cldVendor === 'claude');
   }
   // The breakdowns stay hidden until the first summary has been answered,
-  // success or failure (#647): a header-only table or a "none found" line
+  // success or failure: a header-only table or a "none found" line
   // before that would state an emptiness nothing has measured.
   if (els.cldPending) els.cldPending.hidden = _answered || sub;
   if (els.cldProjectCard) els.cldProjectCard.hidden = !_answered || sub;
@@ -380,7 +380,7 @@ function agentsviewOffline() {
 }
 
 // ---------------------------------------------------------------------------
-// The agent sheet (#739)
+// The agent sheet
 // ---------------------------------------------------------------------------
 
 function syncPeriodSeg() {
@@ -443,7 +443,7 @@ function renderAgentSheet() {
 }
 
 // ---------------------------------------------------------------------------
-// Copilot official billing card (issue #231, part B)
+// Copilot official billing card
 // ---------------------------------------------------------------------------
 
 async function fetchCopilotBilling() {
@@ -553,19 +553,19 @@ function renderCldCounters(body) {
   if (!body) return;
   const bucket = body.totals || {};
   set(els.cldRequests, fmtNum(bucket.requests));
-  // Grand-total equivalent metered cost, the figure the owner reads first (#71, #739).
+  // Grand-total equivalent metered cost, the figure the owner reads first.
   const cost = totalCost(bucket);
   _lastCost = cost;
   set(els.cldTotalCost, fmtCost(cost) || '≈ $0.00');
   set(els.cldInputTok, fmtTok(billedInput(bucket)));
   set(els.cldOutputTok, fmtTok(bucket.output_tokens));
   set(els.cldCacheRead, fmtTok(bucket.cache_read_tokens));
-  // Equivalent metered-API cost under the three token tiles (issue #52, #71).
+  // Equivalent metered-API cost under the three token tiles.
   set(els.cldInputCost, fmtCost(bucket.input_cost));
   set(els.cldOutputCost, fmtCost(bucket.output_cost));
   set(els.cldCacheCost, fmtCost(bucket.cache_read_cost));
-  // Codex reasoning tokens — a subset of output (#71). Off the card face so
-  // the four cards stay one height (#692); the figure rides the output
+  // Codex reasoning tokens — a subset of output. Off the card face so
+  // the four cards stay one height; the figure rides the output
   // tile's tooltip.
   const reasoning = bucket.reasoning_output_tokens || 0;
   if (els.cldOutputTok) {
@@ -591,7 +591,7 @@ function vendorLabel(v) {
   if (v === 'codex') return 'Codex';
   if (v === 'copilot') return 'Copilot';
   if (v === 'agy') return 'AGY';
-  // Any other AgentsView-sourced vendor (issue #280): auto-label from the slug.
+  // Any other AgentsView-sourced vendor: auto-label from the slug.
   return v ? v.charAt(0).toUpperCase() + v.slice(1) : '—';
 }
 
@@ -656,7 +656,7 @@ function renderSessions(sessions) {
     const proj = escapeHtml(s.project || s.project_key || '');
     const model = escapeHtml(modelShort(s.model || ''));
     const sid = escapeHtml((s.session_id || '').slice(0, 8));
-    // Project leads; the times live on the meta line (J-10, #647).
+    // Project leads; the times live on the meta line (J-10).
     return '<li>' +
       '<span class="cld-sess-project">' + proj + '</span>' +
       '<span class="cld-sess-model">' + model + '</span>' +
@@ -671,7 +671,7 @@ function renderSessions(sessions) {
 }
 
 // ---------------------------------------------------------------------------
-// Delta badges (issue #50)
+// Delta badges
 // ---------------------------------------------------------------------------
 
 function renderDeltas(body) {
@@ -684,7 +684,7 @@ function renderDeltas(body) {
     if (hide) { el.hidden = true; return; }
     // Zero base: percentage is undefined. Show "new" when this metric appeared
     // this period (e.g. Codex with no prior-week data) instead of hiding the
-    // badge — the comparison window itself is valid (issue #71).
+    // badge — the comparison window itself is valid.
     if (p === 0) {
       if (c > 0) { el.hidden = false; el.className = 'cld-delta up'; el.textContent = 'new'; }
       else { el.hidden = true; }
@@ -710,11 +710,11 @@ function renderDeltas(body) {
 }
 
 // ---------------------------------------------------------------------------
-// The trend chart (issue #50; one chart since #739)
+// The trend chart
 // ---------------------------------------------------------------------------
 
 /* Draw the chosen metric over the last summary's time series as stacked
- * bars, one per bucket (#751). Every period carries a series; a period with
+ * bars, one per bucket. Every period carries a series; a period with
  * no buckets at all (All before any usage) shows the empty line. */
 function drawChart() {
   const card = els.cldChartsCard;
@@ -844,7 +844,7 @@ function _chartOptions(isTok) {
         labels: { color: fgColor, boxWidth: 12, padding: 12, font: { size: 11 }, usePointStyle: true },
       },
       // The precise-value path: the models with a value in this bucket, in
-      // stack order, then the bucket total (#751).
+      // stack order, then the bucket total.
       tooltip: {
         filter: function (item) { return item.parsed.y !== 0; },
         callbacks: {
@@ -906,7 +906,7 @@ function totalCost(r) {
   return (r.input_cost || 0) + (r.output_cost || 0) + (r.cache_read_cost || 0);
 }
 
-/* fmtTok / fmtCost live in api.js (shared with the Hub/OTel tables, #215). */
+/* fmtTok / fmtCost live in api.js (shared with the Hub/OTel tables). */
 
 function fmtTs(iso) {
   if (!iso) return '—';

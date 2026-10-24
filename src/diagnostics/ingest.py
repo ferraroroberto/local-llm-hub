@@ -131,7 +131,7 @@ def ingest_payload(payload: Dict[str, Any], *, machine: str = None,
 
     # A run every one of whose port scans was denied was blind to ports
     # throughout — the same run-level signal the live sampler derives, recorded
-    # as coverage so a blind table never reads as "nothing listening" (#322).
+    # as coverage so a blind table never reads as "nothing listening".
     _finalize(run_id, platform=platform, ports_denied=ports_denied_all)
     logger.info("📥 ingested remote run %s for %s (%s, %d samples)",
                 run_id, machine_id, platform, len(samples))

@@ -289,7 +289,7 @@ def evaluate(run_id: str) -> Dict[str, Any]:
         # "healthy" here let a pruned run's saved verdict (which can be
         # "critical" with findings, and `store.prune` promises to keep those
         # forever) get silently overwritten on re-evaluate, and let a capture
-        # stopped before its first tick read as healthy (#618).
+        # stopped before its first tick read as healthy.
         return {"level": "not_evaluated", "findings": [], "sample_count": 0,
                 "coverage": coverage_map}
 

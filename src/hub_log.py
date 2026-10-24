@@ -111,7 +111,7 @@ def install_root_handler() -> None:
     # `uvicorn.run("src.server:app")` re-imports this module after uvicorn's
     # own dictConfig, re-attaching the handler to both — so every
     # uvicorn.error line (startup, ASGI exception tracebacks) would appear
-    # twice in the Hub tab log (#618).
+    # twice in the Hub tab log.
     targets = ("", "uvicorn", "uvicorn.access")
     for name in targets:
         lg = logging.getLogger(name)

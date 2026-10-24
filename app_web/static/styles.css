@@ -4,7 +4,7 @@
  * Fleet design system (~/.claude/design.md + design.dark.md). Token *names*
  * are this app's; their *values* are the spec's. Light = :root, dark =
  * [data-theme="dark"] (stamped pre-paint by the boot script in index.html;
- * the Hub-card sun/moon button flips it — local-llm-hub#211).
+ * the Hub-card sun/moon button flips it).
  * P3 wide-gamut (oklch) twins override the saturated tokens behind
  * @media (color-gamut: p3) below.
  *
@@ -17,7 +17,7 @@
   --bg: #ffffff;            /* canvas (page background) */
   --card: #ffffff;          /* elevated card surface */
   --card-off: #f6f8fa;      /* canvas-subtle (inset / off-card surfaces) */
-  --card-2: #f6f8fa;        /* the vendored row-menu's raised surface (canvas-subtle, #772) */
+  --card-2: #f6f8fa;        /* the vendored row-menu's raised surface (canvas-subtle) */
   --ink: #1f2328;            /* primary text */
   --muted: #656d76;         /* fg-muted (secondary text) */
   --line: #d1d9e0;          /* border (default hairline) */
@@ -26,10 +26,10 @@
   --accent: #0969da;
   --accent-fg: #ffffff;     /* text/icon on an accent fill */
   --accent-fill: #0969da;   /* solid primary fill (button-primary) — equals accent here */
-  --accent-text: #0550ae;   /* accent-coloured TEXT on an accent-soft tint (fleet-config#963) */
+  --accent-text: #0550ae;   /* accent-coloured TEXT on an accent-soft tint */
   --on: #1a7f37;
   --danger: #cf222e;
-  --danger-text: #a40e26;   /* danger-coloured TEXT on a danger-soft tint (fleet-config#963) */
+  --danger-text: #a40e26;   /* danger-coloured TEXT on a danger-soft tint */
   --attention: #9a6700;
   --attention-text: #7d4e00; /* attention-coloured TEXT on its own tint (status chip, header line) */
   /* Neutral control surface: input/select boundary + switch off-track — 3:1+
@@ -39,7 +39,7 @@
   --toggle-knob: #ffffff;       /* vendored switch: thumb */
   --input-bg: var(--card-off);
   --code-bg: var(--card-off);  /* the Machines terminal mount (a terminal stays a dark hole; listings use --card, COMP-17) */
-  --close-bg: transparent; /* header toggles + modal ×: glyph on nothing at rest (fleet-config#1259) */
+  --close-bg: transparent; /* header toggles + modal ×: glyph on nothing at rest */
   --scrim: rgba(0, 0, 0, 0.5); /* login-overlay dim — theme-invariant by design */
   /* status-alpha composites — derived, so they re-theme for free */
   --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
@@ -51,7 +51,7 @@
   --success-border: color-mix(in srgb, var(--on) 45%, transparent);
   --attention-border: color-mix(in srgb, var(--attention) 45%, transparent);
   /* --deficit is the vendored button.css tint recipe's own generic name for
-     the "danger" role (fleet-config#296) — alias it onto this app's danger
+     the "danger" role — alias it onto this app's danger
      tokens rather than duplicating the color-mix composites. */
   --deficit: var(--danger);
   --deficit-soft: var(--danger-soft);
@@ -102,8 +102,8 @@
   /* elevation — cards lean on surface + hairline border; only floating
      elements (toast) carry a real shadow. */
   --shadow: 0 8px 24px rgba(31, 35, 40, 0.12);
-  /* Mobile floating bottom tab bar — the phone-validated fleet geometry
-     (home-automation#118), consumed by _vendored/nav/nav-tabs.css. */
+  /* Mobile floating bottom tab bar — the phone-validated fleet geometry,
+     consumed by _vendored/nav/nav-tabs.css. */
   --bottom-tabs-height: 61px;
   --bottom-tabs-margin: 21px;
   --bottom-tabs-pill-height: 53px;
@@ -115,22 +115,22 @@
   --tabbar-border: rgba(31, 35, 40, 0.12);
   /* Follow the html[data-theme] stamp, not the OS: `light dark` here let the
      UA paint native widgets (checkboxes, selects) by OS preference, so a
-     dark-mode phone showed black checkboxes on the light theme (#428). The
+     dark-mode phone showed black checkboxes on the light theme. The
      boot script always stamps data-theme pre-paint, so this never flashes. */
   color-scheme: light;
 }
 
 [data-theme="dark"] {
-  color-scheme: dark;       /* native widgets match the stamped theme (#428) */
+  color-scheme: dark;       /* native widgets match the stamped theme */
   --bg: #0d1117;            /* canvas (GitHub dark canvas) */
   --card: #161b22;          /* elevated card surface */
   --card-off: #010409;      /* canvas-subtle (true black inset) */
-  --card-2: #21262d;        /* the vendored row-menu's raised surface (border-muted, #772) */
+  --card-2: #21262d;        /* the vendored row-menu's raised surface (border-muted) */
   --ink: #e6edf3;
   --muted: #7d8590;
   --line: #30363d;
   --line-muted: #21262d;
-  --input-bg: var(--line-muted); /* control fill, not true black (fleet-config#1368) */
+  --input-bg: var(--line-muted); /* control fill, not true black */
   --accent: #2f81f7;
   --accent-fg: #ffffff;
   --accent-fill: #1f6feb;   /* one step below --accent so white text holds AA */
@@ -216,7 +216,7 @@ html, body {
 
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
-/* One app font everywhere (#215): monospace only where console output
+/* One app font everywhere: monospace only where console output
  * genuinely lives — <pre> panes (log tail, model reply, trace bodies) and the
  * Recent-sessions id/token line (code_usage.css). Inline <code> chips render
  * in the app font. */
@@ -253,7 +253,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   max-width: 772px;
   margin: 0 auto;
   /* Bottom padding equals the side gutter, so the build footer sits as
-   * close to the bottom edge as the cards do to the sides (#217). */
+   * close to the bottom edge as the cards do to the sides. */
   padding: env(safe-area-inset-top, 0) var(--gap) calc(env(safe-area-inset-bottom, 0) + var(--gap));
   display: flex;
   flex-direction: column;
@@ -287,10 +287,10 @@ h2 { display: flex; align-items: center; gap: 8px; }
   gap: 10px;
   margin-bottom: 10px;
 }
-/* One card-title scale app-wide (#215): --font-body, matching the vendored
+/* One card-title scale app-wide: --font-body, matching the vendored
  * disclosure's .collapse-title and home-automation's card-identity scale.
  * The leading glyph is pinned to icons.size.title (18px) so plain card
- * headers match the disclosure summaries' icon size too (#217). */
+ * headers match the disclosure summaries' icon size too. */
 .card-header h2 { margin: 0; font-size: var(--font-body); font-weight: 600; }
 .card-header h2 .icon { width: var(--icon-title); height: var(--icon-title); }
 .card-header-actions {
@@ -417,7 +417,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .ghost-btn.danger:hover { background: var(--danger-soft); }
 /* Accent-tint variant — same size as .ghost-btn but the primary action
  * (Playground Send / Generate / Speak / Download). Transparent accent tint,
- * never a solid fill (home-automation #215). */
+ * never a solid fill. */
 .ghost-btn.primary {
   background: var(--accent-soft);
   color: var(--accent-text);
@@ -467,7 +467,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 
 /* ---------- counters table (scrollable wrap on phone) ---------- */
 .counters-wrap { overflow-x: auto; }
-/* Under a table wider than a phone: says the wrap scrolls sideways (#739). */
+/* Under a table wider than a phone: says the wrap scrolls sideways. */
 .table-scroll-hint { display: none; margin: 6px 0 0; font-size: var(--font-body-sm); }
 @media (max-width: 520px) {
   .table-scroll-hint { display: block; }
@@ -486,7 +486,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 }
 .counters th:first-child, .counters td:first-child { text-align: left; }
 .counters thead th { color: var(--muted); font-weight: 500; font-size: var(--font-caption); }
-/* Plain-word column headers (#647) are longer than the old shorthand: let them wrap. */
+/* Plain-word column headers are longer than the old shorthand: let them wrap. */
 .counters thead th { white-space: normal; vertical-align: bottom; }
 @media (max-width: 480px) {
   .counters th, .counters td { padding-left: 5px; padding-right: 5px; }
@@ -525,7 +525,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .logpane-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 
 /* ---------- sparklines (RAM / VRAM / GPU) ----------
- * Energy-tab chart look (#215): a 2px line over a translucent accent area. */
+ * Energy-tab chart look: a 2px line over a translucent accent area. */
 .sparklines {
   display: flex; gap: var(--gap); flex-wrap: wrap; margin-top: 10px;
 }
@@ -544,18 +544,18 @@ h2 { display: flex; align-items: center; gap: 8px; }
   color: var(--muted);
 }
 .sparkline svg { display: block; width: 100%; height: 64px; margin-top: 4px; }
-/* On a phone the load tiles stack, one per row, instead of sharing a band (#647). */
+/* On a phone the load tiles stack, one per row, instead of sharing a band. */
 @media (max-width: 480px) {
   .sparklines { flex-direction: column; flex-wrap: nowrap; }
   .sparkline { min-width: 0; flex: none; }
   .sparkline svg { height: 48px; }
 }
 
-/* ---------- Hub tab (#738) ----------
+/* ---------- Hub tab ----------
  * Glance + services on the left, the Activity feed on the right on a wide
  * window (rows.css .wide-cols); one column below it. The glance's figures are
  * numbers first; the process line stays here until Step 6 moves it. */
-/* Code (#739) and Playground (#740) share the two-column shape. */
+/* Code and Playground share the two-column shape. */
 .hub-cols, .hub-col, .code-cols, .code-col, .play-cols, .play-col { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
 .hub-window { font-size: var(--font-caption); text-align: right; }
 .hub-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); }
@@ -604,7 +604,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
 #servicesSheet .hub-live-status,
 #servicesSheet .services-detail { font-size: var(--font-body-sm); }
 /* A table in a sheet is the sheet's content, not a dense card's side facts:
- * body-sm at every width (Hub By model, Code By model / Every project, #739).
+ * body-sm at every width (Hub By model, Code By model / Every project).
  * A table wider than a phone scrolls in its wrap under a .table-scroll-hint. */
 .detail-dialog .counters,
 .detail-dialog .counters thead th { font-size: var(--font-body-sm); }
@@ -616,7 +616,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   .hub-cols.wide-cols, .code-cols.wide-cols, .play-cols.wide-cols { display: grid; align-items: start; }
 }
 
-/* ---------- Hub trace sheet (#738; its own styles since #741) ----------
+/* ---------- Hub trace sheet ----------
  * One request's trace id, then its prompt and completion (langfuse.js). */
 .trace-detail { display: flex; flex-direction: column; gap: 10px; font-size: var(--font-body-sm); }
 .trace-detail-row { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
@@ -636,7 +636,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   overflow-wrap: anywhere;
 }
 
-/* ---------- Settings (#741) ----------
+/* ---------- Settings ----------
  * The design system's settings groups in the gear's dialog: overline headers,
  * rows with a lead glyph, a label and the current value. A row with a body
  * opens it in place of the list on a phone (with a back row) and beside the
@@ -688,7 +688,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   .settings-back { display: none; }
 }
 
-/* ---------- Playground (#740) ----------
+/* ---------- Playground ----------
  * One composer: the mode switch spans the column, then the active mode's
  * composer and its result (side by side on a wide window). */
 .play-mode { display: flex; width: 100%; }
@@ -701,11 +701,11 @@ h2 { display: flex; align-items: center; gap: 8px; }
 #panePlayground .opt-stack > label,
 #panePlayground .opt-group-title { font-size: var(--font-body-sm); }
 .play-result > :first-child + * { margin-top: 0; }
-/* An empty card is its one sentence: the static headings and the reply box arrive with the reply (#759). */
+/* An empty card is its one sentence: the static headings and the reply box arrive with the reply. */
 .play-result.is-empty > [data-label],
 .play-result.is-empty > .logpane { display: none; }
 
-/* ---------- Models tab (#737) ----------
+/* ---------- Models tab ----------
  * Rows are the shared row (rows.js on the vendored action-row), grouped by
  * the host serving them under an overline header. The memory glance's rows
  * carry a meter as their one trailing value. */
@@ -783,7 +783,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
  * <body> (_vendored/row-menu); the open kebab takes the accent from that CSS. */
 .row-kebab { --icon-btn-box: var(--row-sm); flex: none; }
 
-/* ---------- Models tab: read-only placement cards (#423) ----------
+/* ---------- Models tab: read-only placement cards ----------
  * A per-model intent section in the model's sheet and detail pane (the row's
  * "More actions" menu carries the same facts as one text line): host-chain pills in
  * priority order (owner = the accent-soft "selected" tint), a
@@ -826,7 +826,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   font-weight: 600;
 }
 
-/* ---------- placement editor (#424, inline panel under a model row) ----------
+/* ---------- placement editor (inline panel under a model row) ----------
  * Same sibling-panel recipe as .glossary-panel — the panel sits next to
  * .app-main so it (and its unsaved draft) survives the 5 s poll. */
 .placement-editor {
@@ -856,7 +856,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   gap: 4px;
   white-space: nowrap;
 }
-/* shadcn checkbox skin (design.md Base UI: Checkbox -> shadcn checkbox, #609):
+/* shadcn checkbox skin (design.md Base UI: Checkbox -> shadcn checkbox):
  * hairline box that fills with the accent when checked, tick drawn on top.
  * The tick's stroke is --accent-fg's value — a data-URI can't read a var —
  * which is #fff in both themes. The label is the hit target, not the box. */
@@ -1039,7 +1039,7 @@ h2 { display: flex; align-items: center; gap: 8px; }
   resize: vertical;
   min-height: 80px;
 }
-/* File pickers (#215): the native input is hidden; a ghost "Choose file"
+/* File pickers: the native input is hidden; a ghost "Choose file"
  * button + the selected filename to its right stand in — no bordered box. */
 .file-row {
   display: flex;
@@ -1100,7 +1100,7 @@ summary.opt-group-title {
 }
 .playground-send-row > button { flex: 1; min-width: 0; }
 
-/* ---------- Playground: Decision (Jev) card (#611) ---------- */
+/* ---------- Playground: Decision (Jev) card ---------- */
 /* Third-party egress notice — attention colour, the same token as .badge.warn. */
 .jev-privacy {
   display: flex;
@@ -1172,7 +1172,7 @@ summary.opt-group-title {
 .services-row {
   display: grid;
   /* 4th column: the compact Wake/Sync action sits inline at the row's end,
-   * on the same line as the "out of sync" detail (#215). */
+   * on the same line as the "out of sync" detail. */
   grid-template-columns: minmax(110px, auto) auto 1fr auto;
   align-items: center;
   gap: 4px 12px;
@@ -1185,9 +1185,9 @@ summary.opt-group-title {
   word-break: break-word;
   min-width: 0;
 }
-/* A long detail is one ellipsised line that opens to its full text (#647). The
+/* A long detail is one ellipsised line that opens to its full text. The
  * summary is the 44px tap target; open, the preview gives way to the body so the
- * text shows once and the disclosure is never an empty container (#817). */
+ * text shows once and the disclosure is never an empty container. */
 details.services-detail > summary {
   display: flex;
   align-items: center;
@@ -1224,14 +1224,14 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
   padding: 4px 10px;
   font-size: var(--font-caption);
 }
-/* Docker/Langfuse/AgentsView start+stop (#284) — one is visible at a time, as a
+/* Docker/Langfuse/AgentsView start+stop — one is visible at a time, as a
  * labelled button (glyph + verb) like Wake / Sync above. */
 .services-row .services-actions {
   display: flex;
   gap: 0;
 }
 
-/* ---------- Startup card — per-item toggle rows (#265) ---------- */
+/* ---------- Startup card — per-item toggle rows ---------- */
 .startup-list {
   list-style: none;
   padding: 0;
@@ -1257,12 +1257,12 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
   font-size: var(--font-label);
 }
 .startup-row-label .badge { flex-shrink: 0; }
-/* Settings › Machines (#765): the machine's name over its one-line meaning. */
+/* Settings › Machines: the machine's name over its one-line meaning. */
 .dormant-row-label { flex-direction: column; align-items: flex-start; gap: 2px; }
 /* Section labels reuse .opt-group-title (playground's existing group-label
  * pattern) rather than a new one-off class. */
 
-/* ---------- Fleet summary card — per-machine read-only summary (#354/#431) ----------
+/* ---------- Fleet summary card — per-machine read-only summary ----------
  * The fleet-wide sibling of the Service startup card: summary lines reuse
  * .startup-row / .startup-list and the roles card's .roles-row-value; only
  * the per-host grouping (header + status chip + offline note) is new here. */
@@ -1277,7 +1277,7 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
   border-top: 1px solid var(--line-muted);
 }
 .fleet-host-note { margin: 6px 0 0; }
-/* Advisory VRAM-overcommit warning (#375) — a tinted host note with a leading
+/* Advisory VRAM-overcommit warning — a tinted host note with a leading
  * glyph, matching the .badge.warn colour token. */
 .fleet-capacity-warn {
   display: flex;
@@ -1293,7 +1293,7 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
 /* The .startup-list under a host group has no extra top margin — the head +
  * note already own the spacing above it. */
 .fleet-host .startup-list { margin-top: 2px; }
-/* Multi-line Running/Loadable values (#434): the label tops-out against the
+/* Multi-line Running/Loadable values: the label tops-out against the
  * first model line instead of floating mid-list. */
 .fleet-host .startup-row { align-items: flex-start; }
 .fleet-model-name {
@@ -1302,7 +1302,7 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
   white-space: nowrap;
   min-width: 0;
 }
-/* One model per line (#434) — right-aligned by the parent .roles-row-value;
+/* One model per line — right-aligned by the parent .roles-row-value;
  * both Running and Loadable read at the body-sm size (the old inline
  * `·`-joined Running flow wrapped awkwardly on phones). */
 .fleet-model-line {
@@ -1315,15 +1315,15 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
 /* Single-line values (Capacity, an honest "none") are inline spans inside
  * .roles-row-value: without a matching font-size their anonymous line box is
  * struck at the inherited body size, seating the smaller text below the
- * label's baseline (#436) — block .fleet-model-line values never had the
+ * label's baseline — block .fleet-model-line values never had the
  * problem. Scoped to the fleet card. Every value and note here is a
  * secondary line people read, so it is body-sm, never caption (design.md
- * typography; TYPE-01, #810): the markup's `.small` spans step up with it. */
+ * typography; TYPE-01): the markup's `.small` spans step up with it. */
 .fleet-host .roles-row-value,
 .fleet-host .roles-row-value .small,
 .fleet-host-note { font-size: var(--font-body-sm); }
 
-/* ---------- placement value column (#373; the Models memory sheet since #737) ----------
+/* ---------- placement value column (the Models memory sheet) ----------
  * Same .startup-row/.startup-list rhythm as the Startup card; only the
  * right-hand value column is new. Right-aligned, allowed to wrap onto a
  * second line for a long placed-models list rather than overflow. */
@@ -1359,10 +1359,10 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
 
 /* ---------- footer ----------
  * Build-identity line only (which build the PWA is running) — home-automation's
- * .page-foot: one centered muted caption, no links, no separator (#215). */
+ * .page-foot: one centered muted caption, no links, no separator. */
 .page-foot {
   /* No bottom margin — .app's bottom padding (one --gap) is the whole gap
-   * below the build line (#217). */
+   * below the build line. */
   margin: var(--space-xs) var(--space-xs) 0;
   text-align: center;
 }

@@ -1,5 +1,5 @@
-/* Models tab — the memory glance and each machine's summary (issue #354,
- * read-only since #431; meters since #737).
+/* Models tab — the memory glance and each machine's summary (read-only,
+ * drawn as meters).
  *
  * Over GET /admin/api/fleet-placement. The glance card draws one row per
  * fleet host with a memory meter: live GPU memory where the machine reports
@@ -170,7 +170,7 @@ export function renderMemory() {
 
 // -------------------------------------------------------------- a machine's summary
 /* A small, low-emphasis device hint for CPU-resident rows (piper, -ng
- * whisper rows, a chain's degraded cpu tier — #387/#431): a model that
+ * whisper rows, a chain's degraded cpu tier): a model that
  * contributes 0 to the VRAM sum reads as intentionally exempt rather than
  * an omission. */
 function deviceHint(model) {
@@ -178,7 +178,7 @@ function deviceHint(model) {
   return ' <span class="muted small">· ' + escapeHtml(model.device) + '</span>';
 }
 
-/* The advisory VRAM-overcommit warning (issue #375): only when the host
+/* The advisory VRAM-overcommit warning: only when the host
  * declares a `vram_mb` ceiling and the estimated footprint of its desired +
  * running models exceeds it — a heads-up, never a hard block. */
 function capacityWarnEl(host) {
@@ -196,7 +196,7 @@ function capacityWarnEl(host) {
 
 /* One model's name in a summary list, with a distinct "external" marker for a
  * live backend served by a process the hub adopted but never spawned
- * (voice-transcriber's whisper-server on the mutex-shared :8090 — #431). */
+ * (voice-transcriber's whisper-server on the mutex-shared :8090). */
 function modelNameHtml(model, id, external) {
   const name = model ? model.display_name : id;
   let html = '<span class="fleet-model-name">' + escapeHtml(name) + '</span>' + deviceHint(model);
@@ -221,7 +221,7 @@ function summaryRow(label, valueHtml, title) {
   return li;
 }
 
-/* Capacity line (#434, live-first since #436): `GPU <used> / <total> · RAM
+/* Capacity line (live-first): `GPU <used> / <total> · RAM
  * <used> / <total> GB` from the same live probes the Machines tab reads; the
  * `~` estimate vs the declared ceiling only where no live GPU figure exists
  * (the system-RAM total stands in on a unified-memory host), and the declared
@@ -274,7 +274,7 @@ function buildHostGroup(host) {
   if (!eligible.length) {
     const note = document.createElement('p');
     note.className = 'fleet-host-note muted small';
-    // Name the control that changes it (J-09, #647).
+    // Name the control that changes it (J-09).
     note.textContent = 'No models placeable on this machine. Add it to a model’s host chain with Edit placement on the Models list.';
     group.appendChild(note);
     return group;

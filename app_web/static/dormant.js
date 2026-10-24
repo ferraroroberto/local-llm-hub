@@ -1,5 +1,5 @@
 /* Settings › Machines — "Dormant machines": mark a peer that is off on purpose
- * so it raises no offline alert (#765).
+ * so it raises no offline alert.
  *
  * Thin view over GET /admin/api/machines/dormant (config only, no live probe)
  * and PUT /admin/api/machines/{id}/dormant, which writes the gitignored

@@ -114,7 +114,7 @@ async def audio_speech(request: Request) -> Response:
     if remote:
         headers.update(remote_auth_headers(target))
 
-    # On-demand lifecycle (#422): a cold ``startup: on_demand`` local TTS
+    # On-demand lifecycle: a cold ``startup: on_demand`` local TTS
     # backend is spawned here and the request blocks until it answers
     # (distinct 503 on load failure) — same hook as the chat routes. Off the
     # event loop: the readiness poll is a blocking sleep/probe cycle.
@@ -128,7 +128,7 @@ async def audio_speech(request: Request) -> Response:
             if k.lower() not in {"content-length", "transfer-encoding", "connection"}
         }
 
-    # The in-flight mark covers *every* exit below by default (#470): the
+    # The in-flight mark covers *every* exit below by default: the
     # ``with`` finishes it on a return or a raise, so a future branch can't
     # forget one and pin the idle-unload window open. Only the streaming
     # branch — whose response outlives this function — opts out, and only

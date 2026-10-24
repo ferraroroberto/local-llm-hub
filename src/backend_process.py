@@ -268,7 +268,7 @@ def is_reachable(model: Model, timeout: float = 1.5) -> bool:
         # whisper.cpp server has no /health; GET / returns 200 once loaded.
         # Engine-specific, not `_is_whisper` (backend == "whisper") — a
         # whisper-*shaped* backend on a different engine (e.g. Parakeet's
-        # `engine: parakeet-server`, #138) has its own real /health route.
+        # `engine: parakeet-server`) has its own real /health route.
         try:
             r = get_sync_client().get(f"{base}/", timeout=timeout)
             return r.status_code == 200
@@ -277,7 +277,7 @@ def is_reachable(model: Model, timeout: float = 1.5) -> bool:
     if model.engine == "tts-server":
         # tts_server.py answers /health with 200 the instant the process
         # starts, before the engine finishes loading in its background
-        # thread — the body's `ready` flag is the real signal (#618). A
+        # thread — the body's `ready` flag is the real signal. A
         # bare status-code check would let ensure_ready return early and
         # the first request into a cold on-demand row hit the shim's own
         # 503 "still loading" instead of waiting here.
@@ -371,7 +371,7 @@ def build_command(model: Model) -> list[str]:
         cmd.extend(model.args or [])
         return cmd
 
-    # Parakeet (#138): the in-repo FastAPI shim (src/parakeet_server) owns a
+    # Parakeet: the in-repo FastAPI shim (src/parakeet_server) owns a
     # persistent FluidAudio Swift subprocess. No model_path — the CoreML
     # weights are fetched/cached by FluidAudio itself on first load, not by
     # this repo's download_models.py, so it must skip the model_path guard
@@ -385,7 +385,7 @@ def build_command(model: Model) -> list[str]:
         raise RuntimeError(f"model {model.id} has no model_path")
     model_path = (PROJECT_ROOT / model.model_path).resolve()
 
-    # ComfyUI (#492) — the local image-generation engine. Unlike every other
+    # ComfyUI — the local image-generation engine. Unlike every other
     # engine here the checkpoint is *not* a command-line argument: ComfyUI
     # discovers weights through the `extra_model_paths.yaml` the installer
     # generates, and the workflow graph names the checkpoint by filename (see
@@ -403,7 +403,7 @@ def build_command(model: Model) -> list[str]:
                 f"checkpoint not found at {model_path} - run "
                 f"scripts/download_models.py --only {model.id}"
             )
-        # Per-model runtime state (#498). Several image rows each own their own
+        # Per-model runtime state. Several image rows each own their own
         # ComfyUI process, and ComfyUI keeps a SQLite database plus settings in
         # its user directory — a *shared* one means the second instance loses
         # the race with "Could not acquire lock on database ... Another ComfyUI
@@ -474,11 +474,11 @@ def start(model_id: str) -> tuple[bool, str]:
     model = resolve_model_by_id(model_id)
     if model is None:
         return False, f"model {model_id!r} not enabled on this host"
-    # Chain-aware ownership guard (#342): any host in the model's ordered
+    # Chain-aware ownership guard: any host in the model's ordered
     # ``hosts:`` chain may spawn it locally (the failover engine relies on
     # this to bring a model up on a fallback candidate); a host *outside*
     # the chain never does. A bare single-``host:`` row has a one-element
-    # chain, so the pre-#342 refusal is byte-identical.
+    # chain, so the refusal matches the single-host behaviour.
     chain = list(getattr(model, "hosts", None) or [])
     active = resolve_host()
     if chain and active.id not in chain:
@@ -505,7 +505,7 @@ def start(model_id: str) -> tuple[bool, str]:
     # Redirect stdout/stderr to a child-owned log file instead of a hub-owned
     # pipe: the child keeps its own fd, so the log survives a hub restart and
     # an inherited backend never writes into a closed pipe (the [Errno 22]
-    # class that made #104 possible). The file is also readable on disk and
+    # class of failure this avoids). The file is also readable on disk and
     # via ``log_lines`` / the admin log endpoint.
     log_file: Optional[Any] = None
 
@@ -654,7 +654,7 @@ def _looks_like_backend_binary(
         # Engine-specific, not `model.backend == "whisper"` — a whisper-
         # *shaped* backend on a different engine (e.g. Parakeet's
         # `engine: parakeet-server`, a `python -m src.parakeet_server`
-        # process, #618) never spawns whisper-server.exe and would otherwise
+        # process) never spawns whisper-server.exe and would otherwise
         # never match here, falling through to "external" on every restart.
         return "whisper-server" in exe or exe.endswith("whisper-server.exe")
     if _is_comfyui(model):

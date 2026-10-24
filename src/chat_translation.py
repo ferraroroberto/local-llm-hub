@@ -445,10 +445,10 @@ class MessagesRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
     # Anthropic tool definitions ({"name", "description", "input_schema"}) and
     # tool_choice ({"type": "auto"|"any"|"none"|"tool", "name": ...}). Served
-    # by the local `openai` backends; refused on the CLI backends (#552).
+    # by the local `openai` backends; refused on the CLI backends.
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
-    # Sampling / stop controls (#607). Forwarded to the local `openai`
+    # Sampling / stop controls. Forwarded to the local `openai`
     # backends; on the CLI backends `top_p` / `top_k` are accepted no-ops
     # (like `temperature`) and `stop_sequences` is refused.
     stop_sequences: Optional[List[str]] = None
@@ -1012,7 +1012,7 @@ def prepare_openai_messages_call(
                 "model instead."
             ),
         )
-    # On-demand lifecycle (#422): a cold ``startup: on_demand`` local backend
+    # On-demand lifecycle: a cold ``startup: on_demand`` local backend
     # is spawned here and the request blocks until it answers (503 on load
     # failure) — same hook the OpenAI-shape route applies in server.py.
     from .server_common import ensure_backend_ready_or_503

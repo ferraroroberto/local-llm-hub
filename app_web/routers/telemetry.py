@@ -221,7 +221,7 @@ async def telemetry_metrics() -> Dict[str, Any]:
             "errors": errors_count,
             "error_rate": round(err_rate, 4),
             # Median over every request since hub start (None before the
-            # first one) — the Hub glance's latency figure (#738).
+            # first one) — the Hub glance's latency figure.
             "p50_ms": OBS.overall_p50_ms(),
             "since_ts": started,
             "since_uptime_s": round(max(0.0, time.time() - started), 1),

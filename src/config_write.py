@@ -504,7 +504,7 @@ def edit_models_yaml(
             keys = list(row.keys())
             pos = keys.index("host")
             # `hosts:` takes `host:`'s line, so it inherits the whole comment
-            # entry — inline note and the block below it (#595).
+            # entry — inline note and the block below it.
             comments = row.ca.items.pop("host", None)
             del row["host"]
             row.insert(pos, "hosts", seq)
@@ -608,7 +608,7 @@ def apply_placement(
     }
 
 
-# --------------------------------------------- machine-local overlay (#765)
+# --------------------------------------------- machine-local overlay
 # `dormant` is the one flag the admin UI writes into the gitignored
 # machines.local.yaml rather than the committed models.yaml: it records which
 # of THIS operator's machines are intentionally off, so there is no git

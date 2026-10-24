@@ -203,7 +203,7 @@ async def diagnostics_reevaluate(run_id: str) -> Dict[str, Any]:
     if run.get("status") == "pruned":
         # `store.prune` already deleted this run's sample rows and promises to
         # keep its saved verdict forever — re-evaluating with no rows left
-        # would overwrite that verdict with "not_evaluated" (#618).
+        # would overwrite that verdict with "not_evaluated".
         raise HTTPException(
             status_code=409,
             detail="run's raw samples were pruned; its saved verdict is final",

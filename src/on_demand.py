@@ -189,7 +189,7 @@ def _warn_on_vram_overcommit(model: Model) -> Optional[int]:
         return None
     # CPU-resident rows on this host (piper, -ng whisper rows, a chain's
     # degraded cpu tier) hold no GPU VRAM — excluding them keeps the headroom
-    # math honest (#431), same exclusion as the fleet summary's capacity sum.
+    # math honest, same exclusion as the fleet summary's capacity sum.
     cpu = cpu_resident_map().get(host.id, set())
     running = bp.running_backends()
     projected = sum(

@@ -1,5 +1,5 @@
 /* Settings › Startup — "Service startup": which services autostart with the
- * hub (#265; services-only since #430, renamed in #431; in Settings since #741).
+ * hub (services only).
  *
  * Thin CRUD view over GET/PATCH /admin/api/startup-profile. Model autostart
  * lives elsewhere — per model (`startup: eager|on_demand`) in the placement
@@ -28,7 +28,7 @@ function renderStartup() {
   const profile = data.profile || {};
   const frag = document.createDocumentFragment();
 
-  // No section title: the card is single-purpose (services only, #431) —
+  // No section title: the card is single-purpose (services only) —
   // the card header already says what these rows are.
   (data.services || []).forEach(function (svc) {
     frag.appendChild(buildRow(svc.label, !!profile[svc.id], function (next) {

@@ -53,7 +53,7 @@ class ActiveRun:
     last_error: str = ""
     # True once any tick's port scan succeeded (even if it found nothing). Its
     # inverse over a run with samples means every scan was denied — recorded as
-    # coverage so a blind port table never reads as "nothing listening" (#322).
+    # coverage so a blind port table never reads as "nothing listening".
     ports_ok_seen: bool = False
 
     @property
@@ -373,7 +373,7 @@ async def _run_loop(run: ActiveRun) -> None:
         # SQLite writes, and the loop is already ending.
         try:
             # A run that recorded samples but never once read the ports was
-            # blind to them throughout — the coverage signal (#322).
+            # blind to them throughout — the coverage signal.
             ports_denied = run.samples_written > 0 and not run.ports_ok_seen
             _finalize(run.run_id, status, ports_denied=ports_denied)
         except Exception as exc:  # noqa: BLE001

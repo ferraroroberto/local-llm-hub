@@ -48,7 +48,7 @@ _ORPHEUS_TOKEN_RE = re.compile(r"<custom_token_(\d+)>")
 # A single llama-server ``/completion`` is capped at ``_N_PREDICT`` generated
 # audio tokens. 4096 SNAC tokens ≈ 49.6 s of speech (4096 ÷ 7 codes/frame ×
 # 2048 samples/frame ÷ 24 kHz). Synthesising longer than that in one request
-# silently truncates the audio (issue #130), so long input is split into
+# silently truncates the audio, so long input is split into
 # chunks that each comfortably fit under the cap and then concatenated.
 #
 # Orpheus emits roughly 18 characters of text per second of speech, so the
@@ -94,8 +94,8 @@ class OrpheusEngine(TTSEngine):
         self.internal_port = int(model.internal_port or 18093)
         self.sample_rate = 24000
         # Persistent client for the loopback /completion calls to our own
-        # llama-server child. Constructing an httpx client is ~0.26s on Windows
-        # (#165), so a per-request client would tax every synthesis; one
+        # llama-server child. Constructing an httpx client is ~0.26s on Windows,
+        # so a per-request client would tax every synthesis; one
         # reused client costs ~1ms. This engine runs in the tts_server process,
         # not the hub, so it can't use the hub's shared client.
         self._client: Optional[httpx.Client] = None
@@ -147,7 +147,7 @@ class OrpheusEngine(TTSEngine):
                 f"Orpheus GGUF not found at {gguf} - "
                 f"run scripts/download_models.py --only {self.model_row.id}"
             )
-        # Throughput note (issue #105): on the reference GPU this 3B Q4_K_M
+        # Throughput note: on the reference GPU this 3B Q4_K_M
         # generates ~150 tok/s, which sets the total synthesis time. That rate
         # is memory-bandwidth bound, NOT a missing flag — the model is fully
         # offloaded (-ngl 99) and llama.cpp already auto-enables flash
@@ -155,7 +155,7 @@ class OrpheusEngine(TTSEngine):
         # unchanged (measured: scripts/bench_orpheus.py). ~150 tok/s is ~65% of
         # this card's bandwidth ceiling for a ~1.94 GB resident model; the only
         # faster route is a lower quant, which would regress SNAC audio quality.
-        # Perceived latency is handled by streaming (#102). Full analysis +
+        # Perceived latency is handled by streaming. Full analysis +
         # before/after numbers: docs/orpheus-throughput.md.
         #
         # -c 8192 (not smaller): KV is sized by n_ctx, not per slot, so a
@@ -212,7 +212,7 @@ class OrpheusEngine(TTSEngine):
                 raise RuntimeError("Orpheus llama-server child exited during startup")
             try:
                 # self._client is a persistent client set in load() — see its
-                # comment for why this can't be a per-call httpx.get (#450).
+                # comment for why this can't be a per-call httpx.get.
                 r = self._client.get(url, timeout=2.0)  # type: ignore[union-attr]
                 if r.status_code == 200:
                     return
@@ -299,7 +299,7 @@ class OrpheusEngine(TTSEngine):
             raise RuntimeError("Orpheus not loaded")
         # Long input is split into per-chunk /completion calls (each under the
         # n_predict cap) and the decoded PCM segments concatenated in order;
-        # short input is a single chunk, so this is identical to before (#130).
+        # short input is a single chunk, so this is identical to before.
         segments = [self._synthesize_chunk(req, chunk) for chunk in self._split_into_chunks(req.text)]
         segments = [seg for seg in segments if seg.size]
         if not segments:
@@ -338,7 +338,7 @@ class OrpheusEngine(TTSEngine):
         if not self.ready():
             raise RuntimeError("Orpheus not loaded")
         # Stream chunk after chunk back-to-back: long input is split so each
-        # chunk stays under the n_predict cap (#130), while a short single
+        # chunk stays under the n_predict cap, while a short single
         # chunk streams exactly as before — time-to-first-audio is unchanged.
         for chunk in self._split_into_chunks(req.text):
             yield from self._stream_chunk(req, chunk)

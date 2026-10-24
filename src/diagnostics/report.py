@@ -19,7 +19,7 @@ from . import store
 
 TOP_N = 12
 
-# Human labels for the coverage section's collector rows (#322).
+# Human labels for the coverage section's collector rows.
 _COVERAGE_LABEL = {
     "ports": "Listening ports",
     "proc_mem": "Per-process memory",
@@ -277,7 +277,7 @@ def markdown_report(run_id: str) -> Optional[str]:
 
     # Coverage — what we could and couldn't measure. Rendered whenever a
     # collector was blind, so a vanished section or a summed-over-nulls total
-    # never masquerades as a complete reading (#322).
+    # never masquerades as a complete reading.
     if degraded:
         lines.append("## Coverage")
         lines.append("")
@@ -336,7 +336,7 @@ def markdown_report(run_id: str) -> Optional[str]:
             lines.append(f"| {q['port']} | {q['proto']} | {q['app_id']} | {q.get('name') or '—'} |")
         lines.append("")
     elif ports_status == cov.DENIED:
-        # The defect that started #322: an empty section here read as "this box
+        # The defect this guards against: an empty section here read as "this box
         # exposes nothing", when the truth was "we weren't allowed to look".
         lines.append("## Listening ports")
         lines.append("")
