@@ -239,6 +239,17 @@ PR that splits some:
 .venv\Scripts\python scripts\structure_ratchet.py
 ```
 
+Instruction ratchet (the fleet's prompt-audit lint rules over `CLAUDE.md`,
+`AGENTS.md` and the skills under `.claude/skills`: no new rule hit, no file past
+its size cap). Existing hits live in `.instruction-ratchet-baseline.json` and
+can only shrink; run
+`.venv\Scripts\python scripts\instruction_ratchet.py --update-baseline` in the
+PR that fixes some:
+
+```bat
+.venv\Scripts\python scripts\instruction_ratchet.py
+```
+
 End-to-end smoke test (requires hub + whichever backends you care
 about running):
 
