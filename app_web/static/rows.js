@@ -1,4 +1,4 @@
-/* Shared parts for every pane (#736, umbrella #735) — one row, one chip, one
+/* Shared parts for every pane — one row, one chip, one
  * header line, one info sheet and the wide-window switch, so the admin draws
  * "a thing that is up or down, with one main action" one way everywhere.
  *
@@ -70,7 +70,7 @@ export function chip(text, tone) {
  *   mainCls    extra classes on the row's main button
  *   metaAttrs  extra attributes on the meta line (a live region a caller repaints)
  *   verb       { attrs, glyph, disabled, tip, track } — the one visible verb, a
- *              plain glyph-only icon-button (design.md action-row, fleet-config#1420).
+ *              plain glyph-only icon-button (design.md action-row).
  *              attrs carries the aria-label naming the row; tip is the tooltip
  *              (also naming the row); track is its usage-log control id.
  *   trail      raw HTML for the one trailing item (an ⓘ, a value)

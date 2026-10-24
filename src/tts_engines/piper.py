@@ -176,7 +176,7 @@ class PiperEngine(TTSEngine):
         # standalone VITS binary is CPU-only by design — light enough it never
         # needed GPU, unlike chatterbox/orpheus/kokoro's resolve_device() path
         # (see .common.resolve_device). Config carries no `--device` arg for
-        # this row (#371) since there is nothing here for it to steer.
+        # this row since there is nothing here for it to steer.
         self.device_arg = device
         self.device = "cpu"
         self.binary = self._default_binary()

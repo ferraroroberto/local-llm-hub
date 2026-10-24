@@ -165,7 +165,7 @@ async def get_daily_credits(days: int = 14) -> Dict[str, Any]:
         # date has passed. Force one final re-fetch the first time we see
         # such an entry with the date rolled over, so spend from the last
         # `_TODAY_REFRESH_SECS` before midnight isn't cached forever with
-        # a gap (#529).
+        # a gap.
         needs_settle_refresh = (
             cached is not None and not is_today and not cached.get("settled", False)
         )

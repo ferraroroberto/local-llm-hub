@@ -63,7 +63,7 @@ async def playground_models() -> Dict[str, Any]:
     return {"models": rows}
 
 
-# Per-backend capability + expectation copy for the image card (#497). The
+# Per-backend capability + expectation copy for the image card. The
 # card used to say nothing about what a model is or what it costs, so picking
 # one was guesswork and a 40 s wait looked like a hang. Keyed by backend
 # because that — not the model id — is what determines the capabilities.
@@ -85,7 +85,7 @@ _IMAGE_BACKEND_INFO = {
     },
 }
 
-# Per-model cost, measured on tower at 1024x1024 (#492/#497/#498). Keyed by id
+# Per-model cost, measured on tower at 1024x1024. Keyed by id
 # because the local rows differ by ~3x in speed and in *which* prompts they
 # get right (klein miscounts, flux1 doesn't) — a single
 # backend-level note would be useless for choosing between them.
@@ -329,7 +329,7 @@ async def playground_send(
     except Exception:  # noqa: BLE001
         body = {}
     if not r.is_success:
-        # /v1/messages answers errors in the Anthropic envelope (#460);
+        # /v1/messages answers errors in the Anthropic envelope;
         # `detail` is kept as a fallback for anything else on this path.
         err = body.get("error") if isinstance(body, dict) else None
         detail = (

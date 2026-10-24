@@ -1,4 +1,4 @@
-/* Playground — Decision (Jev) card (#611).
+/* Playground — Decision (Jev) card.
  *
  * TypeSafe's Jev answers typed questions (noul / choice / score) about a
  * `state` with per-option probabilities and a confidence, so the card takes

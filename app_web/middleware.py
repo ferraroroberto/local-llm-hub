@@ -138,7 +138,7 @@ def _presented_credential(headers, query_params) -> str:
         presented = auth_header[7:].strip()
         if presented:
             return presented
-    # ``x-api-key`` is how the Anthropic SDK authenticates (#461), so an SDK
+    # ``x-api-key`` is how the Anthropic SDK authenticates, so an SDK
     # pointed at the hub the ordinary way — ``api_key=<hub token>``, no
     # ``default_headers`` special-casing — presents its credential here.
     # Accepted as an equal alternative to the bearer token: same constant-time

@@ -1,4 +1,4 @@
-/* Machines tab — in-browser SSH terminal shim (issue #309).
+/* Machines tab — in-browser SSH terminal shim.
  *
  * Minimal connection glue against the documented protocol only:
  *   WS  /admin/api/machines/{id}/terminal

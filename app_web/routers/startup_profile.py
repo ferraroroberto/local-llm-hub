@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Fixed metadata for the service startup toggles — labels the admin SPA
-# renders next to each switch. Peer wake/sync is *not* here: since #374 it is
+# renders next to each switch. Peer wake/sync is *not* here: it is
 # owned by the fleet reconcile loop, not a per-service startup flag — the old
 # "Mac Mini sync" toggle was retired.
 _SERVICE_ITEMS = [

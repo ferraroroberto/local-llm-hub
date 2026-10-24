@@ -1,4 +1,4 @@
-/* Shared parts (#736) — the app-side half of rows.js. The row itself is the
+/* Shared parts — the app-side half of rows.js. The row itself is the
  * vendored action-row (_vendored/action-row/action-row.css); the chip and the
  * tone map live in styles.css. This file adds only what the vendored row
  * leaves to the app: the meta line's lead + chips + ellipsizing context, the

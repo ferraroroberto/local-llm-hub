@@ -145,16 +145,16 @@ async def _host_status(
         "icon": profile.icon or ("monitor" if hid == active_id else "server"),
         "can_ssh": profile.can_ssh, "runs_hub": runs_hub,
         "eligible": eligible, "placed": placed,
-        # Display-only capacity context (#431) — total system RAM where the
+        # Display-only capacity context — total system RAM where the
         # machines registry documents it; None where the fact isn't known.
         "ram_mb": profile.ram_mb,
-        # Live RAM snapshot (#434) — the same {used_gb, total_gb, percent}
+        # Live RAM snapshot — the same {used_gb, total_gb, percent}
         # block the Machines tab shows, so the capacity line can read
         # used/total instead of just the declared fact. Filled per branch
         # below; None wherever no live figure is available (host off, no SSH),
         # in which case the UI falls back to the declared `ram_mb` total.
         "ram": None,
-        # Live GPU snapshot (#436) — {used_mb, total_mb} from the same probe
+        # Live GPU snapshot — {used_mb, total_mb} from the same probe
         # plumbing the Machines tab reads (local nvidia-smi, cached SSH stats
         # on peers), so the capacity line and the Machines tab can never
         # disagree. None where no live figure exists (host off, no GPU
@@ -170,7 +170,7 @@ async def _host_status(
         # A live backend whose adopted PID is a *foreign* process (an external
         # sibling on a mutex-shared port — voice-transcriber's whisper-server
         # on :8090) is flagged so the summary can label it distinctly rather
-        # than claim the hub runs it (#431).
+        # than claim the hub runs it.
         external = [m for m in running if bp.inherited_foreign(m)]
         gpus = await asyncio.to_thread(system_stats.gpu_stats)
         return {
@@ -203,8 +203,8 @@ async def _host_status(
                 if isinstance(r, dict) and r.get("id") in eligible_set and r.get("reachable")
             ]
     if reachable and profile.can_ssh:
-        # Live RAM + GPU over the same cached SSH probe the Machines tab uses
-        # (#434, GPU #436) — remote_stats.collect keeps a 30 s cache and this
+        # Live RAM + GPU over the same cached SSH probe the Machines tab uses:
+        # remote_stats.collect keeps a 30 s cache and this
         # GET is tab-triggered (never polled), so no SSH storm. Best-effort: a
         # failed probe leaves both None and the UI shows the declared total /
         # the ~estimate.

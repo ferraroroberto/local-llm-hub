@@ -42,8 +42,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 VENDOR_DIR = PROJECT_ROOT / "vendor" / "whisper.cpp"
 
 # Pinned to a known-good tag rather than floating "latest" so the feature
-# set is deterministic (issue #91). v1.8.5 (2026-05-29, ggml-org/whisper.cpp
-# #3781) added server-side `carry_initial_prompt`; v1.8.6 is the newest
+# set is deterministic. v1.8.5 (2026-05-29, https://github.com/ggml-org/whisper.cpp/pull/3781)
+# added server-side `carry_initial_prompt`; v1.8.6 is the newest
 # patch on that line. Bump this tag deliberately when a newer one is
 # vetted. The repo moved ggerganov → ggml-org; the API redirects either way.
 PINNED_TAG = "v1.8.6"

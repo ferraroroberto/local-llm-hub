@@ -146,7 +146,7 @@ def _whisper_chain_for_request(model_name: str, *, default_role: str) -> List[Mo
         # "is this one of *our* model ids at all?". An exact-match-only gate
         # let ``model=Whisper`` look identical to ``whisper-1`` and drop the
         # caller onto the role chain — a 200 from another model, the exact
-        # behaviour #412 exists to abolish.
+        # behaviour this strict lookup exists to abolish.
         known = resolve_any(model_name)
         if known is not None:
             # Serveability is a separate question, asked with the row's
@@ -170,7 +170,7 @@ def _whisper_chain_for_request(model_name: str, *, default_role: str) -> List[Mo
                     ),
                 )
             # The *effective* owner, not the statically-preferred one: on a
-            # failed-over multi-host row (#342) `known.host` still names the
+            # failed-over multi-host row `known.host` still names the
             # first chain entry, which would point the operator at a machine
             # that no longer serves the model.
             from .model_failover import effective_owner
@@ -313,7 +313,7 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
     # serialize plain form fields before the file part, so ``model``
     # lands in the head). Fall back to the whole body if it's not there:
     # a client that puts a large file *before* the model field would
-    # otherwise misroute to the default turbo (#128) — silently landing
+    # otherwise misroute to the default turbo — silently landing
     # on the glossary path the caller chose ``whisper-vanilla`` to escape.
     model_name = ""
     try:
@@ -329,7 +329,7 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
     except Exception:  # noqa: BLE001
         pass
 
-    # Stamp the observability context *before* anything below can raise (#412).
+    # Stamp the observability context *before* anything below can raise.
     # A strict rejection is the event that most needs to be visible, and the
     # middleware cannot fill these in for a multipart request — see
     # :func:`_observable_audio_error`.
@@ -369,8 +369,7 @@ async def _dispatch_audio(
         # whisper-server exposes a single inference path and wants whisper.cpp's
         # `translate=true` boolean, not OpenAI's `task=translate` string. Parse +
         # rewrite via the shared helper (the transcribe branch below calls the
-        # same one when a candidate needs its default language injected —
-        # issue #132).
+        # same one when a candidate needs its default language injected).
         try:
             form = await request.form()
         except Exception as exc:
@@ -383,8 +382,8 @@ async def _dispatch_audio(
     else:
         # Skip form-parsing for the common case: only a row with a
         # configured non-default ``--language`` launch flag (e.g.
-        # ``whisper_vanilla``'s ``--language auto``, #128) needs its default
-        # injected, and an explicit ``model=`` request — the only way #128's
+        # ``whisper_vanilla``'s ``--language auto``) needs its default
+        # injected, and an explicit ``model=`` request — the only way that
         # unbiased-detect row is normally addressed — resolves to a
         # one-element chain, so ``chain[0]`` is the only candidate that will
         # ever actually receive this request.
@@ -430,7 +429,7 @@ async def _dispatch_audio(
         # Say who answered whenever it is not who this hub dispatched to: a
         # chain fallback (idx > 0), or a peer hub that re-resolved the role on
         # its own side. A degraded tier should be visible in the log, not only
-        # in the request ring (#412).
+        # in the request ring.
         served = response.headers.get(HEADER_SERVED_MODEL) or target.id
         if idx > 0:
             logger.info(
@@ -499,13 +498,13 @@ async def _forward_to_candidate(
     else:
         post_kwargs["content"] = send["content"]
 
-    # On-demand lifecycle (#422, #530): a cold ``startup: on_demand`` local
-    # whisper row (e.g. ``whisper_vanilla``, since #530's retirement of the
+    # On-demand lifecycle: a cold ``startup: on_demand`` local
+    # whisper row (e.g. ``whisper_vanilla``, which has no
     # dedicated lazy-load shim) is spawned here and this request blocks until
     # it answers — a no-op for eager rows and remote-owned models
     # (``ensure_backend_ready_or_503`` decides). A spawn/readiness failure
     # is a *backend-unavailable* condition exactly like a dead port, so it
-    # feeds the same failover path as a connection error (#348) rather than
+    # feeds the same failover path as a connection error rather than
     # propagating straight to the caller.
     try:
         if remote is None:
@@ -525,7 +524,7 @@ async def _forward_to_candidate(
         ))
 
     # A model has now genuinely answered — only here is it honest to say who
-    # served (#412). Before this point every candidate may still fail over.
+    # served. Before this point every candidate may still fail over.
     served_model, served_host = _served_identity(target, upstream, remote=bool(remote))
     if ctx is not None:
         ctx.served_model = served_model
@@ -535,7 +534,7 @@ async def _forward_to_candidate(
         "hub.served_host": served_host,
     })
 
-    # Apply the committed transcription glossary (issue #90) to a 200 transcript
+    # Apply the committed transcription glossary to a 200 transcript
     # before returning. Deterministic literal fixes (e.g. "cloud code" →
     # "Claude Code") for acoustically-strong errors biasing can't solve. Wrapped
     # defensively: a broken glossary must never break the passthrough.
@@ -630,7 +629,7 @@ def audio_health() -> Response:
     # liveness is the owning host's own /v1/audio/health concern, not
     # something this loopback probe can answer correctly (see
     # app_web/routers/models.py for the cross-host merge that *does* surface
-    # remote rows, in the admin UI). With #342 chains, ``local_models`` also
+    # remote rows, in the admin UI). With multi-host chains, ``local_models`` also
     # contains rows this host merely *stands by for* — those are filtered by
     # effective owner so a standby candidate is never reported "down" here.
     active_id = _resolve_host().id
@@ -648,7 +647,7 @@ def audio_health() -> Response:
             "reachable": reachable,
         }
         # An idle `startup: on_demand` row is unloaded by design, not down —
-        # the first real request would load it (#618). Give it its own state
+        # the first real request would load it. Give it its own state
         # and drop it from the ok/degraded verdict rather than counting it as
         # an outage.
         if not reachable and m.startup == STARTUP_ON_DEMAND:

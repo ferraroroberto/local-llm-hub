@@ -1,11 +1,11 @@
-/* Machines tab (issue #309; rows + sheet since #736) — fleet status/actions/terminal.
+/* Machines tab (rows + sheet) — fleet status/actions/terminal.
  *
  * Mirrors the Code tab's tab-lifecycle shape (start/stopMachinesPolls,
  * only polled while the tab is active). Five async lifecycle states
  * (design.md): loading / ready / empty / stale / error — see
  * fetchMachinesStatus() + renderMachines().
  *
- * Layout (#736, the shared parts in rows.js): one row per machine whose face
+ * Layout (the shared parts in rows.js): one row per machine whose face
  * answers "is it up" (the avatar's alive badge, the uptime) and carries at
  * most one verb (Wake on a down machine, Start hub on a machine whose own hub
  * is down). Tapping a row opens the machine's sheet on a phone, or fills the
@@ -14,7 +14,7 @@
  * out-of-sync state, Start hub), then Reboot and Shut down last, behind the
  * confirm dialog. The pane header line names "N offline" or the stale age,
  * else the machine count (plus how many are dormant). A dormant machine
- * (intentionally off, switched in Settings › Machines, #765) is a neutral row
+ * (intentionally off, switched in Settings › Machines) is a neutral row
  * sorted after the live ones and never counts as offline.
  */
 
@@ -103,7 +103,7 @@ function fmtAge(ms) {
 
 function fmtPct(n) { return Number.isFinite(n) ? Math.round(n) + '%' : '—'; }
 
-/* Wi-Fi RSSI (dBm) -> a plain-English band (#397). Conventional Wi-Fi
+/* Wi-Fi RSSI (dBm) -> a plain-English band. Conventional Wi-Fi
  * thresholds (Excellent/Good/Fair/Weak); the raw dBm value is always shown
  * alongside it. */
 function signalQuality(dbm) {
@@ -118,7 +118,7 @@ function signalQuality(dbm) {
 function isDown(m) { return m.state === 'down'; }
 function isDormant(m) { return m.state === 'dormant'; }
 /* A dormant machine that answers again (after Wake, say): reachable, but the
- * flag is the owner's to flip in Settings, so it stays dormant (#765). */
+ * flag is the owner's to flip in Settings, so it stays dormant. */
 function isAnswering(m) { return isDormant(m) && !!m.answering; }
 
 /* Live machines first, dormant ones after (stable, so config order holds). */
@@ -171,7 +171,7 @@ function findMachine(id) {
  * non-destructive (a magic packet, never a confirm) and NOT gated on
  * freshness: sending a packet to a machine last seen down is always safe; the
  * recheck guard is its only in-flight lock. A reachable machine whose own hub
- * is down shows Start hub instead (the bootstrap the Hub tab offered, #181). */
+ * is down shows Start hub instead (the bootstrap the Hub tab offered). */
 function rowVerb(m) {
   const a = m.actions || {};
   const name = m.display_name || m.id;
@@ -284,7 +284,7 @@ function networkText(net) {
 
 /* Address, MAC, link and tailnet state behind one row (a disclosure). The
  * address and MAC are config-sourced, so they show even on a down peer. Both
- * are identifiers, so they render in <code>, never as prose (COMP-11, #810). */
+ * are identifiers, so they render in <code>, never as prose (COMP-11). */
 function connectionSection(m, connOpen) {
   const net = networkText(m.network);
   const q = m.network && signalQuality(m.network.signal_dbm);
@@ -312,10 +312,10 @@ function connectionSection(m, connOpen) {
     }).join('') + '</dl></details></div>';
 }
 
-/* A peer that runs its own hub (#736, moved from the Hub tab's Services card):
+/* A peer that runs its own hub (moved from the Hub tab's Services card):
  * its state, both build ids when they differ, then Sync (reachable) or Start
  * hub (down). git_sha_match is null until both sides answer; only an
- * explicit false is "out of sync" (#181). */
+ * explicit false is "out of sync". */
 function hubSection(m) {
   const h = m.hub;
   if (!h) return '';
@@ -402,7 +402,7 @@ function renderHeadLine(machines) {
     title = 'Last updated ' + fmtClock(state.machinesLastUpdated / 1000) + ' · live data unavailable';
   }
   let fact = machines.length ? machines.length + (machines.length === 1 ? ' machine' : ' machines') : 'No machines';
-  // Intentionally off is a plain fact, never a toned part (#765).
+  // Intentionally off is a plain fact, never a toned part.
   const dormant = machines.filter(isDormant).length;
   if (dormant) fact += ' · ' + dormant + ' dormant';
   setHeadLine(el, parts, fact, title);

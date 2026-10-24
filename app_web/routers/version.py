@@ -25,7 +25,7 @@ async def version(request: Request) -> Dict[str, str]:
         "git_sha": IDENTITY["git_sha"],
         "built_at": IDENTITY["built_at"],
         "asset_hash": asset_hash_for(asset_hashes, "styles.css") or "",
-        # models.yaml HEAD sha (#424) — read live (unlike git_sha's
+        # models.yaml HEAD sha — read live (unlike git_sha's
         # process-identity memoization): the config converges by git pull
         # without a restart, and the drift loop compares this across hubs.
         "config_sha": config_sha(),

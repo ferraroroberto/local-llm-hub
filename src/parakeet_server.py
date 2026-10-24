@@ -49,10 +49,10 @@ WORKER_BIN = PROJECT_ROOT / "mac" / "parakeet-worker" / ".build" / "release" / "
 DEFAULT_MODEL_ID = "parakeet"
 # Mirrors orpheus.LLAMA_READY_DEADLINE_S — this worker's sibling
 # process-wrapper module also bounds its startup wait; _start_worker
-# previously blocked forever on a wedged CoreML load (issue #297).
+# previously blocked forever on a wedged CoreML load.
 STARTUP_DEADLINE_S = 60.0
 # Bound the per-request worker round-trip too. The startup wait was already
-# bounded (#297); the request path was not — and a subtler bug made every
+# bounded; the request path was not — and a subtler bug made every
 # request hang regardless: the startup ``_pump`` daemon keeps reading the
 # worker's stdout for its whole lifetime, so a direct ``proc.stdout.readline()``
 # in the request path raced that thread and blocked forever (the pump ate the

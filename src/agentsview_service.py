@@ -82,7 +82,7 @@ async def agentsview_health(
             "installed": installed,
         }
     try:
-        # Shared pooled client — see services.langfuse_health() (#165/#392).
+        # Shared pooled client — see services.langfuse_health().
         r = await get_async_client().get(f"{host}/api/ping", timeout=timeout_s)
         body = r.json() if r.status_code < 500 else {}
         is_av = bool(body.get("ok")) and "agentsview" in str(body.get("service", ""))

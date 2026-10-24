@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PROFILE_PATH = PROJECT_ROOT / "config" / "startup_profile.json"
-# Committed template + fresh-clone default (issue #304). Read only when the
+# Committed template + fresh-clone default. Read only when the
 # gitignored live profile above is absent — never written to.
 EXAMPLE_PROFILE_PATH = PROJECT_ROOT / "config" / "startup_profile.example.json"
 
@@ -53,7 +53,7 @@ EXAMPLE_PROFILE_PATH = PROJECT_ROOT / "config" / "startup_profile.example.json"
 class StartupProfile:
     docker: bool = True
     langfuse: bool = True
-    # AgentsView server for the Code tab's AGY vendor (issue #280) — launch
+    # AgentsView server for the Code tab's AGY vendor — launch
     # soft-fails with a log line when the tool isn't installed.
     agentsview: bool = True
 

@@ -41,7 +41,7 @@ from .tts_engines import SpeechRequest, TTSEngine, build_engine
 if TYPE_CHECKING:  # numpy is imported lazily at runtime (see encode_audio)
     import numpy as np
 
-# Disable tqdm progress bars for the whole backend process (#104). Chatterbox's
+# Disable tqdm progress bars for the whole backend process. Chatterbox's
 # t3.inference draws a "Sampling" bar to stdout on every synthesis. This backend
 # is spawned with stdout piped to the hub; when the hub restarts but the backend
 # survives (tray.bat --restart deliberately leaves the TTS ports alone, so the

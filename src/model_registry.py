@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .host_profile import HostProfile, _load_config, all_hosts, resolve as resolve_host
 
-# ``startup:`` policy values (#422) — see the field docstring on ``Model``.
+# ``startup:`` policy values — see the field docstring on ``Model``.
 STARTUP_EAGER = "eager"
 STARTUP_ON_DEMAND = "on_demand"
 
@@ -58,39 +58,39 @@ class Model:
     # extended_openai_conversation).
     inject_extra: Optional[Dict[str, Any]] = None
     # *Preferred* owning host — spawns/manages this model's process. Unset
-    # means "whichever host resolves this row locally" (the pre-#178
+    # means "whichever host resolves this row locally" (the original
     # behavior — every model was implicitly local). When set and it differs
     # from the active host, this row is a *remote* model: the active host
     # never spawns/health-checks it locally and instead proxies requests to
     # the owning host's own hub. See src/remote_proxy.py.
     #
-    # Since #342 this is always ``hosts[0]`` — the first entry of the
-    # ordered preference chain below. Every pre-#342 consumer that read
+    # This is always ``hosts[0]`` — the first entry of the
+    # ordered preference chain below. Every consumer that reads
     # ``model.host`` as "the owner" keeps meaning "the *preferred* owner";
     # the *effective* owner (which may differ when a preferred host is down
     # and the model failed over down-chain) lives in
     # ``src.model_failover.effective_owner``.
     host: Optional[str] = None
-    # Ordered host-preference chain (#342): a YAML row may declare either a
+    # Ordered host-preference chain: a YAML row may declare either a
     # bare ``host: <id>`` (parsed as a one-element chain — fully backward
     # compatible) or ``hosts: [a, b, c]`` — the model's owner is the first
     # candidate that is reachable and enabled there; when it dies the model
     # fails over down the chain. Empty means "unowned / local everywhere"
     # exactly as an unset ``host:`` always did.
     hosts: List[str] = field(default_factory=list)
-    # Subset of ``hosts`` flagged ``cpu: true`` in the YAML chain (#342):
+    # Subset of ``hosts`` flagged ``cpu: true`` in the YAML chain:
     # on these hosts the model runs as a *degraded CPU offload* last resort
     # (llama-server ``-ngl 0`` / whisper ``-ng`` / tts ``--device cpu``) —
     # "up but slower" rather than "must match GPU perf". The arg rewrite is
     # applied by ``all_models()`` for the active host only.
     cpu_hosts: List[str] = field(default_factory=list)
-    # Rough static GPU-VRAM footprint in MB (#375) — enough for the fleet
+    # Rough static GPU-VRAM footprint in MB — enough for the fleet
     # placement grid to flag a host overcommit (sum of a host's placed models
     # vs its ``HostProfile.vram_mb`` ceiling), NOT live telemetry. CPU-only /
     # off-GPU / virtual rows are 0; subscription rows leave it None. A None
     # value contributes 0 to the sum. See config/models.yaml for the estimates.
     est_vram_mb: Optional[int] = None
-    # Process-lifecycle policy (#422). ``eager`` (the default — today's
+    # Process-lifecycle policy. ``eager`` (the default — today's
     # behavior) means the model may be autostarted with the hub and kept
     # resident by the reconcile/failover loops. ``on_demand`` means nothing
     # starts it eagerly: the first request that routes to it spawns the
@@ -103,9 +103,9 @@ class Model:
     # after which the idle watchdog unloads the backend. ``None`` disables
     # idle unload (the model stays up once demanded until stopped by hand).
     idle_unload_minutes: Optional[int] = None
-    # Extra weight files beyond ``model_path`` (#498). ``model_path`` stays the
+    # Extra weight files beyond ``model_path``. ``model_path`` stays the
     # *primary* weight — the transformer for an image model, the GGUF for a
-    # chat model — so every pre-#498 consumer (install's presence check, the
+    # chat model — so every existing consumer (install's presence check, the
     # downloader, backend_process's guard) keeps working unchanged. This adds
     # the companions a split-loader model needs: FLUX.2 ships its transformer,
     # text encoder and VAE as three separate files, unlike FLUX.1's all-in-one
@@ -114,13 +114,13 @@ class Model:
     # Each entry is ``{role, path, hf_repo, hf_pattern}``; ``role`` is what the
     # workflow builder asks for (``text_encoder``, ``vae``).
     extra_weights: List[Dict[str, str]] = field(default_factory=list)
-    # Which ComfyUI workflow graph this row needs (#498). ``None`` means the
+    # Which ComfyUI workflow graph this row needs. ``None`` means the
     # all-in-one FLUX.1 graph. FLUX.2 needs genuinely different nodes — a
     # resolution-aware ``Flux2Scheduler``, ``EmptyFlux2LatentImage`` and
     # ``SamplerCustomAdvanced`` rather than ``EmptySD3LatentImage``/``KSampler``
     # — so it cannot be expressed as a parameter tweak of the FLUX.1 graph.
     workflow: Optional[str] = None
-    # Per-row sampler overrides for a ``workflow: flux2`` row (#619) — the
+    # Per-row sampler overrides for a ``workflow: flux2`` row — the
     # distilled klein checkpoint wants fewer steps and lower guidance than
     # the dev reference settings baked into ``comfyui_client``'s defaults.
     # ``None`` means "use the workflow builder's default".
@@ -239,7 +239,7 @@ def _row_to_model(model_id: str, row: Dict) -> Model:
     )
 
 
-# Engine-aware CPU-offload arg rewrites (#342): a host flagged ``cpu: true``
+# Engine-aware CPU-offload arg rewrites: a host flagged ``cpu: true``
 # in a model's chain runs it degraded-but-up. Kept as pure list-in/list-out
 # so it is directly unit-testable and shared by every spawn path (the
 # transform is baked into ``Model.args`` in ``all_models()``, so
@@ -285,7 +285,7 @@ def all_models(*, apply_cpu_offload: bool = True) -> List[Model]:
     rows: Dict = cfg.get("models") or {}
     models = [_row_to_model(mid, row) for mid, row in rows.items()]
     # Bake the CPU-offload rewrite into rows whose chain flags the *active*
-    # host ``cpu: true`` (#342) — one choke point every args consumer shares.
+    # host ``cpu: true`` — one choke point every args consumer shares.
     # Host resolution can legitimately fail in hostless tooling contexts
     # (e.g. enumerating rows on a machine with no matching profile); the
     # rewrite is skipped there — args only matter on the host that spawns.
@@ -347,7 +347,7 @@ def local_models(host: Optional[HostProfile] = None) -> List[Model]:
 # Public because this set is the definition of "the hub can start/stop/inherit
 # this row", and a dozen call sites across the process manager, installer,
 # admin Models tab, tray and downloader need exactly it. They each used to
-# hand-repeat the literal, so adding `comfyui` (#492) would have left the new
+# hand-repeat the literal, so adding `comfyui` would have left the new
 # backend half-registered — startable but never inherited after a hub restart,
 # invisible to the VRAM accounting, uncontrollable from the admin UI. Import
 # this instead of retyping the tuple.

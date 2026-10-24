@@ -47,7 +47,7 @@ _sync_client: Optional[httpx.Client] = None
 # (never awaits between check and assignment, so race-free under asyncio),
 # this one is called from real OS threads in a threadpool, where two
 # concurrent first-callers could otherwise both construct a client and leak
-# the loser's connection pool (issue #297).
+# the loser's connection pool.
 _sync_client_lock = threading.Lock()
 
 

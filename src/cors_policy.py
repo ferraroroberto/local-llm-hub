@@ -98,8 +98,7 @@ CORS_ALLOW_HEADERS = [
 # Response headers page JavaScript may read. Only ``Cache-Control``,
 # ``Content-Language``, ``Content-Type``, ``Expires``, ``Last-Modified``
 # and ``Pragma`` are readable by default, so every header the hub adds as
-# a contract has to be listed here or it is invisible to the caller —
-# which is the same silence #461 closed on the server side.
+# a contract has to be listed here or it is invisible to the caller.
 CORS_EXPOSE_HEADERS = [
     "request-id",
     "x-trace-id",

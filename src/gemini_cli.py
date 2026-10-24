@@ -59,7 +59,7 @@ class GeminiCLIError(RuntimeError):
 # selected so it only pays the ~interactive model-switch cost on a change.
 _LOCK = threading.Lock()
 _current_model: Optional[str] = None
-# Picker rows seen on the last successful `/model` read (#629). ``None`` =
+# Picker rows seen on the last successful `/model` read. ``None`` =
 # catalogue unknown (never read, or the last read parsed to nothing) —
 # distinct from a known catalogue that doesn't contain a given model.
 _catalogue: Optional[List[str]] = None
@@ -68,9 +68,9 @@ _catalogue: Optional[List[str]] = None
 # Google's Imagen, exposed as an agentic tool reachable from any Gemini text
 # session. We host it inside the cheapest/fastest text model (the current
 # gemini_flash row); the choice does not affect the image model used.
-# Verified: issue #114 spike. The picker label is read from the gemini_flash
-# registry row at call time (#708), so a picker remap in config/models.yaml
-# (#442, #629) is followed with no second edit here.
+# Verified in a spike. The picker label is read from the gemini_flash
+# registry row at call time, so a picker remap in config/models.yaml
+# is followed with no second edit here.
 _IMAGE_HOST_MODEL_ID = "gemini_flash"
 
 
@@ -376,7 +376,7 @@ def _switch_model(exe: str, target: str) -> None:
 
 
 # `agy -p` prints its own auth failure as the reply, exit code and all, so a
-# signed-out CLI looks like a model answer (#703). The CLI's format is a
+# signed-out CLI looks like a model answer. The CLI's format is a
 # leading `error:` line carrying an auth marker; anchoring on both keeps a real
 # answer that merely discusses errors (or even starts "error: expected ';'")
 # working. Real error lines are one short sentence, hence the length cap.

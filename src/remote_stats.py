@@ -44,13 +44,13 @@ _TCP_TIMEOUT_S = 2.0
 _SSH_CONNECT_TIMEOUT_S = 6
 _CACHE_TTL_S = 30.0
 _LIVENESS_PORTS = (22, 3389)  # SSH, then RDP
-_WARMUP_RETRY_DELAY_S = 0.5   # pause before the one liveness warm-up retry (#333)
+_WARMUP_RETRY_DELAY_S = 0.5   # pause before the one liveness warm-up retry
 # Under MACHINES_POLL_MS (10 s, app_web/static/state.js) so a poll tick always
 # sees a fresh-enough probe, while collapsing the Machines tab and the
 # fleet-placement grid's otherwise-independent full liveness fans for the
-# same host on the same page load (#369).
+# same host on the same page load.
 _LIVENESS_CACHE_TTL_S = 5.0
-# Last-known-good *dial address* TTL (#396) — long enough that the peer-connect
+# Last-known-good *dial address* TTL — long enough that the peer-connect
 # paths (model proxy, SSH ops) don't re-pay a probe per call, short enough that
 # recovery back to the LAN path (or over to the tailnet name) lands within half
 # a minute of the network changing underneath us.
@@ -67,12 +67,12 @@ REMOTE_HUB_PROBE_TIMEOUT_S = 8.0
 _cache: Dict[str, tuple[float, Optional[Dict[str, Any]]]] = {}
 
 # host_id -> (expiry_monotonic, located_address_or_None) — shared by
-# is_reachable()/located_address() below. Since #396 it remembers WHICH
+# is_reachable()/located_address() below. It remembers WHICH
 # candidate address answered (LAN, or the tailscale name), not just a bool,
 # so the Machines card can badge a peer as reached "via tailnet".
 _liveness_cache: Dict[str, tuple[float, Optional[str]]] = {}
 
-# host_id -> (expiry_monotonic, answering) for dormant hosts (#821), plus the
+# host_id -> (expiry_monotonic, answering) for dormant hosts, plus the
 # ids with a background probe in flight. Kept apart from ``_liveness_cache`` so
 # the dormant hint's long TTL never stretches a live peer's Online/Offline dot.
 _DORMANT_TTL_S = 60.0
@@ -80,20 +80,20 @@ _dormant_cache: Dict[str, tuple[float, bool]] = {}
 _dormant_inflight: set = set()
 
 # host_id -> (expiry_monotonic, address) — the last-known-good address the
-# peer-connect paths should dial (#396). Deliberately a separate cache from
-# ``_liveness_cache`` (#369) so the two never fight: liveness may expire and
+# peer-connect paths should dial. Deliberately a separate cache from
+# ``_liveness_cache`` so the two never fight: liveness may expire and
 # re-probe on every poll tick while the dial route stays pinned to its
 # last-known-good for the longer ``_DIAL_TTL_S``.
 _dial_cache: Dict[str, tuple[float, str]] = {}
 
-# host_id -> address currently in use — transition logging only (#396), so the
+# host_id -> address currently in use — transition logging only, so the
 # LAN→tailnet failover (and the recovery back) is logged once per flip rather
 # than once per probe.
 _active_route: Dict[str, str] = {}
 
 # host_id -> whether the most recent successful locate() only answered on its
-# #333 warm-up retry (the first liveness pass missed cleanly) — a proxy for a
-# flaky link, surfaced on the peer card (#397). Updated every time locate()
+# warm-up retry (the first liveness pass missed cleanly) — a proxy for a
+# flaky link, surfaced on the peer card. Updated every time locate()
 # actually runs (i.e. on every liveness-cache miss), so it is at least as
 # fresh as the Online/Offline dot itself. Never cleared on a failed locate —
 # the last successful reading stands until the next one replaces it.
@@ -111,12 +111,12 @@ _LINUX_STATS_CMD = (
     # leave the script's exit code 0 so `_run_ssh` keeps the (valid) CPU/mem/disk
     # output. With `&&`, an absent nvidia-smi makes the *whole* command exit
     # non-zero and `_run_ssh` discards everything — a Linux peer with no GPU
-    # driver (e.g. a fresh Ubuntu box) then shows a wholly blank card (#329).
+    # driver (e.g. a fresh Ubuntu box) then shows a wholly blank card.
     "if command -v nvidia-smi >/dev/null 2>&1; then nvidia-smi "
     "--query-gpu=name,memory.used,memory.total,utilization.gpu "
     "--format=csv,noheader,nounits | head -1 | awk -F', *' "
     "'{printf \"gpu_name %s\\ngpu_used_mb %s\\ngpu_total_mb %s\\ngpu_util %s\\n\",$1,$2,$3,$4}'; fi\n"
-    # Connection type / MAC / AP+signal (#397). The "active" interface is
+    # Connection type / MAC / AP+signal. The "active" interface is
     # whichever one owns the outbound default route — a machine that's
     # simultaneously wired *and* has a Wi-Fi fallback up (mac-mini's `en1`,
     # gaming's parked dongle) reports the link the box is actually using
@@ -157,7 +157,7 @@ _DARWIN_STATS_CMD = (
     "END{gsub(/\\./,\"\",a);gsub(/\\./,\"\",w);gsub(/\\./,\"\",c); "
     "printf \"mem_used_mb %d\\n\",(a+w+c)*ps/1048576}'\n"
     "df -k / | awk 'NR==2{printf \"disk_total_kb %d\\ndisk_used_kb %d\\n\",$2,$3}'\n"
-    # Connection type / MAC / AP+signal (#397), same "active interface owns
+    # Connection type / MAC / AP+signal, same "active interface owns
     # the default route" contract as the Linux block above — `route get
     # default` never sends a packet, just reads the routing table. The
     # Hardware Port lookup (`networksetup -listallhardwareports`) is how
@@ -215,7 +215,7 @@ def _probe_liveness_ports(address: str) -> bool:
     genuinely off (#369)."""
     # Not a ``with`` block: its exit joins every worker, so an up box with one
     # port filtered still waited out that port's timeout after another had
-    # already answered (#824). ``wait=False`` lets the straggler finish alone.
+    # already answered. ``wait=False`` lets the straggler finish alone.
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=len(_LIVENESS_PORTS))
     try:
         futures = [pool.submit(_probe_port, address, port) for port in _LIVENESS_PORTS]
@@ -375,7 +375,7 @@ async def is_answering_cached(host: HostProfile) -> bool:
     return cached[1] if cached is not None else False
 
 
-# Host ids with a background dial-route refresh currently in flight (#396) —
+# Host ids with a background dial-route refresh currently in flight —
 # dedup guard so a burst of cache-miss dials spawns one probe thread, not one
 # per call.
 _refresh_inflight: set = set()
@@ -457,7 +457,7 @@ def dial_address(host: HostProfile, *, wait: bool = False) -> Optional[str]:
         return _refresh_route(host)
     _kick_refresh(host)
     # Expired-but-known route first, then whatever transition tracking last
-    # saw, then the LAN primary — the same answer pre-#396 callers dialed.
+    # saw, then the LAN primary — the same address a LAN-only dial uses.
     if cached is not None:
         return cached[1]
     return _active_route.get(host.id) or cands[0]
@@ -549,7 +549,7 @@ def _parse(raw: str) -> Dict[str, Any]:
         })
     stats["gpus"] = gpus
 
-    # Connection type / MAC / AP+signal (#397) — None when the peer's OS has
+    # Connection type / MAC / AP+signal — None when the peer's OS has
     # no probe for this (or the SSH one-liner's network block failed), same
     # graceful-degrade contract as every other field above.
     network: Optional[Dict[str, Any]] = None
@@ -585,7 +585,7 @@ async def collect(host: HostProfile) -> Optional[Dict[str, Any]]:
 
 # ------------------------------------------------------------- peer probes
 # Cross-host: does the peer run its own hub, is it reachable, and what does
-# it report — moved from services.py (#533).
+# it report — moved from services.py.
 
 
 async def remote_models(
@@ -603,7 +603,7 @@ async def remote_models(
     # import here would be circular.
     from src.remote_proxy import remote_auth_headers
 
-    if owner.dormant:  # intentionally off (#765): never dialled
+    if owner.dormant:  # intentionally off: never dialled
         logger.debug("remote_models(%s): dormant — not dialled", owner.id)
         return None
     address = await dial_address_async(owner)
@@ -615,7 +615,7 @@ async def remote_models(
     try:
         # local_only=true: two bidirectionally cross-enabled hosts would
         # otherwise recurse into each other's /api/models forever.
-        # Shared pooled client — see services.langfuse_health() (#165/#392).
+        # Shared pooled client — see services.langfuse_health().
         r = await get_async_client().get(
             f"{base}/admin/api/models",
             params={"local_only": "true"},
@@ -654,7 +654,7 @@ async def peer_health(
 
     owner = get_host(host_id)
     if owner is not None and owner.dormant:
-        # Intentionally off (#765): not dialled, so failover and the sync
+        # Intentionally off: not dialled, so failover and the sync
         # paths see "not reachable" without a probe, and no caller can raise
         # an outage for it.
         return {"reachable": False, "dormant": True, "error": "dormant", "address": None}
@@ -663,7 +663,7 @@ async def peer_health(
         return {"reachable": False, "error": f"host {host_id!r} has no address configured", "address": None}
     base = f"http://{address}:{hub_port()}"
     try:
-        # Shared pooled client — see services.langfuse_health() (#165/#392).
+        # Shared pooled client — see services.langfuse_health().
         r = await get_async_client().get(f"{base}/health", timeout=timeout_s)
         result: Dict[str, Any] = {
             "reachable": r.status_code < 500,

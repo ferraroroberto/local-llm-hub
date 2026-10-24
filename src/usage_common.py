@@ -73,12 +73,12 @@ class UsageRecord:
     vendor: str = "claude"
     # Copilot: exact billed USD for this record (AI Credits, not a
     # rate-table estimate) — usage_pricing.record_costs() returns this
-    # directly rather than pricing tokens against a $/Mtok table (issue #231).
+    # directly rather than pricing tokens against a $/Mtok table.
     # AgentsView-sourced vendors reuse this field for AgentsView's reported
-    # cost (#280).
+    # cost.
     credits_usd: float = 0.0
     # Aggregation weight: 1 for a real parsed call; a code_usage_history
-    # synthetic rollup row carries the N calls it summarises (#280).
+    # synthetic rollup row carries the N calls it summarises.
     requests: int = 1
 
 

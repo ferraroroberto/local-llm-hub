@@ -59,7 +59,7 @@ from .wake_on_lan import WakeOnLanError, send_wake
 
 logger = logging.getLogger(__name__)
 
-# The reconcile cadence (issue #353): a pass on boot, then every few minutes.
+# The reconcile cadence: a pass on boot, then every few minutes.
 # Env-overridable so a test rig or a jumpier fleet can retune without a code
 # change ("configurable" per the issue). A short boot delay lets local autostart
 # + backend inheritance settle first, so the first pass sees accurate running
@@ -140,7 +140,7 @@ async def _reconcile_remote(host_id: str, desired: List[str]) -> Dict[str, Any]:
     woke: Any = None
     wol_sent = False
     if not reachable:
-        # True power-on beneath the SSH bootstrap (#364, Phase 2 of #356): a
+        # True power-on beneath the SSH bootstrap: a
         # MAC-registered satellite may be fully off, where SSH can't reach it.
         # Fire-and-continue by design — a cold boot takes minutes while this
         # pass's reachability budget is seconds, so we never wait on the wake
@@ -200,7 +200,7 @@ async def reconcile_once() -> Dict[str, Any]:
             continue
         profile = get_host(host_id)
         if profile is not None and profile.dormant and host_id != active_id:
-            # Intentionally off (#765): no Wake-on-LAN, no bootstrap, no start.
+            # Intentionally off: no Wake-on-LAN, no bootstrap, no start.
             results[host_id] = {"dormant": True, "reachable": None}
             continue
         if fleet_maintenance.is_under_maintenance(host_id):

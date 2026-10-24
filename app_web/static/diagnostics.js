@@ -1,4 +1,4 @@
-/* Machine diagnostics (issue #315) — the drill-in behind the this-machine
+/* Machine diagnostics — the drill-in behind the this-machine
  * card's 🔬 Diagnostics row.
  *
  * Shape mirrors machines.js deliberately: a poll started only while the
@@ -49,7 +49,7 @@ function fmtMb(mb) {
 
 /* Fixed-decimal formatting, `digits` decimal places (default 0) — distinct
  * contract from code_usage.js's fmtNum, which takes one arg and returns
- * toLocaleString() comma-grouping instead (design-drift audit #384). */
+ * toLocaleString() comma-grouping instead. */
 function fmtFixed(n, digits) {
   return Number.isFinite(n) ? n.toFixed(digits === undefined ? 0 : digits) : '—';
 }
@@ -345,7 +345,7 @@ function renderSettings(status) {
 /* The form choices the user has made but not acted on: a <select> whose value
  * differs from the option the server rendered as selected, and whether the
  * Settings <details> is open. The 5 s poll rebuilds diagBody through
- * innerHTML, which would otherwise reset all of it (#787). */
+ * innerHTML, which would otherwise reset all of it. */
 function captureFormState(root) {
   const selects = {};
   root.querySelectorAll('select[id]').forEach(function (sel) {
@@ -426,7 +426,7 @@ function renderDiagnostics() {
   if (sw) setSwitch(sw, sw.dataset.diagSwitch === '1');
 }
 
-/* The Diagnostics row's meta line under the Machines list (#736): "This
+/* The Diagnostics row's meta line under the Machines list: "This
  * machine", then the exception only — capturing (accent), a warning
  * (attention) or a critical verdict (danger) as one chip; a healthy or absent
  * verdict stays plain muted text, never a coloured state. machines.js

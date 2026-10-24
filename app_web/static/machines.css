@@ -1,4 +1,4 @@
-/* Machines tab (issue #309; rows + sheet since #736) — one shared row per
+/* Machines tab (rows + sheet) — one shared row per
  * machine (rows.js / rows.css on the vendored action-row), a sheet (phone)
  * or detail pane (wide window) per machine, the destructive-action confirm
  * dialog and the in-browser SSH terminal overlay.
@@ -87,9 +87,9 @@
   }
 }
 
-/* ---------- diagnostics (issue #315) ----------
+/* ---------- diagnostics ----------
  * The capture/runs/settings dialog. Its entry is the shared Diagnostics row
- * under the machine list (#736, rows.js); what is here is the dialog's run
+ * under the machine list (rows.js); what is here is the dialog's run
  * list and data tables. */
 
 /* Dialog: read-heavy rather than an editor, but it does NOT re-plumb the
@@ -97,7 +97,7 @@
  *
  * modal.css makes the *dialog* the scroller (max-height + overflow:auto +
  * overscroll-behavior) and scrolls the card inside it — an on-device-validated
- * iOS behaviour (home-automation#214). An earlier version of this block fought
+ * iOS behaviour. An earlier version of this block fought
  * that: it made the card a full-height flex column with the body as an inner
  * scroller, so `height: 100%` resolved against an indefinite parent, the card
  * grew to its content (4300px inside a 950px dialog) and nothing scrolled

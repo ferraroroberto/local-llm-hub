@@ -82,7 +82,7 @@ async def hub_status(request: Request) -> Dict[str, Any]:
 
 # ---------------------------------------------------------------- control
 # The self-signal / launchd / systemd / respawn-watchdog helpers these two
-# endpoints drive now live in src/hub_process_control.py (issue #533) — pure
+# endpoints drive now live in src/hub_process_control.py — pure
 # process supervision, no FastAPI.
 
 @router.post("/api/hub/stop")
@@ -116,7 +116,7 @@ async def hub_restart() -> Dict[str, Any]:
     bp.set_restart_pending(True)
 
     if sys.platform == "darwin":
-        # On darwin the LaunchAgent (#181) is the sole supervisor — its
+        # On darwin the LaunchAgent is the sole supervisor — its
         # KeepAlive.SuccessfulExit=false only respawns on an *abnormal*
         # exit, so spawning our own detached respawn-watchdog here would
         # race it: two processes competing for the same port. Instead, ask

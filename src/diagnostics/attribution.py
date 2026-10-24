@@ -47,7 +47,7 @@ DEFAULT_RULES_PATH = PROJECT_ROOT / "config" / "diagnostics_apps.json"
 
 UNATTRIBUTED = "unattributed"
 
-# Cache keyed by platform token, so ingesting a foreign run (#316) can attribute
+# Cache keyed by platform token, so ingesting a foreign run can attribute
 # with the *source* machine's rule group without disturbing the live host's.
 _rules_cache: Dict[str, Dict[str, Any]] = {}
 _rules_path: Optional[Path] = None

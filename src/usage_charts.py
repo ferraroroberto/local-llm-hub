@@ -18,7 +18,7 @@ from src.usage_common import UsageRecord, model_display
 # plain "daily" list, not just the "today"-period chart buckets here).
 MAX_DAILY_DAYS = 14
 
-# The trend chart's bar budget (#751): a phone fits about a month of daily
+# The trend chart's bar budget: a phone fits about a month of daily
 # bars. Day/Week/Month stay under it; All draws weeks up to it, then months.
 MAX_CHART_BARS = 31
 
@@ -91,7 +91,7 @@ def build_time_series(
         # ``requests`` is an aggregation weight, not a flag (see UsageRecord):
         # a code_usage_history synthetic rollup row carries the N calls it
         # summarises, and an OTel-derived record carries 0. Counting 1 per row
-        # undercounted every pruned day and overcounted every OTel delta (#474).
+        # undercounted every pruned day and overcounted every OTel delta.
         slot["requests"] += r.requests
 
     result = []
@@ -137,7 +137,7 @@ def build_prev_totals(
             acc["output_tokens"] += r.output_tokens
             acc["cache_creation_tokens"] += r.cache_creation_tokens
             acc["cache_read_tokens"] += r.cache_read_tokens
-            # Weight, not a flag — same reason as build_time_series (#474).
+            # Weight, not a flag — same reason as build_time_series.
             # The "month" window (days 30-59 back) is always entirely past
             # Claude Code's ~30-day transcript retention, so it is sourced
             # from synthetic rollup rows alone and undercounted by 1-per-row.

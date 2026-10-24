@@ -22,7 +22,7 @@ import { wireSettings } from './settings.js';
 import { wireInfoSheet } from './rows.js';
 
 // --------------------------------------------------------------- #telemetry
-// The retired OTel pane's ways in (#741): a #telemetry link, a stored
+// The retired OTel pane's ways in: a #telemetry link, a stored
 // `telemetry` tab and an in-app data-open-tab="telemetry" all open Hub with
 // the Activity feed (which carries the pane's traces) in view.
 const RETIRED_TAB = 'telemetry';
@@ -45,7 +45,7 @@ function showActivity() {
 
 function openTab(tab) {
   if (tab === RETIRED_TAB) { showActivity(); return; }
-  // "Send a test request" lands on the Playground's Chat (#740).
+  // "Send a test request" lands on the Playground's Chat.
   if (tab === 'playground') setPlayMode('chat');
   setTab(tab);
 }
@@ -67,7 +67,7 @@ async function fetchVersion() {
 // resumeAfterLogin(), so a fetch added for a new card reaches both. The
 // version readout isn't here: /admin/api/version is auth-exempt, so boot()
 // already has it and a login doesn't change it. Two live-probe endpoints are
-// left out on purpose (seconds each, neither feeds the landing view, #646):
+// left out on purpose (seconds each, neither feeds the landing view):
 // fleet-placement loads when the Models tab opens (onTabChange below) and
 // install/status when Settings › Health opens (settings.js).
 function fetchAllData() {
@@ -130,7 +130,7 @@ async function boot() {
     // Refresh the memory glance each time the Models tab opens so it is
     // current when you look at it. The GET runs live peer probes, so it is
     // tab-triggered (+ once after a Start / Stop), never polled. Roles ride
-    // along for the model sheets (#737).
+    // along for the model sheets.
     if (tab === 'models') {
       fetchFleetPlacement().catch(function () {});
       fetchRoles().catch(function () {});

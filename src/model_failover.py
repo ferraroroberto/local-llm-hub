@@ -236,7 +236,7 @@ def eligible_chain(model: Model) -> List[str]:
 
     out: List[str] = []
     # ``getattr`` (not the property) so duck-typed test fakes without a
-    # ``hosts`` field read as unowned — same defensiveness the pre-#342
+    # ``hosts`` field read as unowned — same defensiveness the earlier single-host
     # code applied to ``model.host``.
     for host_id in list(getattr(model, "hosts", None) or []):
         profile = get_host(host_id)
@@ -354,7 +354,7 @@ async def _ensure_running_local(
 
     if model.virtual or model.backend not in SPAWNABLE_BACKENDS:
         return None
-    # ``startup: on_demand`` (#422): ownership can move here, but nothing
+    # ``startup: on_demand``: ownership can move here, but nothing
     # spawns the model until a request does — an idle-unloaded on-demand
     # model must never be resurrected by this engine.
     if getattr(model, "startup", None) == "on_demand":

@@ -143,7 +143,7 @@ def _claude_records() -> List[UsageRecord]:
             # Newer Claude Code also writes per-session directories holding
             # sub-agent transcripts (projects/<proj>/<session>/subagents/
             # agent-*.jsonl, same line format) — the Task-tool usage that
-            # the flat files never carried (#68's blind spot, now partially
+            # the flat files never carried (the OTel receiver's blind spot, now partially
             # local). Lines carry the parent sessionId so they group with
             # their session where present.
             jsonl_files += list(proj_dir.glob("*/subagents/agent-*.jsonl"))
@@ -366,7 +366,7 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
         vendor = "all"
 
     records = _gather_records(vendor)
-    # Durable daily rollups (#280): fold what the parsers see right now into
+    # Durable daily rollups: fold what the parsers see right now into
     # the on-disk snapshot, then extend with synthetic records for days the
     # sources have already pruned (Claude Code deletes transcripts after
     # ~30 days) — "All" keeps growing instead of silently equalling "Month".
@@ -374,7 +374,7 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
     _history.update_from_records(records)
     records = records + _history.synthetic_records(records, vendor)
     # Claude sessions bridged through claude.ai/code write no usage to the
-    # local transcripts at all — the hub's OTel receiver (#68) is the only
+    # local transcripts at all — the hub's OTel receiver is the only
     # channel that sees them. Top the Claude picture up with per-(day, model)
     # deltas vs everything above; recomputed each call from OTel's own
     # durable store, deliberately NOT persisted into the history snapshot.
@@ -426,7 +426,7 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
 
     # ---- recent sessions (always all-time, newest first) ----
     # first/last stay datetimes until the cut: formatting every record's
-    # timestamp to compare strings was ~40% of a warm build (#811).
+    # timestamp to compare strings was ~40% of a warm build.
     session_map: Dict[Tuple[str, str], dict] = {}
     for r in records:
         k = (r.project_key, r.session_id)
@@ -476,7 +476,7 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Built-summary cache (#811)
+# Built-summary cache
 # ---------------------------------------------------------------------------
 #
 # The mtime caches above make re-reading cheap, but a warm get_summary() still

@@ -159,7 +159,7 @@ def _count_via_llama_server(model: Model, req: MessagesRequest) -> TokenCount:
     if prompt is not None:
         input_tokens = _tokenize(base, prompt)
         if req.tools:
-            # /apply-template only ever renders `messages` (#618) — a
+            # /apply-template only ever renders `messages` — a
             # request's tool schemas (and any `inject_extra` template
             # kwargs a real /v1/chat/completions call would add) never
             # reach the render, so the count omits every tool definition.

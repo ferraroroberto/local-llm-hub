@@ -1,11 +1,11 @@
-/* Settings (#741): the gear on every pane opens the design system's settings
+/* Settings: the gear on every pane opens the design system's settings
  * groups — Display (text size, theme), Startup (service startup switches),
- * Machines (dormant switches, #765), Health (Health & install) and About
+ * Machines (dormant switches), Health (Health & install) and About
  * (build, config version, process id, Langfuse UI, frontier report).
  *
  * A row with a body (Service startup, Health & install) opens it in place of
  * the list on a phone, with a back row, and beside the list on a wide window
- * (list : detail, the geometry proposed on #741), where the first one opens
+ * (list : detail), where the first one opens
  * with the dialog. Text size keeps the vendored control and its
  * `llmhub.textsize` key; the pre-paint boot script in index.html stamps it
  * before first paint.
@@ -25,7 +25,7 @@ const APP_PREFIX = 'llmhub';
 // --------------------------------------------------------- pages
 /* Show one group's body (or none: the list alone, on a phone). The row that
  * opened it is the selected one; the health battery runs the first time its
- * page opens (it takes seconds, #646). */
+ * page opens (it takes seconds). */
 function openPage(key) {
   if (els.settingsLayout) els.settingsLayout.dataset.open = key || '';
   document.querySelectorAll('#settingsDialog .settings-page').forEach(function (page) {
@@ -84,7 +84,7 @@ function renderInstall(body) {
   if (failing) els.installSummary.dataset.tone = 'attention';
   else delete els.installSummary.dataset.tone;
   els.installRows.innerHTML = '';
-  // The one filled button is a repair: offer it only once a check has something to fix (J-02, #647).
+  // The one filled button is a repair: offer it only once a check has something to fix (J-02).
   if (els.installFixAllBtn) {
     els.installFixAllBtn.hidden = !checks.some(function (c) {
       return c.fix_id && (c.status === 'missing' || c.status === 'error');

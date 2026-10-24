@@ -62,7 +62,7 @@ _log = logging.getLogger(__name__)
 
 # Curated AgentsView-agent -> hub-vendor map: only these agents are fetched
 # and surfaced, everything else AgentsView knows about is ignored (the user
-# explicitly scoped #280 down from surface-everything: Claude/Codex/Copilot
+# explicitly scoped this down from surface-everything: Claude/Codex/Copilot
 # stay native, and slugs like cursor/cowork/pi are noise on this machine).
 # `agy` merges AgentsView's two Antigravity-related slugs: `gemini` (the
 # hub's agy-routed one-shot calls) and `antigravity-cli` (interactive
@@ -74,7 +74,7 @@ _AGENT_VENDOR_MAP = {
 
 # The curated vendors this module can ever emit — always valid selector
 # values even while AgentsView is down/absent, because code_usage_history
-# keeps their rollups queryable across hub restarts (#280).
+# keeps their rollups queryable across hub restarts.
 KNOWN_VENDORS = sorted(set(_AGENT_VENDOR_MAP.values()))
 
 _DEFAULT_BASE_URL = "http://127.0.0.1:8080"

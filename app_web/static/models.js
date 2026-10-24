@@ -1,4 +1,4 @@
-/* Models tab (rows + memory glance since #737).
+/* Models tab (rows + memory glance).
  *
  * The tab answers "what is loaded and how much room is left": the memory
  * glance (fleet_placement.js — one meter per host) heads it, then one shared
@@ -52,8 +52,8 @@ export async function fetchModels() {
 }
 
 /* Roles (role → model) — read with the fleet summary on tab open, so each
- * model's sheet names the roles it serves (their one home since #738 removed
- * the Hub card). Never polled. */
+ * model's sheet names the roles it serves (their one home, as the Hub card
+ * no longer shows them). Never polled. */
 export async function fetchRoles() {
   try {
     state.roles = await jsonApi('/admin/api/roles');
@@ -61,8 +61,8 @@ export async function fetchRoles() {
   } catch (_) { /* roles stay unshown; the sheets still render without them */ }
 }
 
-/* models.yaml config version (#424) — the HEAD sha of the file, shown in
- * Settings › About since #741. Every converged hub shows the same sha, so
+/* models.yaml config version — the HEAD sha of the file, shown in
+ * Settings › About. Every converged hub shows the same sha, so
  * drift between hubs is visible by comparing their /admin pages. */
 function renderConfigChip() {
   const el = els.modelsConfigSha;
@@ -78,7 +78,7 @@ function renderConfigChip() {
 // A row counts as "running" only if it's a controllable backend that's
 // currently running/adopted. Claude/Gemini are excluded outright — they're
 // subscription-backed with no on/off state, always "on", so listing them
-// here is just noise rather than a signal (#266).
+// here is just noise rather than a signal.
 function isActive(m) {
   return m.controllable && (m.ownership === 'ours' || m.ownership === 'external');
 }
@@ -99,7 +99,7 @@ function isRemote(m) {
 }
 
 /* The model's kind in plain words; the TypeSafe tile names where its content
- * goes (third-party egress, #611). */
+ * goes (third-party egress). */
 function kindLabel(m) {
   return m.backend === 'typesafe' ? 'typesafe · api.typesafe.ai (US)' : m.backend;
 }
@@ -116,7 +116,7 @@ function exceptionChips(m) {
   return out;
 }
 
-/* Budgeted meta line: remote host, port, footprint. The footprint (#436) is
+/* Budgeted meta line: remote host, port, footprint. The footprint is
  * the registry's static est_vram_mb, only on rows that load a model process
  * of their own (a virtual alias and subscription rows declare none). */
 function metaText(m) {
@@ -164,8 +164,8 @@ function roleLabel(key) {
 
 /* The one visible verb (action-row): Start while the model is down, Stop once
  * this hub owns the process. On the row it is a plain glyph-only icon-button
- * (play / square, fleet-config#1420); the wide detail pane's head keeps the
- * worded button and draws Stop outlined (label, outline; #763). An adopted
+ * (play / square); the wide detail pane's head keeps the
+ * worded button and draws Stop outlined (label, outline). An adopted
  * process is not this hub's to stop gracefully, so Start stays disabled and
  * Force stop lives in the menu. */
 function powerVerb(m) {
@@ -186,7 +186,7 @@ function powerVerb(m) {
 }
 
 // --------------------------------------------------------------- the menu
-/* Menu items and their rules (#647, #611, #424): Ping (none for the billed
+/* Menu items and their rules: Ping (none for the billed
  * third-party decision backend; disabled when the backend does not answer),
  * the shared transcription dictionary on speech-to-text rows, Edit placement
  * on the write host only, the model log for a managed process, and Force stop
@@ -225,8 +225,8 @@ function startupHtml(m, p) {
   return '<span class="startup-policy muted" title="Autostarted and kept resident">Always on</span>';
 }
 
-/* Placement intent (#423): the host chain in priority order, the effective
- * owner highlighted and cpu-resident tiers marked (#434), then the startup
+/* Placement intent: the host chain in priority order, the effective
+ * owner highlighted and cpu-resident tiers marked, then the startup
  * policy. Subscription rows carry no placement and get nothing. */
 function placementHtml(m) {
   const p = m.placement;
@@ -434,7 +434,7 @@ function modelInfoHtml(m) {
 
 /* One body per container: the info part repaints on every poll, the editor
  * slot and the log tail below it are left alone, so an open editor keeps its
- * unsaved draft (the guarantee the inline panels gave before #737). */
+ * unsaved draft (the guarantee inline panels give). */
 function fillModelBody(container, m) {
   let body = container.querySelector(':scope > .model-body');
   if (!body || body.dataset.id !== m.id) {
@@ -538,10 +538,10 @@ function bodyFor(m) {
   return container && container.querySelector('.model-body');
 }
 
-// --------------------------------------------------------------- placement editor (#424)
+// --------------------------------------------------------------- placement editor
 /* Edits a model's declared placement — hosts chain (reorder / add / remove /
  * cpu tier), startup policy, idle-unload window — and PUTs it to
- * /admin/api/models/<id>/placement, which validates hard (schema + the #375
+ * /admin/api/models/<id>/placement, which validates hard (schema + the
  * VRAM budget) and then writes through to git (comment-preserving models.yaml
  * edit, config-bot commit, push). It mounts in the model's editor slot, which
  * the 5 s poll never repaints. Only offered where the server says this hub

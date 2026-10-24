@@ -36,7 +36,7 @@ _OPENAI_PRICING_PATH: Path = _PROJECT_ROOT / "config" / "openai_pricing.json"
 
 # Gemini API list prices in USD per million tokens, keyed by family (what
 # gemini_family collapses an AGY model name to).  Used to show the
-# equivalent metered-API cost of AGY/Antigravity usage (#280) — an estimate
+# equivalent metered-API cost of AGY/Antigravity usage — an estimate
 # against Google list prices, same idea as Codex vs OpenAI.  AGY cache reads
 # are reported separately/additively (Claude-style), priced at "cache_read".
 _GEMINI_PRICING_PATH: Path = _PROJECT_ROOT / "config" / "gemini_pricing.json"

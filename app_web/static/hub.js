@@ -1,4 +1,4 @@
-/* Hub tab (glance + services as exceptions + one Activity feed since #738).
+/* Hub tab (glance + services as exceptions + one Activity feed).
  *
  * The tab answers "is the hub serving, and is anything failing" first:
  *   - the glance card: requests, errors and median latency since hub start
@@ -14,7 +14,7 @@
  *     completion preview, a thumbs score and the Langfuse link (the OTel
  *     pane's trace functions, same helpers). By model (the per-backend
  *     counters + summary) and the server log open from the feed's foot.
- * Health & install and the process id live in Settings since #741; a failing
+ * Health & install and the process id live in Settings; a failing
  * install check still reaches this tab's header line.
  */
 
@@ -154,7 +154,7 @@ function prependRequest(rec) {
   }
 }
 
-/* Route-specific one-liner (e.g. "3 questions" on /v1/systemone, #611). */
+/* Route-specific one-liner (e.g. "3 questions" on /v1/systemone). */
 function activityMeta(r, withError) {
   const bits = [];
   if (withError && r.error_detail) bits.push(String(r.error_detail).slice(0, 80));
@@ -165,7 +165,7 @@ function activityMeta(r, withError) {
 }
 
 /* One request on the shared row: the model first, status and latency, the
- * meta, the clock last (J-10, #647). A failure's status is its chip; a row
+ * meta, the clock last (J-10). A failure's status is its chip; a row
  * with a trace opens the trace sheet, one without does nothing on tap. */
 function activityRow(r, withError) {
   const failed = r.status >= 400;
@@ -290,7 +290,7 @@ export function stopHubStreams() {
   if (state.hubLogStreamCtl) { try { state.hubLogStreamCtl.close(); } catch (_) { /* already closed */ } state.hubLogStreamCtl = null; }
 }
 
-// --------------------------------------------------------- services (issue #27)
+// --------------------------------------------------------- services
 export async function fetchServicesStatus() {
   try {
     const body = await jsonApi('/admin/api/services/status');
@@ -310,7 +310,7 @@ export async function fetchServicesStatus() {
 
 /* The three services as facts: whether each counts as failing (down when it
  * should be up; AgentsView only when it is enabled and installed) and whether
- * it can be started from here. When the status probe itself failed (#788),
+ * it can be started from here. When the status probe itself failed,
  * docker/langfuse are `unknown` — not confirmed down — since we never got an
  * answer; no Start verb for either, and the caller must not render them as
  * failing. */
@@ -384,9 +384,9 @@ function renderServiceRows() {
   list.innerHTML = html.join('');
 }
 
-/* A Services sheet row's detail is a raw error or version line (#647, J-10).
+/* A Services sheet row's detail is a raw error or version line (J-10).
  * A short one stays inline; a long one is a one-line, ellipsised disclosure
- * whose full text opens in place, in the disclosure's body (#817) while the
+ * whose full text opens in place, in the disclosure's body while the
  * preview in the summary gives way to it. Nothing is dropped. */
 const DETAIL_INLINE_MAX = 40;
 
@@ -432,7 +432,7 @@ function renderServices() {
   setDetail(els.dockerDetail, probeFailed ? '' : (docker.running
     ? (docker.server_version ? 'engine ' + docker.server_version : '')
     : (docker.error || '')));
-  // Start/Stop (#284) — only offered where launch_docker_desktop() actually
+  // Start/Stop — only offered where launch_docker_desktop() actually
   // knows how (win32 + a found Docker Desktop install).
   if (els.dockerStartBtn) {
     els.dockerStartBtn.hidden = probeFailed || !(body.launchable && !docker.running);
@@ -456,7 +456,7 @@ function renderServices() {
     els.langfuseStopBtn.disabled = state.langfuseBusy;
   }
 
-  // AgentsView (#280): optional external indexer feeding the Code tab's AGY
+  // AgentsView: optional external indexer feeding the Code tab's AGY
   // vendor; disabled or not installed is a plain fact, not a failure.
   const av = body.agentsview || {};
   const avEnabled = !!av.host;
@@ -564,8 +564,8 @@ async function onServicesLaunchClick() {
 }
 
 // One start/stop action on a service row: busy flag → re-render → POST →
-// {ok, steps}-driven toast → clear the flag and refresh (#284). AgentsView,
-// Docker Desktop and Langfuse all ride this one helper (#470). `busyKey` is
+// {ok, steps}-driven toast → clear the flag and refresh. AgentsView,
+// Docker Desktop and Langfuse all ride this one helper. `busyKey` is
 // the `state` flag the row's buttons read to disable themselves.
 async function onServiceAction(label, busyKey, path, verb, doneLabel) {
   if (state[busyKey]) return;
@@ -782,7 +782,7 @@ function buildSparkline(g) {
       path += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1) + ' ';
     });
   }
-  // Energy-tab chart look (#215): a 2px accent line over a translucent
+  // Energy-tab chart look: a 2px accent line over a translucent
   // accent area (fill closed down to the baseline).
   const area = path ? path + 'L' + w + ',' + h + ' L0,' + h + ' Z' : '';
   root.innerHTML =

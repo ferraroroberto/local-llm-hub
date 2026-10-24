@@ -130,7 +130,7 @@ class ImagesGenerationRequest(BaseModel):
     prompt: str
     n: int = 1
     response_format: str = "b64_json"
-    # Preset name ("4k") or "WIDTHxHEIGHT" (#497). Honoured by comfyui rows;
+    # Preset name ("4k") or "WIDTHxHEIGHT". Honoured by comfyui rows;
     # accepted and ignored by gemini, where Imagen controls its own dimensions
     # — deliberately not a 400, because OpenAI clients send `size` routinely
     # and rejecting it would break every existing caller.
@@ -268,7 +268,7 @@ async def images_edits(
     if not (resolved.backend == "gemini" and resolved.image_gen):
         # Two distinct conditions, two distinct messages: a text model here is
         # a category error, whereas an image model on a non-gemini backend is
-        # simply an unimplemented capability (#492 scoped edits to gemini).
+        # simply an unimplemented capability (edits are only implemented for gemini).
         if resolved.image_gen:
             detail = (
                 f"model {model!r} ({resolved.display_name}) can generate images "

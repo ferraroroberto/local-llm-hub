@@ -110,7 +110,7 @@ async def create_ssh_session(
     than a guessed cause — see :func:`_upstream_detail`."""
     if not host.can_ssh:
         return {"ok": False, "session_id": None, "error": "host has no SSH target configured"}
-    # LAN address while it answers, tailnet name when it doesn't (#396).
+    # LAN address while it answers, tailnet name when it doesn't.
     address = await remote_stats.dial_address_async(host)
     target = f"{host.ssh_user}@{address}"
     payload = {

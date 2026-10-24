@@ -233,7 +233,7 @@ def _check_models() -> List[Check]:
     for m in local_models():
         if m.backend not in SPAWNABLE_BACKENDS or not m.model_path:
             continue
-        # A split-loader row (#498) is only usable when every companion weight
+        # A split-loader row is only usable when every companion weight
         # is present too — a missing text encoder or VAE fails at generation
         # time with an opaque node error, not at load.
         missing_extra = [
@@ -265,7 +265,7 @@ def _check_models() -> List[Check]:
 
 def _whisper_enabled() -> bool:
     # Engine-specific, not just `backend == "whisper"` — a whisper-*shaped*
-    # backend (e.g. Parakeet's `engine: parakeet-server`, #138) doesn't need
+    # backend (e.g. Parakeet's `engine: parakeet-server`) doesn't need
     # the whisper.cpp binary this check is actually gating.
     return any(m.engine == "whisper-server" for m in local_models())
 
@@ -471,7 +471,7 @@ def _check_comfyui() -> Check:
                      "run `python scripts/install_comfyui.py --verify`",
                      fix_id="comfyui", fix_label=fix_label)
 
-    # No custom-node check here since #501 removed the only `.gguf` row. If a
+    # No custom-node check here because no `.gguf` row remains. If a
     # quantized model is ever re-added, the ComfyUI-GGUF node must be verified
     # here too — a missing one is invisible until generation time, because
     # stock ComfyUI cannot read that format and the row would sit in the model
@@ -485,8 +485,8 @@ def _check_comfyui() -> Check:
 def _port_in_use(port: int) -> bool:
     # Bind-probing 127.0.0.1 misses listeners bound to the wildcard address
     # (0.0.0.0) — Windows lets a loopback bind succeed alongside one, so the
-    # hub/llama-server/whisper-server (all bind 0.0.0.0) went undetected
-    # (#482). Connecting is proof something is actually listening.
+    # hub/llama-server/whisper-server (all bind 0.0.0.0) went undetected.
+    # Connecting is proof something is actually listening.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.5)
         return s.connect_ex(("127.0.0.1", port)) == 0
@@ -511,7 +511,7 @@ def _check_ports() -> List[Check]:
 
 # ---------- report + fixes ----------
 
-# Brief cache for run_all_checks(use_cache=True) (issue #198). The battery
+# Brief cache for run_all_checks(use_cache=True). The battery
 # shells out to `claude --version` / `nvidia-smi` / `llama-server --version`
 # via blocking subprocess.run and "can pin the entire uvicorn worker for
 # seconds" (see app_web/routers/hub.py's install_status docstring) — yet

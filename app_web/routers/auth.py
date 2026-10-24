@@ -72,7 +72,7 @@ async def login(request: Request) -> Dict[str, Any]:
         )
     body = await maybe_json(request)
     presented = str(body.get("password") or "")
-    # Bytes, not str: compare_digest raises TypeError on a non-ASCII str (#787).
+    # Bytes, not str: compare_digest raises TypeError on a non-ASCII str.
     if not presented or not hmac.compare_digest(
         presented.encode(), cfg.auth_password.encode()
     ):
