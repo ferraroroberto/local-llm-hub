@@ -229,6 +229,16 @@ that rewrites some as present-tense prose:
 .venv\Scripts\python -m scripts.docs_ratchet_gate
 ```
 
+Structure ratchet (file size, function length, flat directories and the root
+layout; see [docs/layout.md](docs/layout.md)). Existing offenders live in
+`.structure-ratchet-baseline.json` and can only shrink; run
+`.venv\Scripts\python scripts\structure_ratchet.py --update-baseline` in the
+PR that splits some:
+
+```bat
+.venv\Scripts\python scripts\structure_ratchet.py
+```
+
 End-to-end smoke test (requires hub + whichever backends you care
 about running):
 
