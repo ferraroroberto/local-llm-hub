@@ -113,6 +113,10 @@ path = ".doc-refs-ratchet-baseline.json"
 tier = "none"
 path = ".dead-code-ratchet-baseline.json"
 
+[[e2e.rule]]             # the conventions-ratchet baseline -> none
+tier = "none"
+path = ".conventions-ratchet-baseline.json"
+
 # Components vendored byte-for-byte from project-scaffolding. Re-vendored by
 # `/propagate-vendored <key>`; never edit a copy here — fix it in the scaffold
 # and propagate. `sha` is the scaffold commit the current bytes came from.
@@ -145,13 +149,14 @@ structure_ratchet = { src = "scripts/structure_ratchet.py", sha = "84d2b12ab4165
 instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "60fdd0350f18d28838428b2e773f7868f6381fbf", dest = "scripts/instruction_ratchet.py" }
 doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "23dbefa46635c952d3c871bda4e80b740e7f2859", dest = "scripts/doc_refs_ratchet.py" }
 dead_code_ratchet = { src = "scripts/dead_code_ratchet.py", sha = "8cc9a5f908c48dabc69971ff958869dffed1ba21", dest = "scripts/dead_code_ratchet.py" }
+conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "0eb0da42298e391fc614b3fe550bd6cf2d07c693", dest = "scripts/conventions_ratchet.py" }
 single_instance = { src = "app/tray/single_instance.py", sha = "dadbc3c127e8b7214151defb43d563e0ef82d9f7", dest = "tray/single_instance.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet.py, which fails on a
-# duplicate block (jscpd via npx, Python and JS) or an unused import/variable (ruff
-# F401,F841) that is not in .static-ratchet-baseline.json. Needs Node and ruff in
-# the gate's venv; a detector that cannot run exits 3, which fails the gate. Excluded:
+# duplicate block (jscpd via npx, Python and JS), an unused import/variable (ruff
+# F401,F841) or a likely bug/security pattern (a curated ruff B/S set, S113 strict) that
+# is not in .static-ratchet-baseline.json. Needs Node and ruff in the gate's venv; a detector that cannot run exits 3, which fails the gate. Excluded:
 # vendored admin-SPA components (copies by design), vendor/ (third-party ComfyUI) and
 # the gitignored data/ and models/ trees. Procedure + limits: project-scaffolding
 # docs/static-ratchet.md.
@@ -241,6 +246,23 @@ allow_refs = [
 [dead_code_ratchet]
 enabled  = true
 baseline = ".dead-code-ratchet-baseline.json"
+
+# [conventions_ratchet] -- the scaffold's baseline-and-ratchet for fleet conventions
+# held as `ast` rules. The gate (scripts/verify-before-ship.ps1) runs
+# scripts/conventions_ratchet.py, which fails when a file's hit count for an enabled
+# rule rises above .conventions-ratchet-baseline.json. Not path-routed: a rule must
+# see the whole tree. Exit 3 (git unusable, a file that does not parse) fails the
+# gate. Rules: no-window (the hub runs windowless under pythonw on Windows),
+# logging-not-print (the hub, app_web and tray are library code), no-drive-path
+# (a drive-letter literal breaks the Linux and macOS satellites). secret-compare and
+# git-wrapper stay off: the hub has no shared constant-time-compare or git-run helper.
+# Procedure + limits: project-scaffolding docs/conventions-ratchet.md.
+[conventions_ratchet]
+enabled     = true
+baseline    = ".conventions-ratchet-baseline.json"
+rules       = ["no-window", "logging-not-print", "no-drive-path"]
+exclude     = ["vendor/**", "data/**", "models/**"]
+print_paths = ["src/", "app_web/", "tray/"]
 
 # Views that span the width right of the rail on a wide window (design.md
 # layout.wide): Hub's glance + services | Activity columns (#738) and Code's

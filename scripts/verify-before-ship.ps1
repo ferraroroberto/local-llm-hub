@@ -7,7 +7,8 @@
 # Steps:
 #   1. byte-compile every .py file under src/, app_web/, tray/, scripts/
 #   2. static ratchet: no new duplicate block (jscpd via npx) or unused
-#      import/variable (ruff F401,F841) beyond .static-ratchet-baseline.json.
+#      import/variable (ruff F401,F841) or likely bug/security pattern (curated
+#      ruff B/S set, S113 strict) beyond .static-ratchet-baseline.json.
 #      Whole tree, never routed; exit 3 (a detector could not run) is NOT
 #      CONFIRMED and fails, never a pass or a skip.
 #   3. docs ratchet: no new issue reference, dated heading or changelog
@@ -33,8 +34,12 @@
 #      refers to, beyond .dead-code-ratchet-baseline.json. Whole tree, never routed
 #      (deleting the last caller strands a definition elsewhere); exit 3 (git
 #      unusable, a file that does not parse) fails.
-#   9. `pytest -q` (unit tests, no GPU / no real CLIs)
-#   10. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
+#   9. conventions ratchet: no file's hit count for an enabled rule (no-window,
+#      logging-not-print, no-drive-path) rises beyond .conventions-ratchet-baseline.json.
+#      Whole tree, never routed; exit 3 (git unusable, a file that does not parse)
+#      fails.
+#   10. `pytest -q` (unit tests, no GPU / no real CLIs)
+#   11. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
 #      the .fleet.toml [e2e] rules): nothing for a docs/backend-only diff, a
 #      smoke target or one surface's slice for a narrow one, otherwise
 #      `pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml`.
@@ -112,6 +117,13 @@ Step "dead-code ratchet" {
     # Same as the doc-refs ratchet: Step fails on any non-zero exit, so
     # exit 3 (could not measure) is a failure here, never a pass or a skip.
     & $Python scripts/dead_code_ratchet.py
+}
+
+Step "conventions ratchet" {
+    # Same as the dead-code ratchet: Step fails on any non-zero exit, so exit 3
+    # (git unusable, a file that does not parse) is a failure here, never a pass
+    # or a skip.
+    & $Python scripts/conventions_ratchet.py
 }
 
 Step "pytest (unit)" {
