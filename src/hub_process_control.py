@@ -71,6 +71,7 @@ def _delayed_darwin_bootout(label: str, delay: float = 0.4) -> None:
 
     def _runner() -> None:
         time.sleep(delay)
+        # no-window-exempt: launchctl exists only on macOS, where there is no console window to hide
         subprocess.run(
             ["launchctl", "bootout", f"gui/{os.getuid()}/{label}"],
             capture_output=True,
@@ -105,6 +106,7 @@ def _delayed_systemctl(verb: str, delay: float = 0.4) -> None:
 
     def _runner() -> None:
         time.sleep(delay)
+        # no-window-exempt: sudo/systemctl exist only on Linux, where there is no console window to hide
         r = subprocess.run(
             ["sudo", "-n", "systemctl", verb, SYSTEMD_UNIT_NAME],
             capture_output=True, text=True,

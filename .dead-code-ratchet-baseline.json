@@ -1,6 +1,4 @@
 {
   "version": 1,
-  "entries": [
-    {"key": "src/webauthn_gate.py", "names": ["WebAuthnGate.revoke_session_tokens", "WebAuthnGate.valid_session_token"]}
-  ]
+  "entries": []
 }

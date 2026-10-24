@@ -165,6 +165,7 @@ def _prove_guard_armed() -> None:
         for label, attempt, refusal in (
             ("LAN connect", lambda: socket.create_connection(_CANARY_LAN, timeout=0.1), ConnectionRefusedError),
             ("loopback connect", lambda: socket.create_connection(_CANARY_LOOPBACK, timeout=0.1), ConnectionRefusedError),
+            # no-window-exempt: the egress guard must refuse this spawn before any process exists
             ("spawn", lambda: subprocess.Popen([_CANARY_EXECUTABLE]), PermissionError),
         ):
             try:

@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from src.event_loop import LOOP_FACTORY, selector_loop_factory
+from src.no_window import NO_WINDOW
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -87,6 +88,7 @@ def _run_event_loop_worker(mode: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-m", "tests._event_loop_worker", mode],
         cwd=_REPO_ROOT, capture_output=True, text=True, timeout=60,
+        creationflags=NO_WINDOW,
     )
 
 

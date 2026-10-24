@@ -26,6 +26,7 @@ from __future__ import annotations
 import copy
 import json
 
+from tests.e2e._models_rows import gemma_row, whisper_row
 from tests.e2e._surface import surface
 
 BASE_CONFIG = {
@@ -42,38 +43,11 @@ BASE_CONFIG = {
 
 FAKE_MODELS = {
     "models": [
-        {
-            # Multi-host chain with a degraded cpu last resort — the whisper
-            # shape; the editor's reorder/remove/cpu controls act on this.
-            "id": "whisper", "display_name": "whisper-large-v3-turbo",
-            "backend": "whisper", "engine": "whisper-server", "port": 8090,
-            "url": None, "aliases": [], "controllable": True,
-            "ownership": "ours", "pid": 777, "reachable": True,
-            "model_path": None, "host": "gaming",
-            "preferred_host": "gaming", "failover": False,
-            "placement": {
-                "chain": [
-                    {"id": "gaming", "cpu": False},
-                    {"id": "mac-mini-m4", "cpu": False},
-                    {"id": "tower", "cpu": True},
-                ],
-                "startup": "eager", "idle_unload_minutes": None,
-                "est_vram_mb": 2000, "editable": True,
-            },
-        },
-        {
-            # On-demand row — the idle-window edit target (gemma shape).
-            "id": "gemma4_26b", "display_name": "gemma4-26b-a4b-it",
-            "backend": "openai", "engine": "llama-server", "port": 8087,
-            "url": None, "aliases": ["agentic_heavy"], "controllable": True,
-            "ownership": "none", "pid": None, "reachable": False,
-            "model_path": None, "host": "tower",
-            "placement": {
-                "chain": [{"id": "tower", "cpu": False}],
-                "startup": "on_demand", "idle_unload_minutes": 30,
-                "est_vram_mb": 13400, "editable": True,
-            },
-        },
+        # Multi-host chain with a degraded cpu last resort — the whisper
+        # shape; the editor's reorder/remove/cpu controls act on this.
+        whisper_row(editable=True),
+        # On-demand row — the idle-window edit target (gemma shape).
+        gemma_row(editable=True),
         {
             # Virtual alias — placement rendered but never editable.
             "id": "qwen35_4b_nothink", "display_name": "qwen3.5-4b-nothink",

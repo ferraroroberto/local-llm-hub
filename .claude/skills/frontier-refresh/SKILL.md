@@ -97,7 +97,7 @@ is out of scope for a run:
 
 - SOTA open-weights LLMs released or majorly updated in the last 90 days:
   Qwen, Llama, Mistral/Magistral/Ministral, Gemma, Phi, DeepSeek (non-coder),
-  Command, Hermes/Nous, Yi, Mixtral, GLM, InternLM, Falcon, OLMo, GPT-OSS,
+  Command, Hermes/Nous, Yi, Mixtral, GLM, InternLM, Falcon, OLMo, gpt-oss,
   Granite, plus newcomers.
 - Per model: params (total/active for MoE), architecture, license (flag
   non-commercial/AUP restrictions), native context, common quantizations
