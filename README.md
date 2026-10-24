@@ -250,6 +250,16 @@ PR that fixes some:
 .venv\Scripts\python scripts\instruction_ratchet.py
 ```
 
+Doc-refs ratchet (`README.md`, `CLAUDE.md` and `docs/**/*.md` name no repo
+path, `python -m` module, relative link or loopback port that does not exist).
+Other services' ports and other repos' paths named on purpose are listed in
+`allow_refs` under `[doc_refs_ratchet]` in `.fleet.toml`; the baseline
+`.doc-refs-ratchet-baseline.json` is empty and can only shrink:
+
+```bat
+.venv\Scripts\python scripts\doc_refs_ratchet.py
+```
+
 End-to-end smoke test (requires hub + whichever backends you care
 about running):
 

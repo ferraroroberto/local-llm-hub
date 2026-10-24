@@ -25,8 +25,12 @@
 #   6. instruction ratchet: no CLAUDE.md / AGENTS.md / skill file gains a prompt-audit
 #      lint-rule hit or passes a size cap beyond .instruction-ratchet-baseline.json.
 #      Whole tree, never routed; exit 3 (could not measure) fails.
-#   7. `pytest -q` (unit tests, no GPU / no real CLIs)
-#   8. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
+#   7. doc-refs ratchet: no README.md / CLAUDE.md / docs/**/*.md reference to a repo
+#      path, module, relative link or loopback port that does not exist, beyond
+#      .doc-refs-ratchet-baseline.json. Whole tree, never routed; exit 3 (could not
+#      measure) fails.
+#   8. `pytest -q` (unit tests, no GPU / no real CLIs)
+#   9. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
 #      the .fleet.toml [e2e] rules): nothing for a docs/backend-only diff, a
 #      smoke target or one surface's slice for a narrow one, otherwise
 #      `pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml`.
@@ -92,6 +96,12 @@ Step "instruction ratchet" {
     # exit, so exit 3 (could not measure) is a failure here, never a pass or a
     # skip.
     & $Python scripts/instruction_ratchet.py
+}
+
+Step "doc-refs ratchet" {
+    # Same as the instruction ratchet: Step fails on any non-zero exit, so
+    # exit 3 (could not measure) is a failure here, never a pass or a skip.
+    & $Python scripts/doc_refs_ratchet.py
 }
 
 Step "pytest (unit)" {
