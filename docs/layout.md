@@ -9,7 +9,7 @@ The structure ratchet (`scripts/structure_ratchet.py`, configured in `.fleet.tom
 | `src/` | The hub: FastAPI routing, backend wrappers, process managers, usage parsers. A new module goes in a subpackage (like `diagnostics/`), because the flat directory is past its limit and baselined. |
 | `app_web/` | The `/admin` sub-app: routers and the static SPA (no bundler). Declared by the shape instead of the scaffold's `app/webapp/`. |
 | `tray/` | The Windows system-tray launcher. Declared by the shape instead of the scaffold's `app/tray/`. |
-| `tests/` | Unit and integration tests, `tests/e2e/` for the Playwright suite. The flat directory is baselined, so a new test goes in a subfolder. |
+| `tests/` | Unit and integration tests, `tests/e2e/` for the Playwright suite, `tests/ratchets/` for the pre-ship gate's ratchet stages. The flat directory is baselined, so a new test goes in a subfolder. |
 | `scripts/` | Gate, ratchets, installers, benchmarks and one-off tools. |
 | `config/` | Committed config, samples and pricing tables. |
 | `launchers/` | Per-model backend launchers (`.bat` and `.sh`). |

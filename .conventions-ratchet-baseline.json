@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "entries": [
+    {"key": "scripts/gen_icons.py", "counts": {"no-drive-path": 1}},
+    {"key": "scripts/install_whisper_cpp.py", "counts": {"no-window": 3}},
+    {"key": "src/hub_process_control.py", "counts": {"no-window": 2}},
+    {"key": "src/run_backend.py", "counts": {"no-window": 1}},
+    {"key": "tests/e2e/_isolated_hub.py", "counts": {"no-window": 1}},
+    {"key": "tests/test_event_loop.py", "counts": {"no-window": 1}},
+    {"key": "tests/test_respawn_watchdog.py", "counts": {"no-window": 1}}
+  ]
+}
