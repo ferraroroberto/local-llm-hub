@@ -2,9 +2,9 @@
 
 Why Orpheus speech synthesis takes ~2 s for a short phrase, what was
 measured to find a faster path, and why the answer is "the engine is
-near its hardware ceiling — lean on streaming, not flags." Investigation
-for issue #105. Pairs with [add-tts.md](add-tts.md) (how Orpheus slots
-into the hub) and the streaming work in #102 (perceived latency).
+near its hardware ceiling — lean on streaming, not flags." Pairs with
+[add-tts.md](add-tts.md) (how Orpheus slots into the hub) and the
+streaming work (perceived latency).
 
 ## TL;DR
 
@@ -21,7 +21,7 @@ into the hub) and the streaming work in #102 (perceived latency).
   quant, which would regress SNAC audio quality — out of scope per the
   issue's acceptance ("no regression to streamed output quality").
 - **No llama-server flags were changed.** Time-to-first-audio is already
-  addressed by streaming (#102); total synthesis time is at the
+  addressed by streaming; total synthesis time is at the
   hardware floor.
 
 ## How to reproduce
@@ -37,7 +37,7 @@ into the hub) and the streaming work in #102 (perceived latency).
 .venv\Scripts\python.exe scripts\bench_voice.py tts --base-url http://127.0.0.1:8000 --model orpheus
 ```
 
-The phrase defaults to `"this is a test"` (the ~1.8 s clip #105 cites).
+The phrase defaults to `"this is a test"` (a ~1.8 s clip).
 Measurements below were taken on the reference GPU with the normal
 autostart set resident (qwen3.5-4b + whisper turbo + whisper medium),
 i.e. realistic contention, not an idle card.
@@ -104,7 +104,7 @@ streams the resident weights through the GPU's memory bus once.
   fraction for llama.cpp single-stream decode.
 
 The 5060 Ti is a narrow-bus (128-bit) Blackwell card; its bandwidth is
-roughly a third of a 5090's (~1792 GB/s). The intuition in #105 that "a
+roughly a third of a 5090's (~1792 GB/s). The intuition that "a
 Blackwell-class GPU should be several times faster" holds for the big
 cards, not for this one — here ~150 tok/s is expected, not a regression.
 
@@ -134,7 +134,7 @@ generation rate, which on this GPU is at its memory-bandwidth ceiling
 with the model fully offloaded and flash attention already on. No
 `llama-server` flag raises it, and the only faster path (a lower quant)
 violates the quality bar. The correct lever for user-perceived latency
-is **streaming** (#102: first audio in ~1 s while the rest generates),
+is **streaming** (first audio in ~1 s while the rest generates),
 not engine flags. A code change was deliberately *not* made beyond an
 explanatory comment in `_spawn_llama`; re-run `scripts/bench_orpheus.py`
 after any future model or GPU swap to re-check the floor.

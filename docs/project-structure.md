@@ -22,14 +22,14 @@ the one that stayed true. The second copy that used to live here drifted
 (whisper moved to the `gaming` satellite, Qwen3.5-9B to `mac-mini-m4`, and
 the audio / TTS / on-demand / failover / fleet-reconcile / diagnostics
 surface never appeared in it at all) the same way the filesystem tree did
-before `#452`. See it there rather than restating it in this file.
+before. See it there rather than restating it in this file.
 
 ## Module diagram (filesystem)
 
 Superseded as a standalone listing — [`layout.md`](layout.md)
 is the repo's one hand-maintained filesystem tree; keeping a second
-one here let the two drift out of sync with each other and with the code
-(`#452`). See it there rather than restating it in this file.
+one here let the two drift out of sync with each other and with the code.
+See it there rather than restating it in this file.
 
 ## Request lifecycle
 
@@ -123,7 +123,7 @@ Anthropic translation hops on both paths — for Claude the hub wraps
 the envelope into OpenAI shape; for the local llama-server backends
 (qwen35_4b/qwen/glm/gemma4-e4b/gemma4-26b-a4b) it's near-passthrough.
 
-### Local image backend (model=flux1_local, issue #492)
+### Local image backend (model=flux1_local)
 
 The only lifecycle here that can **start its own backend mid-request**: the row
 is `startup: on_demand`, so a cold request spawns ComfyUI and blocks on
@@ -178,7 +178,7 @@ use this path; it stays on the gemini backend.
   and OpenAI shapes and routes by model name to several backends:
   Claude subscription (via the `claude -p` CLI), Gemini subscription (via
   the `agy` Antigravity CLI, plus Imagen at `/v1/images/*`), FLUX.1 [dev]
-  image generation on the local GPU via ComfyUI (#492), Qwen 3.5 4B
+  image generation on the local GPU via ComfyUI, Qwen 3.5 4B
   (agentic_light) and Gemma 4 26B-A4B IT MoE (agentic_heavy) on
   llama-server, ASR at `/v1/audio/transcriptions|translations` (the
   whisper.cpp trio — turbo transcribe, medium translate, glossary-free
@@ -203,7 +203,7 @@ use this path; it stays on the gemini backend.
     / `whisper_translate` / `chatterbox` (active rotation), plus
     `orpheus` (on-demand TTS) and `qwen` / `glm` / `gemma4_e4b`
     (ad-hoc / fallback) (or `launchers/run_model.bat` / `.sh <id>`,
-    the parameterized launcher — #448) — starts the matching
+    the parameterized launcher) — starts the matching
     `llama-server` / `whisper-server` / TTS-shim child with args from
     `models.yaml`. The `whisper_translate` slot uses the
     `whisper-server` engine (on-demand, medium on CPU, ~1.5 GB RAM
@@ -212,7 +212,7 @@ use this path; it stays on the gemini backend.
     the in-repo FastAPI shim `src/tts_server.py` (Orpheus runs a
     loopback `llama-server` child for its GGUF + SNAC decode).
     An on-demand row — add `startup: on_demand` +
-    `idle_unload_minutes` (`src/on_demand.py`, #530) — spawns/unloads
+    `idle_unload_minutes` (`src/on_demand.py`) — spawns/unloads
     the child around an idle window, the mechanism `whisper_translate`
     and `whisper_vanilla` both use; see `config/models.yaml` for which
     rows run eager versus on-demand on each host.
@@ -228,7 +228,7 @@ use this path; it stays on the gemini backend.
   backend: `gemini` rows call `call_gemini_image()` in `src/gemini_cli.py`
   (Google **Imagen**, hosted as an agentic tool inside an `agy` Gemini
   text session — there is no Nano Banana / picker image model), and
-  `comfyui` rows (`flux1_local`, `flux2_klein`, #492/#498) generate
+  `comfyui` rows (`flux1_local`, `flux2_klein`) generate
   **entirely locally** on this host's own GPU via
   [`src/comfyui_client.py`](../src/comfyui_client.py). Editing
   (`/v1/images/edits`) stays on the `gemini` backend only — see
@@ -276,12 +276,12 @@ use this path; it stays on the gemini backend.
   lives in [`scripts/smoke_test.py`](../scripts/smoke_test.py) and
   needs the hub plus the relevant backends running.
 - **Intentional gaps.** Streaming and tool use both reach the Anthropic
-  shape now: `/v1/messages` emits Anthropic SSE (#550) and translates
+  shape now: `/v1/messages` emits Anthropic SSE and translates
   `tools` / `tool_use` / `tool_result` against llama-server's OpenAI
-  function calling (#552, refused with a 400 on the CLI backends, which
+  function calling (refused with a 400 on the CLI backends, which
   flatten to one text prompt). Image and document content blocks
   (PDF plus text/data files) land on the `claude-*` / `gemini-*` paths;
   a `thinking: {"type": "enabled"}` request is refused with a 400 since
-  the hub emits no thinking blocks (#607). `stop_sequences` / `top_p` /
+  the hub emits no thinking blocks. `stop_sequences` / `top_p` /
   `top_k` reach llama-server; `stop_sequences` is refused on the CLI
   backends, which have no stop control.

@@ -136,8 +136,8 @@ run_hub.bat
 ::    http://127.0.0.1:8000/admin/
 ```
 
-The admin's **Hub** tab carries it all (since #741, which retired the
-separate Telemetry pane): Services › **Langfuse** opens the stack health,
+The admin's **Hub** tab carries it all (there is no separate Telemetry
+pane): Services › **Langfuse** opens the stack health,
 Telemetry export state, Hide personal data, endpoint, Open Langfuse UI and the offline hint; the
 **Activity** feed lists every request with a trace sheet (prompt and
 completion preview, thumbs score, Open in Langfuse); **By model** is the
@@ -334,13 +334,13 @@ The Hub trace sheet's 👍 / 👎 buttons POST to
 
 Same endpoint works for clients — see the client contract doc.
 
-## Claude Code OTel metrics receiver (issue #68)
+## Claude Code OTel metrics receiver
 
 Everything above is the hub acting as an OTel **exporter** (hub → Langfuse).
 This section is the opposite direction: the hub also runs a small OTLP-
 metrics **receiver** so Claude Code's own telemetry export — which is the
 only channel that sees sub-agent (Task tool) API calls, since Claude Code
-never writes those to its JSONL session transcripts (#66) — can feed the
+never writes those to its JSONL session transcripts — can feed the
 admin SPA's Code tab (agent sheet › **Sub-agents (telemetry)**).
 
 ### Enable on the host
@@ -360,7 +360,7 @@ was launched:
 }
 ```
 
-> **Why not `setx` user-level env vars?** That was the original #68 setup and
+> **Why not `setx` user-level env vars?** That was the original setup and
 > it silently stopped capturing on 2026-07-11: sessions bridged through
 > claude.ai/code (web/desktop remote-control) run under a process tree that
 > does **not** inherit the user-level `OTEL_*` vars, so telemetry no-ops for
@@ -403,15 +403,15 @@ pipelines.
   pipeline. Claude Code doesn't retry a failed export.
 - **Per-model, not per-individual-subagent.** Which model ran is visible;
   which *named* sub-agent it was is not — that finer attribution is tracked
-  upstream in [anthropics/claude-code#22625](https://github.com/anthropics/claude-code/issues/22625).
+  upstream in [upstream Claude Code issue tracker](https://github.com/anthropics/claude-code/issues/22625).
 - The Code tab's **Sub-agents (telemetry)** source is intentionally **not**
   summed into the Code tab's JSONL-sourced headline totals — the two sources
   are labelled and shown separately to avoid double-counting main-agent
   activity both would otherwise report.
-- Rows are broken out **per day** as well as per model/source (#233), since
+- Rows are broken out **per day** as well as per model/source, since
   each ingested point carries its own timestamp.
 
-### Attributing a session to a project (issue #234, automated by fleet-config#310)
+### Attributing a session to a project
 
 Unlike the Code tab — where "project" is just the JSONL session file's own
 directory — Claude Code's OTel metrics carry no project/cwd attribute by
@@ -485,13 +485,13 @@ Sessions that hit neither path show "—" in the panel's Project column.
 | `app_web/routers/telemetry.py` | Health, trace feed, metrics, feedback endpoint |
 | `app_web/static/langfuse.js` | SPA Langfuse helpers: health, UI and trace addresses, trace preview, feedback (the Hub's Langfuse and trace sheets) |
 | `docs/clients-telemetry-contract.md` | Client-side recipe |
-| `src/server_otel_receiver.py` | `POST /v1/metrics` — Claude Code's OTLP metrics receiver (issue #68) |
+| `src/server_otel_receiver.py` | `POST /v1/metrics` — Claude Code's OTLP metrics receiver |
 | `src/claude_code_otel.py` | Parse/persist/rollup for the Claude Code OTel receiver |
 | `data/telemetry/claude_code_otel_usage.jsonl` | Persisted usage log (gitignored) backing the Code tab's Sub-agents (OTel) source |
 
 ## Limitations / known gaps
 
-- **`/v1/messages` streams Anthropic SSE (#550)** — `claude` and local
+- **`/v1/messages` streams Anthropic SSE** — `claude` and local
   `llama-server` (OpenAI-shape) backends emit real incremental SSE, so
   TTFT/TPS land for both. The `gemini` backend still runs the request to
   completion first and replays the result as buffered SSE

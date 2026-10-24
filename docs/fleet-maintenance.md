@@ -1,6 +1,6 @@
 # Fleet maintenance (drain marker)
 
-`src/fleet_reconcile.py` (#353) and `src/model_failover.py` (#342) are both
+`src/fleet_reconcile.py` and `src/model_failover.py` are both
 always-on background loops that hold independent opinions about a down peer
 hub:
 
@@ -21,7 +21,7 @@ the tower, which still left the boot-pass racing a raised interval.
 
 Maintenance is **tower-local** — it lives in `config/fleet_maintenance.json`
 (gitignored, no committed example) and is only ever consulted by the tower's
-own reconcile loop. Since #430 the desired state reconcile converges on is
+own reconcile loop. The desired state reconcile converges on is
 derived from `config/models.yaml` (`hosts:` chains + `startup:` policy);
 de-provisioning a model permanently is a registry edit, not something this
 drain marker does.
@@ -56,16 +56,16 @@ that a forgotten toggle self-heals within the hour.
 3. Observe `model_failover.py`'s probe/decide/act cycle move ownership after
    `fail_after_s` — the peer now stays down for the drain window instead of
    being resurrected within seconds.
-4. **Verify with a backend-specific probe, never a role-level request** (#412).
+4. **Verify with a backend-specific probe, never a role-level request**.
    A plain `POST /v1/audio/transcriptions` with no `model` addresses the
    *transcribe role*, whose whole job is to fall back across models — a 200
    there proves only that *something* transcribed, not that the model under
-   drill moved. That is what made the #405 drill unreadable: `model=whisper`
+   drill moved. That is what makes a role-level drill unreadable: `model=whisper`
    came back 200 in 794 ms from a host with no whisper-server bound at all —
    a legitimate proxy hop to whisper's *owner*, but the record had no field
    that said which machine answered, so it was indistinguishable from a
    substitution. Prove the model itself, in this order:
-   - **Name the model explicitly** — `-F model=whisper`. Since #412 an
+   - **Name the model explicitly** — `-F model=whisper`. An
      explicit model id is strict: it is either served by that model or it
      fails naming it, and can never be answered by a different one.
    - **Read back who served it, and where** — the response carries

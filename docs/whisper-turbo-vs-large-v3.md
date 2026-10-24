@@ -1,4 +1,4 @@
-# Whisper turbo vs large-v3 — why turbo is the default — 2026-04-24
+# Whisper turbo vs large-v3 — why turbo is the default
 
 Short rationale for shipping `ggml-large-v3-turbo.bin` as the single
 whisper model in this repo, instead of `ggml-large-v3.bin` or the

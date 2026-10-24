@@ -1,6 +1,6 @@
 # Frontier local findings — candidates tested on this box
 
-Deterministic run-over-run memory for `/frontier-refresh` (#277). Published
+Deterministic run-over-run memory for `/frontier-refresh`. Published
 numbers said one thing, a local measurement said another — this file is where
 that learning survives, so the same candidate is never re-proposed and
 re-disproven in a loop.
@@ -22,8 +22,9 @@ re-tested, update its **Status** line instead of deleting history.
 
 ---
 
-## 2026-07-12 — faster-whisper (CTranslate2) for `audio_transcribe` — DISPROVEN
+## faster-whisper (CTranslate2) for `audio_transcribe` — DISPROVEN
 
+- **Date:** 2026-07-12.
 - **Candidate:** faster-whisper 1.2.1 / CTranslate2 4.8.1, `large-v3-turbo`
   CT2 weights, int8_float16 and float16, RTX 5060 Ti.
 - **Verdict it disproves:** `runtime_upgrade` (carried 2026-05-10 and
@@ -35,9 +36,8 @@ re-tested, update its **Status** line instead of deleting history.
   leading "Claude Code" wake phrase 0/2 vs whisper.cpp's 2/2** across an
   18-attempt decode sweep (beam/greedy, patience, VAD, hotwords,
   initial_prompt, thresholds × both compute types); audio-head loss ruled
-  out. Same decoder-side failure that kept Parakeet off the default role
-  (#138).
-- **Record:** [#274 closing comment](https://github.com/ferraroroberto/local-llm-hub/issues/274#issuecomment-4949098008)
+  out. Same decoder-side failure that kept Parakeet off the default role.
+- **Record:** [closing comment of the faster-whisper evaluation issue](https://github.com/ferraroroberto/local-llm-hub/issues/274#issuecomment-4949098008)
   (full method + per-clip table); corpus: `.scratch/parakeet-bench/` clips +
   refs, harness `.scratch/fw-bench/`.
 - **Re-open trigger:** a faster-whisper/CTranslate2 release that demonstrably
@@ -48,19 +48,20 @@ re-tested, update its **Status** line instead of deleting history.
 
 ---
 
-## 2026-07-24 — FluidAudio `CustomVocabularyContext` rescorer for `audio_transcribe` — DISPROVEN
+## FluidAudio `CustomVocabularyContext` rescorer for `audio_transcribe` — DISPROVEN
 
+- **Date:** 2026-07-24.
 - **Candidate:** FluidAudio 0.15.4's CTC custom-vocabulary pipeline
   (`CustomVocabularyContext.loadWithCtcTokens` → `CtcKeywordSpotter.spotKeywordsWithLogProbs`
   → `VocabularyRescorer.ctcTokenRescore`) wired into the Mac Parakeet worker
   — the mechanism the 2026-07-24 frontier run (`report.md` §0/§7.2.1/§9)
   recommended as a `runtime_upgrade` to close the "Claude Code"/"YOLO"
   wake-phrase and jargon regression accepted by the 2026-07-22
-  parakeet-primary switch (#350).
+  parakeet-primary switch.
 - **Verdict it disproves:** `runtime_upgrade` (proposed 2026-07-24, report
   §0 — "parakeet + FluidAudio CustomVocabularyContext").
-- **Measured:** built end-to-end and tested against the #138/#343 jargon
-  clips (issue #401). A post-hoc rescorer can only **swap** an existing
+- **Measured:** built end-to-end and tested against the jargon
+  clips. A post-hoc rescorer can only **swap** an existing
   transcript word for an acoustically/string-similar vocabulary term — it
   cannot **insert** a phrase the TDT decoder dropped entirely. "Claude Code"
   heard as "Yes"/"Yeah" is structurally unrecoverable (string similarity
@@ -72,27 +73,28 @@ re-tested, update its **Status** line instead of deleting history.
   `left, right`→`Playwright`, …). For daily-driver dictation, silently
   corrupting correct words is worse than a known-absent wake phrase, so no
   setting is shippable.
-- **Record:** [issue #401](https://github.com/ferraroroberto/local-llm-hub/issues/401)
+- **Record:** [the rescorer evaluation issue](https://github.com/ferraroroberto/local-llm-hub/issues/401)
   (closed not-planned 2026-07-24, full before/after sweep + root-cause
   analysis in the closing comment); merged into
   `docs/parakeet-asr-evaluation.md` → "Update 2026-07-24: custom-vocabulary
-  rescorer wired and DISPROVEN (#401)" via #407 (commit 160a280). No
+  rescorer wired and DISPROVEN" (commit 160a280). No
   `audio_transcribe` role change resulted — whisper-turbo stays the
   jargon-safe accuracy leader (see `local-findings.md`'s own contract note:
-  this entry was not appended in #407 itself; backfilled here by the
-  2026-08-06 frontier run, which found the gap while reading this file per
-  its step 1).
+  this entry was not appended in the same change as the evaluation;
+  backfilled here by the 2026-08-06 frontier run, which found the gap while
+  reading this file per its step 1).
 - **Re-open trigger:** a FluidAudio release that adds decode-time TDT
   vocabulary *biasing* (not post-hoc CTC rescoring — i.e. a hook that can
   insert a dropped phrase, not just swap an emitted one), or an alternative
   Parakeet checkpoint/architecture exposing such a hook — then re-measure
-  on the same #138/#343 corpus before any verdict upgrade.
+  on the same jargon corpus before any verdict upgrade.
 - **Status:** unresolved (verdict stays `watch`).
 
 ---
 
-## 2026-08-10 — Nemotron 3 Nano 4B for `agentic_light` — DISPROVEN (quality)
+## Nemotron 3 Nano 4B for `agentic_light` — DISPROVEN (quality)
 
+- **Date:** 2026-08-10.
 - **Candidate:** NVIDIA Nemotron 3 Nano 4B, `nvidia/NVIDIA-Nemotron-3-Nano-4B-GGUF`
   → `NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf` (2.84 GB, the only quant NVIDIA
   publishes). Hybrid Mamba-2 + MoE, 4 attention layers, 260 K native context,
@@ -149,16 +151,16 @@ re-tested, update its **Status** line instead of deleting history.
   `chat_template_kwargs {"enable_thinking": false}` genuinely suppresses
   Nemotron's `<think>` block (49 → 3 tokens on the same prompt), delivered
   through the hub's existing `inject_extra` with **no code change** — so
-  ggml-org/llama.cpp#20182 does not affect this template, and an
+  the upstream llama.cpp chat-template thinking issue does not affect this template, and an
   `agentic_light_nothink` equivalent was never the blocker. Nemotron also tied
   Qwen on tool calling (4/4 correct selections, correct refusal when no tool
   matched) and beat it on `polish_summarise`.
 
-- **Record:** [issue #486](https://github.com/ferraroroberto/local-llm-hub/issues/486).
+- **Record:** [the Nemotron evaluation issue](https://github.com/ferraroroberto/local-llm-hub/issues/486).
   Harness committed as `scripts/bench_agentic.py` + `scripts/bench_agentic_prompts.json`
   (reusable for any future `agentic_*` swap; targets any hub by `--base-url`).
   Candidate rows were removed after the run per the latest-only policy; restore
-  them from #486's PR diff to re-test.
+  them from the evaluation PR's diff to re-test.
 
 - **Re-open trigger:** a Nemotron 3 Nano release (or a community fine-tune)
   with demonstrated Catalan competence, **or** a decision to drop multilingual

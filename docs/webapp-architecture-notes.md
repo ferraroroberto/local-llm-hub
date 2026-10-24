@@ -148,12 +148,12 @@ models. Acceptable — the tray autostarts the hub anyway.
 
 `src/hub_observability.py` keeps the last ~200 routed requests in an
 in-memory deque. It is **not** the durable telemetry layer — that's
-issue #4 (OpenTelemetry + Langfuse). The ring resets on hub restart;
+the OpenTelemetry + Langfuse layer. The ring resets on hub restart;
 that's the point, you want "what's happening right now" without
 needing a database query.
 
 If you find yourself wanting to query "how many tokens did I spend
-last week on gemini-pro?", you want telemetry #4, not this ring.
+last week on gemini-pro?", you want the telemetry layer, not this ring.
 
 ## Pointer index
 
