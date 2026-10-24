@@ -22,8 +22,11 @@
 #      beyond .structure-ratchet-baseline.json; the root folders must match
 #      the `service` shape plus extra_roots. Whole tree, never routed; exit 3
 #      (git unusable, an unparseable file, an unknown shape) fails.
-#   6. `pytest -q` (unit tests, no GPU / no real CLIs)
-#   7. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
+#   6. instruction ratchet: no CLAUDE.md / AGENTS.md / skill file gains a prompt-audit
+#      lint-rule hit or passes a size cap beyond .instruction-ratchet-baseline.json.
+#      Whole tree, never routed; exit 3 (could not measure) fails.
+#   7. `pytest -q` (unit tests, no GPU / no real CLIs)
+#   8. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
 #      the .fleet.toml [e2e] rules): nothing for a docs/backend-only diff, a
 #      smoke target or one surface's slice for a narrow one, otherwise
 #      `pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml`.
@@ -82,6 +85,13 @@ Step "structure ratchet" {
     # (git unusable, an unparseable file, an unknown shape) is a failure here,
     # never a pass or a skip.
     & $Python scripts/structure_ratchet.py
+}
+
+Step "instruction ratchet" {
+    # Same as the comment and structure ratchets: Step fails on any non-zero
+    # exit, so exit 3 (could not measure) is a failure here, never a pass or a
+    # skip.
+    & $Python scripts/instruction_ratchet.py
 }
 
 Step "pytest (unit)" {
