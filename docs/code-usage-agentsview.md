@@ -1,8 +1,8 @@
-# Code tab — AGY usage via AgentsView (issue #280)
+# Code tab — AGY usage via AgentsView
 
 The Code tab meters Claude, Codex, and Copilot with the hub's own native
 parsers. For **AGY / Antigravity** — whose local session storage (SQLite
-containing undocumented protobuf blobs) issues #72 and #279 declined to
+containing undocumented protobuf blobs) the hub declines to
 reverse-engineer — the hub sources usage from **AgentsView**
 ([`kenn-io/agentsview`](https://github.com/kenn-io/agentsview)), a local-first
 indexer that reads 40+ coding-agent session formats into its own SQLite index
@@ -15,14 +15,14 @@ service** the hub polls over HTTP and degrades gracefully without.
 AgentsView's `gemini` slug (the hub's agy-routed one-shot calls) and
 `antigravity-cli` slug (interactive sessions) merge into **one `agy` vendor**
 — the AGY button in the Code tab. Claude/Codex/Copilot stay on the hub's
-native parsers (#152 found AgentsView's Claude totals run ~15–35 % low), and
+native parsers (AgentsView's Claude totals run ~15–35 % low), and
 other slugs AgentsView indexes (cursor, cowork, pi, …) are ignored as noise —
 add a map entry to surface one.
 
 ## Setup
 
 The install is a **dedicated venv at the repo root** — never the hub's own
-`.venv` (#280's isolation rule):
+`.venv` (isolation rule):
 
 ```bat
 .venv\Scripts\python.exe -m venv .venv-agentsview
@@ -44,7 +44,7 @@ itself.**
   line, the hub starts normally.
 - **Services sheet** (Hub tab → Services) — an AgentsView row shows up / down /
   not installed / disabled, the served version, and Start/Stop buttons
-  (`POST /admin/api/services/agentsview/launch` and `.../stop`, issue #284)
+  (`POST /admin/api/services/agentsview/launch` and `.../stop`)
   — Start when it's down but installed, Stop when it's reachable.
 
 ## Configuration

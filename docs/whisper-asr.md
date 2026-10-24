@@ -201,12 +201,12 @@ config lives in
 (`voice_transcriber_base_url`, `default_days`, `max_tokens`, `min_count`,
 `use_llm`, `llm_model`); the baked defaults apply when it is absent.
 
-### Private vocabulary — local overlay (issue #290)
+### Private vocabulary — local overlay
 
 `config/transcription_glossary.json` is committed and public, which is fine
 for dev/tech jargon but wrong for a caller with genuinely private vocabulary
 to bias toward — e.g. `home-automation`'s voice assistant needed whisper
-biased toward household member names (issue #444), and those can't land in a
+biased toward household member names, and those can't land in a
 public repo.
 
 `load_boost_terms()` also reads an optional gitignored

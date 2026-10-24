@@ -6,7 +6,7 @@ the canonical OpenAI route `POST /v1/audio/speech`, proxied through the hub
 so it lands in the observability ring exactly like the transcription proxy.
 
 Driving consumer: `app-launcher`'s eyes-free "read the last reply aloud"
-button (ferraroroberto/app-launcher#190). The hub side just has to expose a
+button. The hub side just has to expose a
 consistent, observable, role-based voice that any LAN client can call.
 
 ## Why a Python shim instead of a vendored binary
@@ -37,7 +37,7 @@ implementations live behind one common interface
 (`chatterbox.py`, `kokoro.py`, `orpheus.py`, `piper.py`). An engine that owns
 an OS child contains it with the fleet-wide Windows job-object helpers in
 [src/win_job.py](../src/win_job.py) (`create_kill_on_close_job` /
-`assign_pid` / `terminate_and_close`) — never its own ctypes copy (#470).
+`assign_pid` / `terminate_and_close`) — never its own ctypes copy.
 
 ## The TTS registry rows ([config/models.yaml](../config/models.yaml))
 
@@ -111,7 +111,7 @@ the fast option.
 | `scripts/install_tts.py` | pip install + warm Chatterbox/SNAC/Piper/Kokoro + fetch Piper assets, Orpheus GGUF, and Kokoro ONNX assets |
 | `scripts/smoke_test.py` | synth probe when a TTS port is reachable |
 | `app_web/...` | Models-tab 🔊 tile + a synthesis-based ping |
-| `launchers/run_model.{bat,sh} <id>` | parameterized per-model launcher (#448); `run_all.*` includes all enabled TTS rows |
+| `launchers/run_model.{bat,sh} <id>` | parameterized per-model launcher; `run_all.*` includes all enabled TTS rows |
 | `requirements-tts.txt` | `chatterbox-tts`, `snac`, `kokoro-onnx`, `soundfile` (torch transitively); Piper is a downloaded binary |
 
 ## Dependencies — kept off the base install
@@ -307,7 +307,7 @@ route, addressed by `model`:
   resident (one process per voice+speed, ONNX voice loaded once), so short
   phrases skip the per-request model load: measured on the reference Windows
   box ~0.06 s direct to :8096 and ~0.06 s through the observable hub route for
-  `Arming the perimeter.` (warm, connection reused; #163). The pre-resident
+  `Arming the perimeter.` (warm, connection reused). The pre-resident
   path re-loaded the voice every call (~0.79 s / ~1.10 s).
 - `model="orpheus-tts"` → Orpheus on :8093 (start it first from the Models tab
   or `launchers/run_model.bat orpheus`).

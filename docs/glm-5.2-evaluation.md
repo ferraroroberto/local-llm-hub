@@ -1,6 +1,6 @@
-# GLM-5.2 local-backend evaluation — 2026-06-25
+# GLM-5.2 local-backend evaluation
 
-Spike for [#141](https://github.com/ferraroroberto/local-llm-hub/issues/141).
+Spike evaluated on 2026-06-25.
 Coding-first assessment of Z.ai's **GLM-5.2** (released 2026-06-13) as a local
 hub backend on the reference box: does it supersede anything in the active
 rotation, and does it run on the hardware already here?

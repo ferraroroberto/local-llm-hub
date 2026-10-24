@@ -1,16 +1,15 @@
-# Voice-model benchmark across the fleet — 2026-07-22 (STT + TTS placement)
+# Voice-model benchmark across the fleet (STT + TTS placement)
 
 Consolidated speech-to-text and text-to-speech numbers across the three-machine
 fleet (tower / mac-mini-m4 / gaming), taken to decide **where each voice model
 should live** so the tower's GPU can be reserved for the agentic lanes
-(`agentic_heavy` / `agentic_light`). Issue
-[#343](https://github.com/ferraroroberto/local-llm-hub/issues/343). Supersedes
+(`agentic_heavy` / `agentic_light`). Measured on 2026-07-22. Supersedes
 the scattered numbers in `docs/parakeet-asr-evaluation.md` (STT accuracy detail
 there is still the reference) and prior ad-hoc session measurements.
 
 Static single-host placement is the target here; the dynamic-fallback superset
 (a model that follows an ordered host chain and never goes down) is tracked
-separately in [#342](https://github.com/ferraroroberto/local-llm-hub/issues/342).
+separately.
 
 ## How it was measured
 
@@ -102,7 +101,7 @@ not for anything interactive.
    (uptime climbed monotonically). Encouraging, but not multi-day proof. Note
    whisper-turbo **cannot** fall back to the tower's GPU in the interim —
    agentic fills the 16 GB card — so its reliability during the migration rests
-   on gaming's uptime plus the #342 fallback chain (a CPU-whisper on the tower
+   on gaming's uptime plus the dynamic fallback chain (a CPU-whisper on the tower
    costs no VRAM), not on keeping a GPU copy warm on the tower.
 2. **The pruned CUDA toolkit did not break inference.** The life-os agent
    removed `nvidia-cuda-toolkit` + nsight (~4 GB, build-time only) while
@@ -113,10 +112,10 @@ not for anything interactive.
 3. **Mac parakeet was wedged — root-caused and fixed here.** It reported "ready"
    (uvicorn on :8098, worker alive) but hung on every transcription, direct to
    :8098 and through the hub alike. Root cause: `parakeet_server._start_worker`'s
-   startup `_pump` daemon (added in #297 to bound the CoreML load) keeps reading
+   startup `_pump` daemon (which bounds the CoreML load) keeps reading
    the worker's stdout for its whole lifetime, so the request path's direct
    `proc.stdout.readline()` raced it and blocked forever — parakeet transcription
-   had been broken since #297. Fix: the request path now reads replies from the
+   had been broken since that daemon was introduced. Fix: the request path now reads replies from the
    pump queue with a `TRANSCRIBE_DEADLINE_S` backstop (so a genuinely wedged
    worker 504s instead of hanging). Post-fix, parakeet transcribes sub-second
    (65× RT overall). Tracked separately from the benchmark.

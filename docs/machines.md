@@ -8,7 +8,7 @@ overlay that supplies the addressing; this page is the human-readable
 companion, and the cross-machine SSH/access details also live in the `life-os`
 `geek-out` `context/setup.md` skill. Update all together when a machine changes.
 
-> **This repo is public, so no real machine identity is recorded here** (#525).
+> **This repo is public, so no real machine identity is recorded here**.
 > Magic-DNS hostnames, tailnet `100.x` addresses, LAN addresses, wired-NIC MAC
 > addresses and SSH logins live only in `config/machines.local.yaml`, which is
 > gitignored — see `config/machines.local.example.yaml` for the shape. This page
@@ -24,7 +24,7 @@ companion, and the cross-machine SSH/access details also live in the `life-os`
 | `tower` | The hub runs here; Windows workstation | Windows 11 | Ryzen 7 7800X3D · RTX 5060 Ti 16 GB · 128 GB RAM |
 | `mac-mini-m4` | Apple-silicon hub peer — current model placement: `config/models.yaml` | macOS | Apple M4 · 16 GB unified |
 | `openclaw` | Ubuntu laptop · future inference node | Ubuntu | GeForce MX250 · Wi-Fi only (no wired NIC) |
-| `gaming` | Ryzen inference satellite · STT/TTS offload (#323) | Ubuntu 24.04 (HWE, kernel 7.0) | Ryzen 9 5900X · GeForce GTX 1070 8 GB · 16 GB RAM |
+| `gaming` | Ryzen inference satellite · STT/TTS offload | Ubuntu 24.04 (HWE, kernel 7.0) | Ryzen 9 5900X · GeForce GTX 1070 8 GB · 16 GB RAM |
 
 Addresses, SSH logins and MACs for these hosts: `config/machines.local.yaml`.
 
@@ -32,7 +32,7 @@ All non-host machines carry a `sudoers.d/99-<user>-nopasswd` drop-in
 (passwordless sudo), so reboot/shutdown and read-only stat probes run over the
 hub user's own SSH with no key deploy. On the systemd satellite (`gaming`) the
 same passwordless sudo also covers `systemctl` — the Linux hub-lifecycle
-dispatcher (`linux/bin/hub-remote-ctl.sh`, #368) and the
+dispatcher (`linux/bin/hub-remote-ctl.sh`) and the
 `POST /admin/api/hub/{stop,restart}` endpoints run `sudo -n systemctl
 {start,stop,restart} local-llm-hub`, and `python -m src.install --fix` writes
 the unit via `sudo -n tee`. All use `sudo -n`, so a missing/incorrect drop-in
@@ -41,7 +41,7 @@ verbs themselves ride the dedicated **forced-command** SSH key (the
 `authorized_keys` line is documented in
 [model-lifecycle.md](model-lifecycle.md)), separate from this general-SSH sudo channel.
 
-### GPU-VRAM capacity ceilings (issue #375)
+### GPU-VRAM capacity ceilings
 
 The GPU-VRAM facts in the Hardware column above are now also declared as
 **structured** data the placement system reads — `config/models.yaml` `hosts:`
@@ -61,7 +61,7 @@ glance that used to gate a placement change by hand.
 The `est_vram_mb` estimates are engineering approximations (weights quant + KV
 cache + any CPU-offload), each documented inline in `config/models.yaml`; they
 are deliberately static, not live telemetry (exact live VRAM accounting was
-explicitly out of scope for #375). CPU-only backends (`whisper_translate`,
+explicitly out of scope). CPU-only backends (`whisper_translate`,
 `piper`), off-GPU paths (`parakeet` on the Mac ANE), and virtual aliases are
 `0`. Keep both the prose Hardware column and these fields in sync when a
 machine's GPU changes.
@@ -70,27 +70,29 @@ machine's GPU changes.
 2026-07-21 (Secure Boot off, DKMS built against the running HWE kernel), so its
 Machines-tab card now renders a live GPU gauge alongside CPU/RAM/disk. Until
 then the box ran only `nouveau` with no `nvidia-smi`, which is why the GPU gauge
-was absent. The STT/TTS model offload itself is still deferred (#323,
-replica-first) — the driver is prerequisite groundwork, not the migration.
+was absent. The STT/TTS model offload itself is still deferred
+(replica-first) — the driver is prerequisite groundwork, not the migration.
 
 ## Wake-on-LAN
 
-Issue #356 added an optional `mac:` field to each host row in `config/models.yaml` — the box's **wired-NIC MAC address**, since Wake-on-LAN over WiFi is not supported by any of these machines' network adapters. Accepted formats are `aa:bb:cc:dd:ee:ff` or `AA-BB-CC-DD-EE-FF` (case-insensitive, `:` or `-` separators, validated by `src/wake_on_lan.py`). A host with no `mac:` simply has no Wake action on its Machines-console card — that's the case for `openclaw`, which has no wired NIC at all.
+Each host row in `config/models.yaml` takes an optional `mac:` field — the box's **wired-NIC MAC address**, since Wake-on-LAN over WiFi is not supported by any of these machines' network adapters. Accepted formats are `aa:bb:cc:dd:ee:ff` or `AA-BB-CC-DD-EE-FF` (case-insensitive, `:` or `-` separators, validated by `src/wake_on_lan.py`). A host with no `mac:` simply has no Wake action on its Machines-console card — that's the case for `openclaw`, which has no wired NIC at all.
 
 Mechanically, waking a host sends a standard 102-byte magic packet (6 bytes of `0xFF` followed by the target MAC repeated 16 times) as a UDP broadcast to `255.255.255.255:9`, built and sent by `src/wake_on_lan.py`. The admin SPA's Machines tab shows Wake as the row's visible verb on any down/dormant machine whose host carries a `mac:`; clicking it calls `POST /admin/api/machines/{id}/wake`. This is **fire-and-forget by design** — Wake-on-LAN has no acknowledgement path, so the hub can only report that the packet was handed to the OS for broadcast, never that the target actually woke. A "wake failed" case only exists for a malformed MAC or a socket-level send error; there is no way to detect "packet sent but machine didn't wake" from the hub side.
 
 **The hub cannot wake its own host.** `tower` runs the hub itself, so there is no remote path for a magic packet to reach it after a power outage — recovery there depends on the BIOS's AC-restore behavior (power state resumes automatically when mains power returns), not on WOL.
 
-### Per-machine WOL status (re-verified 2026-07-24, from #357 remote-prep recon)
+### Per-machine WOL status
 
-- **`tower`** (Windows 11, hub host) — wired MAC recorded in the overlay (Realtek 2.5GbE, link up). Tailscale service confirmed `Running`/`Automatic` (a boot-time service, not a login item — starts pre-login by construction); the reboot-with-nobody-logged-in *proof* remains untested on this box alone, because `tower` is the hub host and rebooting it would kill the very session driving the test (see the reboot-proof subsection below). **NIC-driver WOL confirmed enabled 2026-07-24**: `Get-NetAdapterAdvancedProperty` on "integrated ethernet" shows "Reactivar en Magic Packet" (Wake on Magic Packet) = Activado, "Activación con LAN de apagado" (WOL from shutdown) = Activado, and Energy-Efficient Ethernet = Desactivado (the setting the issue flagged as a potential WOL-breaker); `powercfg /devicequery wake_armed` lists the Realtek adapter, confirming Windows itself has the device armed to wake the system. This is the full OS/driver-level WOL configuration — only the **BIOS-level** WOL toggle (and ErP/deep-sleep) and **BIOS AC-restore** remain, both requiring physical screen access — manual checklist tracked in #357.
+Re-verified on 2026-07-24 during remote-prep recon.
+
+- **`tower`** (Windows 11, hub host) — wired MAC recorded in the overlay (Realtek 2.5GbE, link up). Tailscale service confirmed `Running`/`Automatic` (a boot-time service, not a login item — starts pre-login by construction); the reboot-with-nobody-logged-in *proof* remains untested on this box alone, because `tower` is the hub host and rebooting it would kill the very session driving the test (see the reboot-proof subsection below). **NIC-driver WOL confirmed enabled 2026-07-24**: `Get-NetAdapterAdvancedProperty` on "integrated ethernet" shows "Reactivar en Magic Packet" (Wake on Magic Packet) = Activado, "Activación con LAN de apagado" (WOL from shutdown) = Activado, and Energy-Efficient Ethernet = Desactivado (the setting the issue flagged as a potential WOL-breaker); `powercfg /devicequery wake_armed` lists the Realtek adapter, confirming Windows itself has the device armed to wake the system. This is the full OS/driver-level WOL configuration — only the **BIOS-level** WOL toggle (and ErP/deep-sleep) and **BIOS AC-restore** remain, both requiring physical screen access — a manual checklist item.
 - **`mac-mini-m4`** (macOS, Apple silicon) — ethernet MAC recorded in the overlay; `pmset womp=1` and `autorestart=1` both set 2026-07-22, **re-confirmed live 2026-07-24** via SSH (`pmset -g`). Still wired since 2026-07-23: `en0` shows `status: active` and owns the default route. Apple-silicon caveat unchanged: WOL only wakes from sleep, never from a full power-off — full-off recovery relies on "start up after power failure" (`autorestart=1`, already enabled, no BIOS-equivalent step needed on this box).
 - **`openclaw`** (Ubuntu laptop) — **re-confirmed 2026-07-24**: no wired NIC exists (`lspci` shows only the Comet Lake WiFi controller, no Ethernet device), so Wake-on-LAN isn't possible without a USB-ethernet adapter; no `mac:` is set in the registry, consistent with that. `tailscaled` is `enabled`+`active` (systemd, boots pre-login). The box answers SSH at its overlay `address:` (ICMP is filtered — plain `ping` times out, TCP/22 does not) — worth knowing if a future reachability check uses `ping` and reports a false negative.
 - **`gaming`** (Ubuntu 24.04) — **re-confirmed 2026-07-24**: `enp4s0` link detected, 1 Gb/s, MAC matches the overlay; `ethtool` reports `Wake-on: g` live and `nmcli` shows the `Wired connection 1` profile persists `802-3-ethernet.wake-on-lan: magic`; `tailscaled` is `enabled`+`active`. BIOS WOL / AC-restore are still unverified (physical access required).
 
-### Tailscale-at-boot: reboot proof (2026-07-24)
+### Tailscale-at-boot: reboot proof
 
-The #357 checklist's verification bar is *"reboot → reachable over tailnet with nobody logged in"*. Three of the four boxes were rebooted remotely on 2026-07-24 through the Machines console's own `POST /admin/api/machines/{id}/reboot`, and reachability was then re-established **over the tailnet address only** — `tailscale ping 100.x` from `tower`, followed by SSH to that same `100.x` address, never the LAN IP. Routing the probe through the tailnet is what makes it a proof: it shows the peer's own Tailscale came up on its own, not merely that the box booted.
+The remote-prep checklist's verification bar is *"reboot → reachable over tailnet with nobody logged in"*. Three of the four boxes were rebooted remotely on 2026-07-24 through the Machines console's own `POST /admin/api/machines/{id}/reboot`, and reachability was then re-established **over the tailnet address only** — `tailscale ping 100.x` from `tower`, followed by SSH to that same `100.x` address, never the LAN IP. Routing the probe through the tailnet is what makes it a proof: it shows the peer's own Tailscale came up on its own, not merely that the box booted.
 
 | Box | Tailnet pong | SSH over tailnet | `who` after boot | Verdict |
 |---|---|---|---|---|
@@ -105,9 +107,9 @@ On the two Linux boxes the "nobody logged in" half was confirmed with `loginctl`
 
 Post-reboot the settled facts all survived: `pmset womp=1` / `autorestart=1` still set on the Mac, `enp4s0` and `en0` both came back **wired**, and all three peers returned to `state: up` in the Machines console.
 
-**Pending manual items** — tracked in #357, all requiring physical presence: BIOS-level WOL + AC-restore on `tower` and `gaming` (`mac-mini-m4` needs no BIOS step — `autorestart` covers it, and Apple silicon has no BIOS); the reboot-with-nobody-logged-in Tailscale proof on `tower` (the other three are proven above); the UPS-outlet mapping; and a USB-ethernet adapter for `openclaw` (no wired NIC controller exists — WOL is structurally impossible without one) if WOL there is ever wanted.
+**Pending manual items** — all requiring physical presence: BIOS-level WOL + AC-restore on `tower` and `gaming` (`mac-mini-m4` needs no BIOS step — `autorestart` covers it, and Apple silicon has no BIOS); the reboot-with-nobody-logged-in Tailscale proof on `tower` (the other three are proven above); the UPS-outlet mapping; and a USB-ethernet adapter for `openclaw` (no wired NIC controller exists — WOL is structurally impossible without one) if WOL there is ever wanted.
 
-## Live connection status — type, AP/signal, link health (#397)
+## Live connection status — type, AP/signal, link health
 
 Beyond the static `mac:` field above (config, WOL-only), the Machines-tab peer
 card also shows **live** connection detail, read over the same general-SSH
@@ -121,7 +123,7 @@ whichever one is live.
 
 | Signal | Linux (`openclaw`, `gaming`) | macOS (`mac-mini-m4`) | Windows (`tower`) |
 | --- | --- | --- | --- |
-| Wired vs Wi-Fi | Yes — `/sys/class/net/<iface>/wireless` existing | Yes — `networksetup -listallhardwareports`' Hardware Port label | Not probed (`tower` is the hub host; #397 scopes live probing to *peers*) |
+| Wired vs Wi-Fi | Yes — `/sys/class/net/<iface>/wireless` existing | Yes — `networksetup -listallhardwareports`' Hardware Port label | Not probed (`tower` is the hub host; live probing is scoped to *peers*) |
 | Live interface MAC | Yes — `/sys/class/net/<iface>/address` | Yes — `ifconfig <iface>` | — |
 | SSID + signal (dBm) | Yes, if `iw` is installed — `iw dev <iface> link` | Yes, via passwordless `sudo -n wdutil info` (same sudoers drop-in the reboot/shutdown/systemctl paths already use) | — |
 
@@ -135,7 +137,7 @@ itself is running on — see the Wake-on-LAN section above for the same
 active-host exclusion pattern.
 
 **Connection health.** The liveness probe (`remote_stats.locate()`) already
-retries once after a missed first SYN pass (#333, idle-NIC wake-up) before
+retries once after a missed first SYN pass (idle-NIC wake-up) before
 calling a box down. When a peer's *most recent* successful probe needed that
 retry, the card flags it "Flaky link" — a simple proxy for a marginal
 connection, not a diagnostic (`remote_stats.connection_flaky()`).
@@ -171,22 +173,22 @@ boxes):
   `NVreg_DynamicPowerManagement=0x02`); its idle GPU draw is a hardware
   ceiling, not fixable via driver config.
 - **`gaming`'s WiFi flakiness — superseded by the wire.** The 10-20s
-  SSH/Tailscale drops (#340) were fixed by an antenna reseat + 5 GHz pin
-  (2026-07-22, 0% loss over 400 pings), but #383 (2026-07-23) then showed the
+  SSH/Tailscale drops were fixed by an antenna reseat + 5 GHz pin
+  (2026-07-22, 0% loss over 400 pings), but a later test (2026-07-23) showed the
   dongle still **collapses under any sustained transfer** (throughput decays
   3 MB/s → ~37 KB/s → link dead; box unaffected, auto-recovers). Wired
   ethernet went live 2026-07-23 and is now the only routine link; the dongle
   stays plugged as a parked manual fallback (`autoconnect no`). If it must
-  carry a bulk transfer again, use the burst+bounce pattern recorded in #383.
-- **`gaming` serves all four whisper voice backends since #323/#370** —
+  carry a bulk transfer again, use the burst+bounce pattern from that dongle-collapse test.
+- **`gaming` serves all four whisper voice backends** —
   `whisper` (STT, transcribe-role fallback; ~9.1 RTFx) and `orpheus` (TTS,
-  explicit-model; ~2× real-time) moved in #323; `whisper_translate`
+  explicit-model; ~2× real-time) moved there first; `whisper_translate`
   (translate-role, CPU-only) and `whisper_vanilla` (unbiased auto-detect,
-  GPU/lazy) joined in #370, so **tower carries no whisper backends at all**.
+  GPU/lazy) joined later, so **tower carries no whisper backends at all**.
   All four run under the systemd-supervised hub on `:8000`, CUDA-built for
   the GTX 1070 (`sm_61`) where applicable. The tower proxies all of them
   transparently and keeps its VRAM for the agentic lanes.
-- **`gaming`'s torch must come from the cu126 wheel index** (#385): PyTorch
+- **`gaming`'s torch must come from the cu126 wheel index**: PyTorch
   dropped Pascal (`sm_61`) kernels from cu128+ builds, so a default
   `pip install torch` silently yields a CUDA-blind torch and orpheus's SNAC
   vocoder falls back to CPU. Install
@@ -198,9 +200,9 @@ boxes):
 
 Every host has a Tailscale magic-DNS name. The names themselves are **not
 recorded in this repo** — they live in `config/machines.local.yaml` under each
-host's `tailscale:` key (#525).
+host's `tailscale:` key.
 
-Since #396 those names are more than an inventory: every peer-connect path in
+Those names are more than an inventory: every peer-connect path in
 the hub (model-proxy upstream, SSH ops, remote stats/liveness) dials the wired
 LAN `address:` first and falls back to the host's `tailscale:` magic-DNS name
 when the LAN path stops answering — by design, a wired-NIC failure moves a box

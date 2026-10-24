@@ -7,7 +7,7 @@ first guess.
 
 There are **two** image backends, picked by the `model` field. They are
 additive, not a migration: which one wins long-term is a call to make once
-there's real usage to judge by (#492).
+there's real usage to judge by.
 
 | Model id | Backend | Where it runs | Editing | Typical latency |
 |---|---|---|---|---|
@@ -15,23 +15,23 @@ there's real usage to judge by (#492).
 | `flux1_local` (alias `flux`) | FLUX.1 [dev] fp8 via ComfyUI | tower's RTX 5060 Ti, fully local | no | ~42 s at 1024², ~96 s at 4K |
 | `flux2_klein` (alias `klein`) | FLUX.2 [klein] 4B fp8 via ComfyUI | same GPU | no | **~14 s** at 1024² |
 
-**Which to reach for**, from the controlled comparison below: **`flux2_klein`** is the default — 3x faster than FLUX.1 and better at texture and typography. Reach for **`flux1_local`** when the prompt contains **numbers or spatial relations**, or when you want 4K (it is the only model whose upscale path is exercised end to end). A third row, FLUX.2 [dev] 32B, was added in #498 and **removed in #501 as unusable** — see below.
+**Which to reach for**, from the controlled comparison below: **`flux2_klein`** is the default — 3x faster than FLUX.1 and better at texture and typography. Reach for **`flux1_local`** when the prompt contains **numbers or spatial relations**, or when you want 4K (it is the only model whose upscale path is exercised end to end). A third row, FLUX.2 [dev] 32B, was **removed as unusable** — see below.
 
 The rest of this note covers the Imagen path first (it came first, and its
 constraints are the surprising ones), then the local FLUX path.
 
 ## What `agy` actually exposes (the spike finding)
 
-Issue #114 set out to wire **Nano Banana / Nano Banana Pro** (Gemini image
-models) into the hub via the Antigravity CLI (`agy`). The feasibility spike
-found that premise is **not reachable**:
+Wiring **Nano Banana / Nano Banana Pro** (Gemini image
+models) into the hub via the Antigravity CLI (`agy`) was the goal. The
+feasibility spike found that premise is **not reachable**:
 
 - `agy`'s `/model` picker offers **only text models** — as of `agy`
   1.1.8 that's Gemini 3.6 Flash, Gemini 3.5 Flash, Gemini 3.1 Pro,
   Claude Sonnet 4.6 (Thinking), Claude Opus 4.6 (Thinking), GPT-OSS 120B
   (Medium), with effort now a separate Low/Medium/High slider shared
   across whichever model is selected rather than baked into each row
-  label (#440, #442). **There is no Nano Banana / image entry.**
+  label. **There is no Nano Banana / image entry.**
 - `agy` *can* generate images, but through its **agentic tool harness**: its
   only image backend is Google **Imagen**, reachable from inside any ordinary
   Gemini text session. Asked directly for "Nano Banana Pro", `agy` replied
@@ -74,13 +74,13 @@ Two honest caveats, both surfaced in the Playground UI:
   edit path uses a longer default timeout (`call_gemini_image` → 600 s) and the
   Playground proxy a 900 s client timeout.
 
-## Local generation: FLUX.1 [dev] via ComfyUI (#492)
+## Local generation: FLUX.1 [dev] via ComfyUI
 
 `flux1_local` runs entirely on tower's GPU — no subscription, no network call.
 
 ### Why FLUX.1 and not FLUX.2
 
-Issue #492 originally specified **FLUX.2 [dev]** at "FP16 without
+The original spec called for **FLUX.2 [dev]** at "FP16 without
 quantization", on the reading that a 16 GB card could hold it. That premise
 does not survive contact with the numbers: FLUX.2 [dev] is a **32B** transformer
 (~64 GB at bf16) and pairs with a **Mistral-Small-3.2-24B** text encoder. FP16 on
@@ -104,11 +104,11 @@ Unlike `gemini_image` — a subscription path with no local process — ComfyUI 
 **normal `models.yaml` backend** (`backend: comfyui`, `engine: comfyui-server`).
 That is the whole design decision, and everything else follows from it for free:
 
-- **On-demand lifecycle (#422).** `startup: on_demand` + `idle_unload_minutes:
+- **On-demand lifecycle.** `startup: on_demand` + `idle_unload_minutes:
   15`. A backend used a few times a day shouldn't hold GPU memory against
   tower's always-on agentic/voice rotation. The first request spawns ComfyUI and
   waits for readiness; 15 idle minutes hand it back.
-- **VRAM accounting.** `est_vram_mb: 5700` feeds the #375 overcommit warning —
+- **VRAM accounting.** `est_vram_mb: 5700` feeds the overcommit warning —
   measured, not estimated (see below).
 - **Admin + tray control**, per-backend logs at
   `data/logs/backend-flux1_local.log`, and inheritance across a hub restart —
@@ -161,7 +161,7 @@ often resolves an older CUDA build with no sm_120 kernels and falls back to CPU
 `verify_cuda()` fails loudly on that instead, and can be re-run on its own with
 `python scripts/install_comfyui.py --verify`.
 
-### Sizes (#497)
+### Sizes
 
 `size` accepts a preset name or an explicit `"WIDTHxHEIGHT"` string, and the
 presets live in one place — `src/image_sizes.py` — which is also what the
@@ -246,7 +246,7 @@ a control that does nothing.
 ### Limitations of the local path
 
 - **No editing.** `POST /v1/images/edits` is gemini-only; img2img/inpainting
-  needs a different workflow graph and was out of #492's scope. Asking for an
+  needs a different workflow graph and is out of scope for this backend. Asking for an
   edit with `flux1_local` returns a 400 that says exactly that, rather than the
   misleading "not an image-generation model".
 - **It is not fast, warm or cold.** Measured on tower at 1024x1024 / 20 steps:
@@ -276,7 +276,7 @@ So it coexists comfortably with the rest of tower's rotation while running, and
 `on_demand` is about not holding ~5 GB (plus its RSS) for a backend used a few
 times a day — not about it being unable to fit.
 
-## FLUX.2 klein (#498, trimmed by #501)
+## FLUX.2 klein
 
 FLUX.2 is **not** FLUX.1 with different weights. Three things differ, and each
 one fails in a way that is hard to diagnose from a config file:
@@ -298,9 +298,9 @@ Mistral-Small-3.2-24B, klein with **Qwen3-4B**. They are not interchangeable,
 and swapping them does not fail at load — it fails deep in sampling with
 `mat1 and mat2 shapes cannot be multiplied (512x15360 and 7680x3072)`.
 
-### Why FLUX.2 [dev] 32B was removed (#501)
+### Why FLUX.2 [dev] 32B was removed
 
-It was added in #498 and removed one day later. **The 32B does not work on this
+It was added and removed one day later. **The 32B does not work on this
 GPU**, and the way that conclusion was reached is worth keeping, because a
 single measurement said the opposite.
 
@@ -354,7 +354,7 @@ miscounts** — reproducibly, not by chance. If a prompt says "three of X", use
 **The images themselves**, with the prompt, seed, steps, sampler, resolution
 and wall-clock behind each one, are archived in
 [image-generation/flux-local-benchmark.html](image-generation/flux-local-benchmark.html)
-(#514) — a self-contained page covering the whole #492 → #501 arc, including
+— a self-contained page covering the whole FLUX.1 to FLUX.2 [dev] removal arc, including
 the two 32B measurements that disagree by 24x and why.
 
 ### One ComfyUI process per row
@@ -375,7 +375,7 @@ be using it"*.
 **Two image models resident at once can fail a generation.** These rows are the first thing in the repo that can put two ComfyUI processes on the GPU
 simultaneously, and between them they can want more than 16 GB. The hub's VRAM
 policy is deliberately *advisory* — `on_demand.py` logs an overcommit warning and
-proceeds, because "eviction arbitration is explicitly out of scope" (#375/#422) —
+proceeds, because "eviction arbitration is explicitly out of scope" —
 so the failure surfaces as a 502 from the losing request, e.g.
 `KSampler raised RuntimeError: HostBuffer.read_file_slice failed`. It is not a
 corrupted state and needs no cleanup: stop the other image model (admin Models
@@ -422,7 +422,7 @@ the audio proxies.
 
 ## Playground
 
-The Playground's Image mode (one of the composer's four modes, #740) has:
+The Playground's Image mode (one of the composer's four modes) has:
 pick the model, type a prompt, Generate, then Download the result. The
 **Size** dropdown (same `src/image_sizes.py` presets as the table above) sits
 right under the prompt. Under "More options": the per-backend **Refine after

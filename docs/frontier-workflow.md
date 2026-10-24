@@ -30,9 +30,8 @@ web research and writes a dated run under `docs/frontier/runs/<today>/`:
 - `frontier.html` — a standalone interactive chart (data inlined);
 
 then repoints the `docs/frontier/runs/LATEST` pointer file and posts the
-verdict table as a comment on the always-open **frontier ledger issue
-[#272](https://github.com/ferraroroberto/local-llm-hub/issues/272)**
-(`audit-meta`-labelled, same pattern as the codebase-audit ledger #32) —
+verdict table as a comment on the always-open **[frontier ledger issue](https://github.com/ferraroroberto/local-llm-hub/issues/272)**
+(`audit-meta`-labelled, same pattern as the codebase-audit ledger) —
 the ledger's last comment always answers "what runs in each role, what's
 the best alternative, am I missing something?".
 
@@ -45,7 +44,7 @@ throw the result away, and run it again.
 **Scheduling:** the skill's `run-weekly.bat` is registered as a weekly
 job (FRI 02:30) in app-launcher's Jobs tab and self-skips alternate weeks
 (fixed-epoch week parity), giving an unattended **bi-weekly** cadence.
-Headless constraint (fleet-config#314): every step runs synchronously —
+Headless constraint: every step runs synchronously —
 a `claude -p` session that backgrounds a step and ends its turn dies
 silently.
 
@@ -88,7 +87,7 @@ one owner.
 
 Roles are declared in a `roles:` block in `config/models.yaml` — a
 `model_id:` per role, plus an optional ordered `fallback:` list for the
-`audio` roles (#348). Shape (values are illustrative — see
+`audio` roles. Shape (values are illustrative — see
 [`config/models.yaml`](../config/models.yaml) for the current ones):
 
 ```yaml
@@ -108,7 +107,7 @@ roles:
 ```
 
 It is the single source of truth for "who fills which role right now".
-`/swap-model` rewrites it. Since #348, `roles.audio.*` **is** code-driving:
+`/swap-model` rewrites it. `roles.audio.*` **is** code-driving:
 `src.model_registry.audio_role_chain()` reads it, and the audio proxy uses
 the resulting chain to route and fail over live `/v1/audio/*` traffic — so
 editing it is not harmless. The `roles.agentic_light` / `agentic_heavy` pair

@@ -8,7 +8,7 @@ callers never feel it. This is the procedure that worked for the
 2026-05 `gemini` CLI → Antigravity CLI (`agy`) migration — see
 [gemini-agy-backend.md](gemini-agy-backend.md) for the resulting backend
 contract and the analysis in
-[issue #5](https://github.com/ferraroroberto/local-llm-hub/issues/5).
+[the migration issue](https://github.com/ferraroroberto/local-llm-hub/issues/5).
 
 ## The invariant that must survive any migration
 

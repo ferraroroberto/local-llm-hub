@@ -307,8 +307,7 @@ Two Claude Code entry points drive the refresh:
   brief, cadence, and output contract). Regenerates
   `docs/frontier/runs/<today>/{report.md,frontier.json,frontier.html}`,
   repoints `LATEST`, and posts the per-role verdict as a comment on the
-  always-open **frontier ledger issue
-  ([#272](https://github.com/ferraroroberto/local-llm-hub/issues/272))** —
+  always-open **[frontier ledger issue](https://github.com/ferraroroberto/local-llm-hub/issues/272)** —
   its last comment is always the current state. **Read-only on the
   registry** — produces artifacts only, never rewires anything. Runs
   unattended **bi-weekly** (the skill's `run-weekly.bat`, registered in

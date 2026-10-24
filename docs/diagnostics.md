@@ -29,11 +29,11 @@ Reach it from the admin SPA's **Machines** tab → the *this machine* card's
 | `src/diagnostics/store.py` | SQLite schema, migrations, rollup queries, retention |
 | `src/diagnostics/attribution.py` | Process → fleet-app mapping; listening-port scan |
 | `src/diagnostics/rules.py` | Health-verdict engine |
-| `src/diagnostics/coverage.py` | Per-collector coverage — what could and couldn't be measured (#322) |
+| `src/diagnostics/coverage.py` | Per-collector coverage — what could and couldn't be measured |
 | `src/diagnostics/report.py` | Summary digest, baseline drift, markdown report |
-| `src/diagnostics/ingest.py` | Ingest a portable foreign capture as an ordinary run (#316) |
+| `src/diagnostics/ingest.py` | Ingest a portable foreign capture as an ordinary run |
 | `src/diagnostics/settings.py` | Retention + scheduled-snapshot settings |
-| `scripts/portable_capture.py` | Standalone SSH-delivered sampler for hub-less machines (#316) |
+| `scripts/portable_capture.py` | Standalone SSH-delivered sampler for hub-less machines |
 | `app_web/routers/diagnostics.py` | The `/admin/api/diagnostics/*` API |
 | `app_web/static/diagnostics.js` | The drill-in dialog |
 
@@ -54,7 +54,7 @@ Reach it from the admin SPA's **Machines** tab → the *this machine* card's
 Only one capture runs at a time — concurrent captures would double the observer
 effect and interleave in the store.
 
-## Remote capture — hub-less machines (#316)
+## Remote capture — hub-less machines
 
 The weekly fleet checkup needs to measure **every** machine, including a box
 that runs no hub at all (`openclaw`, the Linux laptop). Installing a resident
@@ -146,7 +146,7 @@ therefore falls back to `exe` when `cmdline` is empty; without it the path
 rules would have nothing to match and 42% of the machine would stay
 unattributed no matter how good the rule table was.
 
-Measured effect of the per-OS tables (#320):
+Measured effect of the per-OS tables:
 
 | Machine | Before | After |
 |---|---|---|
@@ -156,7 +156,7 @@ Measured effect of the per-OS tables (#320):
 Windows can only improve here: path rules run last, so they convert
 `unattributed` rows and can never re-label one that already had a name. Linux
 coverage is written to the same shape but is **unverified against a live
-capture** — `openclaw` runs no hub yet (#316).
+capture** — `openclaw` runs no hub yet.
 
 Grouping is by *cmdline*, not PID — the venv `pythonw` redirector spawns a stub
 *and* a real process per launch, so a PID-keyed rollup double-counts one app.
@@ -173,7 +173,7 @@ sample rows (stopped before its first tick, or already `store.prune`d) gets
 "fine", and would let a re-evaluate silently overwrite a pruned run's saved
 verdict (which can be `critical` with findings, and `store.prune` promises to
 keep forever). `POST /admin/api/diagnostics/runs/{id}/evaluate` on a pruned
-run refuses with `409` instead (#618).
+run refuses with `409` instead.
 
 | Rule | Fires on |
 | --- | --- |
@@ -196,7 +196,7 @@ synthetic fixtures and can re-judge an old capture after a retune:
 `POST /admin/api/diagnostics/runs/{id}/evaluate` re-reads the config file — no
 hub restart needed.
 
-## Coverage — measured vs. unmeasured (#322)
+## Coverage — measured vs. unmeasured
 
 **A health tool must never let "we couldn't measure this" read as "this is
 fine."** Two collectors degrade silently where the hub lacks privilege (on
@@ -209,7 +209,7 @@ the RAM/CPU totals.
 **Health and coverage are orthogonal axes.** The verdict `level` stays the
 health of what *could* be measured; a per-collector coverage map rides
 alongside it. This is why a blind macOS run isn't pinned at `warning` forever
-(the cry-wolf failure #315 fought) yet still can't pass as a clean `healthy`.
+(the cry-wolf failure of a permanent `warning`) yet still can't pass as a clean `healthy`.
 
 - **Recorded, never inferred.** Ports denial is captured at collection time
   (`scan_listening_ports` returns `(rows, denied)`) because an empty list and a
@@ -282,7 +282,7 @@ The UI is a **trigger plus a digest** — deep analysis happens outside it:
 | `POST` | `/admin/api/diagnostics/start` | Begin a timed capture |
 | `POST` | `/admin/api/diagnostics/snapshot` | One-shot sample |
 | `POST` | `/admin/api/diagnostics/stop` | Stop the active capture |
-| `POST` | `/admin/api/diagnostics/ingest` | Ingest a portable foreign capture (#316) |
+| `POST` | `/admin/api/diagnostics/ingest` | Ingest a portable foreign capture |
 | `GET` | `/admin/api/diagnostics/runs` | Past runs, newest first |
 | `GET` | `/admin/api/diagnostics/runs/{id}` | Summary digest |
 | `GET` | `/admin/api/diagnostics/runs/{id}/drift` | Delta vs the baseline |
@@ -310,14 +310,14 @@ Never edit a shipped step — add the next one.
 | `ports` | Listening sockets per tick, joined to owner + `app_id` |
 | `verdicts` | The persisted health verdict per run |
 
-`runs.coverage_json` (schema v2, #322) holds the per-collector coverage map.
+`runs.coverage_json` (schema v2) holds the per-collector coverage map.
 IO counters are stored **raw and cumulative**; deltas are derived at read time.
 
 ## Caveats
 
 - `psutil.net_connections()` needs elevated privileges on macOS to see other
   users' sockets; without them the port scan degrades to empty rather than
-  failing the run. That degradation is now **recorded as coverage** (#322) — the
+  failing the run. That degradation is now **recorded as coverage** — the
   report says "not collected" instead of dropping the section, and the verdict
   is qualified — so a blind scan never reads as "nothing listening". See
   *Coverage* above.

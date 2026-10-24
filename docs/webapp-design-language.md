@@ -4,7 +4,7 @@ The admin SPA at `/admin` (FastAPI sub-app, `app_web/static/`) follows the
 **fleet design system** — `~/.claude/design.md` (light) + `design.dark.md`
 (dark), the same canon as home-automation (reference implementation) and
 app-launcher. **Light + dark themed, phone-first, no-bundler vanilla JS**
-(migration: local-llm-hub#211, part of fleet-config#279).
+(a fleet-wide migration to the shared design system).
 
 This file records the hub's instance of the canon. When the spec evolves,
 the hub follows; when the hub finds a generalisable improvement, propagate
@@ -34,16 +34,16 @@ the spec's and change with it).
 
 **One card-title scale:** every card header h2 renders at `--font-body`
 (`.card-header h2`), matching the vendored disclosure's `.collapse-title` —
-no per-card title sizes (#215). Every card title carries a leading Lucide
-glyph at `--icon-title` (18px), same as the disclosure summaries (#217).
+no per-card title sizes. Every card title carries a leading Lucide
+glyph at `--icon-title` (18px), same as the disclosure summaries.
 
 **One app font:** monospace only where console output genuinely lives —
 `<pre>` panes (log tail, model reply, trace bodies) and the Recent-sessions
 session-id chip. Inline `<code>` and the dense card lists render in the app
-font (#215).
+font.
 
 Derived hub tokens (mapped onto the roles above, re-theme for free):
-`--input-bg`, `--code-bg` (the Machines terminal mount), `--font-code` (13px, the `code-listing` size; `.logpane` sits on `--card` with a hairline, #784), `--scrim`, and the
+`--input-bg`, `--code-bg` (the Machines terminal mount), `--font-code` (13px, the `code-listing` size; `.logpane` sits on `--card` with a hairline), `--scrim`, and the
 `--accent-soft`/`--danger-border`-style `color-mix()` status composites.
 
 **Theme selection:** a pre-paint boot script in `index.html` stamps
@@ -79,11 +79,11 @@ html, body {
 
 ## Vendored components
 
-Beyond `icons/` and `nav/`, the hub adopts the fleet's vendored components (byte-for-byte from `project-scaffolding`, per-app variation is markup + tokens only): **card** (the base `.card` contract — the hub's own `.card-header`/`.card-actions` patterns layer on top), **switch** (the boolean controls — the Playground Image mode's Refine toggle and the Speech mode's Stream toggle; green on-track), and **empty-state** (every zero-items list renders the icon + reason block, never a bare dash). The **disclosure** component (`.card--collapsible`) is still vendored but no longer used anywhere in the live page — the Hub's four diagnostic cards folded into Serving/Services/Activity and Health & install moved into the Settings dialog (#738, #741). `escapeHtml`/`fmtClock` live once in `api.js` (sibling dedup).
+Beyond `icons/` and `nav/`, the hub adopts the fleet's vendored components (byte-for-byte from `project-scaffolding`, per-app variation is markup + tokens only): **card** (the base `.card` contract — the hub's own `.card-header`/`.card-actions` patterns layer on top), **switch** (the boolean controls — the Playground Image mode's Refine toggle and the Speech mode's Stream toggle; green on-track), and **empty-state** (every zero-items list renders the icon + reason block, never a bare dash). The **disclosure** component (`.card--collapsible`) is still vendored but no longer used anywhere in the live page — the Hub's four diagnostic cards folded into Serving/Services/Activity and Health & install moved into the Settings dialog (the Hub is a glance, and the Settings dialog holds install health). `escapeHtml`/`fmtClock` live once in `api.js` (sibling dedup).
 
 ## Navigation
 
-Primary nav is the **vendored fleet component** at `app_web/static/_vendored/nav/` (copied byte-for-byte from `project-scaffolding`; never edited per-app). Desktop renders a sticky top segmented control; coarse pointers get the floating bottom-tab pill, with the standalone-PWA fixed-inset `.app` scroller shell (home-automation#303). `tabs.js` is a thin adapter bridging `initNavTabs` to the app's `onTabChange`/`setTab` API; the active tab persists under `llmhub.tab`. The login overlay hides the bar via `body.nav-hidden` (the non-`<dialog>` hook).
+Primary nav is the **vendored fleet component** at `app_web/static/_vendored/nav/` (copied byte-for-byte from `project-scaffolding`; never edited per-app). Desktop renders a sticky top segmented control; coarse pointers get the floating bottom-tab pill, with the standalone-PWA fixed-inset `.app` scroller shell (as in home-automation). `tabs.js` is a thin adapter bridging `initNavTabs` to the app's `onTabChange`/`setTab` API; the active tab persists under `llmhub.tab`. The login overlay hides the bar via `body.nav-hidden` (the non-`<dialog>` hook).
 
 ## Buttons
 
@@ -102,7 +102,7 @@ Primary nav is the **vendored fleet component** at `app_web/static/_vendored/nav
 - **`.ghost-btn.primary`** — the in-form primary (Playground Send /
   Generate / Speak / Download): an accent *tint*, never a solid fill —
   home-automation's ghost recipe (`--accent-soft` background, accent text,
-  `--accent-border-strong` border; #215).
+  `--accent-border-strong` border.
 - **`.icon-btn`** — row-level button, `52 × 60 px`, lives inside a
   `.row-actions` column on the right of an `.app-item`. Use for:
   Start / Stop / Log / Ping on the Models tab.
@@ -137,13 +137,13 @@ Inline detail panes (e.g. the shared transcription-dictionary editor,
 `toggleDictionaryPanel` in `models.js`) append as a **child `<div>` of
 the row's `<li class="app-item">`**, after `.app-main`/`.row-actions`.
 Per-model log tailing (which would have used a sibling-`<li>` pane,
-app-launcher's `.jobs-history-li` trick) was tried in #10 and pulled
+app-launcher's `.jobs-history-li` trick) was tried and pulled
 back — see the header comment in `models.js` — so the child-`<div>`
 shape is the pattern actually in use today.
 
 ## Hub-specific layout
 
-The Hub tab is a glance, not a diagnostics dashboard (#738). Two columns on
+The Hub tab is a glance, not a diagnostics dashboard. Two columns on
 a wide window (`.hub-cols.wide-cols`), one column on a phone, stacked in DOM
 order:
 
@@ -161,7 +161,7 @@ order:
 The four-disclosure diagnostics layout and the Compact/Expanded density
 toggle it replaced are gone; so is the separate Telemetry tab — Health &
 install and the Langfuse/OTel health now live in the Settings dialog and
-the Services sheet (#741). The build-identity footer is still
+the Services sheet. The build-identity footer is
 home-automation's `.page-foot`: one centered muted line, no links.
 
 ## Live status indicator
@@ -182,7 +182,7 @@ be fetched**. Same tone as `.login-card .error`; the tokens are `color-mix`
 derivations of `--danger`, so light and dark follow the palette with no
 second rule.
 
-The rule it exists to enforce (global `CLAUDE.md`; issue #580): **a lookup
+The rule it exists to enforce (global `CLAUDE.md`): **a lookup
 that failed is its own state, never the zero-valued version of a successful
 one.** While the banner is up, the view's numbers go to the unknown dash
 `—` rather than `0`, charts are torn down rather than drawn flat, and each
@@ -194,10 +194,10 @@ data, so a client cannot mistake failure for data by omission.
 
 ## Icons
 
-The SPA's UI glyphs are **Lucide**, the canonical fleet icon set (`~/.claude/design.md` → "Icons"), adopted via the **vendored** component at `app_web/static/_vendored/icons/` (sprite + `icons.js` helper, copied verbatim from `project-scaffolding`; issue #139).
+The SPA's UI glyphs are **Lucide**, the canonical fleet icon set (`~/.claude/design.md` → "Icons"), adopted via the **vendored** component at `app_web/static/_vendored/icons/` (sprite + `icons.js` helper, copied verbatim from `project-scaffolding`).
 
 - **How to reference one.** Static markup: `<svg class="icon"><use href="#i-NAME"></use></svg>`. From JS: `import { icon } from './_vendored/icons/icons.js'` then `el.innerHTML = icon('NAME')`. Glyphs inherit `currentColor` (the `.icon` CSS contract), so they recolor for free in any context — tint a status glyph by setting its parent's `color`.
-- **The sprite is injected server-side**, once, after `<body>` (see `app_web/routers/misc.py::_icon_sprite`) from the single app-owned `app_web/static/icons-sprite.html` source (outside `_vendored/`, so the vendored `icons/` folder stays byte-identical to the scaffold, #770). It must stay **inline** in-document — iOS Safari silently fails to resolve external `<use href="file.svg#id">` references.
+- **The sprite is injected server-side**, once, after `<body>` (see `app_web/routers/misc.py::_icon_sprite`) from the single app-owned `app_web/static/icons-sprite.html` source (outside `_vendored/`, so the vendored `icons/` folder stays byte-identical to the scaffold). It must stay **inline** in-document — iOS Safari silently fails to resolve external `<use href="file.svg#id">` references.
 - **Vendor verbatim.** Don't edit `icons.js` per-app; the only per-app change is *which `<symbol>` glyphs* live in the app-owned `icons-sprite.html` (add the ones a view needs from lucide-static 0.544.0, keeping the `i-NAME` id + `fill="none"`). To change the helper or share a new glyph fleet-wide, change it in `project-scaffolding` and re-vendor. Full recipe: `_vendored/icons/README.md`.
 - **No backend-identity glyph.** The Models tab rows previously carried a per-provider emoji (Claude/Gemini/whisper/TTS/llama); these were **removed** entirely rather than substituted — provider brands have no faithful Lucide equivalent, and the backend name already labels each row. Emoji remain only in genuine prose/content (the page `<title>`, the transcription-dictionary editor's help text) — never in chrome.
 
@@ -217,8 +217,8 @@ The SPA's UI glyphs are **Lucide**, the canonical fleet icon set (`~/.claude/des
 | Aspect | Hub | app-launcher | Reason |
 |---|---|---|---|
 | `--code-bg` token | present | absent | The hub's terminal mount needs its own inset surface (mapped to `--card-off`; listings use `--card`, COMP-17); launcher uses xterm.js which paints its own background. |
-| Counters table | compact plain-word columns (Median and Slowest 5% in seconds, one Tokens in/out column, `.td-trunc` first column; headers wrap, phone padding is 5px) inside `.counters-wrap` | n/a — launcher has no equivalent | Fits the phone width without horizontal scrolling (#215); the scroll wrap stays as a safety net only. |
-| Icon set | Lucide via vendored `_vendored/icons/` | varied | Adopted the canonical fleet Lucide set per `~/.claude/design.md` (issue #139); nav tabs now show icon + label. Backend-identity emoji were dropped (no faithful Lucide equivalent; the backend name labels the row). See the **Icons** section above. |
+| Counters table | compact plain-word columns (Median and Slowest 5% in seconds, one Tokens in/out column, `.td-trunc` first column; headers wrap, phone padding is 5px) inside `.counters-wrap` | n/a — launcher has no equivalent | Fits the phone width without horizontal scrolling; the scroll wrap stays as a safety net only. |
+| Icon set | Lucide via vendored `_vendored/icons/` | varied | Adopted the canonical fleet Lucide set per `~/.claude/design.md`; nav tabs now show icon + label. Backend-identity emoji were dropped (no faithful Lucide equivalent; the backend name labels the row). See the **Icons** section above. |
 
 ## When to update this file
 

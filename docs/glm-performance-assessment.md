@@ -1,4 +1,4 @@
-# GLM-4.5-Air performance assessment — 2026-04-20
+# GLM-4.5-Air performance assessment
 
 > **Historical — both GLM-4.5-Air and Qwen3.5-9B were demoted on
 > 2026-05-10** and are no longer in any host's active rotation (kept
@@ -123,7 +123,7 @@ proportionally cuts the CPU-side work.
 
 3. **Quantise the KV cache.** `--cache-type-k q4_0 --cache-type-v q4_0`
    cuts the 3 GB KV buffer in ~half with negligible quality impact
-   on chat workloads. That freed VRAM feeds rule #1 (more expert
+   on chat workloads. That freed VRAM feeds the first rule above (more expert
    layers on GPU). Use `q8_0` if you notice quality regressions.
 
 4. **Lock the model in RAM.** `--mlock`. With 128 GB of RAM this is
