@@ -29,8 +29,12 @@
 #      path, module, relative link or loopback port that does not exist, beyond
 #      .doc-refs-ratchet-baseline.json. Whole tree, never routed; exit 3 (could not
 #      measure) fails.
-#   8. `pytest -q` (unit tests, no GPU / no real CLIs)
-#   9. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
+#   8. dead-code ratchet: no Python function, class or method that nothing in the repo
+#      refers to, beyond .dead-code-ratchet-baseline.json. Whole tree, never routed
+#      (deleting the last caller strands a definition elsewhere); exit 3 (git
+#      unusable, a file that does not parse) fails.
+#   9. `pytest -q` (unit tests, no GPU / no real CLIs)
+#   10. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
 #      the .fleet.toml [e2e] rules): nothing for a docs/backend-only diff, a
 #      smoke target or one surface's slice for a narrow one, otherwise
 #      `pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml`.
@@ -102,6 +106,12 @@ Step "doc-refs ratchet" {
     # Same as the instruction ratchet: Step fails on any non-zero exit, so
     # exit 3 (could not measure) is a failure here, never a pass or a skip.
     & $Python scripts/doc_refs_ratchet.py
+}
+
+Step "dead-code ratchet" {
+    # Same as the doc-refs ratchet: Step fails on any non-zero exit, so
+    # exit 3 (could not measure) is a failure here, never a pass or a skip.
+    & $Python scripts/dead_code_ratchet.py
 }
 
 Step "pytest (unit)" {

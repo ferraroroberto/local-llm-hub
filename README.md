@@ -260,6 +260,16 @@ Other services' ports and other repos' paths named on purpose are listed in
 .venv\Scripts\python scripts\doc_refs_ratchet.py
 ```
 
+Dead-code ratchet (no Python function, class or method that nothing in the repo
+refers to; route handlers, `__all__` exports, tests and decorated hooks are never
+reported). Existing debt lives in `.dead-code-ratchet-baseline.json` and can only
+shrink; run `.venv\Scripts\python scripts\dead_code_ratchet.py --update-baseline`
+in the PR that removes some:
+
+```bat
+.venv\Scripts\python scripts\dead_code_ratchet.py
+```
+
 End-to-end smoke test (requires hub + whichever backends you care
 about running):
 
