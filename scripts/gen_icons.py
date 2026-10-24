@@ -27,6 +27,7 @@ from pathlib import Path
 # developer's machine layout — falls back to the historical absolute path
 # when the env var isn't set (issue #245).
 SCAFFOLDING_ROOT = Path(
+    # no-drive-path-exempt: dev-machine default for a maintainer-only script; PROJECT_SCAFFOLDING_ROOT overrides it
     os.environ.get("PROJECT_SCAFFOLDING_ROOT", r"E:\automation\project-scaffolding")
 )
 SCAFFOLDING_SCRIPTS = SCAFFOLDING_ROOT / "scripts"

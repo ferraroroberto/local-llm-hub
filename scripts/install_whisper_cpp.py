@@ -132,7 +132,8 @@ def _macos_build_prereqs() -> str:
             "`brew install cmake`, then re-run."
         )
     try:
-        r = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True, timeout=10)
+        r = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True, timeout=10,
+                           creationflags=no_window_flags())
     except FileNotFoundError:
         r = None
     if r is None or r.returncode != 0:
@@ -199,6 +200,7 @@ def _macos_build_from_source() -> None:
             r = subprocess.run(
                 ["install_name_tool", "-add_rpath", "@loader_path", str(target)],
                 capture_output=True, text=True, timeout=30,
+                creationflags=no_window_flags(),
             )
             if r.returncode != 0:
                 raise InstallError(f"install_name_tool -add_rpath failed for {target}: {r.stderr.strip()}")
@@ -207,7 +209,8 @@ def _macos_build_from_source() -> None:
 
 
 def _run_build_step(cmd: List[str], *, cwd: Optional[Path] = None, timeout: int) -> None:
-    r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+    r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout,
+                       creationflags=no_window_flags())
     if r.returncode != 0:
         tail = "\n".join(r.stdout.splitlines()[-20:] + r.stderr.splitlines()[-20:])
         raise InstallError(f"build step failed: {' '.join(cmd)}\n{tail}")

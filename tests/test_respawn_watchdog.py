@@ -14,6 +14,7 @@ import sys
 import pytest
 
 from src import _respawn_watchdog as watchdog
+from src.no_window import NO_WINDOW
 
 
 def test_is_alive_true_for_current_process():
@@ -121,7 +122,7 @@ def test_run_full_orchestration_waits_dies_relaunches_and_logs_success(monkeypat
     import subprocess as sp
 
     # A short-lived real process to be "parent" — dies almost immediately.
-    dying_parent = sp.Popen([sys.executable, "-c", "pass"])
+    dying_parent = sp.Popen([sys.executable, "-c", "pass"], creationflags=NO_WINDOW)
     dying_parent.wait(timeout=5)
 
     # A free port to claim as "our" port, released before run() checks it.

@@ -1,7 +1,5 @@
 {
   "version": 1,
   "tools": {"jscpd": "5.4.0", "ruff": "0.17.1"},
-  "entries": [
-    {"key": "dup:39d1e2a4e2ec:tests/e2e/test_models_placement_cards.py|tests/e2e/test_models_placement_edit.py", "files": ["tests/e2e/test_models_placement_cards.py", "tests/e2e/test_models_placement_edit.py"]}
-  ]
+  "entries": []
 }

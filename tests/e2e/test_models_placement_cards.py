@@ -35,6 +35,8 @@ import json
 
 import pytest
 
+from tests.e2e._models_rows import gemma_row, whisper_row
+
 PHONE = {"width": 390, "height": 844}
 DESKTOP = {"width": 1280, "height": 900}
 
@@ -57,38 +59,11 @@ FAKE_MODELS = {
                 "est_vram_mb": 2200,
             },
         },
-        {
-            # On-demand row currently idle-unloaded (stopped, waits for a
-            # request) — the gemma4_26b shape.
-            "id": "gemma4_26b", "display_name": "gemma4-26b-a4b-it",
-            "backend": "openai", "engine": "llama-server", "port": 8087,
-            "url": None, "aliases": ["agentic_heavy"], "controllable": True,
-            "ownership": "none", "pid": None, "reachable": False,
-            "model_path": None, "host": "tower",
-            "placement": {
-                "chain": [{"id": "tower", "cpu": False}],
-                "startup": "on_demand", "idle_unload_minutes": 30,
-                "est_vram_mb": 13400,
-            },
-        },
-        {
-            # Remote-owned chain with a degraded cpu last resort.
-            "id": "whisper", "display_name": "whisper-large-v3-turbo",
-            "backend": "whisper", "engine": "whisper-server", "port": 8090,
-            "url": None, "aliases": [], "controllable": True,
-            "ownership": "ours", "pid": 777, "reachable": True,
-            "model_path": None, "host": "gaming",
-            "preferred_host": "gaming", "failover": False,
-            "placement": {
-                "chain": [
-                    {"id": "gaming", "cpu": False},
-                    {"id": "mac-mini-m4", "cpu": False},
-                    {"id": "tower", "cpu": True},
-                ],
-                "startup": "eager", "idle_unload_minutes": None,
-                "est_vram_mb": 2000,
-            },
-        },
+        # On-demand row currently idle-unloaded (stopped, waits for a
+        # request) — the gemma4_26b shape.
+        gemma_row(),
+        # Remote-owned chain with a degraded cpu last resort.
+        whisper_row(),
         {
             # Always-CPU row (#265/#434): whisper-server `-ng` holds no GPU
             # anywhere, so the effective-device flag tags its owner pill.
