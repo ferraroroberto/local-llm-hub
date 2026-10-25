@@ -450,6 +450,44 @@ def _delete_key_keeping_comments(row: Any, key: str) -> None:
         existing.value = existing.value + block[1:]
 
 
+def _apply_host_chain(row: Any, chain: List[Dict[str, Any]]) -> bool:
+    """Write ``chain`` as the row's flow-style ``hosts:``; True when it changed."""
+    from ruamel.yaml.comments import CommentedMap, CommentedSeq
+
+    current_hosts, current_cpu = _parse_host_chain(row)
+    new_ids = [e["id"] for e in chain]
+    new_cpu = [e["id"] for e in chain if e["cpu"]]
+    if current_hosts == new_ids and set(current_cpu) == set(new_cpu):
+        return False
+    seq = CommentedSeq()
+    for entry in chain:
+        if entry["cpu"]:
+            item = CommentedMap([("id", entry["id"]), ("cpu", True)])
+            item.fa.set_flow_style()
+            seq.append(item)
+        else:
+            seq.append(entry["id"])
+    seq.fa.set_flow_style()
+    # `hosts:` supersedes a bare `host:` — never leave two sources of
+    # truth for entry one (the registry would ignore `host:` anyway).
+    anchor_key = "hosts" if "hosts" in row else ("host" if "host" in row else None)
+    if anchor_key == "host":
+        keys = list(row.keys())
+        pos = keys.index("host")
+        # `hosts:` takes `host:`'s line, so it inherits the whole comment
+        # entry — inline note and the block below it.
+        comments = row.ca.items.pop("host", None)
+        del row["host"]
+        row.insert(pos, "hosts", seq)
+        if comments is not None:
+            row.ca.items["hosts"] = comments
+    elif anchor_key == "hosts":
+        row["hosts"] = seq
+    else:
+        row.insert(len(row), "hosts", seq)
+    return True
+
+
 def edit_models_yaml(
     path: Path,
     model_id: str,
@@ -466,7 +504,6 @@ def edit_models_yaml(
     touched. Returns True when the file changed.
     """
     from ruamel.yaml import YAML
-    from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
     yaml = YAML()
     yaml.preserve_quotes = True
@@ -483,38 +520,7 @@ def edit_models_yaml(
     if row is None:
         raise ConfigWriteError(f"model {model_id!r} not found in {path.name}", 400)
 
-    changed = False
-    current_hosts, current_cpu = _parse_host_chain(row)
-    new_ids = [e["id"] for e in chain]
-    new_cpu = [e["id"] for e in chain if e["cpu"]]
-    if current_hosts != new_ids or set(current_cpu) != set(new_cpu):
-        seq = CommentedSeq()
-        for entry in chain:
-            if entry["cpu"]:
-                item = CommentedMap([("id", entry["id"]), ("cpu", True)])
-                item.fa.set_flow_style()
-                seq.append(item)
-            else:
-                seq.append(entry["id"])
-        seq.fa.set_flow_style()
-        # `hosts:` supersedes a bare `host:` — never leave two sources of
-        # truth for entry one (the registry would ignore `host:` anyway).
-        anchor_key = "hosts" if "hosts" in row else ("host" if "host" in row else None)
-        if anchor_key == "host":
-            keys = list(row.keys())
-            pos = keys.index("host")
-            # `hosts:` takes `host:`'s line, so it inherits the whole comment
-            # entry — inline note and the block below it.
-            comments = row.ca.items.pop("host", None)
-            del row["host"]
-            row.insert(pos, "hosts", seq)
-            if comments is not None:
-                row.ca.items["hosts"] = comments
-        elif anchor_key == "hosts":
-            row["hosts"] = seq
-        else:
-            row.insert(len(row), "hosts", seq)
-        changed = True
+    changed = _apply_host_chain(row, chain)
 
     def _insert_after(existing_keys: List[str], key: str, value: Any) -> None:
         keys = list(row.keys())

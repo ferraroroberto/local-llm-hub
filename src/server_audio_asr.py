@@ -23,7 +23,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
@@ -447,6 +447,77 @@ async def _dispatch_audio(
     raise last_http_exc or HTTPException(status_code=503, detail="no audio backend answered")
 
 
+def _candidate_request(
+    target: Model, send: dict, upstream_path: str, remote: Optional[str], connect_fast: bool,
+) -> Tuple[str, dict]:
+    """The upstream URL and ``client.post`` kwargs for one candidate backend."""
+    import httpx as _httpx
+
+    port = target.port
+    base = remote if remote else f"http://127.0.0.1:{port}"
+    url = f"{base}{upstream_path}"
+    headers = dict(send.get("headers") or {})
+    if remote:
+        headers.update(remote_auth_headers(target))
+    # A dead primary should fail over fast (short connect); the last resort keeps
+    # a patient connect. Read stays long — a transcription can take a while.
+    timeout = _httpx.Timeout(4.0 if connect_fast else 30.0, read=300.0, write=60.0, pool=10.0)
+    post_kwargs: dict = {"headers": headers or None, "timeout": timeout}
+    if "files" in send:
+        post_kwargs["files"] = send["files"]
+        post_kwargs["data"] = send["data"]
+    else:
+        post_kwargs["content"] = send["content"]
+    return url, post_kwargs
+
+
+def _glossary_applied(upstream: Any) -> bytes:
+    """The upstream body, with the transcription glossary applied to a 200."""
+    # Apply the committed transcription glossary to a 200 transcript
+    # before returning. Deterministic literal fixes (e.g. "cloud code" →
+    # "Claude Code") for acoustically-strong errors biasing can't solve. Wrapped
+    # defensively: a broken glossary must never break the passthrough.
+    out_content = upstream.content
+    if upstream.status_code == 200:
+        try:
+            from .transcription_glossary import apply_to_response, load_rules
+
+            rules = load_rules()
+            if rules:
+                out_content = apply_to_response(
+                    upstream.content, upstream.headers.get("content-type"), rules,
+                )
+        except Exception as exc:  # noqa: BLE001 — never let post-processing fail the proxy
+            logger.warning(
+                "⚠️ transcription glossary not applied, returning the raw transcript: %s: %s",
+                type(exc).__name__, exc,
+            )
+            out_content = upstream.content
+    return out_content
+
+
+def _passthrough_headers(
+    upstream: Any, requested: str, served_model: str, served_host: str,
+) -> Dict[str, str]:
+    """Upstream response headers with this hub's X-Hub-* trio re-stated."""
+    # Drop the peer hub's own X-Hub-* trio from the passthrough: this hub
+    # re-states them below (folding in the peer's answer via
+    # :func:`_served_identity`), and leaving the originals in would emit the
+    # header twice with two different requested-model values.
+    _drop = {
+        "content-length", "transfer-encoding", "connection",
+        HEADER_REQUESTED_MODEL.lower(), HEADER_SERVED_MODEL.lower(),
+        HEADER_SERVED_HOST.lower(),
+    }
+    out_headers = {
+        k: v for k, v in upstream.headers.items() if k.lower() not in _drop
+    }
+    out_headers[HEADER_REQUESTED_MODEL] = _header_safe(requested)
+    out_headers[HEADER_SERVED_MODEL] = _header_safe(served_model)
+    out_headers[HEADER_SERVED_HOST] = _header_safe(served_host)
+    return out_headers
+
+
 async def _forward_to_candidate(
     target: Model, send: dict, upstream_path: str, default_role: str,
     requested: str, ctx, span, client, *, connect_fast: bool,
@@ -483,20 +554,7 @@ async def _forward_to_candidate(
     })
     stash_trace_id_on_ctx(ctx, span)
 
-    base = remote if remote else f"http://127.0.0.1:{port}"
-    url = f"{base}{upstream_path}"
-    headers = dict(send.get("headers") or {})
-    if remote:
-        headers.update(remote_auth_headers(target))
-    # A dead primary should fail over fast (short connect); the last resort keeps
-    # a patient connect. Read stays long — a transcription can take a while.
-    timeout = _httpx.Timeout(4.0 if connect_fast else 30.0, read=300.0, write=60.0, pool=10.0)
-    post_kwargs: dict = {"headers": headers or None, "timeout": timeout}
-    if "files" in send:
-        post_kwargs["files"] = send["files"]
-        post_kwargs["data"] = send["data"]
-    else:
-        post_kwargs["content"] = send["content"]
+    url, post_kwargs = _candidate_request(target, send, upstream_path, remote, connect_fast)
 
     # On-demand lifecycle: a cold ``startup: on_demand`` local
     # whisper row (e.g. ``whisper_vanilla``, which has no
@@ -534,42 +592,8 @@ async def _forward_to_candidate(
         "hub.served_host": served_host,
     })
 
-    # Apply the committed transcription glossary to a 200 transcript
-    # before returning. Deterministic literal fixes (e.g. "cloud code" →
-    # "Claude Code") for acoustically-strong errors biasing can't solve. Wrapped
-    # defensively: a broken glossary must never break the passthrough.
-    out_content = upstream.content
-    if upstream.status_code == 200:
-        try:
-            from .transcription_glossary import apply_to_response, load_rules
-
-            rules = load_rules()
-            if rules:
-                out_content = apply_to_response(
-                    upstream.content, upstream.headers.get("content-type"), rules,
-                )
-        except Exception as exc:  # noqa: BLE001 — never let post-processing fail the proxy
-            logger.warning(
-                "⚠️ transcription glossary not applied, returning the raw transcript: %s: %s",
-                type(exc).__name__, exc,
-            )
-            out_content = upstream.content
-
-    # Drop the peer hub's own X-Hub-* trio from the passthrough: this hub
-    # re-states them below (folding in the peer's answer via
-    # :func:`_served_identity`), and leaving the originals in would emit the
-    # header twice with two different requested-model values.
-    _drop = {
-        "content-length", "transfer-encoding", "connection",
-        HEADER_REQUESTED_MODEL.lower(), HEADER_SERVED_MODEL.lower(),
-        HEADER_SERVED_HOST.lower(),
-    }
-    out_headers = {
-        k: v for k, v in upstream.headers.items() if k.lower() not in _drop
-    }
-    out_headers[HEADER_REQUESTED_MODEL] = _header_safe(requested)
-    out_headers[HEADER_SERVED_MODEL] = _header_safe(served_model)
-    out_headers[HEADER_SERVED_HOST] = _header_safe(served_host)
+    out_content = _glossary_applied(upstream)
+    out_headers = _passthrough_headers(upstream, requested, served_model, served_host)
     return Response(
         content=out_content,
         status_code=upstream.status_code,

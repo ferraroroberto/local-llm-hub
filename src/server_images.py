@@ -30,7 +30,7 @@ import logging
 import tempfile
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
@@ -140,16 +140,10 @@ class ImagesGenerationRequest(BaseModel):
     refine: bool = False
 
 
-@router.post("/v1/images/generations")
-def images_generations(req: ImagesGenerationRequest, request: Request) -> JSONResponse:
-    """Generate an image and return it OpenAI-shape (``data[].b64_json``).
-
-    Routes to any row flagged ``image_gen`` on an image-capable backend —
-    ``gemini`` (Imagen, subscription) or ``comfyui`` (FLUX, local GPU). Every
-    other backend is text/audio-only and 400s. The call lands in the
-    observability ring like other hub traffic.
-    """
-    model = resolve_model_or_400(req.model)
+def _validated_image_size(
+    req: ImagesGenerationRequest, model: Model,
+) -> Tuple[Optional[int], Optional[int]]:
+    """400 on a request the hub cannot serve; else the size a local backend gets."""
     if not (model.backend in IMAGE_BACKENDS and model.image_gen):
         raise HTTPException(
             status_code=400,
@@ -180,6 +174,20 @@ def images_generations(req: ImagesGenerationRequest, request: Request) -> JSONRe
             width, height = parse_size(req.size)
         except ImageSizeError as e:
             raise HTTPException(status_code=400, detail=str(e))
+    return width, height
+
+
+@router.post("/v1/images/generations")
+def images_generations(req: ImagesGenerationRequest, request: Request) -> JSONResponse:
+    """Generate an image and return it OpenAI-shape (``data[].b64_json``).
+
+    Routes to any row flagged ``image_gen`` on an image-capable backend —
+    ``gemini`` (Imagen, subscription) or ``comfyui`` (FLUX, local GPU). Every
+    other backend is text/audio-only and 400s. The call lands in the
+    observability ring like other hub traffic.
+    """
+    model = resolve_model_or_400(req.model)
+    width, height = _validated_image_size(req, model)
 
     ctx = getattr(request.state, "obs_ctx", None)
     if ctx is not None:

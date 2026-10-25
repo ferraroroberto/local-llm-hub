@@ -229,40 +229,9 @@ def _ts(value: Optional[float]) -> str:
     return datetime.fromtimestamp(value, tz=timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
 
 
-def markdown_report(run_id: str) -> Optional[str]:
-    """A self-contained health report — the LLM-ready analysis surface.
-
-    Deliberately plain markdown with no repo-specific jargon, so it can be
-    pasted straight into a Claude session and reasoned about cold."""
-    data = summary(run_id)
-    if data is None:
-        return None
-    from . import coverage as cov
-    run = data["run"]
-    res = data["resources"]
-    verdict = data["verdict"]
-    coverage_map = data.get("coverage") or {}
-    d = drift(run_id)
-
-    degraded = cov.is_degraded(coverage_map)
-    # A missing verdict (capture still running, or a failed save_verdict) is
-    # "not evaluated", never "healthy" — unknown is its own state.
-    verdict_level = verdict.get("level")
-    evaluated = bool(verdict_level) and verdict_level != "not_evaluated"
-    verdict_line = verdict_level.replace("_", " ").upper() if evaluated else "NOT EVALUATED"
-    if degraded:
-        verdict_line += " · ⚠ partial coverage"
-
+def _md_findings(verdict: Dict[str, Any], evaluated: bool) -> List[str]:
+    """The findings section; an unevaluated run says so instead of "healthy"."""
     lines: List[str] = []
-    lines.append(f"# Machine diagnostics — {run.get('machine_id', 'unknown')}")
-    lines.append("")
-    lines.append(f"- **Run:** `{run_id}` ({run.get('trigger', 'manual')}, {run.get('status', '')})")
-    lines.append(f"- **Machine:** {run.get('hostname') or run.get('machine_id')} · {run.get('os', '')}")
-    lines.append(f"- **Window:** {_ts(run.get('started_at'))} → {_ts(run.get('ended_at'))}"
-                 f" · {run.get('sample_count', 0)} samples at {run.get('interval_s', 0):.0f}s")
-    lines.append(f"- **Verdict:** **{verdict_line}**")
-    lines.append("")
-
     findings = verdict.get("findings") or []
     lines.append("## Findings")
     lines.append("")
@@ -274,24 +243,35 @@ def markdown_report(run_id: str) -> Optional[str]:
         for f in findings:
             lines.append(f"- **{f['level']}** · `{f['rule']}` — {f['summary']}")
     lines.append("")
+    return lines
 
-    # Coverage — what we could and couldn't measure. Rendered whenever a
-    # collector was blind, so a vanished section or a summed-over-nulls total
-    # never masquerades as a complete reading.
-    if degraded:
-        lines.append("## Coverage")
-        lines.append("")
-        lines.append("Some signals could not be fully collected on this machine — the"
-                     " verdict above reflects only what was measurable.")
-        lines.append("")
-        lines.append("| Collector | Status |")
-        lines.append("| --- | --- |")
-        for name in ("ports", "proc_mem", "proc_cpu", "gpu"):
-            entry = coverage_map.get(name)
-            if entry:
-                lines.append(f"| {_COVERAGE_LABEL.get(name, name)} | {cov.describe(name, entry)} |")
-        lines.append("")
 
+def _md_coverage(coverage_map: Dict[str, Any]) -> List[str]:
+    """The coverage section, rendered only when a collector was blind."""
+    from . import coverage as cov
+
+    lines: List[str] = []
+    lines.append("## Coverage")
+    lines.append("")
+    lines.append("Some signals could not be fully collected on this machine — the"
+                 " verdict above reflects only what was measurable.")
+    lines.append("")
+    lines.append("| Collector | Status |")
+    lines.append("| --- | --- |")
+    for name in ("ports", "proc_mem", "proc_cpu", "gpu"):
+        entry = coverage_map.get(name)
+        if entry:
+            lines.append(f"| {_COVERAGE_LABEL.get(name, name)} | {cov.describe(name, entry)} |")
+    lines.append("")
+    return lines
+
+
+def _md_load_tables(data: Dict[str, Any], coverage_map: Dict[str, Any]) -> List[str]:
+    """The resource envelope, load-by-app and heaviest-process tables."""
+    from . import coverage as cov
+
+    lines: List[str] = []
+    res = data["resources"]
     lines.append("## Resource envelope")
     lines.append("")
     lines.append("| Metric | Average | Peak |")
@@ -325,7 +305,14 @@ def markdown_report(run_id: str) -> Optional[str]:
     for p in data["top_processes_by_rss"]:
         lines.append(f"| {p['app_id']} | {p['name']} | {p['pid_count']} | {p['peak_rss_mb']} | {p['avg_cpu']} |")
     lines.append("")
+    return lines
 
+
+def _md_ports(data: Dict[str, Any], coverage_map: Dict[str, Any]) -> List[str]:
+    """The listening-ports section, or the coverage gap that hid it."""
+    from . import coverage as cov
+
+    lines: List[str] = []
     ports_status = cov.collector_status(coverage_map, "ports")
     if data["ports"]:
         lines.append("## Listening ports")
@@ -343,7 +330,12 @@ def markdown_report(run_id: str) -> Optional[str]:
         lines.append("_Not collected — the hub lacks the privilege to enumerate sockets on"
                      " this machine. This is a coverage gap, not an empty result._")
         lines.append("")
+    return lines
 
+
+def _md_drift(d: Optional[Dict[str, Any]]) -> List[str]:
+    """Drift against the baseline run, when one exists."""
+    lines: List[str] = []
     if d and d.get("baseline"):
         lines.append(f"## Drift vs baseline ({_ts(d['baseline']['started_at'])})")
         lines.append("")
@@ -355,6 +347,51 @@ def markdown_report(run_id: str) -> Optional[str]:
         for port in d.get("ports") or []:
             lines.append(f"- Port {port['port']}/{port['proto']} ({port['app_id']}): {port['status']}")
         lines.append("")
+    return lines
+
+
+def markdown_report(run_id: str) -> Optional[str]:
+    """A self-contained health report — the LLM-ready analysis surface.
+
+    Deliberately plain markdown with no repo-specific jargon, so it can be
+    pasted straight into a Claude session and reasoned about cold."""
+    data = summary(run_id)
+    if data is None:
+        return None
+    from . import coverage as cov
+    run = data["run"]
+    verdict = data["verdict"]
+    coverage_map = data.get("coverage") or {}
+    d = drift(run_id)
+
+    degraded = cov.is_degraded(coverage_map)
+    # A missing verdict (capture still running, or a failed save_verdict) is
+    # "not evaluated", never "healthy" — unknown is its own state.
+    verdict_level = verdict.get("level")
+    evaluated = bool(verdict_level) and verdict_level != "not_evaluated"
+    verdict_line = verdict_level.replace("_", " ").upper() if evaluated else "NOT EVALUATED"
+    if degraded:
+        verdict_line += " · ⚠ partial coverage"
+
+    lines: List[str] = []
+    lines.append(f"# Machine diagnostics — {run.get('machine_id', 'unknown')}")
+    lines.append("")
+    lines.append(f"- **Run:** `{run_id}` ({run.get('trigger', 'manual')}, {run.get('status', '')})")
+    lines.append(f"- **Machine:** {run.get('hostname') or run.get('machine_id')} · {run.get('os', '')}")
+    lines.append(f"- **Window:** {_ts(run.get('started_at'))} → {_ts(run.get('ended_at'))}"
+                 f" · {run.get('sample_count', 0)} samples at {run.get('interval_s', 0):.0f}s")
+    lines.append(f"- **Verdict:** **{verdict_line}**")
+    lines.append("")
+
+    lines += _md_findings(verdict, evaluated)
+    # Coverage — what we could and couldn't measure. Rendered whenever a
+    # collector was blind, so a vanished section or a summed-over-nulls total
+    # never masquerades as a complete reading.
+    if degraded:
+        lines += _md_coverage(coverage_map)
+    lines += _md_load_tables(data, coverage_map)
+    lines += _md_ports(data, coverage_map)
+    lines += _md_drift(d)
 
     lines.append("---")
     lines.append("")

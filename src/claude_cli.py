@@ -178,6 +178,61 @@ def call_claude(
     return envelope
 
 
+def _spawn_claude_stream(
+    args: List[str],
+    env: Dict[str, str],
+    *,
+    model: Optional[str],
+    attachments: Optional[Sequence[Path]],
+) -> subprocess.Popen:
+    """Launch the stream-mode ``claude`` process inside a launch span."""
+    # A tracing context manager cannot span generator yields: Starlette may
+    # consume successive chunks in different worker contexts, and detaching an
+    # OTel context token from a different context raises. Trace process launch
+    # here; the route-level span owns the full streamed request lifetime.
+    with start_span("local_llm_hub.claude_cli", "claude_cli.launch") as span:
+        set_span_attrs(span, "claude_cli.launch", {
+            "claude_cli.argv_hash": _argv_hash(args),
+            "claude_cli.model": model or None,
+            "claude_cli.attachments": len(attachments or []),
+            "claude_cli.streaming": True,
+        })
+        try:
+            proc = subprocess.Popen(
+                args,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                shell=False,
+                env=env,
+                creationflags=NO_WINDOW,
+            )
+        except FileNotFoundError as exc:
+            raise ClaudeCLIError(
+                "`claude` CLI not found on PATH. Install Claude Code first."
+            ) from exc
+    return proc
+
+
+def _close_stream_process(proc: subprocess.Popen, stderr_thread: threading.Thread) -> None:
+    """Terminate a stream process still running and close its pipes."""
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=2.0)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=2.0)
+    stderr_thread.join(timeout=1.0)
+    if proc.stdout is not None:
+        proc.stdout.close()
+    if proc.stderr is not None:
+        proc.stderr.close()
+
+
 def call_claude_stream(
     prompt: str,
     *,
@@ -207,34 +262,7 @@ def call_claude_stream(
         attachments=attachments,
     )
 
-    # A tracing context manager cannot span generator yields: Starlette may
-    # consume successive chunks in different worker contexts, and detaching an
-    # OTel context token from a different context raises. Trace process launch
-    # here; the route-level span owns the full streamed request lifetime.
-    with start_span("local_llm_hub.claude_cli", "claude_cli.launch") as span:
-        set_span_attrs(span, "claude_cli.launch", {
-            "claude_cli.argv_hash": _argv_hash(args),
-            "claude_cli.model": model or None,
-            "claude_cli.attachments": len(attachments or []),
-            "claude_cli.streaming": True,
-        })
-        try:
-            proc = subprocess.Popen(
-                args,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                shell=False,
-                env=env,
-                creationflags=NO_WINDOW,
-            )
-        except FileNotFoundError as exc:
-            raise ClaudeCLIError(
-                "`claude` CLI not found on PATH. Install Claude Code first."
-            ) from exc
+    proc = _spawn_claude_stream(args, env, model=model, attachments=attachments)
 
     stderr_parts: List[str] = []
     stderr_chars = 0
@@ -288,15 +316,4 @@ def call_claude_stream(
             )
     finally:
         timer.cancel()
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=2.0)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait(timeout=2.0)
-        stderr_thread.join(timeout=1.0)
-        if proc.stdout is not None:
-            proc.stdout.close()
-        if proc.stderr is not None:
-            proc.stderr.close()
+        _close_stream_process(proc, stderr_thread)

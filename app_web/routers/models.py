@@ -183,6 +183,95 @@ def _ownership_from_snapshot(m: Model, listening: Optional[Dict[int, list]]) -> 
     return OWNERSHIP_NONE, None
 
 
+async def _probe_device(m: Model, reachable: bool) -> Optional[str]:
+    """Resolved device (cuda/cpu/mps) a reachable TTS row reports on /health.
+
+    TTS backends resolve a real device at load time and report it on their own
+    /health (tts_server.py's state.device); other backends have no comparable
+    concept. Only a row already known-reachable is probed, and only a fully
+    resolved value is trusted: a backend still loading reports its raw "auto"
+    arg, and surfacing that would be actively misleading, so omit rather than
+    guess wrong.
+    """
+    if not reachable or m.backend != "tts":
+        return None
+    body = await asyncio.to_thread(bp.probe_health, m, bp.LIVENESS_PROBE_TIMEOUT_S)
+    dev = body.get("device") if isinstance(body, dict) else None
+    if isinstance(dev, str) and dev.strip().lower() in ("cpu", "cuda", "mps"):
+        return dev.strip().lower()
+    return None
+
+
+def _local_row(
+    m: Model,
+    reachable: bool,
+    device: Optional[str],
+    listening: Optional[Dict[int, list]],
+    host_id: str,
+    cpu_map: Dict[str, set],
+) -> Dict[str, Any]:
+    """Tile row for a model this host currently serves."""
+    # Virtual aliases share an existing backend's port and own no process,
+    # so they're reachable but never independently start/stop-able.
+    controllable = m.backend in SPAWNABLE_BACKENDS and not m.virtual
+    own = OWNERSHIP_NONE
+    pid: Any = None
+    if controllable:
+        own, pid = _ownership_from_snapshot(m, listening)
+    row: Dict[str, Any] = {
+        "id": m.id,
+        "display_name": m.display_name,
+        "backend": m.backend,
+        "engine": m.engine,
+        "port": m.port,
+        "url": m.url,
+        "aliases": list(m.aliases or []),
+        "controllable": controllable,
+        "ownership": own,
+        "pid": pid,
+        "reachable": bool(reachable),
+        "model_path": m.model_path,
+        "host": host_id,
+    }
+    _add_failover_fields(row, m, host_id)
+    _add_placement_fields(row, m, cpu_map)
+    if device:
+        row["device"] = device
+    return row
+
+
+async def _remote_owned_rows(
+    remote_owned: List[Model],
+    owner_by_id: Dict[str, Optional[str]],
+    cpu_map: Dict[str, set],
+) -> List[Dict[str, Any]]:
+    """Rows for models another host serves: one fetch per distinct owning host.
+
+    Trust the owner's own reachable/ownership/pid values: this hub has no
+    local visibility into another machine's ports.
+    """
+    owners: Dict[str, List[Model]] = {}
+    for m in remote_owned:
+        owners.setdefault(owner_by_id[m.id], []).append(m)
+
+    rows: List[Dict[str, Any]] = []
+    for host_id, models_for_host in owners.items():
+        owner_profile = get_host(host_id)
+        fetched = await remote_stats.remote_models(owner_profile) if owner_profile else None
+        by_id = {r.get("id"): r for r in fetched if isinstance(r, dict)} if fetched is not None else None
+        for m in models_for_host:
+            remote_row = by_id.get(m.id) if by_id is not None else None
+            if remote_row is not None:
+                row = dict(remote_row)
+                row.setdefault("host", host_id)
+            else:
+                row = _offline_remote_row(m, host_id)
+            _add_failover_fields(row, m, host_id)
+            _add_placement_fields(row, m, cpu_map)
+            rows.append(row)
+    return rows
+
+
 @router.get("/api/models")
 async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
     """Per-tile state for every enabled model — local rows computed here,
@@ -224,80 +313,20 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
 
     reach_results = await local_reachability(local_models, listening)
 
-    async def _probe_device(m: Model, reachable: bool) -> Optional[str]:
-        # TTS backends resolve a real device (cuda/cpu/mps) at load time and
-        # report it on their own /health (tts_server.py's state.device) —
-        # other backends have no comparable concept. Only probe a row that's
-        # already known-reachable, and only trust a fully-resolved value: a
-        # backend still loading reports its raw "auto" arg, and surfacing
-        # that would be actively misleading — omit rather than guess wrong.
-        if not reachable or m.backend != "tts":
-            return None
-        body = await asyncio.to_thread(bp.probe_health, m, bp.LIVENESS_PROBE_TIMEOUT_S)
-        dev = body.get("device") if isinstance(body, dict) else None
-        if isinstance(dev, str) and dev.strip().lower() in ("cpu", "cuda", "mps"):
-            return dev.strip().lower()
-        return None
-
     device_results = await asyncio.gather(
         *(_probe_device(m, reachable) for m, reachable in zip(local_models, reach_results))
     )
 
-    rows: List[Dict[str, Any]] = []
     cpu_map = cpu_resident_map()  # effective per-(model, host) device
-    for m, reachable, device in zip(local_models, reach_results, device_results):
-        # Virtual aliases share an existing backend's port and own no process,
-        # so they're reachable but never independently start/stop-able.
-        controllable = m.backend in SPAWNABLE_BACKENDS and not m.virtual
-        own = OWNERSHIP_NONE
-        pid: Any = None
-        if controllable:
-            own, pid = _ownership_from_snapshot(m, listening)
-        row: Dict[str, Any] = {
-            "id": m.id,
-            "display_name": m.display_name,
-            "backend": m.backend,
-            "engine": m.engine,
-            "port": m.port,
-            "url": m.url,
-            "aliases": list(m.aliases or []),
-            "controllable": controllable,
-            "ownership": own,
-            "pid": pid,
-            "reachable": bool(reachable),
-            "model_path": m.model_path,
-            "host": active.id,
-        }
-        _add_failover_fields(row, m, active.id)
-        _add_placement_fields(row, m, cpu_map)
-        if device:
-            row["device"] = device
-        rows.append(row)
+    rows: List[Dict[str, Any]] = [
+        _local_row(m, reachable, device, listening, active.id, cpu_map)
+        for m, reachable, device in zip(local_models, reach_results, device_results)
+    ]
 
     if local_only:
         return {"models": rows, "config": _config_block()}
 
-    # Remote-owned rows: one fetch per distinct owning host, merged in.
-    # Trust the owner's own reachable/ownership/pid values — this hub has
-    # no local visibility into another machine's ports.
-    owners: Dict[str, List[Model]] = {}
-    for m in remote_owned:
-        owners.setdefault(owner_by_id[m.id], []).append(m)
-
-    for host_id, models_for_host in owners.items():
-        owner_profile = get_host(host_id)
-        fetched = await remote_stats.remote_models(owner_profile) if owner_profile else None
-        by_id = {r.get("id"): r for r in fetched if isinstance(r, dict)} if fetched is not None else None
-        for m in models_for_host:
-            remote_row = by_id.get(m.id) if by_id is not None else None
-            if remote_row is not None:
-                row = dict(remote_row)
-                row.setdefault("host", host_id)
-            else:
-                row = _offline_remote_row(m, host_id)
-            _add_failover_fields(row, m, host_id)
-            _add_placement_fields(row, m, cpu_map)
-            rows.append(row)
+    rows.extend(await _remote_owned_rows(remote_owned, owner_by_id, cpu_map))
 
     # TypeSafe Jev: a read-only tile for this hub's third-party egress.
     # Not a registry model and never in the peer-merge (`local_only`) listing —

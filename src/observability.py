@@ -403,6 +403,108 @@ def record_genai_metrics(
 
 # ----------------------------------------------------------------- init
 
+def _install_providers(
+    resource: Any, traces_endpoint: str, metrics_endpoint: str, headers: Dict[str, str],
+) -> None:
+    """Install the global OTLP/HTTP tracer and meter providers."""
+    from opentelemetry import metrics, trace
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+        OTLPMetricExporter,
+    )
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+        OTLPSpanExporter,
+    )
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+    # ----- tracing — Langfuse v3 expects OTLP/HTTP with Basic auth
+    # against its own port (no separate :4317 collector).
+    span_exporter = OTLPSpanExporter(
+        endpoint=traces_endpoint,
+        headers=headers,
+    )
+    tracer_provider = TracerProvider(resource=resource)
+    tracer_provider.add_span_processor(BatchSpanProcessor(span_exporter))
+    trace.set_tracer_provider(tracer_provider)
+
+    # ----- metrics — same OTLP/HTTP transport
+    metric_exporter = OTLPMetricExporter(
+        endpoint=metrics_endpoint,
+        headers=headers,
+    )
+    reader = PeriodicExportingMetricReader(
+        metric_exporter, export_interval_millis=15_000
+    )
+    meter_provider = MeterProvider(resource=resource, metric_readers=[reader])
+    metrics.set_meter_provider(meter_provider)
+
+
+def _create_meters(service_version: str) -> _Meters:
+    """The hub's GenAI and request instruments on the installed meter provider."""
+    from opentelemetry import metrics
+
+    meter = metrics.get_meter("local-llm-hub", service_version)
+    return _Meters(
+        op_duration=meter.create_histogram(
+            name="gen_ai.client.operation.duration",
+            unit="ms",
+            description="End-to-end latency of a GenAI request, in milliseconds",
+        ),
+        token_usage=meter.create_counter(
+            name="gen_ai.client.token.usage",
+            unit="{token}",
+            description="Tokens consumed by GenAI requests (input/output)",
+        ),
+        requests_total=meter.create_counter(
+            name="hub.requests.total",
+            unit="{request}",
+            description="Total requests served by the hub, by route + client",
+        ),
+        upstream_errors_total=meter.create_counter(
+            name="hub.upstream.errors.total",
+            unit="{error}",
+            description="Upstream errors by gen_ai.system + error.type",
+        ),
+    )
+
+
+def _install_instrumentation() -> None:
+    """Log correlation and httpx spans, with the OTLP exporters' retry noise muted."""
+    # ----- log correlation
+    try:
+        from opentelemetry.instrumentation.logging import LoggingInstrumentor
+
+        LoggingInstrumentor().instrument(set_logging_format=False)
+    except Exception:  # noqa: BLE001 — non-fatal
+        logger.debug("LoggingInstrumentor failed to install", exc_info=True)
+
+    # ----- httpx outgoing-request spans (used by openai_upstream)
+    try:
+        from opentelemetry.instrumentation.httpx import (
+            HTTPXClientInstrumentor,
+        )
+
+        HTTPXClientInstrumentor().instrument()
+    except Exception:  # noqa: BLE001
+        logger.debug("HTTPXClientInstrumentor failed to install", exc_info=True)
+
+    # Silence the OTLP exporter's connect-refused retry/error log
+    # noise. Langfuse offline/unreachable is already surfaced via
+    # the Hub's Langfuse sheet, so duplicating that as log lines
+    # just spams the UI. CRITICAL silences everything below it
+    # too, including genuine protocol-level export failures —
+    # there is currently no WARNING/ERROR escape hatch for those.
+    for noisy in (
+        "opentelemetry.exporter.otlp.proto.http.trace_exporter",
+        "opentelemetry.exporter.otlp.proto.http.metric_exporter",
+        "opentelemetry.sdk.metrics._internal.export",
+        "opentelemetry.sdk.trace.export",
+    ):
+        logging.getLogger(noisy).setLevel(logging.CRITICAL)
+
+
 def init_otel(
     service_name: str = "local-llm-hub",
     service_version: str = SERVICE_VERSION_DEFAULT,
@@ -426,18 +528,20 @@ def init_otel(
             return False
 
         try:
-            from opentelemetry import metrics, trace
-            from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+            # Probe the whole SDK surface the helpers below import, so a
+            # partial install turns telemetry off here, not mid-setup.
+            from opentelemetry import metrics, trace  # noqa: F401
+            from opentelemetry.exporter.otlp.proto.http.metric_exporter import (  # noqa: F401
                 OTLPMetricExporter,
             )
-            from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import (  # noqa: F401
                 OTLPSpanExporter,
             )
-            from opentelemetry.sdk.metrics import MeterProvider
-            from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+            from opentelemetry.sdk.metrics import MeterProvider  # noqa: F401
+            from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader  # noqa: F401
             from opentelemetry.sdk.resources import Resource
-            from opentelemetry.sdk.trace import TracerProvider
-            from opentelemetry.sdk.trace.export import BatchSpanProcessor
+            from opentelemetry.sdk.trace import TracerProvider  # noqa: F401
+            from opentelemetry.sdk.trace.export import BatchSpanProcessor  # noqa: F401
         except ImportError as exc:
             logger.warning(
                 "⚠️ OTel SDK not importable (%s) — telemetry off. Install with "
@@ -473,82 +577,10 @@ def init_otel(
                 }
             )
 
-            # ----- tracing — Langfuse v3 expects OTLP/HTTP with Basic auth
-            # against its own port (no separate :4317 collector).
-            span_exporter = OTLPSpanExporter(
-                endpoint=traces_endpoint,
-                headers=headers,
-            )
-            tracer_provider = TracerProvider(resource=resource)
-            tracer_provider.add_span_processor(BatchSpanProcessor(span_exporter))
-            trace.set_tracer_provider(tracer_provider)
+            _install_providers(resource, traces_endpoint, metrics_endpoint, headers)
+            _METERS = _create_meters(service_version)
 
-            # ----- metrics — same OTLP/HTTP transport
-            metric_exporter = OTLPMetricExporter(
-                endpoint=metrics_endpoint,
-                headers=headers,
-            )
-            reader = PeriodicExportingMetricReader(
-                metric_exporter, export_interval_millis=15_000
-            )
-            meter_provider = MeterProvider(resource=resource, metric_readers=[reader])
-            metrics.set_meter_provider(meter_provider)
-
-            meter = metrics.get_meter("local-llm-hub", service_version)
-            _METERS = _Meters(
-                op_duration=meter.create_histogram(
-                    name="gen_ai.client.operation.duration",
-                    unit="ms",
-                    description="End-to-end latency of a GenAI request, in milliseconds",
-                ),
-                token_usage=meter.create_counter(
-                    name="gen_ai.client.token.usage",
-                    unit="{token}",
-                    description="Tokens consumed by GenAI requests (input/output)",
-                ),
-                requests_total=meter.create_counter(
-                    name="hub.requests.total",
-                    unit="{request}",
-                    description="Total requests served by the hub, by route + client",
-                ),
-                upstream_errors_total=meter.create_counter(
-                    name="hub.upstream.errors.total",
-                    unit="{error}",
-                    description="Upstream errors by gen_ai.system + error.type",
-                ),
-            )
-
-            # ----- log correlation
-            try:
-                from opentelemetry.instrumentation.logging import LoggingInstrumentor
-
-                LoggingInstrumentor().instrument(set_logging_format=False)
-            except Exception:  # noqa: BLE001 — non-fatal
-                logger.debug("LoggingInstrumentor failed to install", exc_info=True)
-
-            # ----- httpx outgoing-request spans (used by openai_upstream)
-            try:
-                from opentelemetry.instrumentation.httpx import (
-                    HTTPXClientInstrumentor,
-                )
-
-                HTTPXClientInstrumentor().instrument()
-            except Exception:  # noqa: BLE001
-                logger.debug("HTTPXClientInstrumentor failed to install", exc_info=True)
-
-            # Silence the OTLP exporter's connect-refused retry/error log
-            # noise. Langfuse offline/unreachable is already surfaced via
-            # the Hub's Langfuse sheet, so duplicating that as log lines
-            # just spams the UI. CRITICAL silences everything below it
-            # too, including genuine protocol-level export failures —
-            # there is currently no WARNING/ERROR escape hatch for those.
-            for noisy in (
-                "opentelemetry.exporter.otlp.proto.http.trace_exporter",
-                "opentelemetry.exporter.otlp.proto.http.metric_exporter",
-                "opentelemetry.sdk.metrics._internal.export",
-                "opentelemetry.sdk.trace.export",
-            ):
-                logging.getLogger(noisy).setLevel(logging.CRITICAL)
+            _install_instrumentation()
 
             logger.info(
                 "ℹ️ OTel initialised — service=%s instance=%s endpoint=%s auth=%s",

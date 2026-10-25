@@ -153,6 +153,87 @@ DEFAULT_FLUX2_STEPS = 24
 DEFAULT_FLUX2_GUIDANCE = 4.0
 
 
+def _flux2_conditioning_nodes(
+    prompt: str, unet_name: str, clip_name: str, vae_name: str,
+    guidance: float, weight_dtype: str,
+) -> Dict[str, Any]:
+    """FLUX.2's three split loaders and the prompt conditioning built on them."""
+    return {
+        _F2_UNET: {
+            "class_type": "UNETLoader",
+            "inputs": {"unet_name": unet_name, "weight_dtype": weight_dtype},
+        },
+        _F2_CLIP: {
+            "class_type": "CLIPLoader",
+            # `type` must be "flux2" — verified present in CLIPLoader's live
+            # enum. The FLUX.1 value would silently mis-tokenize the prompt.
+            "inputs": {"clip_name": clip_name, "type": "flux2"},
+        },
+        _F2_VAE: {
+            "class_type": "VAELoader",
+            "inputs": {"vae_name": vae_name},
+        },
+        _F2_POSITIVE: {
+            "class_type": "CLIPTextEncode",
+            "inputs": {"text": prompt, "clip": [_F2_CLIP, 0]},
+        },
+        _F2_NEGATIVE: {
+            "class_type": "CLIPTextEncode",
+            "inputs": {"text": "", "clip": [_F2_CLIP, 0]},
+        },
+        _F2_GUIDANCE: {
+            "class_type": "FluxGuidance",
+            "inputs": {"conditioning": [_F2_POSITIVE, 0], "guidance": guidance},
+        },
+    }
+
+
+def _flux2_sampling_nodes(width: int, height: int, steps: int, seed: int) -> Dict[str, Any]:
+    """FLUX.2's guider, resolution-aware scheduler, sampler, decode and output."""
+    return {
+        _F2_GUIDER: {
+            "class_type": "BasicGuider",
+            "inputs": {"model": [_F2_UNET, 0], "conditioning": [_F2_GUIDANCE, 0]},
+        },
+        _F2_SIGMAS: {
+            "class_type": "Flux2Scheduler",
+            "inputs": {"steps": steps, "width": width, "height": height},
+        },
+        _F2_SAMPLER_SEL: {
+            "class_type": "KSamplerSelect",
+            "inputs": {"sampler_name": DEFAULT_SAMPLER},
+        },
+        _F2_NOISE: {
+            "class_type": "RandomNoise",
+            "inputs": {"noise_seed": seed},
+        },
+        _F2_LATENT: {
+            "class_type": "EmptyFlux2LatentImage",
+            "inputs": {"width": width, "height": height, "batch_size": 1},
+        },
+        _F2_SAMPLER: {
+            "class_type": "SamplerCustomAdvanced",
+            "inputs": {
+                "noise": [_F2_NOISE, 0],
+                "guider": [_F2_GUIDER, 0],
+                "sampler": [_F2_SAMPLER_SEL, 0],
+                "sigmas": [_F2_SIGMAS, 0],
+                "latent_image": [_F2_LATENT, 0],
+            },
+        },
+        _F2_DECODE: {
+            "class_type": "VAEDecode",
+            # SamplerCustomAdvanced output 0 is the noisy latent, 1 is the
+            # denoised one — decoding 0 yields a grainy image.
+            "inputs": {"samples": [_F2_SAMPLER, 1], "vae": [_F2_VAE, 0]},
+        },
+        _OUTPUT: {
+            "class_type": "PreviewImage",
+            "inputs": {"images": [_F2_DECODE, 0]},
+        },
+    }
+
+
 def build_flux2_workflow(
     prompt: str,
     *,
@@ -196,72 +277,8 @@ def build_flux2_workflow(
         seed = random.getrandbits(63)
 
     graph: Dict[str, Any] = {
-        _F2_UNET: {
-            "class_type": "UNETLoader",
-            "inputs": {"unet_name": unet_name, "weight_dtype": weight_dtype},
-        },
-        _F2_CLIP: {
-            "class_type": "CLIPLoader",
-            # `type` must be "flux2" — verified present in CLIPLoader's live
-            # enum. The FLUX.1 value would silently mis-tokenize the prompt.
-            "inputs": {"clip_name": clip_name, "type": "flux2"},
-        },
-        _F2_VAE: {
-            "class_type": "VAELoader",
-            "inputs": {"vae_name": vae_name},
-        },
-        _F2_POSITIVE: {
-            "class_type": "CLIPTextEncode",
-            "inputs": {"text": prompt, "clip": [_F2_CLIP, 0]},
-        },
-        _F2_NEGATIVE: {
-            "class_type": "CLIPTextEncode",
-            "inputs": {"text": "", "clip": [_F2_CLIP, 0]},
-        },
-        _F2_GUIDANCE: {
-            "class_type": "FluxGuidance",
-            "inputs": {"conditioning": [_F2_POSITIVE, 0], "guidance": guidance},
-        },
-        _F2_GUIDER: {
-            "class_type": "BasicGuider",
-            "inputs": {"model": [_F2_UNET, 0], "conditioning": [_F2_GUIDANCE, 0]},
-        },
-        _F2_SIGMAS: {
-            "class_type": "Flux2Scheduler",
-            "inputs": {"steps": steps, "width": width, "height": height},
-        },
-        _F2_SAMPLER_SEL: {
-            "class_type": "KSamplerSelect",
-            "inputs": {"sampler_name": DEFAULT_SAMPLER},
-        },
-        _F2_NOISE: {
-            "class_type": "RandomNoise",
-            "inputs": {"noise_seed": seed},
-        },
-        _F2_LATENT: {
-            "class_type": "EmptyFlux2LatentImage",
-            "inputs": {"width": width, "height": height, "batch_size": 1},
-        },
-        _F2_SAMPLER: {
-            "class_type": "SamplerCustomAdvanced",
-            "inputs": {
-                "noise": [_F2_NOISE, 0],
-                "guider": [_F2_GUIDER, 0],
-                "sampler": [_F2_SAMPLER_SEL, 0],
-                "sigmas": [_F2_SIGMAS, 0],
-                "latent_image": [_F2_LATENT, 0],
-            },
-        },
-        _F2_DECODE: {
-            "class_type": "VAEDecode",
-            # SamplerCustomAdvanced output 0 is the noisy latent, 1 is the
-            # denoised one — decoding 0 yields a grainy image.
-            "inputs": {"samples": [_F2_SAMPLER, 1], "vae": [_F2_VAE, 0]},
-        },
-        _OUTPUT: {
-            "class_type": "PreviewImage",
-            "inputs": {"images": [_F2_DECODE, 0]},
-        },
+        **_flux2_conditioning_nodes(prompt, unet_name, clip_name, vae_name, guidance, weight_dtype),
+        **_flux2_sampling_nodes(width, height, steps, seed),
     }
     handles = GraphHandles(
         model=[_F2_UNET, 0],

@@ -12,7 +12,7 @@ onto the parent hub app by ``server.py`` via ``include_router``.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Any, Optional, Tuple
 
 from fastapi import HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
@@ -56,6 +56,60 @@ def _tts_model_for_request(model_name: str) -> Optional[Model]:
     return tts[0]
 
 
+def _speech_request_fields(body: bytes) -> Tuple[str, str]:
+    """``(model, stream_format)`` from a speech body; blanks when unreadable."""
+    import json as _json
+
+    model_name = ""
+    stream_format = ""
+    try:
+        parsed = _json.loads(body or b"{}")
+        if isinstance(parsed, dict):
+            model_name = str(parsed.get("model") or "")
+            stream_format = str(parsed.get("stream_format") or "").strip().lower()
+    except Exception:  # noqa: BLE001
+        pass
+    return model_name, stream_format
+
+
+def _passthrough_headers(upstream: Any) -> dict:
+    """Upstream response headers minus the hop-by-hop framing ones."""
+    return {
+        k: v for k, v in upstream.headers.items()
+        if k.lower() not in {"content-length", "transfer-encoding", "connection"}
+    }
+
+
+async def _stream_speech(
+    upstream_url: str, body: bytes, headers: dict, track: Any, port: int,
+) -> StreamingResponse:
+    """Forward a streaming synth's bytes as they arrive; the response owns ``track``."""
+    import httpx as _httpx
+
+    client = get_async_client()
+    stream_cm = client.stream("POST", upstream_url, content=body, headers=headers)
+    try:
+        upstream = await stream_cm.__aenter__()
+    except _httpx.HTTPError as exc:
+        raise _audio_upstream_error(exc, backend="tts-server", port=port)
+    track.detach()
+
+    async def _forward():
+        try:
+            async for piece in upstream.aiter_bytes():
+                yield piece
+        finally:
+            track.finish()
+            await stream_cm.__aexit__(None, None, None)
+
+    return StreamingResponse(
+        _forward(),
+        status_code=upstream.status_code,
+        media_type=upstream.headers.get("content-type"),
+        headers=_passthrough_headers(upstream),
+    )
+
+
 @router.post("/v1/audio/speech")
 async def audio_speech(request: Request) -> Response:
     """Proxy text-to-speech requests through the hub so they land in the
@@ -66,20 +120,10 @@ async def audio_speech(request: Request) -> Response:
     may also POST directly to the backend port (:8096 / :8092 / :8093 / :8095) for lower
     overhead, bypassing the hub's capture.
     """
-    import json as _json
-
     import httpx as _httpx
 
     body = await request.body()
-    model_name = ""
-    stream_format = ""
-    try:
-        parsed = _json.loads(body or b"{}")
-        if isinstance(parsed, dict):
-            model_name = str(parsed.get("model") or "")
-            stream_format = str(parsed.get("stream_format") or "").strip().lower()
-    except Exception:  # noqa: BLE001
-        pass
+    model_name, stream_format = _speech_request_fields(body)
 
     target = _tts_model_for_request(model_name)
     if target is None:
@@ -122,12 +166,6 @@ async def audio_speech(request: Request) -> Response:
         import asyncio as _asyncio
         await _asyncio.to_thread(ensure_backend_ready_or_503, target)
 
-    def _passthrough_headers(upstream) -> dict:
-        return {
-            k: v for k, v in upstream.headers.items()
-            if k.lower() not in {"content-length", "transfer-encoding", "connection"}
-        }
-
     # The in-flight mark covers *every* exit below by default: the
     # ``with`` finishes it on a return or a raise, so a future branch can't
     # forget one and pin the idle-unload window open. Only the streaming
@@ -138,28 +176,7 @@ async def audio_speech(request: Request) -> Response:
         # as they arrive, so time-to-first-audio stays low. The obs middleware
         # still records this entry on response, exactly like the chat-stream path.
         if stream_format == "audio":
-            client = get_async_client()
-            stream_cm = client.stream("POST", upstream_url, content=body, headers=headers)
-            try:
-                upstream = await stream_cm.__aenter__()
-            except _httpx.HTTPError as exc:
-                raise _audio_upstream_error(exc, backend="tts-server", port=port)
-            track.detach()
-
-            async def _forward():
-                try:
-                    async for piece in upstream.aiter_bytes():
-                        yield piece
-                finally:
-                    track.finish()
-                    await stream_cm.__aexit__(None, None, None)
-
-            return StreamingResponse(
-                _forward(),
-                status_code=upstream.status_code,
-                media_type=upstream.headers.get("content-type"),
-                headers=_passthrough_headers(upstream),
-            )
+            return await _stream_speech(upstream_url, body, headers, track, port)
 
         try:
             client = get_async_client()

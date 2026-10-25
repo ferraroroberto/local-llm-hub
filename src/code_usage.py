@@ -343,6 +343,61 @@ def _by_requests(groups: dict) -> list:
     return sorted(groups.values(), key=lambda x: x["requests"], reverse=True)
 
 
+def _summary_records(vendor: str) -> List[UsageRecord]:
+    """Every record the summary reads: live parsers, history and OTel top-up."""
+    records = _gather_records(vendor)
+    # Durable daily rollups: fold what the parsers see right now into
+    # the on-disk snapshot, then extend with synthetic records for days the
+    # sources have already pruned (Claude Code deletes transcripts after
+    # ~30 days) — "All" keeps growing instead of silently equalling "Month".
+    from src import code_usage_history as _history
+    _history.update_from_records(records)
+    records = records + _history.synthetic_records(records, vendor)
+    # Claude sessions bridged through claude.ai/code write no usage to the
+    # local transcripts at all — the hub's OTel receiver is the only
+    # channel that sees them. Top the Claude picture up with per-(day, model)
+    # deltas vs everything above; recomputed each call from OTel's own
+    # durable store, deliberately NOT persisted into the history snapshot.
+    if vendor in ("all", "claude"):
+        records = records + _otel_delta_records(records)
+    return records
+
+
+def _recent_sessions(records: List[UsageRecord]) -> List[dict]:
+    """The newest sessions across all time, newest first."""
+    # first/last stay datetimes until the cut: formatting every record's
+    # timestamp to compare strings was ~40% of a warm build.
+    session_map: Dict[Tuple[str, str], dict] = {}
+    for r in records:
+        k = (r.project_key, r.session_id)
+        s = session_map.get(k)
+        if s is None:
+            s = session_map[k] = {
+                "session_id": r.session_id,
+                "project_key": r.project_key,
+                "project": r.project_name,
+                "model": r.model,
+                "first_ts": r.ts,
+                "last_ts": r.ts,
+                **_blank_counts(),
+            }
+        _add_record(s, r)
+        if r.ts < s["first_ts"]:
+            s["first_ts"] = r.ts
+        if r.ts > s["last_ts"]:
+            s["last_ts"] = r.ts
+        s["model"] = r.model
+
+    sessions_sorted = sorted(
+        session_map.values(), key=lambda x: x["last_ts"], reverse=True
+    )
+    recent_sessions = sessions_sorted[:_MAX_RECENT_SESSIONS]
+    for s in recent_sessions:
+        s["first_ts"] = s["first_ts"].isoformat()
+        s["last_ts"] = s["last_ts"].isoformat()
+    return recent_sessions
+
+
 def get_summary(period: str = "today", vendor: str = "all") -> dict:
     """Return a summary dict consumed by the Cld tab.
 
@@ -365,21 +420,7 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
     if not is_valid_vendor(vendor):
         vendor = "all"
 
-    records = _gather_records(vendor)
-    # Durable daily rollups: fold what the parsers see right now into
-    # the on-disk snapshot, then extend with synthetic records for days the
-    # sources have already pruned (Claude Code deletes transcripts after
-    # ~30 days) — "All" keeps growing instead of silently equalling "Month".
-    from src import code_usage_history as _history
-    _history.update_from_records(records)
-    records = records + _history.synthetic_records(records, vendor)
-    # Claude sessions bridged through claude.ai/code write no usage to the
-    # local transcripts at all — the hub's OTel receiver is the only
-    # channel that sees them. Top the Claude picture up with per-(day, model)
-    # deltas vs everything above; recomputed each call from OTel's own
-    # durable store, deliberately NOT persisted into the history snapshot.
-    if vendor in ("all", "claude"):
-        records = records + _otel_delta_records(records)
+    records = _summary_records(vendor)
     today = today_utc()
     since = period_since(period)
 
@@ -424,37 +465,7 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
         with_cost=True,
     ))
 
-    # ---- recent sessions (always all-time, newest first) ----
-    # first/last stay datetimes until the cut: formatting every record's
-    # timestamp to compare strings was ~40% of a warm build.
-    session_map: Dict[Tuple[str, str], dict] = {}
-    for r in records:
-        k = (r.project_key, r.session_id)
-        s = session_map.get(k)
-        if s is None:
-            s = session_map[k] = {
-                "session_id": r.session_id,
-                "project_key": r.project_key,
-                "project": r.project_name,
-                "model": r.model,
-                "first_ts": r.ts,
-                "last_ts": r.ts,
-                **_blank_counts(),
-            }
-        _add_record(s, r)
-        if r.ts < s["first_ts"]:
-            s["first_ts"] = r.ts
-        if r.ts > s["last_ts"]:
-            s["last_ts"] = r.ts
-        s["model"] = r.model
-
-    sessions_sorted = sorted(
-        session_map.values(), key=lambda x: x["last_ts"], reverse=True
-    )
-    recent_sessions = sessions_sorted[:_MAX_RECENT_SESSIONS]
-    for s in recent_sessions:
-        s["first_ts"] = s["first_ts"].isoformat()
-        s["last_ts"] = s["last_ts"].isoformat()
+    recent_sessions = _recent_sessions(records)
 
     time_series = build_time_series(records, period, today)
     prev_totals = build_prev_totals(records, period, today)
