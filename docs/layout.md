@@ -86,6 +86,8 @@ local-llm-hub/
 │   ├── server_otel_receiver.py  # POST /v1/metrics OTLP receiver
 │   ├── chat_translation.py   # request/response schemas, content-block extraction,
 │   │                         #   prompt flattening, per-backend dispatch
+│   ├── translation/          # pieces split out of chat_translation.py (re-exported there)
+│   │   └── anthropic_sse.py      #   Anthropic SSE event adapters (CLI, OpenAI-upstream, buffered)
 │   ├── token_counting.py     # POST /v1/messages/count_tokens — per-backend input_tokens,
 │   │                         #   exact on llama-server, flagged approximate on the CLIs
 │   ├── anthropic_errors.py   # Anthropic {"type":"error",…} envelope for /v1/messages

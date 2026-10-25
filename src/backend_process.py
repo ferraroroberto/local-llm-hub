@@ -393,67 +393,10 @@ def build_command(model: Model) -> list[str]:
     # still checked so a missing 17 GB download fails here with an actionable
     # message rather than as an opaque node error mid-generation.
     if _is_comfyui(model):
-        py = comfyui_python()
-        if not py.exists():
-            raise RuntimeError(
-                f"ComfyUI venv not found at {py} - run scripts/install_comfyui.py"
-            )
-        if not model_path.exists():
-            raise RuntimeError(
-                f"checkpoint not found at {model_path} - run "
-                f"scripts/download_models.py --only {model.id}"
-            )
-        # Per-model runtime state. Several image rows each own their own
-        # ComfyUI process, and ComfyUI keeps a SQLite database plus settings in
-        # its user directory — a *shared* one means the second instance loses
-        # the race with "Could not acquire lock on database ... Another ComfyUI
-        # process may already be using it" and starts degraded. The temp dir is
-        # separated for the same reason: it holds the PreviewImage output this
-        # hub then fetches, and one instance's startup cleanup must not delete
-        # another's in-flight result.
-        # ComfyUI validates these paths at argument-parse time and refuses to
-        # start if they do not already exist, so create them here rather than
-        # leaving the first spawn to fail with an argparse error.
-        state_dir = PROJECT_ROOT / "data" / "comfyui" / model.id
-        for sub in ("user", "temp"):
-            (state_dir / sub).mkdir(parents=True, exist_ok=True)
-        cmd = [
-            str(py), str(VENDOR_COMFYUI / "main.py"),
-            # Loopback only, unlike the llama/whisper backends' 0.0.0.0. ComfyUI
-            # serves an unauthenticated web UI that can read and write the
-            # filesystem; the hub is its only client and peer hosts reach image
-            # generation through this hub's own API, never ComfyUI's port.
-            "--listen", "127.0.0.1",
-            "--port", str(model.port),
-            # Without this ComfyUI opens a browser tab on every spawn — and this
-            # backend is spawned on demand, from a windowless hub process.
-            "--disable-auto-launch",
-            "--user-directory", str(state_dir / "user"),
-            "--temp-directory", str(state_dir / "temp"),
-        ]
-        cmd.extend(model.args or [])
-        return cmd
+        return _comfyui_command(model, model_path)
 
     if _is_whisper(model):
-        bin_path = whisper_server_binary()
-        if not bin_path.exists():
-            raise RuntimeError(
-                f"whisper-server not found at {bin_path} - run scripts/install_whisper_cpp.py"
-            )
-        if not model_path.exists():
-            raise RuntimeError(
-                f"whisper model not found at {model_path} - run scripts/download_models.py --only {model.id}"
-            )
-        cmd = [
-            str(bin_path),
-            "--host", "0.0.0.0",
-            "--port", str(model.port),
-            "--model", str(model_path),
-        ]
-        args = list(model.args or [])
-        cmd.extend(args)
-        cmd.extend(_whisper_boost_args(args))
-        return cmd
+        return _whisper_command(model, model_path)
 
     bin_path = llama_server_binary()
     if not bin_path.exists():
@@ -467,6 +410,73 @@ def build_command(model: Model) -> list[str]:
         "--port", str(model.port),
     ]
     cmd.extend(model.args or [])
+    return cmd
+
+
+def _comfyui_command(model: Model, model_path: Path) -> list[str]:
+    """ComfyUI spawn command with a per-model user and temp directory."""
+    py = comfyui_python()
+    if not py.exists():
+        raise RuntimeError(
+            f"ComfyUI venv not found at {py} - run scripts/install_comfyui.py"
+        )
+    if not model_path.exists():
+        raise RuntimeError(
+            f"checkpoint not found at {model_path} - run "
+            f"scripts/download_models.py --only {model.id}"
+        )
+    # Per-model runtime state. Several image rows each own their own
+    # ComfyUI process, and ComfyUI keeps a SQLite database plus settings in
+    # its user directory — a *shared* one means the second instance loses
+    # the race with "Could not acquire lock on database ... Another ComfyUI
+    # process may already be using it" and starts degraded. The temp dir is
+    # separated for the same reason: it holds the PreviewImage output this
+    # hub then fetches, and one instance's startup cleanup must not delete
+    # another's in-flight result.
+    # ComfyUI validates these paths at argument-parse time and refuses to
+    # start if they do not already exist, so create them here rather than
+    # leaving the first spawn to fail with an argparse error.
+    state_dir = PROJECT_ROOT / "data" / "comfyui" / model.id
+    for sub in ("user", "temp"):
+        (state_dir / sub).mkdir(parents=True, exist_ok=True)
+    cmd = [
+        str(py), str(VENDOR_COMFYUI / "main.py"),
+        # Loopback only, unlike the llama/whisper backends' 0.0.0.0. ComfyUI
+        # serves an unauthenticated web UI that can read and write the
+        # filesystem; the hub is its only client and peer hosts reach image
+        # generation through this hub's own API, never ComfyUI's port.
+        "--listen", "127.0.0.1",
+        "--port", str(model.port),
+        # Without this ComfyUI opens a browser tab on every spawn — and this
+        # backend is spawned on demand, from a windowless hub process.
+        "--disable-auto-launch",
+        "--user-directory", str(state_dir / "user"),
+        "--temp-directory", str(state_dir / "temp"),
+    ]
+    cmd.extend(model.args or [])
+    return cmd
+
+
+def _whisper_command(model: Model, model_path: Path) -> list[str]:
+    """whisper-server spawn command, with the boost args its own args allow."""
+    bin_path = whisper_server_binary()
+    if not bin_path.exists():
+        raise RuntimeError(
+            f"whisper-server not found at {bin_path} - run scripts/install_whisper_cpp.py"
+        )
+    if not model_path.exists():
+        raise RuntimeError(
+            f"whisper model not found at {model_path} - run scripts/download_models.py --only {model.id}"
+        )
+    cmd = [
+        str(bin_path),
+        "--host", "0.0.0.0",
+        "--port", str(model.port),
+        "--model", str(model_path),
+    ]
+    args = list(model.args or [])
+    cmd.extend(args)
+    cmd.extend(_whisper_boost_args(args))
     return cmd
 
 

@@ -513,6 +513,28 @@ def call_gemini(
     }
 
 
+def _image_prompt(prompt: str, save_name: str, reference: Optional[Path]) -> str:
+    """The print-mode prompt asking ``agy`` to generate, or edit, and save an image."""
+    if reference is not None:
+        return (
+            f"@{reference.name} Edit the attached image "
+            f"according to these instructions: {prompt}\n\n"
+            f"Save the edited image as a file named {save_name} in "
+            f"the current working directory. After saving, reply "
+            f"with the exact text SAVED on its own line. If you "
+            f"cannot edit the image, reply with the exact text "
+            f"NO_IMAGE and one line explaining why."
+        )
+    return (
+        f"Generate an image based on this description: {prompt}"
+        f"\n\nSave the generated image as a file named "
+        f"{save_name} in the current working directory. After "
+        f"saving, reply with the exact text SAVED on its own "
+        f"line. If you cannot generate an image, reply with the "
+        f"exact text NO_IMAGE and one line explaining why."
+    )
+
+
 def call_gemini_image(
     prompt: str,
     *,
@@ -572,24 +594,7 @@ def call_gemini_image(
                         "input" + (reference_image.suffix or ".png"))
                     shutil.copyfile(reference_image, ref_in_workdir)
                     add_dirs = [str(workdir)]
-                    full_prompt = (
-                        f"@{ref_in_workdir.name} Edit the attached image "
-                        f"according to these instructions: {prompt}\n\n"
-                        f"Save the edited image as a file named {save_name} in "
-                        f"the current working directory. After saving, reply "
-                        f"with the exact text SAVED on its own line. If you "
-                        f"cannot edit the image, reply with the exact text "
-                        f"NO_IMAGE and one line explaining why."
-                    )
-                else:
-                    full_prompt = (
-                        f"Generate an image based on this description: {prompt}"
-                        f"\n\nSave the generated image as a file named "
-                        f"{save_name} in the current working directory. After "
-                        f"saving, reply with the exact text SAVED on its own "
-                        f"line. If you cannot generate an image, reply with the "
-                        f"exact text NO_IMAGE and one line explaining why."
-                    )
+                full_prompt = _image_prompt(prompt, save_name, ref_in_workdir)
                 reply = _print_call(
                     exe, full_prompt, str(workdir), timeout, add_dirs=add_dirs)
 

@@ -36,6 +36,7 @@ from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
 from .backend_process import resolve_model_for_engine
 from .event_loop import LOOP_FACTORY
+from .model_registry import Model
 from .tts_engines import SpeechRequest, TTSEngine, build_engine
 
 if TYPE_CHECKING:  # numpy is imported lazily at runtime (see encode_audio)
@@ -143,31 +144,120 @@ def encode_audio(samples: "np.ndarray", sample_rate: int, fmt: str) -> Tuple[byt
     return _wav_bytes(pcm, sample_rate), "audio/wav"
 
 
+def _load_engine(state: _State, model: Model, device: str) -> None:
+    """Load the TTS engine off the event loop and record the outcome on ``state``."""
+    try:
+        engine = build_engine(model, device)
+        engine.load()
+        state.engine = engine
+        state.sample_rate = engine.sample_rate
+        # Report the *resolved* device (cuda/cpu/mps) the engine chose,
+        # not the "auto" arg — the admin UI needs to show GPU vs CPU.
+        state.device = getattr(engine, "device", device) or device
+        state.ready = True
+        log.info("%s ready on :%s (engine=%s)", model.display_name, model.port, model.tts_engine)
+    except Exception as exc:  # noqa: BLE001
+        state.error = f"{type(exc).__name__}: {exc}"
+        log.error("TTS engine load failed: %s", state.error)
+    finally:
+        state.loading = False
+
+
+def _stream_speech(engine: TTSEngine, req: SpeechRequest, sr: int, is_pcm: bool) -> StreamingResponse:
+    """Chunked synthesis: a streaming WAV header (unless PCM) then PCM16 frames."""
+    async def _byte_stream():
+        first = True
+        try:
+            async for chunk in iterate_in_threadpool(engine.synthesize_stream(req)):
+                data = _pcm16_bytes(chunk)
+                if not data:
+                    continue
+                if first and not is_pcm:
+                    yield _streaming_wav_header(sr)
+                first = False
+                yield data
+            if first and not is_pcm:
+                # No audio produced — still a valid (empty) WAV.
+                yield _streaming_wav_header(sr)
+        except Exception as exc:  # noqa: BLE001 — headers already sent
+            log.error("streaming synthesis failed: %s", exc, exc_info=True)
+
+    media_type = "audio/L16" if is_pcm else "audio/wav"
+    return StreamingResponse(
+        _byte_stream(), media_type=media_type, headers={"X-Sample-Rate": str(sr)}
+    )
+
+
+async def _speech(state: _State, request: Request) -> Response:
+    """``POST /v1/audio/speech``: validate the body, then stream or buffer the audio."""
+    try:
+        body = await request.json()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"invalid JSON body: {exc}")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="body must be a JSON object")
+
+    text = body.get("input") or body.get("text")
+    if not text or not str(text).strip():
+        raise HTTPException(status_code=400, detail="missing required field: input")
+
+    if not state.ready:
+        if state.error:
+            raise HTTPException(status_code=503, detail=f"TTS engine unavailable: {state.error}")
+        raise HTTPException(status_code=503, detail="TTS engine still loading — retry shortly")
+
+    speed = _float(body, "speed", 1.0)
+    if abs(speed - 1.0) > 1e-3:
+        log.info("speed=%.2f requested; engines without rate control ignore it", speed)
+
+    req = SpeechRequest(
+        text=str(text),
+        voice=str(body.get("voice") or ""),
+        speed=speed,
+        exaggeration=_float(body, "exaggeration", 0.5),
+        cfg_weight=_float(body, "cfg_weight", 0.5),
+    )
+    assert state.engine is not None
+    engine = state.engine
+    sr = state.sample_rate
+    try:
+        engine.validate_voice(req.voice)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    fmt = str(body.get("response_format") or "wav").strip().lower()
+    # OpenAI-native opt-in: stream_format="audio" returns raw chunked
+    # bytes that play as they synthesize. Streaming supports wav (a
+    # streaming WAV header + PCM16 frames) and pcm (headerless PCM16);
+    # any other format falls back to the buffered response below.
+    streaming = str(body.get("stream_format") or "").strip().lower() == "audio"
+    if streaming and fmt in ("wav", "wave", "", "pcm"):
+        return _stream_speech(engine, req, sr, is_pcm=fmt == "pcm")
+
+    if streaming:
+        log.info("stream_format=audio with response_format=%r is not streamable — buffering", fmt)
+
+    try:
+        samples = await run_in_threadpool(engine.synthesize, req)
+    except Exception as exc:  # noqa: BLE001
+        # Log the full traceback — the 502 detail only carries the
+        # exception string, which is too thin to diagnose engine faults.
+        log.error("synthesis failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"synthesis failed: {exc}")
+
+    audio, media_type = encode_audio(samples, sr, fmt)
+    return Response(content=audio, media_type=media_type)
+
+
 def build_app(model_id: str = DEFAULT_MODEL_ID, device: str = "auto") -> FastAPI:
     model = resolve_model_for_engine(model_id, "tts-server")
     state = _State()
 
-    def _load() -> None:
-        try:
-            engine = build_engine(model, device)
-            engine.load()
-            state.engine = engine
-            state.sample_rate = engine.sample_rate
-            # Report the *resolved* device (cuda/cpu/mps) the engine chose,
-            # not the "auto" arg — the admin UI needs to show GPU vs CPU.
-            state.device = getattr(engine, "device", device) or device
-            state.ready = True
-            log.info("%s ready on :%s (engine=%s)", model.display_name, model.port, model.tts_engine)
-        except Exception as exc:  # noqa: BLE001
-            state.error = f"{type(exc).__name__}: {exc}"
-            log.error("TTS engine load failed: %s", state.error)
-        finally:
-            state.loading = False
-
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         state.device = device
-        threading.Thread(target=_load, name="tts-load", daemon=True).start()
+        threading.Thread(
+            target=_load_engine, args=(state, model, device), name="tts-load", daemon=True,
+        ).start()
         try:
             yield
         finally:
@@ -206,84 +296,7 @@ def build_app(model_id: str = DEFAULT_MODEL_ID, device: str = "auto") -> FastAPI
 
     @app.post("/v1/audio/speech")
     async def speech(request: Request) -> Response:
-        try:
-            body = await request.json()
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(status_code=400, detail=f"invalid JSON body: {exc}")
-        if not isinstance(body, dict):
-            raise HTTPException(status_code=400, detail="body must be a JSON object")
-
-        text = body.get("input") or body.get("text")
-        if not text or not str(text).strip():
-            raise HTTPException(status_code=400, detail="missing required field: input")
-
-        if not state.ready:
-            if state.error:
-                raise HTTPException(status_code=503, detail=f"TTS engine unavailable: {state.error}")
-            raise HTTPException(status_code=503, detail="TTS engine still loading — retry shortly")
-
-        speed = _float(body, "speed", 1.0)
-        if abs(speed - 1.0) > 1e-3:
-            log.info("speed=%.2f requested; engines without rate control ignore it", speed)
-
-        req = SpeechRequest(
-            text=str(text),
-            voice=str(body.get("voice") or ""),
-            speed=speed,
-            exaggeration=_float(body, "exaggeration", 0.5),
-            cfg_weight=_float(body, "cfg_weight", 0.5),
-        )
-        assert state.engine is not None
-        engine = state.engine
-        sr = state.sample_rate
-        try:
-            engine.validate_voice(req.voice)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        fmt = str(body.get("response_format") or "wav").strip().lower()
-        # OpenAI-native opt-in: stream_format="audio" returns raw chunked
-        # bytes that play as they synthesize. Streaming supports wav (a
-        # streaming WAV header + PCM16 frames) and pcm (headerless PCM16);
-        # any other format falls back to the buffered response below.
-        streaming = str(body.get("stream_format") or "").strip().lower() == "audio"
-        if streaming and fmt in ("wav", "wave", "", "pcm"):
-            is_pcm = fmt == "pcm"
-
-            async def _byte_stream():
-                first = True
-                try:
-                    async for chunk in iterate_in_threadpool(engine.synthesize_stream(req)):
-                        data = _pcm16_bytes(chunk)
-                        if not data:
-                            continue
-                        if first and not is_pcm:
-                            yield _streaming_wav_header(sr)
-                        first = False
-                        yield data
-                    if first and not is_pcm:
-                        # No audio produced — still a valid (empty) WAV.
-                        yield _streaming_wav_header(sr)
-                except Exception as exc:  # noqa: BLE001 — headers already sent
-                    log.error("streaming synthesis failed: %s", exc, exc_info=True)
-
-            media_type = "audio/L16" if is_pcm else "audio/wav"
-            return StreamingResponse(
-                _byte_stream(), media_type=media_type, headers={"X-Sample-Rate": str(sr)}
-            )
-
-        if streaming:
-            log.info("stream_format=audio with response_format=%r is not streamable — buffering", fmt)
-
-        try:
-            samples = await run_in_threadpool(engine.synthesize, req)
-        except Exception as exc:  # noqa: BLE001
-            # Log the full traceback — the 502 detail only carries the
-            # exception string, which is too thin to diagnose engine faults.
-            log.error("synthesis failed: %s", exc, exc_info=True)
-            raise HTTPException(status_code=502, detail=f"synthesis failed: {exc}")
-
-        audio, media_type = encode_audio(samples, sr, fmt)
-        return Response(content=audio, media_type=media_type)
+        return await _speech(state, request)
 
     return app
 

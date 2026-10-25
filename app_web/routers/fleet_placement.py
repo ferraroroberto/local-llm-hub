@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter
 
@@ -164,23 +164,47 @@ async def _host_status(
     }
 
     if hid == active_id:
-        # Only the launchable models that are up — so a summary row reads
-        # honestly. Excludes subscription + virtual rows.
-        running = [m for m in bp.running_backends().keys() if m in eligible_set]
-        # A live backend whose adopted PID is a *foreign* process (an external
-        # sibling on a mutex-shared port — voice-transcriber's whisper-server
-        # on :8090) is flagged so the summary can label it distinctly rather
-        # than claim the hub runs it.
-        external = [m for m in running if bp.inherited_foreign(m)]
-        gpus = await asyncio.to_thread(system_stats.gpu_stats)
-        return {
-            **base, "local": True, "reachable": True, "dormant": False,
-            "running": running, "external": external,
-            "ram": system_stats.ram_stats(),
-            "gpu": _gpu_snapshot(gpus),
-            **_capacity(profile, placed, running, vram, devices),
-        }
+        return await _local_host_status(profile, base, placed, eligible_set, vram, devices)
+    return await _peer_host_status(profile, base, placed, eligible_set, vram, devices)
 
+
+async def _local_host_status(
+    profile: HostProfile,
+    base: Dict[str, Any],
+    placed: List[str],
+    eligible_set: Set[str],
+    vram: Dict[str, int],
+    devices: Dict[str, str],
+) -> Dict[str, Any]:
+    """The grid row for the host this hub runs on: live state read in-process."""
+    # Only the launchable models that are up — so a summary row reads
+    # honestly. Excludes subscription + virtual rows.
+    running = [m for m in bp.running_backends().keys() if m in eligible_set]
+    # A live backend whose adopted PID is a *foreign* process (an external
+    # sibling on a mutex-shared port — voice-transcriber's whisper-server
+    # on :8090) is flagged so the summary can label it distinctly rather
+    # than claim the hub runs it.
+    external = [m for m in running if bp.inherited_foreign(m)]
+    gpus = await asyncio.to_thread(system_stats.gpu_stats)
+    return {
+        **base, "local": True, "reachable": True, "dormant": False,
+        "running": running, "external": external,
+        "ram": system_stats.ram_stats(),
+        "gpu": _gpu_snapshot(gpus),
+        **_capacity(profile, placed, running, vram, devices),
+    }
+
+
+async def _peer_host_status(
+    profile: HostProfile,
+    base: Dict[str, Any],
+    placed: List[str],
+    eligible_set: Set[str],
+    vram: Dict[str, int],
+    devices: Dict[str, str],
+) -> Dict[str, Any]:
+    """The grid row for another host: TCP liveness plus its hub and SSH probes."""
+    runs_hub = base["runs_hub"]
     # A peer: liveness by TCP connect (is the box on?), independent of whether it
     # runs a hub. A dormant node is never live-probed (it's declared powered down).
     reachable = False if profile.dormant else await remote_stats.is_reachable(profile)
