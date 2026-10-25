@@ -19,7 +19,7 @@ import pytest
 from src.event_loop import LOOP_FACTORY, selector_loop_factory
 from src.no_window import NO_WINDOW
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_selector_loop_factory_returns_selector_instance_on_win32(monkeypatch):

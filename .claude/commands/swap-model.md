@@ -115,7 +115,7 @@ Will sync code + docs (§5b — required for upgrade/retire):
                               bullet, key-facts "Purpose" paragraph)
   ~ docs/architecture.mmd    (LLAMA node: active ports/models)
     launchers/               (no edit — roster derived from models.yaml, #448)
-  ~ tests/test_router.py + tests/test_streaming.py
+  ~ tests/chat/test_router.py + tests/chat/test_streaming.py
                              (model name + port assertion match the new role)
 ```
 
@@ -232,12 +232,12 @@ ex-incumbent.
 6. **Tests.** The unit tests carry the active fast-lane and
    deep-lane display names as in-test fixtures so the registry and
    router code paths exercise *the actual rotation*, not a stale name.
-   - `tests/test_router.py` — for `agentic_light` swaps, replace
+   - `tests/chat/test_router.py` — for `agentic_light` swaps, replace
      `"<old_display_name>"` with `"<new_display_name>"` in fixture
      responses, request bodies, and assertions; update the port-in-
      `base_url` assertion to the new port; ensure the
      `test_list_models_includes_enabled` check names the new model.
-   - `tests/test_streaming.py` — same model-name swap in the SSE and
+   - `tests/chat/test_streaming.py` — same model-name swap in the SSE and
      non-stream fixtures.
    - `tests/test_model_registry.py` — leave alone unless a row was
      **retired** outright. The registry test uses synthetic configs;
@@ -417,7 +417,7 @@ requires it.
   `docs/project-structure.md` describe the new role-holder as the
   *current* role-holder, and the previous one (if kept) is clearly
   labelled as fallback / ad-hoc
-- `tests/test_router.py` and `tests/test_streaming.py` reference the
+- `tests/chat/test_router.py` and `tests/chat/test_streaming.py` reference the
   new model display_name and port; full pytest suite passes
 - `docs/model-comparison.md` (linked from the admin SPA footer on
   GitHub) shows the new model in the registry table and the new

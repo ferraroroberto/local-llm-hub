@@ -1,6 +1,6 @@
 """Unit tests for POST /v1/metrics (src/server_otel_receiver.py, issue #68).
 
-`ingest_export_request` itself is covered in tests/test_claude_code_otel.py;
+`ingest_export_request` itself is covered in tests/usage/test_claude_code_otel.py;
 these tests focus on the route contract: always 200, correct content-type,
 never surfaces an ingestion failure to the caller.
 """

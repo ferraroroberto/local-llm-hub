@@ -7,7 +7,7 @@ Two halves, and the second is the one that matters:
 2. enabling it did not open a second way in. A preflight is answered
    without a token *because a browser never sends one on a preflight*,
    while the real request behind it still meets the bearer gate exactly as
-   ``tests/test_bearer_middleware.py`` asserts.
+   ``tests/routers/test_bearer_middleware.py`` asserts.
 
 The app under test is the real ``src.server.app``, so the middleware order
 (CORS outermost, outside ``ParentBearerTokenMiddleware``) is exercised

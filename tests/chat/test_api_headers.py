@@ -1,7 +1,7 @@
 """Anthropic header parity on the wire (#461).
 
 Covers the three halves of the issue that live outside the auth gate
-(``x-api-key`` is exercised in ``tests/test_bearer_middleware.py``, next to
+(``x-api-key`` is exercised in ``tests/routers/test_bearer_middleware.py``, next to
 the rest of the bearer-token coverage):
 
 1. ``request-id`` on every ``/v1/messages`` response, equal to

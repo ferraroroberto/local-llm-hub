@@ -21,7 +21,7 @@ from pathlib import Path
 
 from src.runtime_data import app_dir_env_var
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 _PROBE = """
 import json, sys

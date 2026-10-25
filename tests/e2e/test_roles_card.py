@@ -3,7 +3,7 @@
 Route-intercepts every backing endpoint so the render is deterministic and no
 real peer probe (fleet-placement's per-host TCP liveness check) ever runs —
 same discipline as ``test_fleet_placement_tab.py``. The API contract itself
-has its own unit tests in ``tests/test_roles_router.py``.
+has its own unit tests in ``tests/routers/test_roles_router.py``.
 
 What this locks in:
   * Hub carries no Model decisions card and fetches neither roles nor

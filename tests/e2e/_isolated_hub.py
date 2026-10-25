@@ -218,7 +218,7 @@ def _isolate_usage_data(state_dir: Path) -> None:
     renders it, so a run's result and duration depended on whoever's history
     was on the box. The tab's assertions are about structure, which an empty
     history exercises just as well; the parsers, vendor filter and response
-    shape are unit-tested (tests/test_code_usage_router.py, #599).
+    shape are unit-tested (tests/routers/test_code_usage_router.py, #599).
     """
     from src import claude_code_otel, code_usage, code_usage_history, codex_usage, copilot_usage
 

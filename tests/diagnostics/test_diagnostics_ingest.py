@@ -18,7 +18,7 @@ import pytest
 
 from src.diagnostics import attribution, coverage, ingest, report, rules, store
 
-PORTABLE = Path(__file__).resolve().parent.parent / "scripts" / "portable_capture.py"
+PORTABLE = Path(__file__).resolve().parents[2] / "scripts" / "portable_capture.py"
 
 
 @pytest.fixture()

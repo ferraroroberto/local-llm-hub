@@ -20,7 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src import server as server_mod
-from tests.test_tool_use import LOCAL_MODEL, _messages_upstream_extra
+from tests.chat.test_tool_use import LOCAL_MODEL, _messages_upstream_extra
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["buffered", "streaming"])

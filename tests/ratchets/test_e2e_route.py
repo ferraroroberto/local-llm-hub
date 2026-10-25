@@ -19,7 +19,7 @@ import pytest
 from scripts import e2e_route
 from scripts.classify_e2e import classify, load_config
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 GATE = REPO_ROOT / "scripts" / "verify-before-ship.ps1"
 
 

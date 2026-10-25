@@ -4,7 +4,7 @@ The Playground route proxies in-process to the hub's /v1/messages. Here
 we mock that httpx call and assert the route builds the right content
 block for the uploaded file: a `document` block for PDFs, an `image`
 block otherwise. The real document->agy path is covered end-to-end by
-tests/test_image_blocks.py + the server extractor.
+tests/chat/test_image_blocks.py + the server extractor.
 """
 
 from __future__ import annotations

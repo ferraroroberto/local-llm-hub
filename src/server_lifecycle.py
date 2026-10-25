@@ -10,7 +10,7 @@ next-largest chunk still living inline, mixed in with route registration.
 ``server.py`` wires these on with ``app.add_event_handler(...)`` (the
 non-decorator form of ``@app.on_event``) rather than decorating them here,
 so the functions stay plain, directly-callable, and directly-testable —
-``tests/test_restart_keepalive.py`` calls ``stop_backend_children()``
+``tests/backends/test_restart_keepalive.py`` calls ``stop_backend_children()``
 straight, with no FastAPI app in the loop.
 """
 
@@ -382,7 +382,7 @@ def register(app) -> None:
     return value) rather than using ``@app.on_event(...)`` sugar directly
     on these functions, so the handlers themselves stay plain module-level
     callables — importable and directly testable without needing a
-    FastAPI app (``tests/test_restart_keepalive.py`` calls
+    FastAPI app (``tests/backends/test_restart_keepalive.py`` calls
     ``stop_backend_children()`` straight). Starlette's ``Router`` dropped
     ``add_event_handler`` in favor of lifespan context managers; ``on_event``
     is FastAPI's still-supported (if deprecated) escape hatch for the

@@ -22,7 +22,7 @@ from pathlib import Path
 
 from src.no_window import NO_WINDOW
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Vendored admin-SPA components are copies by design (same exclusion the
 # static ratchet uses, .fleet.toml [static_ratchet]) -- not this lint's concern.

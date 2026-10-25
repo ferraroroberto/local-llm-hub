@@ -1,7 +1,7 @@
 """Test-only harness process for ``src.win_job`` containment (#468).
 
 Not a pytest test module (leading underscore keeps it out of collection).
-Invoked by ``tests/test_win_job.py`` as ``python -m tests._win_job_harness
+Invoked by ``tests/backends/test_win_job.py`` as ``python -m tests._win_job_harness
 <marker-path>`` to exercise the "spawner killed mid-run" guarantee from a
 real second process: this harness creates a kill-on-close job, joins it
 itself, spawns a grandchild that just sleeps, reports both PIDs to the
