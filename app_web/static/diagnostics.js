@@ -201,6 +201,93 @@ function statRow(label, entry, unit) {
   return '<tr><th scope="row">' + escapeHtml(label) + '</th><td>' + avg + '</td><td>' + peak + '</td></tr>';
 }
 
+// Load by app: one row per fleet app, or a note when the run has none.
+function appsSection(apps) {
+  const parts = [];
+  parts.push('<h3 class="diag-h3">' + icon('boxes') + 'Load by app</h3>');
+  if (!apps.length) {
+    parts.push('<p class="muted small">No process data in this run.</p>');
+  } else {
+    parts.push('<div class="diag-table-wrap"><table class="diag-table"><thead><tr>'
+      + '<th scope="col">App</th><th scope="col">Procs</th><th scope="col">Memory</th><th scope="col" title="Percent of the whole machine">CPU</th>'
+      + '</tr></thead><tbody>'
+      + apps.map(function (a) {
+        return '<tr><th scope="row">' + escapeHtml(a.app_id) + '</th>'
+          + '<td>' + escapeHtml(String(a.peak_procs)) + '</td>'
+          + '<td>' + escapeHtml(fmtMb(a.peak_rss_mb)) + '</td>'
+          + '<td>' + fmtFixed(a.peak_cpu, 0) + '%</td></tr>';
+      }).join('')
+      + '</tbody></table></div>');
+  }
+  return parts.join('');
+}
+
+// Heaviest processes by peak memory; empty when there are none.
+function processesSection(procs) {
+  const parts = [];
+  if (procs.length) {
+    parts.push('<h3 class="diag-h3">' + icon('cpu') + 'Heaviest processes</h3>');
+    parts.push('<div class="diag-table-wrap"><table class="diag-table"><thead><tr>'
+      + '<th scope="col">Process</th><th scope="col">App</th><th scope="col">PIDs</th><th scope="col">Memory</th>'
+      + '</tr></thead><tbody>'
+      + procs.map(function (p) {
+        return '<tr><th scope="row" title="' + escapeHtml(p.cmdline || '') + '">'
+          + escapeHtml(p.name || '—') + '</th>'
+          + '<td>' + escapeHtml(p.app_id || '') + '</td>'
+          + '<td>' + escapeHtml(String(p.pid_count || 0)) + '</td>'
+          + '<td>' + escapeHtml(fmtMb(p.peak_rss_mb)) + '</td></tr>';
+      }).join('')
+      + '</tbody></table></div>');
+  }
+  return parts.join('');
+}
+
+// Listening ports and their owners; empty when there are none.
+function portsSection(ports) {
+  const parts = [];
+  if (ports.length) {
+    parts.push('<h3 class="diag-h3">' + icon('radio') + 'Listening ports</h3>');
+    parts.push('<div class="diag-table-wrap"><table class="diag-table"><thead><tr>'
+      + '<th scope="col">Port</th><th scope="col">Owner</th><th scope="col">Process</th>'
+      + '</tr></thead><tbody>'
+      + ports.map(function (q) {
+        return '<tr><th scope="row">' + escapeHtml(String(q.port)) + '</th>'
+          + '<td>' + escapeHtml(q.app_id || '') + '</td>'
+          + '<td>' + escapeHtml(q.name || '—') + '</td></tr>';
+      }).join('')
+      + '</tbody></table></div>');
+  }
+  return parts.join('');
+}
+
+// Changes against the baseline run, when one exists.
+function driftSection(drift) {
+  const parts = [];
+  if (drift && drift.baseline) {
+    parts.push('<h3 class="diag-h3">' + icon('chart-line') + 'Drift vs baseline</h3>');
+    parts.push('<p class="muted small">Baseline captured ' + escapeHtml(fmtWhen(drift.baseline.started_at)) + '.</p>');
+    const changes = drift.changes || [];
+    if (changes.length) {
+      parts.push('<ul class="diag-drift">' + changes.map(function (c) {
+        const sign = c.delta > 0 ? '+' : '';
+        const cls = c.delta > 0 ? 'warn' : (c.delta < 0 ? 'good' : '');
+        return '<li><span>' + escapeHtml(c.label) + '</span>'
+          + '<span class="diag-delta ' + cls + '">' + escapeHtml(String(c.before)) + ' to '
+          + escapeHtml(String(c.now)) + ' (' + sign + escapeHtml(String(c.delta)) + ')</span></li>';
+      }).join('') + '</ul>');
+    }
+    if ((drift.new_apps || []).length) {
+      parts.push('<p class="small">New since baseline: <strong>'
+        + escapeHtml(drift.new_apps.join(', ')) + '</strong></p>');
+    }
+    (drift.ports || []).forEach(function (p) {
+      parts.push('<p class="small muted">Port ' + escapeHtml(String(p.port)) + ' ('
+        + escapeHtml(p.app_id || '') + ') — ' + escapeHtml(p.status) + '</p>');
+    });
+  }
+  return parts.join('');
+}
+
 function renderSummary(summary, drift) {
   if (!summary) return '';
   const res = summary.resources || {};
@@ -224,75 +311,10 @@ function renderSummary(summary, drift) {
     }).join(''))
     + '</tbody></table></div>');
 
-  const apps = summary.apps || [];
-  parts.push('<h3 class="diag-h3">' + icon('boxes') + 'Load by app</h3>');
-  if (!apps.length) {
-    parts.push('<p class="muted small">No process data in this run.</p>');
-  } else {
-    parts.push('<div class="diag-table-wrap"><table class="diag-table"><thead><tr>'
-      + '<th scope="col">App</th><th scope="col">Procs</th><th scope="col">Memory</th><th scope="col" title="Percent of the whole machine">CPU</th>'
-      + '</tr></thead><tbody>'
-      + apps.map(function (a) {
-        return '<tr><th scope="row">' + escapeHtml(a.app_id) + '</th>'
-          + '<td>' + escapeHtml(String(a.peak_procs)) + '</td>'
-          + '<td>' + escapeHtml(fmtMb(a.peak_rss_mb)) + '</td>'
-          + '<td>' + fmtFixed(a.peak_cpu, 0) + '%</td></tr>';
-      }).join('')
-      + '</tbody></table></div>');
-  }
-
-  const procs = summary.top_processes_by_rss || [];
-  if (procs.length) {
-    parts.push('<h3 class="diag-h3">' + icon('cpu') + 'Heaviest processes</h3>');
-    parts.push('<div class="diag-table-wrap"><table class="diag-table"><thead><tr>'
-      + '<th scope="col">Process</th><th scope="col">App</th><th scope="col">PIDs</th><th scope="col">Memory</th>'
-      + '</tr></thead><tbody>'
-      + procs.map(function (p) {
-        return '<tr><th scope="row" title="' + escapeHtml(p.cmdline || '') + '">'
-          + escapeHtml(p.name || '—') + '</th>'
-          + '<td>' + escapeHtml(p.app_id || '') + '</td>'
-          + '<td>' + escapeHtml(String(p.pid_count || 0)) + '</td>'
-          + '<td>' + escapeHtml(fmtMb(p.peak_rss_mb)) + '</td></tr>';
-      }).join('')
-      + '</tbody></table></div>');
-  }
-
-  const ports = summary.ports || [];
-  if (ports.length) {
-    parts.push('<h3 class="diag-h3">' + icon('radio') + 'Listening ports</h3>');
-    parts.push('<div class="diag-table-wrap"><table class="diag-table"><thead><tr>'
-      + '<th scope="col">Port</th><th scope="col">Owner</th><th scope="col">Process</th>'
-      + '</tr></thead><tbody>'
-      + ports.map(function (q) {
-        return '<tr><th scope="row">' + escapeHtml(String(q.port)) + '</th>'
-          + '<td>' + escapeHtml(q.app_id || '') + '</td>'
-          + '<td>' + escapeHtml(q.name || '—') + '</td></tr>';
-      }).join('')
-      + '</tbody></table></div>');
-  }
-
-  if (drift && drift.baseline) {
-    parts.push('<h3 class="diag-h3">' + icon('chart-line') + 'Drift vs baseline</h3>');
-    parts.push('<p class="muted small">Baseline captured ' + escapeHtml(fmtWhen(drift.baseline.started_at)) + '.</p>');
-    const changes = drift.changes || [];
-    if (changes.length) {
-      parts.push('<ul class="diag-drift">' + changes.map(function (c) {
-        const sign = c.delta > 0 ? '+' : '';
-        const cls = c.delta > 0 ? 'warn' : (c.delta < 0 ? 'good' : '');
-        return '<li><span>' + escapeHtml(c.label) + '</span>'
-          + '<span class="diag-delta ' + cls + '">' + escapeHtml(String(c.before)) + ' to '
-          + escapeHtml(String(c.now)) + ' (' + sign + escapeHtml(String(c.delta)) + ')</span></li>';
-      }).join('') + '</ul>');
-    }
-    if ((drift.new_apps || []).length) {
-      parts.push('<p class="small">New since baseline: <strong>'
-        + escapeHtml(drift.new_apps.join(', ')) + '</strong></p>');
-    }
-    (drift.ports || []).forEach(function (p) {
-      parts.push('<p class="small muted">Port ' + escapeHtml(String(p.port)) + ' ('
-        + escapeHtml(p.app_id || '') + ') — ' + escapeHtml(p.status) + '</p>');
-    });
-  }
+  parts.push(appsSection(summary.apps || []));
+  parts.push(processesSection(summary.top_processes_by_rss || []));
+  parts.push(portsSection(summary.ports || []));
+  parts.push(driftSection(drift));
 
   parts.push('<div class="diag-run-actions">'
     + '<button type="button" class="ghost-btn" data-diag-action="baseline">'

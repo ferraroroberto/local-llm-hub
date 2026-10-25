@@ -15,8 +15,9 @@ import { jsonApi, postJson, putJson, toast } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 
 export function mountGlossaryEditor(container) {
-  // Per-mount working copy of the dictionary.
-  const model = { replacements: [], boost_terms: [] };
+  // Per-mount editor: the working copy of the dictionary plus the nodes the
+  // render/load/save helpers below repaint.
+  const ed = { model: { replacements: [], boost_terms: [] } };
 
   container.replaceChildren();
   container.classList.add('glossary-editor');
@@ -29,24 +30,24 @@ export function mountGlossaryEditor(container) {
     '🔗 Shared dictionary — one list used by every whisper model. ' +
     'Editing it here (Turbo or Translate) changes it everywhere.';
 
-  const status = document.createElement('p');
-  status.className = 'muted small glossary-status';
-  status.textContent = 'Loading…';
+  ed.status = document.createElement('p');
+  ed.status.className = 'muted small glossary-status';
+  ed.status.textContent = 'Loading…';
 
   const replSection = section('Replacements',
     'Literal fixes applied after whisper returns text — e.g. “cloud code” → “Claude Code”. Order matters; longest match wins.');
-  const replList = document.createElement('div');
-  replList.className = 'glossary-repl-list';
+  ed.replList = document.createElement('div');
+  ed.replList.className = 'glossary-repl-list';
   const addReplBtn = ghostBtn('+ add rule', function () {
-    model.replacements.push({ from: '', to: '' });
-    renderRepl();
+    ed.model.replacements.push({ from: '', to: '' });
+    renderRepl(ed);
   });
-  replSection.body.append(replList, addReplBtn);
+  replSection.body.append(ed.replList, addReplBtn);
 
   const boostSection = section('Boost terms',
     'Vocabulary biased into whisper at launch. Edits here bind on the next whisper start, not immediately.');
-  const boostChips = document.createElement('div');
-  boostChips.className = 'glossary-chips';
+  ed.boostChips = document.createElement('div');
+  ed.boostChips.className = 'glossary-chips';
   const boostAddRow = document.createElement('div');
   boostAddRow.className = 'glossary-add-row';
   const boostInput = document.createElement('input');
@@ -54,224 +55,229 @@ export function mountGlossaryEditor(container) {
   boostInput.placeholder = 'add a term, Enter';
   boostInput.setAttribute('aria-label', 'Add boost term');
   boostInput.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); addBoost(boostInput.value); boostInput.value = ''; }
+    if (ev.key === 'Enter') { ev.preventDefault(); addBoost(ed, boostInput.value); boostInput.value = ''; }
   });
-  boostAddRow.append(boostInput, ghostBtn('+ add', function () { addBoost(boostInput.value); boostInput.value = ''; }));
-  boostSection.body.append(boostChips, boostAddRow);
+  boostAddRow.append(boostInput, ghostBtn('+ add', function () { addBoost(ed, boostInput.value); boostInput.value = ''; }));
+  boostSection.body.append(ed.boostChips, boostAddRow);
 
   // Suggestions area (filled by the miner).
-  const suggestWrap = document.createElement('div');
-  suggestWrap.className = 'glossary-suggest';
-  suggestWrap.hidden = true;
+  ed.suggestWrap = document.createElement('div');
+  ed.suggestWrap.className = 'glossary-suggest';
+  ed.suggestWrap.hidden = true;
 
   const actions = document.createElement('div');
   actions.className = 'glossary-actions';
-  const mineBtn = document.createElement('button');
-  mineBtn.type = 'button';
-  mineBtn.className = 'ghost-btn';
-  mineBtn.innerHTML = icon('sparkles') + 'Suggest from transcripts';
-  mineBtn.addEventListener('click', onMine);
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'button';
-  saveBtn.className = 'ghost-btn primary';
-  saveBtn.innerHTML = icon('save') + 'Save';
-  saveBtn.addEventListener('click', onSave);
-  actions.append(mineBtn, saveBtn);
+  ed.mineBtn = document.createElement('button');
+  ed.mineBtn.type = 'button';
+  ed.mineBtn.className = 'ghost-btn';
+  ed.mineBtn.innerHTML = icon('sparkles') + 'Suggest from transcripts';
+  ed.mineBtn.addEventListener('click', function () { onMine(ed); });
+  ed.saveBtn = document.createElement('button');
+  ed.saveBtn.type = 'button';
+  ed.saveBtn.className = 'ghost-btn primary';
+  ed.saveBtn.innerHTML = icon('save') + 'Save';
+  ed.saveBtn.addEventListener('click', function () { onSave(ed); });
+  actions.append(ed.mineBtn, ed.saveBtn);
 
-  container.append(sharedNote, status, replSection.root, boostSection.root, suggestWrap, actions);
+  container.append(sharedNote, ed.status, replSection.root, boostSection.root, ed.suggestWrap, actions);
 
-  // ----------------------------------------------------------- rendering
-  function renderRepl() {
-    replList.replaceChildren();
-    model.replacements.forEach(function (rule, idx) {
-      const row = document.createElement('div');
-      row.className = 'glossary-repl-row';
+  load(ed);
+}
 
-      const from = document.createElement('input');
-      from.type = 'text'; from.value = rule.from; from.placeholder = 'heard as…';
-      from.setAttribute('aria-label', 'Replace from');
-      from.addEventListener('input', function () { rule.from = from.value; });
+// ----------------------------------------------------------- rendering
+function renderRepl(ed) {
+  const rules = ed.model.replacements;
+  ed.replList.replaceChildren();
+  rules.forEach(function (rule, idx) {
+    const row = document.createElement('div');
+    row.className = 'glossary-repl-row';
 
-      const arrow = document.createElement('span');
-      arrow.className = 'glossary-arrow'; arrow.innerHTML = icon('chevron-right');
-      arrow.setAttribute('aria-label', 'becomes');
+    const from = document.createElement('input');
+    from.type = 'text'; from.value = rule.from; from.placeholder = 'heard as…';
+    from.setAttribute('aria-label', 'Replace from');
+    from.addEventListener('input', function () { rule.from = from.value; });
 
-      const to = document.createElement('input');
-      to.type = 'text'; to.value = rule.to; to.placeholder = 'correct to…';
-      to.setAttribute('aria-label', 'Replace to');
-      to.addEventListener('input', function () { rule.to = to.value; });
+    const arrow = document.createElement('span');
+    arrow.className = 'glossary-arrow'; arrow.innerHTML = icon('chevron-right');
+    arrow.setAttribute('aria-label', 'becomes');
 
-      const up = iconBtn(icon('chevron-up'), 'Move up', function () { move(idx, -1); });
-      const down = iconBtn(icon('chevron-down'), 'Move down', function () { move(idx, 1); });
-      up.disabled = idx === 0;
-      down.disabled = idx === model.replacements.length - 1;
-      const del = iconBtn(icon('x'), 'Delete rule', function () {
-        model.replacements.splice(idx, 1); renderRepl();
-      });
-      del.classList.add('danger');
+    const to = document.createElement('input');
+    to.type = 'text'; to.value = rule.to; to.placeholder = 'correct to…';
+    to.setAttribute('aria-label', 'Replace to');
+    to.addEventListener('input', function () { rule.to = to.value; });
 
-      row.append(from, arrow, to, up, down, del);
-      replList.appendChild(row);
+    const up = iconBtn(icon('chevron-up'), 'Move up', function () { move(ed, idx, -1); });
+    const down = iconBtn(icon('chevron-down'), 'Move down', function () { move(ed, idx, 1); });
+    up.disabled = idx === 0;
+    down.disabled = idx === rules.length - 1;
+    const del = iconBtn(icon('x'), 'Delete rule', function () {
+      rules.splice(idx, 1); renderRepl(ed);
     });
-  }
+    del.classList.add('danger');
 
-  function move(idx, delta) {
-    const j = idx + delta;
-    if (j < 0 || j >= model.replacements.length) return;
-    const tmp = model.replacements[idx];
-    model.replacements[idx] = model.replacements[j];
-    model.replacements[j] = tmp;
-    renderRepl();
-  }
+    row.append(from, arrow, to, up, down, del);
+    ed.replList.appendChild(row);
+  });
+}
 
-  function renderBoost() {
-    boostChips.replaceChildren();
-    if (!model.boost_terms.length) {
-      const empty = document.createElement('span');
-      empty.className = 'muted small';
-      empty.textContent = 'No boost terms yet.';
-      boostChips.appendChild(empty);
-      return;
-    }
-    model.boost_terms.forEach(function (term, idx) {
-      const chip = document.createElement('span');
-      chip.className = 'glossary-chip';
-      chip.append(document.createTextNode(term));
-      const x = document.createElement('button');
-      x.type = 'button'; x.className = 'icon-button glossary-chip-x'; x.innerHTML = icon('x');
-      x.setAttribute('aria-label', 'Remove ' + term);
-      x.addEventListener('click', function () { model.boost_terms.splice(idx, 1); renderBoost(); });
-      chip.appendChild(x);
-      boostChips.appendChild(chip);
+function move(ed, idx, delta) {
+  const rules = ed.model.replacements;
+  const j = idx + delta;
+  if (j < 0 || j >= rules.length) return;
+  const tmp = rules[idx];
+  rules[idx] = rules[j];
+  rules[j] = tmp;
+  renderRepl(ed);
+}
+
+function renderBoost(ed) {
+  const terms = ed.model.boost_terms;
+  ed.boostChips.replaceChildren();
+  if (!terms.length) {
+    const empty = document.createElement('span');
+    empty.className = 'muted small';
+    empty.textContent = 'No boost terms yet.';
+    ed.boostChips.appendChild(empty);
+    return;
+  }
+  terms.forEach(function (term, idx) {
+    const chip = document.createElement('span');
+    chip.className = 'glossary-chip';
+    chip.append(document.createTextNode(term));
+    const x = document.createElement('button');
+    x.type = 'button'; x.className = 'icon-button glossary-chip-x'; x.innerHTML = icon('x');
+    x.setAttribute('aria-label', 'Remove ' + term);
+    x.addEventListener('click', function () { terms.splice(idx, 1); renderBoost(ed); });
+    chip.appendChild(x);
+    ed.boostChips.appendChild(chip);
+  });
+}
+
+function addBoost(ed, value) {
+  const term = String(value || '').trim();
+  if (!term) return;
+  if (ed.model.boost_terms.some(function (t) { return t.toLowerCase() === term.toLowerCase(); })) {
+    toast('“' + term + '” is already a boost term', 'error');
+    return;
+  }
+  ed.model.boost_terms.push(term);
+  renderBoost(ed);
+}
+
+// ----------------------------------------------------------- load / save
+// Replace the working copy with a server-side dictionary and repaint it.
+function adopt(ed, glossary) {
+  ed.model.replacements = (glossary.replacements || []).map(function (r) {
+    return { from: String(r.from || ''), to: String(r.to || '') };
+  });
+  ed.model.boost_terms = (glossary.boost_terms || []).map(String);
+  renderRepl(ed);
+  renderBoost(ed);
+}
+
+async function load(ed) {
+  try {
+    adopt(ed, await jsonApi('/admin/api/glossary'));
+    ed.status.textContent = ed.model.replacements.length + ' replacement(s) · ' + ed.model.boost_terms.length + ' boost term(s)';
+  } catch (exc) {
+    ed.status.textContent = 'Failed to load dictionary: ' + String(exc.message || exc);
+  }
+}
+
+async function onSave(ed) {
+  // Drop blank replacement rows before persisting.
+  const replacements = ed.model.replacements.filter(function (r) {
+    return r.from.trim() && typeof r.to === 'string';
+  });
+  ed.saveBtn.disabled = true;
+  try {
+    const body = await putJson('/admin/api/glossary', {
+      replacements: replacements,
+      boost_terms: ed.model.boost_terms,
     });
+    adopt(ed, body.glossary || {});
+    toast(body.boost_terms_need_restart
+      ? 'Saved · replacements live now, boost terms apply on next whisper start'
+      : 'Dictionary saved', 'good');
+  } catch (exc) {
+    toast('Save failed: ' + String(exc.message || exc), 'error');
+  } finally {
+    ed.saveBtn.disabled = false;
+  }
+}
+
+// ----------------------------------------------------------- mining
+async function onMine(ed) {
+  ed.mineBtn.disabled = true;
+  const orig = ed.mineBtn.innerHTML;
+  ed.mineBtn.innerHTML = icon('hourglass') + 'Mining…';
+  try {
+    const body = await postJson('/admin/api/glossary/mine', {});
+    renderSuggestions(ed, body);
+  } catch (exc) {
+    toast('Mining failed: ' + String(exc.message || exc), 'error');
+  } finally {
+    ed.mineBtn.disabled = false;
+    ed.mineBtn.innerHTML = orig;
+  }
+}
+
+function renderSuggestions(ed, body) {
+  const wrapEl = ed.suggestWrap;
+  wrapEl.replaceChildren();
+  wrapEl.hidden = false;
+  const meta = body.meta || {};
+  const head = document.createElement('div');
+  head.className = 'glossary-suggest-head';
+  head.innerHTML = icon('sparkles');
+  head.append(' Suggestions · ' + (meta.n_sessions || 0) + ' transcript(s), last ' + (meta.days || '?') + 'd'
+    + (meta.llm_used ? ' · LLM-assisted' : (meta.llm_failed ? ' · LLM pass failed' : '')));
+  wrapEl.appendChild(head);
+
+  const boosts = body.boost_terms || [];
+  const repls = body.replacements || [];
+  if (!boosts.length && !repls.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted small';
+    empty.textContent = 'No new suggestions — your dictionary already covers the recent vocabulary.';
+    wrapEl.appendChild(empty);
+    return;
   }
 
-  function addBoost(value) {
-    const term = String(value || '').trim();
-    if (!term) return;
-    if (model.boost_terms.some(function (t) { return t.toLowerCase() === term.toLowerCase(); })) {
-      toast('“' + term + '” is already a boost term', 'error');
-      return;
-    }
-    model.boost_terms.push(term);
-    renderBoost();
+  if (boosts.length) {
+    wrapEl.append(subLabel('Candidate boost terms'), suggestionChips(boosts, function (c) {
+      return c.term + ' ·' + c.count;
+    }, function (c) {
+      addBoost(ed, c.term);
+    }));
   }
 
-  // ----------------------------------------------------------- load / save
-  async function load() {
-    try {
-      const body = await jsonApi('/admin/api/glossary');
-      model.replacements = (body.replacements || []).map(function (r) {
-        return { from: String(r.from || ''), to: String(r.to || '') };
-      });
-      model.boost_terms = (body.boost_terms || []).map(String);
-      status.textContent = model.replacements.length + ' replacement(s) · ' + model.boost_terms.length + ' boost term(s)';
-      renderRepl();
-      renderBoost();
-    } catch (exc) {
-      status.textContent = 'Failed to load dictionary: ' + String(exc.message || exc);
-    }
+  if (repls.length) {
+    wrapEl.append(subLabel('Candidate replacements'), suggestionChips(repls, function (r) {
+      return r.from + ' to ' + r.to;
+    }, function (r) {
+      ed.model.replacements.push({ from: r.from, to: r.to });
+      renderRepl(ed);
+    }));
   }
 
-  async function onSave() {
-    // Drop blank replacement rows before persisting.
-    const replacements = model.replacements.filter(function (r) {
-      return r.from.trim() && typeof r.to === 'string';
+  const hint = document.createElement('p');
+  hint.className = 'muted small';
+  hint.textContent = 'Tap a suggestion to add it, then Save.';
+  wrapEl.appendChild(hint);
+}
+
+// A chip row of suggestions; accepting one applies it and removes its chip.
+function suggestionChips(items, labelOf, accept) {
+  const wrap = document.createElement('div');
+  wrap.className = 'glossary-chips';
+  items.forEach(function (item) {
+    const chip = suggestionChip(labelOf(item), function () {
+      accept(item); chip.remove();
     });
-    saveBtn.disabled = true;
-    try {
-      const body = await putJson('/admin/api/glossary', {
-        replacements: replacements,
-        boost_terms: model.boost_terms,
-      });
-      const g = body.glossary || {};
-      model.replacements = (g.replacements || []).map(function (r) {
-        return { from: String(r.from || ''), to: String(r.to || '') };
-      });
-      model.boost_terms = (g.boost_terms || []).map(String);
-      renderRepl();
-      renderBoost();
-      toast(body.boost_terms_need_restart
-        ? 'Saved · replacements live now, boost terms apply on next whisper start'
-        : 'Dictionary saved', 'good');
-    } catch (exc) {
-      toast('Save failed: ' + String(exc.message || exc), 'error');
-    } finally {
-      saveBtn.disabled = false;
-    }
-  }
-
-  // ----------------------------------------------------------- mining
-  async function onMine() {
-    mineBtn.disabled = true;
-    const orig = mineBtn.innerHTML;
-    mineBtn.innerHTML = icon('hourglass') + 'Mining…';
-    try {
-      const body = await postJson('/admin/api/glossary/mine', {});
-      renderSuggestions(body);
-    } catch (exc) {
-      toast('Mining failed: ' + String(exc.message || exc), 'error');
-    } finally {
-      mineBtn.disabled = false;
-      mineBtn.innerHTML = orig;
-    }
-  }
-
-  function renderSuggestions(body) {
-    suggestWrap.replaceChildren();
-    suggestWrap.hidden = false;
-    const meta = body.meta || {};
-    const head = document.createElement('div');
-    head.className = 'glossary-suggest-head';
-    head.innerHTML = icon('sparkles');
-    head.append(' Suggestions · ' + (meta.n_sessions || 0) + ' transcript(s), last ' + (meta.days || '?') + 'd'
-      + (meta.llm_used ? ' · LLM-assisted' : (meta.llm_failed ? ' · LLM pass failed' : '')));
-    suggestWrap.appendChild(head);
-
-    const boosts = body.boost_terms || [];
-    const repls = body.replacements || [];
-    if (!boosts.length && !repls.length) {
-      const empty = document.createElement('p');
-      empty.className = 'muted small';
-      empty.textContent = 'No new suggestions — your dictionary already covers the recent vocabulary.';
-      suggestWrap.appendChild(empty);
-      return;
-    }
-
-    if (boosts.length) {
-      suggestWrap.appendChild(subLabel('Candidate boost terms'));
-      const wrap = document.createElement('div');
-      wrap.className = 'glossary-chips';
-      boosts.forEach(function (c) {
-        const chip = suggestionChip(c.term + ' ·' + c.count, function () {
-          addBoost(c.term); chip.remove();
-        });
-        wrap.appendChild(chip);
-      });
-      suggestWrap.appendChild(wrap);
-    }
-
-    if (repls.length) {
-      suggestWrap.appendChild(subLabel('Candidate replacements'));
-      const wrap = document.createElement('div');
-      wrap.className = 'glossary-chips';
-      repls.forEach(function (r) {
-        const chip = suggestionChip(r.from + ' to ' + r.to, function () {
-          model.replacements.push({ from: r.from, to: r.to });
-          renderRepl(); chip.remove();
-        });
-        wrap.appendChild(chip);
-      });
-      suggestWrap.appendChild(wrap);
-    }
-
-    const hint = document.createElement('p');
-    hint.className = 'muted small';
-    hint.textContent = 'Tap a suggestion to add it, then Save.';
-    suggestWrap.appendChild(hint);
-  }
-
-  load();
+    wrap.appendChild(chip);
+  });
+  return wrap;
 }
 
 // --------------------------------------------------------------- helpers

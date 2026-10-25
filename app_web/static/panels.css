@@ -1,0 +1,767 @@
+/* Local LLM Hub admin: the tab panels and shared widgets (Playground, Models
+ * and its editors, badges, services, startup, fleet summary, install, toast,
+ * login). The second half of styles.css, linked directly after it so every
+ * rule keeps its place in the cascade; the design tokens live in styles.css.
+ */
+
+/* ---------- Playground ----------
+ * One composer: the mode switch spans the column, then the active mode's
+ * composer and its result (side by side on a wide window). */
+.play-mode { display: flex; width: 100%; }
+.play-mode .segmented-item { flex: 1; }
+.play-result-empty { margin: 0; font-size: var(--font-body-sm); }
+/* The composer's labels, section titles and helper lines (field notes, the
+ * privacy line, status lines) read at body-sm: on a form they are part of
+ * what you read, not side facts. */
+#panePlayground .small,
+#panePlayground .opt-stack > label,
+#panePlayground .opt-group-title { font-size: var(--font-body-sm); }
+.play-result > :first-child + * { margin-top: 0; }
+/* An empty card is its one sentence: the static headings and the reply box arrive with the reply. */
+.play-result.is-empty > [data-label],
+.play-result.is-empty > .logpane { display: none; }
+
+/* ---------- Models tab ----------
+ * Rows are the shared row (rows.js on the vendored action-row), grouped by
+ * the host serving them under an overline header. The memory glance's rows
+ * carry a meter as their one trailing value. */
+.group-overline {
+  padding: 14px 14px 4px;
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.group-overline + .action-row { border-top: 0; }
+.action-row + .group-overline { border-top: 1px solid var(--line-muted); }
+.models-scope { align-self: flex-start; }
+.glance-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  min-height: var(--row-md);
+  padding: 0 4px 0 14px;
+  border-bottom: 1px solid var(--line-muted);
+}
+.glance-head h2 { margin: 0; font-size: var(--font-body); font-weight: 700; }
+.glance-head h2 .icon { width: var(--icon-title); height: var(--icon-title); color: var(--muted); }
+.glance-note { margin: 0; padding: 0 14px 12px; font-size: var(--font-body-sm); }
+/* The meter (design.md `meter`): a 6px pill track on neutral-soft, the fill
+ * accent while there is room, attention past 75%, danger at 90%; the percent
+ * in tabular figures beside it. Unknown is words, never an empty track. */
+.memory-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-body-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+.memory-meter.is-unknown { color: var(--muted); font-weight: 400; }
+.meter-track {
+  width: 72px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--neutral-soft);
+  overflow: hidden;
+}
+.meter-fill { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.memory-meter[data-level="warn"] .meter-fill { background: var(--attention); }
+.memory-meter[data-level="high"] .meter-fill { background: var(--danger); }
+.memory-meter[data-level="warn"] .meter-pct { color: var(--attention-text); }
+.memory-meter[data-level="high"] .meter-pct { color: var(--danger-text); }
+.meter-pct { min-width: 3.2em; text-align: right; }
+/* The sheet's own bits: a label over a block, the editor slot, the log tail. */
+.sheet-label { margin: 0; color: var(--muted); font-size: var(--font-body-sm); font-weight: 600; }
+.model-editor:empty { display: none; }
+.model-editor { margin-top: var(--space-sm); }
+.model-log-tail {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  font-size: var(--font-code);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.wide-detail-body .host-body .fleet-host,
+.model-sheet .host-body .fleet-host { border: 0; padding: 0; }
+.startup-policy { font-size: var(--font-caption); }
+/* The row's one trailing kebab (action-row: one accessory per row): an unpainted
+ * icon-button at the 44px row box. Its menu is the vendored row-menu, mounted on
+ * <body> (_vendored/row-menu); the open kebab takes the accent from that CSS. */
+.row-kebab { --icon-btn-box: var(--row-sm); flex: none; }
+
+/* ---------- Models tab: read-only placement cards ----------
+ * A per-model intent section in the model's sheet and detail pane (the row's
+ * "More actions" menu carries the same facts as one text line): host-chain pills in
+ * priority order (owner = the accent-soft "selected" tint), a
+ * startup-policy .badge, the static VRAM
+ * estimate, and the owner host's budget bar. All caption-scale — placement
+ * is context, never louder than the row's own title/status. */
+.placement {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+.placement-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-caption);
+}
+.placement-chain {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.placement-arrow { color: var(--muted); }
+.place-pill {
+  background: var(--card-off);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  font-size: var(--font-caption);
+  white-space: nowrap;
+}
+.place-pill.owner {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-color: var(--accent-border-strong);
+  font-weight: 600;
+}
+
+/* ---------- placement editor (inline panel under a model row) ----------
+ * Same sibling-panel recipe as .glossary-panel — the panel sits next to
+ * .app-main so it (and its unsaved draft) survives the 5 s poll. */
+.placement-editor {
+  border-top: 1px solid var(--line);
+  background: var(--card-off);
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.placement-editor .opt-group-title { margin: 4px 0 0; }
+.pe-note { margin: 0; }
+.pe-chain { display: flex; flex-direction: column; gap: 6px; }
+.pe-host-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.pe-host-name { flex: 1 1 0; min-width: 0; font-size: var(--font-label); }
+.pe-cpu-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+/* shadcn checkbox skin (design.md Base UI: Checkbox -> shadcn checkbox):
+ * hairline box that fills with the accent when checked, tick drawn on top.
+ * The tick's stroke is --accent-fg's value — a data-URI can't read a var —
+ * which is #fff in both themes. The label is the hit target, not the box. */
+.pe-cpu {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius-sm) / 2); /* shadcn rounded-[4px]; the full step reads as a circle at 16px */
+  background: var(--input-bg) center / 12px 12px no-repeat;
+  cursor: pointer;
+}
+.pe-cpu:checked {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+}
+.pe-cpu-label:has(.pe-cpu) { cursor: pointer; }
+/* Up / down / remove sit side by side: real 44px geometry, not an expansion. */
+.pe-host-row { --icon-btn-box: var(--hit-min); }
+.pe-add-row { display: flex; gap: 8px; align-items: stretch; }
+.pe-add-row select {
+  flex: 1 1 0;
+  min-width: 0;
+  background: var(--input-bg);
+  color: var(--ink);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  padding: 7px 9px;
+  font: inherit;
+  font-size: var(--font-label);
+}
+.pe-add-row .ghost-btn { flex-shrink: 0; }
+.pe-policy { display: flex; gap: 10px; flex-wrap: wrap; }
+.pe-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--font-caption);
+  color: var(--muted);
+}
+.pe-field select,
+.pe-field input {
+  background: var(--input-bg);
+  color: var(--ink);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  padding: 7px 9px;
+  font: inherit;
+  font-size: var(--font-label);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.pe-field input[type="number"] { width: 110px; }
+.pe-field input[disabled] { opacity: 0.5; }
+/* Inline rejection detail — state color (danger), matching the login
+ * error's tone: the validation arithmetic is the message, keep it legible. */
+.pe-error {
+  margin: 0;
+  font-size: var(--font-caption);
+  color: var(--danger-text);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+}
+.pe-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- transcription dictionary editor (inline whisper-row panel) ---------- */
+.glossary-panel {
+  border-top: 1px solid var(--line);
+  background: var(--card-off);
+  padding: 12px 14px 14px;
+}
+.glossary-editor { display: flex; flex-direction: column; gap: var(--gap); }
+.glossary-shared-note {
+  margin: 0;
+  font-size: var(--font-caption);
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border-soft);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+}
+.glossary-status { margin: 0; }
+.glossary-section { display: flex; flex-direction: column; gap: 6px; }
+.glossary-section .opt-group-title { margin: 0; }
+.glossary-section p { margin: 0; }
+.glossary-repl-list { display: flex; flex-direction: column; gap: 6px; }
+.glossary-repl-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.glossary-repl-row input {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 7px 9px;
+  background: var(--input-bg);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-size: var(--font-label);
+}
+.glossary-arrow { color: var(--muted); flex-shrink: 0; }
+/* Up / down / delete sit side by side in a REPL row: real 44px geometry. */
+.glossary-repl-row { --icon-btn-box: var(--hit-min); }
+.glossary-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.glossary-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-label);
+  color: var(--ink);
+}
+/* No fixed box inside the pill: a 16px icon-button box leaves the chip layout
+   unchanged and its ::before reaches the 44px target. */
+.glossary-chip-x { --icon-btn-box: 16px; }
+.glossary-chip-suggest {
+  cursor: pointer;
+  border-color: var(--accent-border-strong);
+  color: var(--accent);
+}
+.glossary-chip-suggest:hover { background: var(--accent-soft); }
+.glossary-add-row { display: flex; gap: 6px; }
+.glossary-add-row input {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 7px 9px;
+  background: var(--input-bg);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-size: var(--font-label);
+}
+.glossary-suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+}
+.glossary-suggest-head { font-size: var(--font-label); font-weight: 600; }
+.glossary-sublabel { margin-top: 2px; }
+.glossary-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- playground ---------- */
+.opt-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0;
+}
+.opt-stack > label {
+  font-size: var(--font-caption);
+  color: var(--muted);
+}
+.opt-stack > textarea,
+.opt-stack > input,
+.opt-stack > select {
+  background: var(--input-bg);
+  color: var(--ink);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  font: inherit;
+  font-size: var(--font-label);
+  min-height: var(--hit-min);
+  width: 100%;
+}
+.opt-stack > textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+/* File pickers: the native input is hidden; a ghost "Choose file"
+ * button + the selected filename to its right stand in — no bordered box. */
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.file-row .ghost-btn { flex-shrink: 0; }
+.file-row .file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Label + vendored switch on one row (the switch itself is _vendored/switch). */
+.opt-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+/* A collapsible "More options" title is a <summary>: a tap target, so it gets
+ * the full 44px row. */
+summary.opt-group-title {
+  display: flex;
+  align-items: center;
+  min-height: var(--hit-min);
+  margin: 0;
+  cursor: pointer;
+}
+.opt-group-title {
+  font-size: var(--font-caption);
+  color: var(--muted);
+  margin: 14px 0 6px;
+  font-weight: 500;
+}
+.maxtokens-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.maxtokens-row .segmented { flex: 1; }
+.maxtokens-row input[type="number"] {
+  width: 90px;
+  background: var(--input-bg);
+  color: var(--ink);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: var(--font-label);
+  min-height: var(--hit-min);
+}
+.playground-send-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin-top: 10px;
+}
+.playground-send-row > button { flex: 1; min-width: 0; }
+
+/* ---------- Playground: Decision (Jev) card ---------- */
+/* Third-party egress notice — attention colour, the same token as .badge.warn. */
+.jev-privacy {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+  margin: 0 0 var(--space-sm);
+}
+.jev-privacy .icon { flex-shrink: 0; color: var(--attention); margin-top: 1px; }
+#jevKeyNote { color: var(--attention); margin: 0 0 var(--space-sm); }
+/* The questions box is JSON source — monospace like the other code panes. */
+.opt-stack > textarea.jev-json { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.jev-json-error { color: var(--danger); margin: var(--space-xs) 0 0; }
+.jev-answers { display: flex; flex-direction: column; }
+/* One flat list-row per answer on a top hairline — never nested cards. */
+.jev-answer { padding: var(--space-sm) 0; border-top: 1px solid var(--line-muted); }
+.jev-answer:first-child { border-top: 0; padding-top: 0; }
+.jev-answer-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: baseline;
+  margin-bottom: var(--space-xs);
+}
+.jev-verdict { font-weight: 600; }
+.jev-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) 1fr 2.6rem;
+  gap: var(--space-sm);
+  align-items: center;
+  font-size: var(--font-caption);
+  color: var(--muted);
+  padding: 2px 0;
+}
+.jev-bar.chosen { color: var(--ink); font-weight: 600; }
+.jev-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jev-bar-track {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--card-off);
+  border: 1px solid var(--line-muted);
+  overflow: hidden;
+}
+/* Unchosen options: a mid-strength accent (the same 45% mix the *-border
+ * tokens use) — --accent-soft's 16% vanishes on the dark track. */
+.jev-bar-fill { display: block; height: 100%; background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.jev-bar.chosen .jev-bar-fill { background: var(--accent); }
+.jev-bar-val { text-align: right; font-variant-numeric: tabular-nums; }
+/* ---------- badges ---------- */
+.badge {
+  background: var(--card-off);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  font-size: var(--font-caption);
+  white-space: nowrap;
+}
+.badge.good   { color: var(--on);   border-color: var(--success-border); }
+.badge.warn   { color: var(--attention); border-color: var(--attention-border); }
+.badge.danger { color: var(--danger);    border-color: var(--danger-border); }
+
+/* ---------- services card (Docker + Langfuse) ---------- */
+.services-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+.services-row {
+  display: grid;
+  /* 4th column: the compact Wake/Sync action sits inline at the row's end,
+   * on the same line as the "out of sync" detail. */
+  grid-template-columns: minmax(110px, auto) auto 1fr auto;
+  align-items: center;
+  gap: 4px 12px;
+  font-size: var(--font-caption);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line-muted);
+}
+.services-row:last-child { border-bottom: 0; }
+.services-detail {
+  word-break: break-word;
+  min-width: 0;
+}
+/* A long detail is one ellipsised line that opens to its full text. The
+ * summary is the 44px tap target; open, the preview gives way to the body so the
+ * text shows once and the disclosure is never an empty container. */
+details.services-detail > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--hit-min);
+  cursor: pointer;
+  list-style: none;
+}
+details.services-detail > summary::-webkit-details-marker { display: none; }
+.services-detail-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+details.services-detail[open] > summary .services-detail-text { display: none; }
+.services-detail-body { margin: 0; }
+details.services-detail > summary .icon { flex: none; margin-left: auto; }
+details.services-detail[open] > summary .icon { transform: rotate(180deg); }
+.services-detail:empty { display: none; }
+/* Phone: name, status and the action share the first line, the detail takes the
+ * full width of a second one rather than being squeezed into a 80px column. */
+@media (max-width: 520px) {
+  .services-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .services-row > .services-label { grid-column: 1; grid-row: 1; }
+  .services-row > .hub-live-status { grid-column: 2; grid-row: 1; }
+  .services-row > .services-actions,
+  .services-row > .ghost-btn { grid-column: 3; grid-row: 1; }
+  .services-row > .services-detail { grid-column: 1 / -1; grid-row: 2; }
+}
+/* Row-level service action (Wake / Sync) — compact padding, full 44px height. */
+.services-row .ghost-btn {
+  padding: 4px 10px;
+  font-size: var(--font-caption);
+}
+/* Docker/Langfuse/AgentsView start+stop — one is visible at a time, as a
+ * labelled button (glyph + verb) like Wake / Sync above. */
+.services-row .services-actions {
+  display: flex;
+  gap: 0;
+}
+
+/* ---------- Startup card — per-item toggle rows ---------- */
+.startup-list {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+}
+.startup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+}
+.startup-row + .startup-row {
+  border-top: 1px solid var(--line-muted);
+}
+.startup-row-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--font-label);
+}
+.startup-row-label .badge { flex-shrink: 0; }
+/* Settings › Machines: the machine's name over its one-line meaning. */
+.dormant-row-label { flex-direction: column; align-items: flex-start; gap: 2px; }
+/* Section labels reuse .opt-group-title (playground's existing group-label
+ * pattern) rather than a new one-off class. */
+
+/* ---------- Fleet summary card — per-machine read-only summary ----------
+ * The fleet-wide sibling of the Service startup card: summary lines reuse
+ * .startup-row / .startup-list and the roles card's .roles-row-value; only
+ * the per-host grouping (header + status chip + offline note) is new here. */
+.fleet-placement {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+.fleet-host + .fleet-host {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-muted);
+}
+.fleet-host-note { margin: 6px 0 0; }
+/* Advisory VRAM-overcommit warning — a tinted host note with a leading
+ * glyph, matching the .badge.warn colour token. */
+.fleet-capacity-warn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--attention);
+}
+.fleet-capacity-warn .icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+/* The .startup-list under a host group has no extra top margin — the head +
+ * note already own the spacing above it. */
+.fleet-host .startup-list { margin-top: 2px; }
+/* Multi-line Running/Loadable values: the label tops-out against the
+ * first model line instead of floating mid-list. */
+.fleet-host .startup-row { align-items: flex-start; }
+.fleet-model-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+/* One model per line — right-aligned by the parent .roles-row-value;
+ * both Running and Loadable read at the body-sm size (the old inline
+ * `·`-joined Running flow wrapped awkwardly on phones). */
+.fleet-model-line {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+/* Single-line values (Capacity, an honest "none") are inline spans inside
+ * .roles-row-value: without a matching font-size their anonymous line box is
+ * struck at the inherited body size, seating the smaller text below the
+ * label's baseline — block .fleet-model-line values never had the
+ * problem. Scoped to the fleet card. Every value and note here is a
+ * secondary line people read, so it is body-sm, never caption (design.md
+ * typography; TYPE-01): the markup's `.small` spans step up with it. */
+.fleet-host .roles-row-value,
+.fleet-host .roles-row-value .small,
+.fleet-host-note { font-size: var(--font-body-sm); }
+
+/* ---------- placement value column (the Models memory sheet) ----------
+ * Same .startup-row/.startup-list rhythm as the Startup card; only the
+ * right-hand value column is new. Right-aligned, allowed to wrap onto a
+ * second line for a long placed-models list rather than overflow. */
+.roles-row-value {
+  text-align: right;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- install panel rows ---------- */
+.install-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-muted);
+  font-size: var(--font-caption);
+}
+.install-row:last-of-type { border-bottom: 0; }
+.install-row .install-detail { grid-column: 2 / -1; font-size: var(--font-caption); }
+/* Status glyph (Lucide) inherits currentColor — tint it per check status. */
+.install-glyph .icon { font-size: 16px; }
+.install-ok .install-glyph { color: var(--on); }
+.install-warn .install-glyph { color: var(--attention); }
+.install-missing .install-glyph { color: var(--muted); }
+.install-error .install-glyph { color: var(--danger); }
+
+/* ---------- empty state ----------
+ * The canonical zero-items block is the vendored component
+ * (_vendored/empty-state) — no app-side .empty style anymore. */
+
+/* ---------- footer ----------
+ * Build-identity line only (which build the PWA is running) — home-automation's
+ * .page-foot: one centered muted caption, no links, no separator. */
+.page-foot {
+  /* No bottom margin — .app's bottom padding (one --gap) is the whole gap
+   * below the build line. */
+  margin: var(--space-xs) var(--space-xs) 0;
+  text-align: center;
+}
+.page-foot p { margin: 2px 0; }
+
+/* ---------- toast ---------- */
+/* The fleet's neutral frosted toast (design.md `toast`): the floating nav's
+ * glass, centred, one line whenever the message fits. Only a real error tints;
+ * success and info stay neutral. */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0) + 20px);
+  transform: translateX(-50%);
+  background: var(--tabbar-bg);
+  color: var(--ink);
+  border: 1px solid var(--tabbar-border);
+  border-radius: var(--radius-md);
+  padding: 12px 18px;
+  font-size: var(--font-label);
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+  width: max-content;
+  max-width: min(calc(100vw - 24px), 560px);
+  text-wrap: balance;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(20px) saturate(1.25);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
+  /* Clear the vendored floating mobile nav (z-index: 120) so command
+   * progress and results remain readable after the nav migration. */
+  z-index: 130;
+}
+/* Phone: sit 8px above the floating bottom-tab pill rather than behind it. */
+@media (pointer: coarse) and (max-width: 520px) {
+  .toast {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bottom-tabs-margin) * 2 + var(--bottom-tabs-height) + 8px);
+  }
+}
+.toast.error {
+  background: color-mix(in srgb, var(--danger) 75%, transparent);
+  border-color: var(--danger);
+  color: var(--accent-fg);
+}
+
+/* ---------- login overlay ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  padding: 16px;
+}
+.login-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+.login-card h2 { margin: 0; font-size: var(--font-heading-lg); }
+.login-card input {
+  background: var(--input-bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  font-size: var(--font-body);
+  min-height: 44px;
+}
+.login-card .error {
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  color: var(--danger-text);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-caption);
+  margin: 0;
+}
