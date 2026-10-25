@@ -82,7 +82,7 @@ Every reachable machine shows the **same** snapshot — CPU / RAM / GPU / disk
 - **This machine** reads it locally from `src/system_stats.py`.
 - **Peers** are probed two ways, both independent of whether the hub runs
   there — the card answers *is the box on?*, not *is the hub up?*
-  (`src/remote_stats.py`): a **hub-independent TCP liveness probe** for
+  (`src/fleet/remote_stats.py`): a **hub-independent TCP liveness probe** for
   up/down, and the same CPU/RAM/GPU/disk/uptime snapshot collected over the
   hub user's **own** passwordless SSH (a read-only one-liner, per-OS). A node
   flagged `dormant` (see **Dormant machines** below) is never SSH'd or
@@ -176,7 +176,7 @@ is per hub: another hub in the fleet keeps its own `machines.local.yaml`.
 **Wake (non-destructive).** A machine that is **down or dormant** and
 has a wired-NIC `mac:` recorded in `config/machines.local.yaml` offers a
 **Wake** verb on its row — a fire-and-forget Wake-on-LAN magic packet
-(`src/wake_on_lan.py`, UDP broadcast to `255.255.255.255:9`, stdlib socket
+(`src/fleet/wake_on_lan.py`, UDP broadcast to `255.255.255.255:9`, stdlib socket
 only) via `POST /admin/api/machines/{id}/wake`. No confirmation loop: the
 verb disables (its tooltip reads *Rechecking …*) and the next status poll reports whether the box
 came up. The hub can't wake its own host (that's BIOS AC-restore territory),

@@ -257,7 +257,7 @@ def test_local_backend_rejects_image_with_helpful_400():
 
 def test_bad_base64_returns_400(monkeypatch):
     monkeypatch.setattr(
-        server_mod, "call_claude",
+        chat_translation_mod, "call_claude",
         lambda *a, **k: _stub_envelope(),
     )
     client = TestClient(server_mod.app)
@@ -371,7 +371,7 @@ def test_url_document_falls_back_to_text_reference(monkeypatch):
 
 def test_bad_pdf_base64_returns_400(monkeypatch):
     monkeypatch.setattr(
-        server_mod, "call_claude",
+        chat_translation_mod, "call_claude",
         lambda *a, **k: _stub_envelope(),
     )
     client = TestClient(server_mod.app)

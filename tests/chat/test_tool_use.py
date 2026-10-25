@@ -30,6 +30,7 @@ from fastapi.testclient import TestClient
 
 from src import chat_translation as chat_mod
 from src import server as server_mod
+from src.routes import anthropic_messages as anthropic_mod
 from src import server_common as server_common_mod
 from src.chat_translation import (
     AnthropicStreamState,
@@ -441,7 +442,7 @@ def test_tool_blocks_on_a_cli_backend_are_refused():
 
 def test_plain_text_on_a_cli_backend_still_works(monkeypatch):
     monkeypatch.setattr(
-        server_mod, "_run_claude_backend",
+        anthropic_mod, "_run_claude_backend",
         lambda model, req: {"result": "hi", "stop_reason": "end_turn", "usage": {}},
     )
     client = TestClient(server_mod.app)
@@ -649,7 +650,7 @@ def test_messages_stream_tool_call_end_to_end(monkeypatch):
         )
 
     monkeypatch.setattr(server_common_mod, "ensure_backend_ready_or_503", lambda model: None)
-    monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
+    monkeypatch.setattr(anthropic_mod, "call_openai_chat_stream", fake_stream)
     client = TestClient(server_mod.app)
     with client.stream("POST", "/v1/messages", json={
         "model": LOCAL_MODEL,
@@ -708,7 +709,7 @@ def _messages_upstream_extra(monkeypatch, body: dict) -> dict:
 
     monkeypatch.setattr(chat_mod, "call_openai_chat", fake_call)
     monkeypatch.setattr(server_common_mod, "ensure_backend_ready_or_503", lambda model: None)
-    monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
+    monkeypatch.setattr(anthropic_mod, "call_openai_chat_stream", fake_stream)
     client = TestClient(server_mod.app)
     if body.get("stream"):
         with client.stream("POST", "/v1/messages", json=body) as response:
@@ -738,7 +739,7 @@ def test_messages_sends_inject_extra_upstream(monkeypatch, stream):
 def test_messages_tool_params_win_over_inject_extra(monkeypatch, stream):
     """On a key collision the caller's translated tool params beat the row's
     server-side overlay; non-colliding overlay keys still ride along."""
-    real_resolve = server_mod._resolve
+    real_resolve = anthropic_mod._resolve
 
     def resolve_with_colliding_overlay(name):
         model = real_resolve(name)
@@ -746,7 +747,7 @@ def test_messages_tool_params_win_over_inject_extra(monkeypatch, stream):
             model, inject_extra={**NOTHINK_EXTRA, "tool_choice": "none"}
         )
 
-    monkeypatch.setattr(server_mod, "_resolve", resolve_with_colliding_overlay)
+    monkeypatch.setattr(anthropic_mod, "_resolve", resolve_with_colliding_overlay)
     extra = _messages_upstream_extra(monkeypatch, {
         "model": NOTHINK_MODEL,
         "stream": stream,

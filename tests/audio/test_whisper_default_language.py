@@ -17,7 +17,7 @@ import os
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
-from src.audio_proxy import default_language_from_args  # noqa: E402
+from src.audio.audio_proxy import default_language_from_args  # noqa: E402
 
 
 def test_language_auto_extracted_from_args():

@@ -723,7 +723,7 @@ async def config_drift_sync_loop() -> None:
     peer whose models.yaml lags this host's."""
     if not is_write_host():
         return
-    from . import remote_bootstrap, remote_stats
+    from .fleet import remote_bootstrap, remote_stats
     from .host_profile import get_host, hub_port
     from .http_client import get_async_client
     from .model_registry import hub_peer_ids

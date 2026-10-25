@@ -18,7 +18,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
 
-from src import remote_bootstrap
+from src.fleet import remote_bootstrap
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

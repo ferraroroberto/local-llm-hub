@@ -11,7 +11,7 @@ dependency behind the Hub's traces: an **optional, isolated, external local
 service** the hub polls over HTTP and degrades gracefully without.
 
 **Scope is deliberately curated, not everything AgentsView sees.** A map in
-`src/agentsview_usage.py` (`_AGENT_VENDOR_MAP`) decides what surfaces:
+`src/usage/agentsview_usage.py` (`_AGENT_VENDOR_MAP`) decides what surfaces:
 AgentsView's `gemini` slug (the hub's agy-routed one-shot calls) and
 `antigravity-cli` slug (interactive sessions) merge into **one `agy` vendor**
 — the AGY button in the Code tab. Claude/Codex/Copilot stay on the hub's
@@ -66,7 +66,7 @@ itself.**
 
 ## How it behaves
 
-- **Never on the request path.** `src/agentsview_usage.py` keeps an in-memory
+- **Never on the request path.** `src/usage/agentsview_usage.py` keeps an in-memory
   snapshot and refreshes it in a background thread (60 s TTL, 1 s connect
   timeout); the summary endpoint only ever reads the snapshot. Completed
   sessions are fetched once and cached — they're immutable.

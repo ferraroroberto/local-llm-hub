@@ -4,7 +4,7 @@ Verifies the status endpoint shape, the launch endpoint orchestration
 (with the heavy helpers monkeypatched out — we don't want to spawn
 Docker Desktop or run docker compose from a unit test), and a couple
 of pure-Python behaviours on the helpers module. The peer-probe pair
-(``remote_models``/``peer_health``) lives in ``src/remote_stats.py`` —
+(``remote_models``/``peer_health``) lives in ``src/fleet/remote_stats.py`` —
 patched there below, not on ``svc``.
 """
 
@@ -15,7 +15,7 @@ import sys
 
 from fastapi.testclient import TestClient
 
-from src import remote_stats
+from src.fleet import remote_stats
 from src import server as server_mod
 from src import services as svc
 from tests._worker_loop import run_on_worker_thread as _run
@@ -309,7 +309,7 @@ def test_langfuse_stop_endpoint_runs_script_when_reachable(monkeypatch):
 
 
 def test_agentsview_stop_endpoint_skips_when_disabled(monkeypatch):
-    monkeypatch.setattr("src.agentsview_usage._base_url", lambda: "")
+    monkeypatch.setattr("src.usage.agentsview_usage._base_url", lambda: "")
     r = _client().post("/admin/api/services/agentsview/stop")
     assert r.status_code == 200, r.text
     body = r.json()
@@ -318,8 +318,8 @@ def test_agentsview_stop_endpoint_skips_when_disabled(monkeypatch):
 
 
 def test_agentsview_stop_endpoint_skips_when_already_down(monkeypatch):
-    monkeypatch.setattr("src.agentsview_usage._base_url", lambda: "http://127.0.0.1:8080")
-    monkeypatch.setattr("src.server_process.find_port_pids", lambda port: [])
+    monkeypatch.setattr("src.usage.agentsview_usage._base_url", lambda: "http://127.0.0.1:8080")
+    monkeypatch.setattr("src.process.server_process.find_port_pids", lambda port: [])
     r = _client().post("/admin/api/services/agentsview/stop")
     assert r.status_code == 200, r.text
     body = r.json()
@@ -328,9 +328,9 @@ def test_agentsview_stop_endpoint_skips_when_already_down(monkeypatch):
 
 
 def test_agentsview_stop_endpoint_kills_port_holder(monkeypatch):
-    monkeypatch.setattr("src.agentsview_usage._base_url", lambda: "http://127.0.0.1:8080")
-    monkeypatch.setattr("src.server_process.find_port_pids", lambda port: [4242])
-    monkeypatch.setattr("src.server_process.kill_pid", lambda pid: (True, f"killed pid {pid}"))
+    monkeypatch.setattr("src.usage.agentsview_usage._base_url", lambda: "http://127.0.0.1:8080")
+    monkeypatch.setattr("src.process.server_process.find_port_pids", lambda port: [4242])
+    monkeypatch.setattr("src.process.server_process.kill_pid", lambda pid: (True, f"killed pid {pid}"))
     r = _client().post("/admin/api/services/agentsview/stop")
     assert r.status_code == 200, r.text
     body = r.json()

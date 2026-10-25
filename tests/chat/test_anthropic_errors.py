@@ -23,7 +23,7 @@ import anthropic
 import pytest
 from fastapi.testclient import TestClient
 
-from src import anthropic_errors
+from src.routes import anthropic_errors
 from src import chat_translation as chat_translation_mod
 from src import server as server_mod
 

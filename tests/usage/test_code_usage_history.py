@@ -1,4 +1,4 @@
-"""Unit tests for src/code_usage_history.py (#280 follow-up).
+"""Unit tests for src/usage/code_usage_history.py (#280 follow-up).
 
 The conftest autouse fixture points the snapshot at a per-test temp file;
 these tests exercise the max-merge write path, the per-vendor cutoff read
@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from src import code_usage, code_usage_history as hist
-from src.usage_common import UsageRecord
+from src.usage import code_usage, code_usage_history as hist
+from src.usage.usage_common import UsageRecord
 
 
 def _rec(day: str, vendor: str = "claude", model: str = "claude-sonnet-5",

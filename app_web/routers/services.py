@@ -1,7 +1,7 @@
 """Services tab API — Docker engine + Langfuse stack health & launch.
 
 Surfaces the host-side ``src.services`` (Docker/Langfuse) and
-``src.agentsview_service`` (AgentsView) helpers behind these endpoints:
+``src.usage.agentsview_service`` (AgentsView) helpers behind these endpoints:
 
   * ``GET  /admin/api/services/status`` — quick combined probe used by
     the Hub tab's services card; polls every few seconds while the Hub
@@ -28,7 +28,7 @@ from typing import Any, Awaitable, Dict
 
 from fastapi import APIRouter
 
-from src import agentsview_service
+from src.usage import agentsview_service
 from src import services as svc
 
 logger = logging.getLogger(__name__)

@@ -32,7 +32,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from anthropic import Anthropic  # noqa: E402
 
-from src import backend_process as lp  # noqa: E402
+from src.process import backend_process as lp  # noqa: E402
 from src.model_registry import enabled_models  # noqa: E402
 
 BASE_URL = "http://127.0.0.1:8000"

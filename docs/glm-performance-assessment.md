@@ -57,7 +57,7 @@ calls (or on any call after `--mlock`).
 `prompt eval time`, `eval time`, and `tokens per second` separately
 on every request. llama-server prints them by default; make sure
 stdout is being captured. Our ring buffer already captures it
-([`src/backend_process.py`](../src/backend_process.py)); the
+([`src/process/backend_process.py`](../src/process/backend_process.py)); the
 `Logs` view in the Models tab will show them.
 
 ## Why CPU is at 100 % and GPU is idle

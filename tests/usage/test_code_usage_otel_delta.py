@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from src import claude_code_otel, code_usage
-from src.usage_common import UsageRecord
+from src.usage import claude_code_otel, code_usage
+from src.usage.usage_common import UsageRecord
 
 
 def _otel_rows(monkeypatch, rows):

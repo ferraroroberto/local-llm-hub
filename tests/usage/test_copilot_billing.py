@@ -18,7 +18,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from src import copilot_billing as cb
+from src.usage import copilot_billing as cb
 
 
 def _run(coro):

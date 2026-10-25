@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-from src import usage_charts, usage_common
+from src.usage import usage_charts, usage_common
 
 TODAY = date(2026, 10, 12)  # a Monday
 

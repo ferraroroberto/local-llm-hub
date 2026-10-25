@@ -23,7 +23,7 @@ import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from src import server as server_mod  # noqa: E402
-from src import token_counting as tc  # noqa: E402
+from src.routes import token_counting as tc  # noqa: E402
 
 CLAUDE_MODEL = "claude-haiku-5-5"
 LLAMA_MODEL = "qwen3.5-4b"

@@ -14,10 +14,10 @@ from datetime import datetime, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-from src import agentsview_usage as av
-from src import claude_code_otel, code_usage, codex_usage, copilot_usage
+from src.usage import agentsview_usage as av
+from src.usage import claude_code_otel, code_usage, codex_usage, copilot_usage
 from src import server as server_mod
-from src.usage_common import UsageRecord
+from src.usage.usage_common import UsageRecord
 
 
 def _client() -> TestClient:

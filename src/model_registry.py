@@ -62,7 +62,7 @@ class Model:
     # behavior — every model was implicitly local). When set and it differs
     # from the active host, this row is a *remote* model: the active host
     # never spawns/health-checks it locally and instead proxies requests to
-    # the owning host's own hub. See src/remote_proxy.py.
+    # the owning host's own hub. See src/fleet/remote_proxy.py.
     #
     # This is always ``hosts[0]`` — the first entry of the
     # ordered preference chain below. Every consumer that reads

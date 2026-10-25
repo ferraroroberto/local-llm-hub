@@ -44,7 +44,7 @@ from .openai_upstream import (
     call_openai_chat,
     openai_to_anthropic_envelope,
 )
-from .remote_proxy import remote_auth_headers, remote_base_url
+from .fleet.remote_proxy import remote_auth_headers, remote_base_url
 # The Anthropic SSE adapters live in their own module; re-exported here so
 # every importer keeps the chat_translation path.
 from .translation.anthropic_sse import (  # noqa: F401
@@ -641,7 +641,7 @@ def prepare_openai_messages_call(
     """Validate a ``/v1/messages`` request for an ``openai`` backend, then ready it.
 
     The one setup both the buffered (``_run_openai_backend``) and streaming
-    (``server._stream_anthropic_response``) paths share. Every 400 (unservable
+    (``routes.anthropic_messages._stream_anthropic_response``) paths share. Every 400 (unservable
     request, malformed tool definition, image/document on a text-only row) is
     raised *before* the on-demand spin-up, so a bad request never cold-starts
     a model to discover it. Returns ``(upstream, openai_messages, extra)``.

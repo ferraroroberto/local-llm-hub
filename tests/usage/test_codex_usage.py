@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from src import code_usage, codex_usage, usage_charts, usage_common, usage_pricing
+from src.usage import code_usage, codex_usage, usage_charts, usage_common, usage_pricing
 
 
 def _write_rollout(path: Path, lines: list) -> None:
@@ -180,7 +180,7 @@ def test_chart_buckets_and_prev_totals_use_requests_weight():
     Claude Code's ~30-day transcript retention and overcounted OTel deltas."""
     from datetime import date, datetime, timezone
 
-    from src import usage_charts
+    from src.usage import usage_charts
 
     today = date(2026, 6, 30)
 

@@ -1,4 +1,4 @@
-"""Unit tests for POST /v1/metrics (src/server_otel_receiver.py, issue #68).
+"""Unit tests for POST /v1/metrics (src/routes/server_otel_receiver.py, issue #68).
 
 `ingest_export_request` itself is covered in tests/usage/test_claude_code_otel.py;
 these tests focus on the route contract: always 200, correct content-type,
@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from src import server as server_mod
-from src import server_otel_receiver as receiver_mod
+from src.routes import server_otel_receiver as receiver_mod
 
 
 def test_receive_otlp_metrics_returns_200_and_calls_ingest(monkeypatch):

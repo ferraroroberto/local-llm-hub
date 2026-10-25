@@ -1,13 +1,4 @@
 {
   "version": 1,
-  "entries": [
-    {"key": "dir:src", "modules": 74},
-    {"key": "fn:src/server.py:_stream_anthropic_response", "lines": 143},
-    {"key": "fn:src/server.py:_stream_anthropic_response.event_stream", "lines": 101},
-    {"key": "fn:src/server.py:_stream_openai_passthrough", "lines": 112},
-    {"key": "fn:src/server.py:chat_completions", "lines": 162},
-    {"key": "fn:src/server.py:messages", "lines": 107},
-    {"key": "size:app_web/static/index.html", "lines": 1063},
-    {"key": "size:src/server.py", "lines": 1081}
-  ]
+  "entries": []
 }

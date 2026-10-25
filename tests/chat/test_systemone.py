@@ -16,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src import server as server_mod
-from src import server_systemone as systemone_mod
+from src.routes import server_systemone as systemone_mod
 from src.hub_observability import OBS
 
 _KEY = "ts-test-key-do-not-leak-7f3a"
@@ -201,7 +201,7 @@ def test_not_listed_in_models(upstream):
 
 def _admin_models(monkeypatch, **params) -> dict:
     from app_web.routers import models as models_router
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     async def _no_remote(*_a, **_kw):
         return None  # remote-owned rows render offline; nothing leaves the box

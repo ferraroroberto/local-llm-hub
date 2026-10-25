@@ -1,6 +1,6 @@
 # Fleet maintenance (drain marker)
 
-`src/fleet_reconcile.py` and `src/model_failover.py` are both
+`src/fleet/fleet_reconcile.py` and `src/model_failover.py` are both
 always-on background loops that hold independent opinions about a down peer
 hub:
 
@@ -12,7 +12,7 @@ hub:
 
 Left alone, reconcile almost always wins that race — a deliberately-stopped
 peer gets SSH-resurrected within seconds, long before failover's window can
-be satisfied. `src/fleet_maintenance.py` closes the gap: an operator arms a
+be satisfied. `src/fleet/fleet_maintenance.py` closes the gap: an operator arms a
 host-scoped drain window, and reconcile skips that host entirely (no wake, no
 SSH bootstrap, no start) until the window expires or is cleared. This
 replaces the old workaround of hand-editing
@@ -92,5 +92,5 @@ that a forgotten toggle self-heals within the hour.
    failover's `failback_after_s`-gated hand-back) is observable right away
    rather than waiting up to `FLEET_RECONCILE_INTERVAL_S`.
 
-See `src/fleet_reconcile.py` and `src/model_failover.py` module docstrings
+See `src/fleet/fleet_reconcile.py` and `src/model_failover.py` module docstrings
 for the full mechanics of each loop.

@@ -381,13 +381,13 @@ pipelines.
 
 ### What's captured — and what isn't
 
-- `POST /v1/metrics` (`src/server_otel_receiver.py`) accepts an OTLP/HTTP
+- `POST /v1/metrics` (`src/routes/server_otel_receiver.py`) accepts an OTLP/HTTP
   protobuf `ExportMetricsServiceRequest`, unauthenticated — same posture as
   the hub's other `/v1/*` routes (personal-localhost hub; if you ever bind
   beyond loopback, this endpoint inherits the same no-auth posture as the
   rest of that surface).
 - Only `claude_code.token.usage` and `claude_code.cost.usage` are kept
-  (`src/claude_code_otel.py`). Both are `Sum` metrics exported with
+  (`src/usage/claude_code_otel.py`). Both are `Sum` metrics exported with
   **delta** temporality (verified empirically against a real Claude Code
   export) — each received data point already is the incremental delta since
   the last export, so ingestion just adds values directly.
@@ -485,8 +485,8 @@ Sessions that hit neither path show "—" in the panel's Project column.
 | `app_web/routers/telemetry.py` | Health, trace feed, metrics, feedback endpoint |
 | `app_web/static/langfuse.js` | SPA Langfuse helpers: health, UI and trace addresses, trace preview, feedback (the Hub's Langfuse and trace sheets) |
 | `docs/clients-telemetry-contract.md` | Client-side recipe |
-| `src/server_otel_receiver.py` | `POST /v1/metrics` — Claude Code's OTLP metrics receiver |
-| `src/claude_code_otel.py` | Parse/persist/rollup for the Claude Code OTel receiver |
+| `src/routes/server_otel_receiver.py` | `POST /v1/metrics` — Claude Code's OTLP metrics receiver |
+| `src/usage/claude_code_otel.py` | Parse/persist/rollup for the Claude Code OTel receiver |
 | `data/telemetry/claude_code_otel_usage.jsonl` | Persisted usage log (gitignored) backing the Code tab's Sub-agents (OTel) source |
 
 ## Limitations / known gaps

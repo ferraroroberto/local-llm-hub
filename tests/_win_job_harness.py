@@ -1,4 +1,4 @@
-"""Test-only harness process for ``src.win_job`` containment (#468).
+"""Test-only harness process for ``src.process.win_job`` containment (#468).
 
 Not a pytest test module (leading underscore keeps it out of collection).
 Invoked by ``tests/backends/test_win_job.py`` as ``python -m tests._win_job_harness
@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src import win_job  # noqa: E402 — path insert above must run first
+from src.process import win_job  # noqa: E402 — path insert above must run first
 from src.no_window import NO_WINDOW  # noqa: E402
 
 

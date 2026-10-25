@@ -296,7 +296,7 @@ confirm before stopping anything they might still be using.
      leaving it loaded steals VRAM from the new model and creates
      the false impression that the old model is still the active
      role. Stop it. Use the admin SPA's Models tab's *Stop* button when
-     possible (it stops cleanly via `src.backend_process.stop`); if
+     possible (it stops cleanly via `src.process.backend_process.stop`); if
      the process is adopted (no log tail), use *Stop external (PID
      xxx)* on the same tab, or `Stop-Process -Id <pid>` as a last
      resort.

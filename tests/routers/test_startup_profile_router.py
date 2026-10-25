@@ -139,7 +139,7 @@ def test_known_host_without_address_400(monkeypatch, tmp_path):
 
 
 def test_remote_base_url_for_host_empty_and_self_are_none():
-    from src.remote_proxy import remote_base_url_for_host
+    from src.fleet.remote_proxy import remote_base_url_for_host
     assert remote_base_url_for_host("") is None
     assert remote_base_url_for_host(None) is None
     assert remote_base_url_for_host("tower") is None  # the active host

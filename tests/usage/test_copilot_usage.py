@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from src import code_usage, copilot_usage, usage_common, usage_pricing
+from src.usage import code_usage, copilot_usage, usage_common, usage_pricing
 
 
 def _write_yaml(path: Path, cwd: str) -> None:

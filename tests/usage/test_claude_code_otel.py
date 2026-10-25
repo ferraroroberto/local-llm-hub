@@ -1,4 +1,4 @@
-"""Unit tests for src/claude_code_otel.py (issue #68).
+"""Unit tests for src/usage/claude_code_otel.py (issue #68).
 
 Builds real ExportMetricsServiceRequest protobuf messages (rather than
 replaying opaque captured bytes) so the test doc­uments the exact wire shape
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from src import claude_code_otel as cco
+from src.usage import claude_code_otel as cco
 
 
 def _build_export(data_points):

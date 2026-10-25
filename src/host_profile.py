@@ -54,12 +54,12 @@ class HostProfile:
     # LAN address (IP or resolvable hostname) other hosts dial to reach this
     # machine's own hub — e.g. "192.168.1.11". Unset on hosts nothing ever
     # proxies to (today, that's fine; only a host that owns a remote-tagged
-    # model row needs one). See src/remote_proxy.py.
+    # model row needs one). See src/fleet/remote_proxy.py.
     address: Optional[str] = None
     # SSH login for the remote-bootstrap/sync endpoints — not a
     # secret, just which account to log in as; the private key path lives
     # in .env (LOCAL_LLM_HUB_SSH_KEY), never in this committed file. Unset
-    # on hosts nothing ever SSHes into. See src/remote_bootstrap.py.
+    # on hosts nothing ever SSHes into. See src/fleet/remote_bootstrap.py.
     ssh_user: Optional[str] = None
     # --- Machines-tab console metadata — never touches model routing.
     # A human label + one-line role + Lucide glyph id for the machine card.
@@ -244,7 +244,7 @@ def resolve() -> HostProfile:
 def get_host(host_id: str) -> Optional[HostProfile]:
     """Look up any declared host row by id — including hosts other than the
     one this process is running on. Used to resolve a remote model's owning
-    host's ``address`` (see src/remote_proxy.py); ``resolve()`` above only
+    host's ``address`` (see src/fleet/remote_proxy.py); ``resolve()`` above only
     ever returns the *active* host's profile, not an arbitrary one.
     """
     cfg = _load_config()

@@ -17,8 +17,10 @@ import yaml
 import pytest
 from fastapi.testclient import TestClient
 
-from src import config_write, fleet_reconcile, host_profile, machine_console as mc
-from src import model_failover, model_registry, remote_stats
+from src import config_write, host_profile
+from src.fleet import fleet_reconcile, machine_console as mc
+from src import model_failover, model_registry
+from src.fleet import remote_stats
 from src import server as server_mod
 from tests._worker_loop import run_on_worker_thread as _run
 

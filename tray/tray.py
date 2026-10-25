@@ -43,8 +43,8 @@ import yaml
 from src.host_profile import CONFIG_PATH, hub_port
 from src.model_registry import SPAWNABLE_BACKENDS, Model, local_models
 from src.no_window import NO_WINDOW
-from src.process_supervisor import ProcessSupervisor, SpawnSpec
-from src.server_process import WIN_NEW_GROUP, lan_ip
+from src.process.process_supervisor import ProcessSupervisor, SpawnSpec
+from src.process.server_process import WIN_NEW_GROUP, lan_ip
 from src.webapp_config import (
     WebappConfig,
     WebappConfigError,
@@ -104,10 +104,10 @@ def load_tray_config() -> TrayConfig:
 
 class HubProcess:
     """Owns the hub subprocess. Adopt-or-spawn semantics — same as the
-    legacy :mod:`src.server_process` but here in the tray so the hub
+    legacy :mod:`src.process.server_process` but here in the tray so the hub
     *is* a child of the tray.
 
-    Drives the shared :class:`src.process_supervisor.ProcessSupervisor`
+    Drives the shared :class:`src.process.process_supervisor.ProcessSupervisor`
     (#530) rather than a second hand-rolled start/stop, which had already
     measurably diverged from it — the tray's ``stop`` correctly waited
     between the graceful signal and the hard kill; ``ProcessSupervisor.

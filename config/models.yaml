@@ -179,7 +179,7 @@ hosts:
 #     policy: auto             # auto = hand back after the window; sticky = stay put
 #
 # fail_after_s races fleet_reconcile.py's own always-on resurrection of a down
-# peer (#411) — arm src.fleet_maintenance for the target host (via
+# peer (#411) — arm src.fleet.fleet_maintenance for the target host (via
 # /admin/api/fleet-maintenance) before inducing an outage, or reconcile wakes
 # the peer before this window is satisfied. See docs/fleet-maintenance.md.
 

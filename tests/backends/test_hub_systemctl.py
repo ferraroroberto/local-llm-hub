@@ -52,7 +52,7 @@ def test_hub_stop_uses_systemctl_under_systemd(monkeypatch):
 
 
 def test_hub_restart_uses_systemctl_under_systemd(monkeypatch):
-    from src import backend_process as bp
+    from src.process import backend_process as bp
 
     calls = []
     monkeypatch.setattr(hub_mod, "_under_systemd", lambda: True)

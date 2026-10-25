@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from src import claude_code_otel as cco
+from src.usage import claude_code_otel as cco
 from src import server as server_mod
 
 

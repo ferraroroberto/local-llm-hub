@@ -45,7 +45,7 @@ def test_real_rules_route_representative_paths() -> None:
     assert tier("app_web/static/_vendored/nav/nav-tabs.html") == "static"
 
     # Backend / tray / tests / docs / markdown -> skip.
-    assert tier("src/server_process.py") == "skip"
+    assert tier("src/process/server_process.py") == "skip"
     assert tier("tray/tray.py") == "skip"
     assert tier("tests/backends/test_server_process.py") == "skip"
     assert tier("docs/architecture.mmd") == "skip"
@@ -59,4 +59,4 @@ def test_real_rules_route_representative_paths() -> None:
     assert tier(".conventions-ratchet-baseline.json") == "skip"
 
     # Mixed real diff (backend + admin SPA) -> full.
-    assert tier("src/server_process.py", "app_web/routers/hub.py") == "full"
+    assert tier("src/process/server_process.py", "app_web/routers/hub.py") == "full"

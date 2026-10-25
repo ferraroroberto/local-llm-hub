@@ -22,14 +22,14 @@ aborted connections against a bare ``SelectorEventLoop`` server left it
 accepting fine, while the same abuse killed a ``ProactorEventLoop`` server
 after ~20. None of this repo's servers spawn asyncio subprocesses
 in-process (backends are launched via plain ``subprocess.Popen`` in
-``src/backend_process.py``, never ``asyncio.create_subprocess_*``), so the
+``src/process/backend_process.py``, never ``asyncio.create_subprocess_*``), so the
 selector loop's lack of subprocess support is a non-issue here.
 
 Wired into every ``uvicorn.run(...)`` call in this repo -- ``src/server.py``
 (the main hub), ``src/tts_server.py``, and ``src/parakeet_server.py`` -- via
 ``loop=LOOP_FACTORY``. Each of those is a programmatic ``uvicorn.run()``
 call (not a CLI ``-m uvicorn`` invocation), so this is the only wiring
-point needed; ``src/backend_process.py::build_command()`` just launches
+point needed; ``src/process/backend_process.py::build_command()`` just launches
 ``python -m src.<module>``, and each module's own ``main()`` already sets
 the loop.
 

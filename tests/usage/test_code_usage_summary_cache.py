@@ -15,7 +15,7 @@ import threading
 
 import pytest
 
-from src import code_usage
+from src.usage import code_usage
 
 
 class _Clock:
@@ -285,9 +285,9 @@ def test_recent_sessions_keep_iso_timestamps_newest_first(monkeypatch):
     datetimes instead of strings; the payload must not change shape."""
     from datetime import datetime, timezone
 
-    from src import codex_usage, copilot_usage
-    from src import agentsview_usage as av
-    from src.usage_common import UsageRecord
+    from src.usage import codex_usage, copilot_usage
+    from src.usage import agentsview_usage as av
+    from src.usage.usage_common import UsageRecord
 
     def rec(sid: str, hour: int) -> UsageRecord:
         return UsageRecord(

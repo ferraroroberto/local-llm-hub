@@ -23,8 +23,8 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional
 import httpx
 
 from ..model_registry import Model
-from ..process_supervisor import ProcessSupervisor
-from ..win_job import assign_pid, create_kill_on_close_job, terminate_and_close
+from ..process.process_supervisor import ProcessSupervisor
+from ..process.win_job import assign_pid, create_kill_on_close_job, terminate_and_close
 from .common import (
     PROJECT_ROOT,
     SpeechRequest,
@@ -122,7 +122,7 @@ class OrpheusEngine(TTSEngine):
         spawn can't bind ``internal_port``. The port is hub-private, so
         killing whatever holds it is safe.
         """
-        from ..server_process import kill_pid, snapshot_listening_pids
+        from ..process.server_process import kill_pid, snapshot_listening_pids
 
         listening = snapshot_listening_pids() or {}
         for pid in listening.get(self.internal_port, []) or []:
@@ -130,8 +130,8 @@ class OrpheusEngine(TTSEngine):
             kill_pid(int(pid))
 
     def _spawn_llama(self) -> None:
-        from ..backend_process import llama_server_binary, VENDOR_LLAMA
-        from ..server_process import WIN_NEW_GROUP
+        from ..process.backend_process import llama_server_binary, VENDOR_LLAMA
+        from ..process.server_process import WIN_NEW_GROUP
 
         self._reclaim_internal_port()
         bin_path = llama_server_binary()

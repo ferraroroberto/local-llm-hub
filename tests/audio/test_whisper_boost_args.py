@@ -13,8 +13,8 @@ import os
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
-from src.backend_process import _whisper_boost_args  # noqa: E402
-from src.transcription_glossary import load_boost_terms  # noqa: E402
+from src.process.backend_process import _whisper_boost_args  # noqa: E402
+from src.audio.transcription_glossary import load_boost_terms  # noqa: E402
 
 
 def test_no_boost_without_carry_flag():

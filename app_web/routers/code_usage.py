@@ -16,7 +16,7 @@ import logging
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
-from src.code_usage import _VALID_PERIODS, get_summary_cached, is_valid_vendor
+from src.usage.code_usage import _VALID_PERIODS, get_summary_cached, is_valid_vendor
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -48,7 +48,7 @@ async def code_usage_summary(
     into the passing state.  A non-2xx makes that mistake impossible to make
     by omission: every JSON client already raises on it.
     """
-    from src import agentsview_usage
+    from src.usage import agentsview_usage
 
     if period not in _VALID_PERIODS:
         period = "today"
@@ -84,7 +84,7 @@ async def copilot_billing_summary() -> dict:
     when no PAT is configured or the account isn't on the enhanced billing
     platform; never errors.
     """
-    from src import copilot_billing
+    from src.usage import copilot_billing
 
     try:
         return await copilot_billing.get_daily_credits()

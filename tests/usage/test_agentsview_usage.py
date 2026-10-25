@@ -1,4 +1,4 @@
-"""Unit tests for src/agentsview_usage.py (issue #280).
+"""Unit tests for src/usage/agentsview_usage.py (issue #280).
 
 All HTTP is faked with ``httpx.MockTransport`` via the ``_build_client`` test
 seam — no network, no real AgentsView.  Tests drive ``_refresh()``
@@ -14,8 +14,8 @@ from datetime import timezone
 import httpx
 import pytest
 
-from src import agentsview_usage as av
-from src import code_usage, usage_pricing
+from src.usage import agentsview_usage as av
+from src.usage import code_usage, usage_pricing
 
 
 @pytest.fixture(autouse=True)

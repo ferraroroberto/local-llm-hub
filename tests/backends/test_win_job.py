@@ -1,4 +1,4 @@
-"""Regression coverage for src/win_job.py's Job Object containment (#468).
+"""Regression coverage for src/process/win_job.py's Job Object containment (#468).
 
 Proves the two guarantees the e2e ``hub_url`` fixture now relies on:
 
@@ -25,7 +25,7 @@ from pathlib import Path
 import psutil
 import pytest
 
-from src import win_job
+from src.process import win_job
 from src.no_window import NO_WINDOW
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

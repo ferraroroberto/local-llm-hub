@@ -17,7 +17,7 @@ from fastapi.responses import Response, StreamingResponse
 
 from src.host_profile import hub_port
 from src.http_client import get_async_client
-from src import server_systemone
+from src.routes import server_systemone
 from src.model_reachability import reachability_by_id
 from src.model_registry import enabled_models, resolve as resolve_model
 from src.tts_engines import capabilities_for_engine
@@ -104,10 +104,10 @@ async def playground_image_models() -> Dict[str, Any]:
     """Image-generation models plus the size presets, for the image card.
 
     Returns the presets alongside the models so the dropdown and the API
-    validator cannot drift — ``src.image_sizes`` is the single source and the
+    validator cannot drift — ``src.images.image_sizes`` is the single source and the
     UI never hardcodes a dimension.
     """
-    from src.image_sizes import DEFAULT_SIZE, preset_payload
+    from src.images.image_sizes import DEFAULT_SIZE, preset_payload
 
     rows: List[Dict[str, Any]] = []
     for m in enabled_models():

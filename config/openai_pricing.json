@@ -1,5 +1,5 @@
 {
-  "_comment": "OpenAI API list prices in USD per million tokens, keyed by display model id (what src/code_usage.py:_model_display returns for a Codex model, e.g. 'GPT-5.5'). Used by the Code tab to show the equivalent metered-API cost of host-side Codex usage. Per-MTok rates: input = base input; cached_input = cache hit (a subset of input for Codex, priced on the cached portion only); output = output (includes reasoning tokens). The >272K long-context surcharge (2x input / 1.5x output) is not modelled. Refresh when OpenAI changes pricing.",
+  "_comment": "OpenAI API list prices in USD per million tokens, keyed by display model id (what src/usage/code_usage.py:_model_display returns for a Codex model, e.g. 'GPT-5.5'). Used by the Code tab to show the equivalent metered-API cost of host-side Codex usage. Per-MTok rates: input = base input; cached_input = cache hit (a subset of input for Codex, priced on the cached portion only); output = output (includes reasoning tokens). The >272K long-context surcharge (2x input / 1.5x output) is not modelled. Refresh when OpenAI changes pricing.",
   "_source": "https://developers.openai.com/api/docs/pricing",
   "_fetched": "2026-07-11",
   "models": {

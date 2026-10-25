@@ -13,12 +13,12 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, List, Optional, Sequence
 
-from . import backend_process as bp
-from . import remote_stats
+from .process import backend_process as bp
+from .fleet import remote_stats
 from .host_profile import get_host, resolve as resolve_host
 from .model_failover import effective_owner
 from .model_registry import Model
-from .server_process import snapshot_listening_pids
+from .process.server_process import snapshot_listening_pids
 
 
 async def local_reachability(

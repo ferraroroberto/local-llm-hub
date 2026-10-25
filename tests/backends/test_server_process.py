@@ -5,7 +5,8 @@ from __future__ import annotations
 import importlib
 from types import SimpleNamespace
 
-from src import host_profile, server_process
+from src import host_profile
+from src.process import server_process
 
 
 def test_find_port_pids_reads_the_shared_listener_snapshot(monkeypatch):
