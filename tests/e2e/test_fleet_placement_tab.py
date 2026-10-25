@@ -7,7 +7,7 @@ running now (live), the models it could load (chain members incl. on-demand),
 and the capacity line. These tests pin the GET contract with route
 interception so the render is deterministic and no real backend is ever
 started: the SPA is the unit under test here (the API itself has its own unit
-tests in ``tests/test_fleet_placement_router.py``).
+tests in ``tests/routers/test_fleet_placement_router.py``).
 
 What they lock in:
   * #737: one meter row per host, live GPU first, the ``~`` estimate against

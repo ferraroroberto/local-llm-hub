@@ -125,8 +125,8 @@ def pytest_collection_modifyitems(items: list) -> None:
     ``asyncio.get_running_loop()`` keeps returning that loop on the main
     thread for the rest of the *process*, not just for the duration of one
     e2e test. Any later test that reaches for a bare ``asyncio.run(...)``
-    (``tests/test_audio_failover.py``, ``tests/test_fleet_reconcile.py``,
-    ``tests/test_model_failover.py``, ``tests/test_server_lifecycle.py``)
+    (``tests/audio/test_audio_failover.py``, ``tests/test_fleet_reconcile.py``,
+    ``tests/test_model_failover.py``, ``tests/backends/test_server_lifecycle.py``)
     then trips ``asyncio.run()``'s "already running" guard — a different
     mechanism from the #416/#441 event-loop leaks those files were already
     cleared of (both explicitly scoped to ``--ignore=tests/e2e`` and ruled

@@ -3,7 +3,7 @@
 Loads the real `.fleet.toml` and asserts representative paths land in the
 tier their rule intends — an edit that silently under-routes a real e2e
 surface fails here. Mechanism + fail-safe behavior are covered by
-project-scaffolding's own `tests/test_classify_e2e.py`; this file only
+project-scaffolding's own `tests/ratchets/test_classify_e2e.py`; this file only
 guards this repo's declared rules.
 """
 
@@ -13,7 +13,7 @@ from pathlib import Path
 
 from scripts.classify_e2e import load_config, classify
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 REAL_FLEET_TOML = REPO_ROOT / ".fleet.toml"
 
 
@@ -47,7 +47,7 @@ def test_real_rules_route_representative_paths() -> None:
     # Backend / tray / tests / docs / markdown -> skip.
     assert tier("src/server_process.py") == "skip"
     assert tier("tray/tray.py") == "skip"
-    assert tier("tests/test_server_process.py") == "skip"
+    assert tier("tests/backends/test_server_process.py") == "skip"
     assert tier("docs/architecture.mmd") == "skip"
     assert tier("README.md") == "skip"
     assert tier(".static-ratchet-baseline.json") == "skip"

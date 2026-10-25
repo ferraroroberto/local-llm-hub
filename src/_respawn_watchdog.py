@@ -17,7 +17,7 @@ and fed to ``python -c`` — unlintable, untestable, no type-checking, and
 any quoting slip in an interpolated value was invisible until a live
 restart silently failed. Now a real module: covered by this project's
 byte-compile gate, and its pure helpers are unit-tested directly
-(``tests/test_respawn_watchdog.py``).
+(``tests/backends/test_respawn_watchdog.py``).
 """
 
 from __future__ import annotations

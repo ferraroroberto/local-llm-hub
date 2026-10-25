@@ -4,7 +4,7 @@ UI over the extended ``/admin/api/models`` payload (placement intent per
 row). Same discipline as the fleet-placement grid
 suite: the GET contract is pinned with route interception so the render is
 deterministic and no real backend is started — the SPA is the unit under
-test (the API itself is covered in ``tests/test_models_router.py``).
+test (the API itself is covered in ``tests/routers/test_models_router.py``).
 
 What they lock in:
   * chain pills render in priority order with the effective owner

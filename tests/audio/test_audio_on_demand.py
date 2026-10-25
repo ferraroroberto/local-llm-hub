@@ -25,7 +25,7 @@ from fastapi import HTTPException
 from starlette.datastructures import FormData, UploadFile
 
 from src import server_audio_asr, transcription_glossary
-from tests.test_audio_failover import _FakeClient, _FakeReq, _FakeResp, _model_body
+from tests.audio.test_audio_failover import _FakeClient, _FakeReq, _FakeResp, _model_body
 
 
 class _FakeFormReq(_FakeReq):

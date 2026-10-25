@@ -1,4 +1,4 @@
-"""Standalone worker for ``tests/test_event_loop.py``'s aborted-connection
+"""Standalone worker for ``tests/backends/test_event_loop.py``'s aborted-connection
 bombardment (issue #441).
 
 The two Windows-only tests that drive this deliberately corrupt OS-level

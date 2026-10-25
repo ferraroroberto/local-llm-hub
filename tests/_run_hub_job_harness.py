@@ -1,7 +1,7 @@
 """Test-only harness for ``run_backend._self_contain`` (#507).
 
 Not a pytest test module (leading underscore keeps it out of collection).
-Invoked by ``tests/test_run_backend_containment.py`` as
+Invoked by ``tests/backends/test_run_backend_containment.py`` as
 ``python -m tests._run_hub_job_harness <marker-path>`` to prove the actual
 ``_self_contain`` wiring — not a re-implementation of it: this harness calls
 the real function, then spawns a grandchild the same way

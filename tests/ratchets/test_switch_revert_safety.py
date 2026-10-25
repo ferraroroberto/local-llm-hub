@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-STATIC_DIR = Path(__file__).resolve().parents[1] / "app_web" / "static"
+STATIC_DIR = Path(__file__).resolve().parents[2] / "app_web" / "static"
 
 _SWITCH_CALL_RE = re.compile(r"switchEl\(")
 _CATCH_RE = re.compile(r"\.catch\(")

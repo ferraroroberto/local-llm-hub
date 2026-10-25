@@ -4,7 +4,7 @@ Same discipline as ``test_models_placement_cards.py``: the GET contract is
 pinned with route interception so the render is deterministic; the PUT is
 intercepted too, so no real config write ever happens — the SPA is the unit
 under test (validation + the git transaction are covered in
-``tests/test_config_write.py`` / ``tests/test_models_router.py``).
+``tests/test_config_write.py`` / ``tests/routers/test_models_router.py``).
 
 What they lock in:
   * the editor only offers itself where the server says this hub may write

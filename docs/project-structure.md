@@ -270,8 +270,8 @@ use this path; it stays on the gemini backend.
   its own — the hub process is owned by whatever spawned it (the tray's
   own `HubProcess`, launchd, or systemd), not by this in-process module.
 - **Tests don't touch Claude or the GPU.**
-  [`tests/test_server.py`](../tests/test_server.py) and
-  [`tests/test_router.py`](../tests/test_router.py) monkeypatch both
+  [`tests/chat/test_server.py`](../tests/chat/test_server.py) and
+  [`tests/chat/test_router.py`](../tests/chat/test_router.py) monkeypatch both
   `call_claude` and `call_openai_chat`. The real end-to-end check
   lives in [`scripts/smoke_test.py`](../scripts/smoke_test.py) and
   needs the hub plus the relevant backends running.

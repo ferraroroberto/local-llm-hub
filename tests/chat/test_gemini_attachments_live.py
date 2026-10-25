@@ -14,7 +14,7 @@ every time.
 
 Run locally:
     $env:HUB_LIVE_GEMINI = "1"
-    .venv/Scripts/python.exe -m pytest tests/test_gemini_attachments_live.py -v
+    .venv/Scripts/python.exe -m pytest tests/chat/test_gemini_attachments_live.py -v
 
 GitHub CI (windows-latest) has no authenticated `agy` / Gemini subscription —
 the skip guard ensures this file never runs there.

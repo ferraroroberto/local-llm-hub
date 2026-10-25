@@ -12,7 +12,7 @@ What the gate proves:
 
 The browser-free checks — the ``?v=<hash>`` asset stamps, ``/admin/api/version``
 and the request ring's API — are unit tests since #599
-(tests/test_static_versioning.py, tests/test_request_ring.py).
+(tests/test_static_versioning.py, tests/chat/test_request_ring.py).
 
 Runs under Chromium only. WebKit was dropped from the matrix in issue
 #24 — the SPA has no Safari-specific code and WebKit on windows-latest

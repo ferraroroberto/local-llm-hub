@@ -7,7 +7,7 @@ name imported into ``tray.tray``) rather than spawning real subprocesses —
 ``build_spawn_spec``/``set_process`` correctly and translating the
 supervisor's ``(False, "already running")`` into the tray's own
 ``(True, ...)`` convention; the supervisor's internal escalation logic is
-covered by ``tests/test_process_supervisor.py``.
+covered by ``tests/backends/test_process_supervisor.py``.
 """
 
 from __future__ import annotations

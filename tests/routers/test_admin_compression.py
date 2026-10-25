@@ -15,7 +15,7 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from app_web.routers._helpers import sse_stream
 from src import server as server_mod
-from tests.test_playground_router import _mock_stream_upstream
+from tests.routers.test_playground_router import _mock_stream_upstream
 
 _GZIP = {"Accept-Encoding": "gzip"}
 

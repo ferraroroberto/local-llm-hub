@@ -56,11 +56,11 @@ BAD_EDITS = {
 # keys: placement asserts, startup-gated routing, VRAM budgets, and the YAML
 # editor's line-exact tests.
 AFFECTED_MODULES = [
-    "tests/test_audio_translate_bridge.py",
+    "tests/audio/test_audio_translate_bridge.py",
     "tests/test_config_write.py",
-    "tests/test_fleet_placement_router.py",
-    "tests/test_models_router.py",
-    "tests/test_on_demand.py",
+    "tests/routers/test_fleet_placement_router.py",
+    "tests/routers/test_models_router.py",
+    "tests/backends/test_on_demand.py",
 ]
 
 

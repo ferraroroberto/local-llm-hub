@@ -22,7 +22,7 @@ import pytest
 from scripts import docs_ratchet_gate as gate
 from src.no_window import NO_WINDOW
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 VENDORED = REPO_ROOT / "scripts" / "docs_ratchet.py"
 
 _FLEET = '[docs_ratchet]\nenabled = true\nexclude = ["docs/reports/**"]\n'

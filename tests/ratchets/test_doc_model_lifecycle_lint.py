@@ -34,7 +34,7 @@ import pytest
 
 from src import model_registry
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Phrases a doc uses to assert a model loads eagerly / stays resident. Matched
 # case-insensitively; this is the exact vocabulary the audit found stale.
