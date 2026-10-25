@@ -12,7 +12,7 @@
 # two-value allowlist. Anything else is rejected — no general shell is ever
 # reachable through this key.
 #
-# Verbs (same contract the tower's src/remote_bootstrap.py speaks to the Mac):
+# Verbs (same contract the tower's src/fleet/remote_bootstrap.py speaks to the Mac):
 #   sync      — git pull --ff-only + dependency delta into the repo venv, then
 #               `systemctl restart`. For an already-running peer being brought
 #               up to the tower's latest main.

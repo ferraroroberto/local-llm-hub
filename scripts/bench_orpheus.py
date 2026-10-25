@@ -50,7 +50,7 @@ except Exception:  # noqa: BLE001
     pass
 
 from _lib import no_window_flags  # noqa: E402
-from src.backend_process import VENDOR_LLAMA, llama_server_binary  # noqa: E402
+from src.process.backend_process import VENDOR_LLAMA, llama_server_binary  # noqa: E402
 from src.model_registry import resolve as resolve_model  # noqa: E402
 
 DEFAULT_VOICE = "tara"

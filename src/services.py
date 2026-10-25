@@ -35,7 +35,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 from src.http_client import get_async_client
 from src.no_window import NO_WINDOW
 from src.observability import langfuse_host
-from src.server_process import WIN_NEW_GROUP
+from src.process.server_process import WIN_NEW_GROUP
 
 logger = logging.getLogger(__name__)
 

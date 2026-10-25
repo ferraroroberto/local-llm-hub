@@ -111,7 +111,7 @@ guard.
 
 The boosting prompt is **not** hardcoded in `config/models.yaml`. A row
 opts in with `--carry-initial-prompt`; at launch
-[src/backend_process.py](../src/backend_process.py) `_whisper_boost_args`
+[src/process/backend_process.py](../src/process/backend_process.py) `_whisper_boost_args`
 reads `boost_terms` from `config/transcription_glossary.json` and appends
 `--prompt "Glossary: <terms>."`. One home for the vocabulary, shared with
 the replacement rules below. (Because `args` are passed as an argv list,
@@ -157,7 +157,7 @@ but are independent.
 
 ### How replacement is wired
 
-- [src/transcription_glossary.py](../src/transcription_glossary.py) loads
+- [src/audio/transcription_glossary.py](../src/audio/transcription_glossary.py) loads
   and compiles the rules (cached) and exposes
   `apply_to_response(content, content_type, rules)`.
 - [src/server.py](../src/server.py)'s audio proxy calls it on the upstream
@@ -191,7 +191,7 @@ all whisper backends):
 Surfaces:
 [app_web/routers/glossary.py](../app_web/routers/glossary.py)
 (`GET`/`PUT /admin/api/glossary`, `POST /admin/api/glossary/mine`) and
-[src/dictionary_miner.py](../src/dictionary_miner.py) (frequency +
+[src/audio/dictionary_miner.py](../src/audio/dictionary_miner.py) (frequency +
 capitalisation heuristics for `boost_terms`, plus an optional LLM
 clustering pass — run through the hub itself — that groups a canonical
 term with its common mis-transcriptions into candidate `replacements`,

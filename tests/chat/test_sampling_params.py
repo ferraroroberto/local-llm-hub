@@ -20,6 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src import server as server_mod
+from src.routes import anthropic_messages as anthropic_mod
 from tests.chat.test_tool_use import LOCAL_MODEL, _messages_upstream_extra
 
 
@@ -66,7 +67,7 @@ def test_stop_sequences_on_a_cli_backend_are_refused(model, stream):
 
 def test_top_p_top_k_on_a_cli_backend_are_accepted(monkeypatch):
     monkeypatch.setattr(
-        server_mod, "_run_claude_backend",
+        anthropic_mod, "_run_claude_backend",
         lambda model, req: {"result": "hi", "stop_reason": "end_turn", "usage": {}},
     )
     client = TestClient(server_mod.app)

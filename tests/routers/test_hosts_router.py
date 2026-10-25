@@ -1,7 +1,7 @@
 """Unit tests for app_web/routers/hosts.py (issue #181, host-generic since #368).
 
 The router itself takes ``host_id`` as a path param and forwards straight to
-``src.remote_bootstrap`` — no per-host branching. These tests pin that with
+``src.fleet.remote_bootstrap`` — no per-host branching. These tests pin that with
 stubs for two different peer ids (mac-mini-m4, gaming) so a future regression
 that special-cases one host over the other fails loudly (#372).
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from src import remote_bootstrap
+from src.fleet import remote_bootstrap
 from src import server as server_mod
 
 

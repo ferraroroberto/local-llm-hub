@@ -113,7 +113,9 @@ def test_client_endpoint_is_the_mounted_route(usage_db):
 
 
 def test_data_track_ids_are_bounded_constants():
-    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    html = "".join(
+        (STATIC_DIR / name).read_text(encoding="utf-8") for name in ("index.html", "sheets.html")
+    )
     ids = re.findall(r'data-track="([^"]*)"', html)
     assert ids, "no control carries a data-track id"
     bad = [i for i in ids if not ID_PATTERN.fullmatch(i)]

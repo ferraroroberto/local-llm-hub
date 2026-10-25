@@ -64,7 +64,7 @@ async def stop_backend_children() -> None:
     restart endpoint sets ``backend_process.restart_pending()`` before
     signalling shutdown; we honour it by skipping teardown.
     """
-    from . import backend_process as bp
+    from .process import backend_process as bp
     from . import http_client
 
     try:
@@ -122,7 +122,7 @@ async def wire_observatory_loop() -> None:
     # previous hub instance. Without this, every hub restart shows the
     # surviving model backends as "adopted" rather than "running".
     try:
-        from . import backend_process as bp
+        from .process import backend_process as bp
         inherited = await asyncio.to_thread(bp.inherit_running_backends)
         if inherited:
             logger.info("📎 Inherited %d running backend(s) from a previous hub", inherited)
@@ -171,7 +171,7 @@ async def _prewarm_code_usage() -> None:
     Off the event loop and off the startup path: the build walks every usage
     record (5-10 s on the tower) and nothing at start waits for it.
     """
-    from . import code_usage
+    from .usage import code_usage
 
     await asyncio.to_thread(code_usage.prewarm_default_summary)
 
@@ -181,7 +181,7 @@ async def _autostart_configured_backends() -> None:
     # (or unowned and launchable on) this host. This is how an offline
     # satellite applies its models when it powers up — its own synced
     # models.yaml, no tower involvement needed.
-    from . import backend_process as bp
+    from .process import backend_process as bp
     from .model_registry import desired_model_ids
 
     model_ids = desired_model_ids()
@@ -233,7 +233,7 @@ async def _autostart_services() -> None:
     ``hosts:`` chains + ``startup:`` policy) as the sole cross-host source of
     truth.
     """
-    from . import agentsview_service
+    from .usage import agentsview_service
     from . import services as svc
     from .startup_profile import load_startup_profile
 
@@ -272,7 +272,7 @@ async def _fleet_reconcile_loop() -> None:
     spirit as the sampler: a reconcile error must never take the loop (or the
     hub) down. No-ops cheaply when no placement is configured.
     """
-    from . import fleet_reconcile
+    from .fleet import fleet_reconcile
 
     await asyncio.sleep(fleet_reconcile.FLEET_RECONCILE_BOOT_DELAY_S)
     while True:

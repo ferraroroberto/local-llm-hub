@@ -26,8 +26,9 @@ from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter
 
-from src import backend_process as bp
-from src import fleet_reconcile, remote_stats, system_stats
+from src.process import backend_process as bp
+from src.fleet import fleet_reconcile, remote_stats
+from src import system_stats
 from src.host_profile import HostProfile, all_hosts, resolve as resolve_host
 from src.model_registry import (
     all_models,

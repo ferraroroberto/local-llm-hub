@@ -21,7 +21,7 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from src.process_supervisor import ProcessSupervisor
+from src.process.process_supervisor import ProcessSupervisor
 
 
 class _FakePopen:

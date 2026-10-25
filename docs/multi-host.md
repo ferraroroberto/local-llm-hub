@@ -177,7 +177,7 @@ the single source. Moving a model is a `models.yaml` edit
 (the Models-tab placement cards / swap-model), which the config-write
 pipeline commits and syncs to every satellite.
 
-A background **reconcile loop** (`src/fleet_reconcile.py`, wired in
+A background **reconcile loop** (`src/fleet/fleet_reconcile.py`, wired in
 `server_lifecycle.py`) converges the fleet to the derived state on boot and
 every ~5 min (`LOCAL_LLM_HUB_FLEET_RECONCILE_INTERVAL_S`). For each host with
 desired models it: wakes an unreachable `can_ssh` satellite (same
@@ -305,7 +305,7 @@ the engine adds zero probes and zero background work.
 - **Maintenance gate.** The fleet reconcile loop's own always-on
   convergence races this engine's `fail_after_s` window — reconcile can
   SSH-resurrect a deliberately-stopped peer within seconds, before failover
-  ever observes a continuous outage. `src/fleet_maintenance.py` gives the
+  ever observes a continuous outage. `src/fleet/fleet_maintenance.py` gives the
   tower a host-scoped drain marker reconcile honours
   (`GET/POST/DELETE /admin/api/fleet-maintenance/{host_id}`), for running a
   drill without editing `.env`. See [fleet-maintenance.md](fleet-maintenance.md).

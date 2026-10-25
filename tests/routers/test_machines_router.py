@@ -1,4 +1,4 @@
-"""Unit tests for the Machines console (#309) — src/machine_console.py +
+"""Unit tests for the Machines console (#309) — src/fleet/machine_console.py +
 app_web/routers/machines.py.
 
 Exercises the pure capability/inventory logic (host enrollment, which
@@ -15,9 +15,9 @@ import dataclasses
 import pytest
 from fastapi.testclient import TestClient
 
-from src import machine_console as mc
+from src.fleet import machine_console as mc
 from src import server as server_mod
-from src import ssh_exec
+from src.fleet import ssh_exec
 from src.host_profile import HostProfile, all_hosts, get_host, resolve
 from tests._worker_loop import run_on_worker_thread as _run
 
@@ -409,7 +409,7 @@ def test_self_snapshot_shape(monkeypatch):
 
 
 def test_remote_stats_parse_linux():
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     raw = (
         "uptime 70254\ncpu 2\nmem_total_mb 15800\nmem_used_mb 1239\n"
@@ -426,7 +426,7 @@ def test_remote_stats_parse_linux():
 
 
 def test_remote_stats_parse_darwin_no_gpu():
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     raw = "uptime 1636838\ncpu 2.69\nmem_total_mb 16384\nmem_used_mb 8983\ndisk_total_kb 239362496\ndisk_used_kb 17383264\n"
     s = remote_stats._parse(raw)
@@ -438,7 +438,7 @@ def test_remote_stats_parse_darwin_no_gpu():
 def test_remote_stats_parse_network_wired():
     """A wired peer (gaming) reports iface/mac and wireless=False, no
     SSID/signal (#397)."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     raw = "uptime 34782\ncpu 0\nnet_iface enp4s0\nnet_mac aa:bb:cc:dd:ee:02\nnet_wireless 0\n"
     s = remote_stats._parse(raw)
@@ -450,7 +450,7 @@ def test_remote_stats_parse_network_wired():
 
 def test_remote_stats_parse_network_wireless_with_ssid_and_signal():
     """A Wi-Fi peer (openclaw) reports SSID + signal alongside wireless=True."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     raw = (
         "uptime 34787\ncpu 0\nnet_iface wlo1\nnet_mac 0c:7a:15:c0:0b:16\n"
@@ -466,7 +466,7 @@ def test_remote_stats_parse_network_wireless_with_ssid_and_signal():
 def test_remote_stats_parse_network_wireless_without_iw():
     """A Wi-Fi peer with no `iw` installed still reports wireless=True — just
     without SSID/signal (degrade gracefully, never a blank/broken chip)."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     raw = "uptime 1\ncpu 0\nnet_iface wlan0\nnet_mac aa:bb:cc:dd:ee:ff\nnet_wireless 1\n"
     s = remote_stats._parse(raw)
@@ -479,7 +479,7 @@ def test_remote_stats_parse_network_wireless_without_iw():
 def test_remote_stats_parse_network_absent_when_probe_yields_nothing():
     """No `net_iface` line at all (probe failed / platform unsupported) —
     `network` is None, same degrade contract as `ram`/`disk`/`gpus`."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     raw = "uptime 1636838\ncpu 2.69\nmem_total_mb 16384\nmem_used_mb 8983\n"
     s = remote_stats._parse(raw)
@@ -490,7 +490,7 @@ def test_darwin_stats_cmd_survives_missing_sudo():
     """The macOS Wi-Fi/RSSI probe rides `sudo -n wdutil info`; the guarding
     `if`/`else` structure must still exit clean when sudo has no drop-in
     (matches the Linux `if … then … fi` exit-0 contract, #397)."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     cmd = remote_stats._DARWIN_STATS_CMD
     assert "sudo -n wdutil info" in cmd
@@ -507,7 +507,7 @@ def test_linux_stats_cmd_survives_missing_nvidia_smi():
     gauges survive. The old ``command -v nvidia-smi && nvidia-smi`` chain made
     the whole script exit non-zero and blanked the card — assert it is gone.
     (Real end-to-end exit-0 confirmed live over SSH against the gaming box.)"""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     cmd = remote_stats._LINUX_STATS_CMD
     assert "if command -v nvidia-smi >/dev/null 2>&1; then" in cmd
@@ -517,7 +517,7 @@ def test_linux_stats_cmd_survives_missing_nvidia_smi():
 
 
 def test_remote_stats_locate_none_without_address():
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     # A host with no LAN address is not reachable via the TCP probe. Every
     # enrolled host now has an address, so this uses a synthetic address-less
@@ -530,7 +530,7 @@ def test_locate_warms_up_on_idle_first_syn(monkeypatch):
     """An idled peer drops the first SYN and answers the second — the warm-up
     retry must report it up, not down (#333). The first port scan fails, the
     retry succeeds; sleep is stubbed so the test stays fast."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     calls = {"n": 0}
 
@@ -548,7 +548,7 @@ def test_locate_warms_up_on_idle_first_syn(monkeypatch):
 def test_locate_none_when_both_passes_fail(monkeypatch):
     """A genuinely-off box fails both passes — still down, and the warm-up does
     not loop forever (#333)."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     calls = {"n": 0}
 
@@ -569,7 +569,7 @@ def test_locate_none_when_both_passes_fail(monkeypatch):
 def test_connection_flaky_none_before_any_successful_locate():
     """A host that has never been located successfully in this process
     reports flaky=None (not True/False) — genuinely unknown, not "clean"."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     host = HostProfile(id="never-seen-397", platform="linux", address="10.0.0.9", enabled=[])
     assert remote_stats.connection_flaky(host) is None
@@ -578,7 +578,7 @@ def test_connection_flaky_none_before_any_successful_locate():
 def test_connection_flaky_true_when_first_pass_missed(monkeypatch):
     """The #333 warm-up retry answering (first pass missed) marks the peer
     flaky for its next card render — the whole point of the signal."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     monkeypatch.setattr(remote_stats, "_liveness_cache", {})
     monkeypatch.setattr(remote_stats, "_last_needed_retry", {})
@@ -598,7 +598,7 @@ def test_connection_flaky_true_when_first_pass_missed(monkeypatch):
 def test_connection_flaky_false_when_first_pass_answers(monkeypatch):
     """A clean first-pass answer marks the peer NOT flaky — no false alarm on
     a rock-solid link."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     monkeypatch.setattr(remote_stats, "_liveness_cache", {})
     monkeypatch.setattr(remote_stats, "_last_needed_retry", {})
@@ -612,7 +612,7 @@ def test_connection_flaky_unchanged_on_a_failed_locate(monkeypatch):
     """A subsequent failed locate() (box now genuinely down) must not erase
     the last known health reading — flaky is a proxy computed only when a
     probe actually succeeds."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     monkeypatch.setattr(remote_stats, "_liveness_cache", {})
     monkeypatch.setattr(remote_stats, "_last_needed_retry", {})
@@ -633,7 +633,7 @@ def test_is_reachable_caches_per_host_within_ttl(monkeypatch):
     """The Machines tab and the fleet-placement grid both probe the same hosts
     on the same page load — within the TTL the second call must be served from
     the cache (no re-probe), and the cache is keyed per host id (#369)."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     monkeypatch.setattr(remote_stats, "_liveness_cache", {})
     calls = {"n": 0}
@@ -655,7 +655,7 @@ def test_is_reachable_caches_per_host_within_ttl(monkeypatch):
 def test_is_reachable_reprobes_after_ttl_expiry(monkeypatch):
     """After the TTL lapses the cached answer must not be trusted — the next
     call re-probes and surfaces the new state (#369)."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     monkeypatch.setattr(remote_stats, "_liveness_cache", {})
     calls = {"n": 0}
@@ -678,7 +678,7 @@ def test_is_reachable_reprobes_after_ttl_expiry(monkeypatch):
 def test_probe_liveness_ports_true_when_one_port_accepts(monkeypatch):
     """The concurrent pass is still an OR over the liveness ports — one
     accepting port (RDP here, SSH refused) reads as up (#369)."""
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     monkeypatch.setattr(remote_stats, "_probe_port", lambda address, port: port == 3389)
     assert remote_stats._probe_liveness_ports("10.0.0.9") is True
@@ -690,7 +690,7 @@ def test_probe_liveness_ports_does_not_wait_on_a_slower_port_once_one_accepted(m
     import threading
     import time
 
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     release = threading.Event()
 
@@ -710,7 +710,7 @@ def test_probe_liveness_ports_does_not_wait_on_a_slower_port_once_one_accepted(m
 
 
 def test_probe_liveness_ports_false_when_none_accept(monkeypatch):
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     monkeypatch.setattr(remote_stats, "_probe_port", lambda address, port: False)
     assert remote_stats._probe_liveness_ports("10.0.0.9") is False
@@ -783,7 +783,7 @@ def test_shutdown_refuses_ssh_less_peer(monkeypatch):
 
 
 def test_reboot_success_path(monkeypatch):
-    from src import remote_bootstrap
+    from src.fleet import remote_bootstrap
 
     async def _ok(host_id):
         return {"ok": True, "detail": f"reboot scheduled on {host_id}"}
@@ -795,7 +795,7 @@ def test_reboot_success_path(monkeypatch):
 
 
 def test_reboot_failure_bubbles_502(monkeypatch):
-    from src import remote_bootstrap
+    from src.fleet import remote_bootstrap
 
     async def _fail(host_id):
         return {"ok": False, "detail": "ssh unreachable"}
@@ -843,7 +843,7 @@ def test_wake_success_sends_configured_mac(monkeypatch):
 
 def test_wake_send_failure_yields_clean_error_not_500(monkeypatch):
     import app_web.routers.machines as machines_router
-    from src.wake_on_lan import WakeOnLanError
+    from src.fleet.wake_on_lan import WakeOnLanError
 
     def _boom(mac, *args, **kwargs):
         raise WakeOnLanError(f"failed to send wake packet for {mac!r}: [Errno 101] Network is unreachable")
@@ -871,7 +871,7 @@ def test_power_command_uses_general_ssh_not_forced_command_key(monkeypatch):
     """reboot/shutdown must ride the hub user's own SSH (#311) — no ``-i``
     forced-command key, and the real ``sudo shutdown`` verb, targeting
     ``ssh_user@address`` of the peer."""
-    from src import remote_bootstrap
+    from src.fleet import remote_bootstrap
 
     captured = {}
 
@@ -894,7 +894,7 @@ def test_power_command_uses_general_ssh_not_forced_command_key(monkeypatch):
 
 def test_power_command_flags_map_reboot_and_shutdown(monkeypatch):
     """``reboot_host`` sends ``-r``; ``shutdown_host`` sends ``-h``."""
-    from src import remote_bootstrap
+    from src.fleet import remote_bootstrap
 
     seen = []
 
@@ -916,7 +916,7 @@ def test_power_command_guards_missing_ssh_target(monkeypatch):
     """A host with no address/ssh_user (here, an unknown id) is rejected before
     any ssh call — the router guards at the endpoint, but the layer guards
     itself too."""
-    from src import remote_bootstrap
+    from src.fleet import remote_bootstrap
 
     def _boom(cmd, **kwargs):  # pragma: no cover — must never run
         raise AssertionError("ssh should not be invoked for an unroutable host")
@@ -929,7 +929,7 @@ def test_power_command_guards_missing_ssh_target(monkeypatch):
 
 def test_power_command_ssh_failure_surfaces_error(monkeypatch):
     """A non-zero ssh exit is reported, not swallowed."""
-    from src import remote_bootstrap
+    from src.fleet import remote_bootstrap
 
     def _fake_run(cmd, **kwargs):
         return _FakeCompleted(returncode=255, stderr="Connection refused")
@@ -941,7 +941,7 @@ def test_power_command_ssh_failure_surfaces_error(monkeypatch):
 
 
 def test_terminal_status_endpoint_shape(monkeypatch):
-    from src import ssh_terminal
+    from src.fleet import ssh_terminal
 
     async def _canned():
         return {"available": False, "reason": "not reachable", "session_host": "http://127.0.0.1:8446"}

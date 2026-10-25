@@ -58,7 +58,7 @@ MARKER_PATH = VENDOR_DIR / ".hub-install.json"
 COMFYUI_GIT_URL = "https://github.com/comfyanonymous/ComfyUI"
 # Pinned to a vetted release tag rather than floating `master`, same policy as
 # whisper.cpp's PINNED_TAG — ComfyUI's node schemas and API surface move fast
-# and src/comfyui_client.py's workflow graph is written against this one.
+# and src/images/comfyui_client.py's workflow graph is written against this one.
 PINNED_TAG = "v0.31.0"
 
 # Blackwell (sm_120) needs a CUDA >= 12.8 build; cu130 is the current line and

@@ -75,9 +75,9 @@ was absent. The STT/TTS model offload itself is still deferred
 
 ## Wake-on-LAN
 
-Each host row in `config/models.yaml` takes an optional `mac:` field — the box's **wired-NIC MAC address**, since Wake-on-LAN over WiFi is not supported by any of these machines' network adapters. Accepted formats are `aa:bb:cc:dd:ee:ff` or `AA-BB-CC-DD-EE-FF` (case-insensitive, `:` or `-` separators, validated by `src/wake_on_lan.py`). A host with no `mac:` simply has no Wake action on its Machines-console card — that's the case for `openclaw`, which has no wired NIC at all.
+Each host row in `config/models.yaml` takes an optional `mac:` field — the box's **wired-NIC MAC address**, since Wake-on-LAN over WiFi is not supported by any of these machines' network adapters. Accepted formats are `aa:bb:cc:dd:ee:ff` or `AA-BB-CC-DD-EE-FF` (case-insensitive, `:` or `-` separators, validated by `src/fleet/wake_on_lan.py`). A host with no `mac:` simply has no Wake action on its Machines-console card — that's the case for `openclaw`, which has no wired NIC at all.
 
-Mechanically, waking a host sends a standard 102-byte magic packet (6 bytes of `0xFF` followed by the target MAC repeated 16 times) as a UDP broadcast to `255.255.255.255:9`, built and sent by `src/wake_on_lan.py`. The admin SPA's Machines tab shows Wake as the row's visible verb on any down/dormant machine whose host carries a `mac:`; clicking it calls `POST /admin/api/machines/{id}/wake`. This is **fire-and-forget by design** — Wake-on-LAN has no acknowledgement path, so the hub can only report that the packet was handed to the OS for broadcast, never that the target actually woke. A "wake failed" case only exists for a malformed MAC or a socket-level send error; there is no way to detect "packet sent but machine didn't wake" from the hub side.
+Mechanically, waking a host sends a standard 102-byte magic packet (6 bytes of `0xFF` followed by the target MAC repeated 16 times) as a UDP broadcast to `255.255.255.255:9`, built and sent by `src/fleet/wake_on_lan.py`. The admin SPA's Machines tab shows Wake as the row's visible verb on any down/dormant machine whose host carries a `mac:`; clicking it calls `POST /admin/api/machines/{id}/wake`. This is **fire-and-forget by design** — Wake-on-LAN has no acknowledgement path, so the hub can only report that the packet was handed to the OS for broadcast, never that the target actually woke. A "wake failed" case only exists for a malformed MAC or a socket-level send error; there is no way to detect "packet sent but machine didn't wake" from the hub side.
 
 **The hub cannot wake its own host.** `tower` runs the hub itself, so there is no remote path for a magic packet to reach it after a power outage — recovery there depends on the BIOS's AC-restore behavior (power state resumes automatically when mains power returns), not on WOL.
 
@@ -113,7 +113,7 @@ Post-reboot the settled facts all survived: `pmset womp=1` / `autorestart=1` sti
 
 Beyond the static `mac:` field above (config, WOL-only), the Machines-tab peer
 card also shows **live** connection detail, read over the same general-SSH
-channel as the CPU/RAM/GPU/disk snapshot (`src/remote_stats.py`'s per-OS
+channel as the CPU/RAM/GPU/disk snapshot (`src/fleet/remote_stats.py`'s per-OS
 one-liner, folded into `stats.network` by `_parse()`) — no extra SSH
 round-trip. It reports whichever interface currently owns the peer's
 **outbound default route** (the link the box is actually using right now, not
@@ -132,7 +132,7 @@ still reports "Wired"/"Wi-Fi", just without SSID/signal; a peer that's down
 or unreachable shows no live network block at all (the card falls back to the
 static config `mac:`, which needs no probe). A signal reading of -70 dBm or
 weaker is flagged (Fair/Weak) on the card. `tower` gets no live probe since
-`src/remote_stats.py` only runs against SSH'd peers, not the host the hub
+`src/fleet/remote_stats.py` only runs against SSH'd peers, not the host the hub
 itself is running on — see the Wake-on-LAN section above for the same
 active-host exclusion pattern.
 

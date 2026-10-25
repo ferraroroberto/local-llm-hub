@@ -25,7 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.run_backend import _self_contain  # noqa: E402
-from src.server_process import WIN_NEW_GROUP  # noqa: E402
+from src.process.server_process import WIN_NEW_GROUP  # noqa: E402
 
 
 def main(argv: list) -> int:

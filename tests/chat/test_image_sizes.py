@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from src import image_sizes as sz
-from src.image_sizes import ImageSizeError
+from src.images import image_sizes as sz
+from src.images.image_sizes import ImageSizeError
 
 
 # --- presets are internally consistent ------------------------------------

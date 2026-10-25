@@ -28,6 +28,9 @@ from src import openai_upstream as upstream_mod
 from src import claude_cli as claude_cli_mod
 from src import chat_translation as chat_translation_mod
 from src import server as server_mod
+from src.routes import anthropic_messages as anthropic_mod
+from src.routes import openai_chat as openai_chat_mod
+from src.routes import sse_response as sse_response_mod
 from src import server_common as server_common_mod
 from src.chat_translation import AnthropicStreamState, iter_claude_anthropic_sse
 from src.hub_observability import OBS
@@ -122,7 +125,7 @@ def test_messages_claude_streaming_http_contract(monkeypatch):
         captured.update(prompt=prompt, model=model, system=system)
         yield from _claude_stream_records("Hello ", "Claude")
 
-    monkeypatch.setattr(server_mod, "call_claude_stream", fake_stream)
+    monkeypatch.setattr(anthropic_mod, "call_claude_stream", fake_stream)
     client = TestClient(server_mod.app)
     with client.stream(
         "POST",
@@ -182,7 +185,7 @@ def test_messages_openai_stream_translates_and_strips_thinking(monkeypatch):
     monkeypatch.setattr(
         server_common_mod, "ensure_backend_ready_or_503", lambda model: None
     )
-    monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
+    monkeypatch.setattr(anthropic_mod, "call_openai_chat_stream", fake_stream)
     client = TestClient(server_mod.app)
     with client.stream(
         "POST",
@@ -219,10 +222,10 @@ def test_messages_openai_stream_translates_and_strips_thinking(monkeypatch):
 
 def test_messages_stream_failure_is_anthropic_error_event(monkeypatch):
     def fake_stream(*args, **kwargs) -> Iterator[dict]:
-        raise server_mod.ClaudeCLIError("stream exploded")
+        raise anthropic_mod.ClaudeCLIError("stream exploded")
         yield  # pragma: no cover
 
-    monkeypatch.setattr(server_mod, "call_claude_stream", fake_stream)
+    monkeypatch.setattr(anthropic_mod, "call_claude_stream", fake_stream)
     client = TestClient(server_mod.app)
     with client.stream(
         "POST",
@@ -243,7 +246,7 @@ def test_messages_stream_failure_is_anthropic_error_event(monkeypatch):
 
 
 def test_messages_non_streaming_remains_buffered(monkeypatch):
-    monkeypatch.setattr(server_mod, "_run_claude_backend", lambda model, req: {
+    monkeypatch.setattr(anthropic_mod, "_run_claude_backend", lambda model, req: {
         "result": "buffered",
         "stop_reason": "end_turn",
         "usage": {"input_tokens": 1, "output_tokens": 1},
@@ -359,15 +362,15 @@ def test_messages_http_disconnect_closes_claude_stream(monkeypatch):
             self.closed = True
 
     records = CloseAwareRecords()
-    monkeypatch.setattr(server_mod, "call_claude_stream", lambda *a, **k: records)
-    request = server_mod.MessagesRequest(
+    monkeypatch.setattr(anthropic_mod, "call_claude_stream", lambda *a, **k: records)
+    request = anthropic_mod.MessagesRequest(
         model="claude_haiku",
         stream=True,
         max_tokens=20,
         messages=[{"role": "user", "content": "hi"}],
     )
-    response = server_mod._stream_anthropic_response(
-        server_mod._resolve(request.model),
+    response = anthropic_mod._stream_anthropic_response(
+        anthropic_mod._resolve(request.model),
         request,
         ctx=None,
         span=None,
@@ -408,16 +411,16 @@ def test_messages_http_disconnect_finishes_on_demand_stream(monkeypatch):
     monkeypatch.setattr(
         server_common_mod, "ensure_backend_ready_or_503", lambda model: None
     )
-    monkeypatch.setattr(server_mod, "call_openai_chat_stream", lambda *a, **k: raw)
-    monkeypatch.setattr(server_mod._on_demand, "tracking", lambda *a, **k: lease)
-    request = server_mod.MessagesRequest(
+    monkeypatch.setattr(anthropic_mod, "call_openai_chat_stream", lambda *a, **k: raw)
+    monkeypatch.setattr(anthropic_mod._on_demand, "tracking", lambda *a, **k: lease)
+    request = anthropic_mod.MessagesRequest(
         model="qwen3.5-4b",
         stream=True,
         max_tokens=20,
         messages=[{"role": "user", "content": "hi"}],
     )
-    response = server_mod._stream_anthropic_response(
-        server_mod._resolve(request.model),
+    response = anthropic_mod._stream_anthropic_response(
+        anthropic_mod._resolve(request.model),
         request,
         ctx=None,
         span=None,
@@ -455,19 +458,19 @@ def test_chat_completions_http_disconnect_finishes_on_demand_stream(monkeypatch)
     monkeypatch.setattr(
         server_common_mod, "ensure_backend_ready_or_503", lambda model: None
     )
-    monkeypatch.setattr(server_mod, "call_openai_chat_stream", lambda *a, **k: Raw())
-    monkeypatch.setattr(server_mod._on_demand, "tracking", lambda *a, **k: lease)
-    request = server_mod.ChatCompletionRequest(
+    monkeypatch.setattr(openai_chat_mod, "call_openai_chat_stream", lambda *a, **k: Raw())
+    monkeypatch.setattr(openai_chat_mod._on_demand, "tracking", lambda *a, **k: lease)
+    request = openai_chat_mod.ChatCompletionRequest(
         model="qwen3.5-4b",
         stream=True,
         messages=[{"role": "user", "content": "hi"}],
     )
-    response = server_mod._stream_openai_passthrough(
-        server_mod._resolve(request.model), request, client_id="test"
+    response = openai_chat_mod._stream_openai_passthrough(
+        openai_chat_mod._resolve(request.model), request, client_id="test"
     )
     # Starlette does not close a sync iterator on disconnect by itself (see
-    # _ClosingStreamingResponse); this route must carry the same guard.
-    assert isinstance(response, server_mod._ClosingStreamingResponse)
+    # ClosingStreamingResponse); this route must carry the same guard.
+    assert isinstance(response, sse_response_mod.ClosingStreamingResponse)
 
     asyncio.run(_disconnect_after_first_body(response))
     assert lease.finished
@@ -542,7 +545,7 @@ def test_chat_completions_streaming_proxies_sse(monkeypatch):
         ):
             yield line
 
-    monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
+    monkeypatch.setattr(openai_chat_mod, "call_openai_chat_stream", fake_stream)
 
     client = TestClient(server_mod.app)
     with client.stream(
@@ -597,7 +600,7 @@ def test_chat_completions_streaming_usage_populated_from_trailing_frame(monkeypa
         for line in _sse_lines(*content_chunks, usage_chunk):
             yield line
 
-    monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
+    monkeypatch.setattr(openai_chat_mod, "call_openai_chat_stream", fake_stream)
 
     # Patch record_genai_metrics to capture what usage values were recorded.
     recorded: dict = {}
@@ -631,7 +634,7 @@ def test_chat_completions_stream_upstream_error(monkeypatch):
         raise upstream_mod.UpstreamError("boom")
         yield  # pragma: no cover
 
-    monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
+    monkeypatch.setattr(openai_chat_mod, "call_openai_chat_stream", fake_stream)
 
     client = TestClient(server_mod.app)
     with client.stream(
@@ -701,7 +704,7 @@ def test_chat_completions_forwards_structured_params_stream(monkeypatch):
         for line in _sse_lines(_delta("ok")):
             yield line
 
-    monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
+    monkeypatch.setattr(openai_chat_mod, "call_openai_chat_stream", fake_stream)
 
     client = TestClient(server_mod.app)
     with client.stream(
@@ -900,11 +903,12 @@ def test_openai_stream_records_first_and_last_token_on_span(monkeypatch, route):
         yield from _sse_lines(_delta("Hello "), _delta("local"), usage)
 
     span = _FakeSpan()
-    monkeypatch.setattr(server_mod, "_current_otel_span", lambda: span)
+    route_mod = anthropic_mod if route == "/v1/messages" else openai_chat_mod
+    monkeypatch.setattr(route_mod, "_current_otel_span", lambda: span)
     monkeypatch.setattr(
         server_common_mod, "ensure_backend_ready_or_503", lambda model: None
     )
-    monkeypatch.setattr(server_mod, "call_openai_chat_stream", fake_stream)
+    monkeypatch.setattr(route_mod, "call_openai_chat_stream", fake_stream)
     client = TestClient(server_mod.app)
     with client.stream(
         "POST",

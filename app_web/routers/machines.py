@@ -42,9 +42,10 @@ import websockets
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from starlette.responses import Response
 
-from src import config_write, machine_console, remote_bootstrap, ssh_terminal
+from src import config_write
+from src.fleet import machine_console, remote_bootstrap, ssh_terminal
 from src.host_profile import all_hosts, get_host, resolve
-from src.wake_on_lan import WakeOnLanError, send_wake
+from src.fleet.wake_on_lan import WakeOnLanError, send_wake
 
 from ..middleware import admin_token_from_state, authorize_websocket
 

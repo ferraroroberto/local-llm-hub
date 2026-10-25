@@ -1,5 +1,5 @@
 {
-  "_comment": "Gemini API list prices in USD per million tokens, keyed by family (what src/code_usage.py:_gemini_family collapses an AGY model name to — 'gemini-3.1-pro-preview' and 'Gemini 3.1 Pro (High)' both -> 'pro'). Used by the Code tab to show the equivalent metered-API cost of AGY/Antigravity usage (subscription-metered, so this is an estimate, same as Codex vs OpenAI list prices). cache_read = implicit-caching hit rate (~10% of input). The >200K long-context surcharge is not modelled. Refresh when Google changes pricing.",
+  "_comment": "Gemini API list prices in USD per million tokens, keyed by family (what src/usage/code_usage.py:_gemini_family collapses an AGY model name to — 'gemini-3.1-pro-preview' and 'Gemini 3.1 Pro (High)' both -> 'pro'). Used by the Code tab to show the equivalent metered-API cost of AGY/Antigravity usage (subscription-metered, so this is an estimate, same as Codex vs OpenAI list prices). cache_read = implicit-caching hit rate (~10% of input). The >200K long-context surcharge is not modelled. Refresh when Google changes pricing.",
   "_source": "https://ai.google.dev/gemini-api/docs/pricing",
   "_fetched": "2026-07-12",
   "families": {

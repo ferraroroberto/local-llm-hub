@@ -11,10 +11,10 @@ from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 
-from src import backend_process as bp
+from src.process import backend_process as bp
 from src import config_write
-from src import remote_stats
-from src import server_systemone
+from src.fleet import remote_stats
+from src.routes import server_systemone
 from src.host_profile import all_hosts, get_host, resolve as resolve_host
 from src.http_client import get_async_client
 from src.model_failover import effective_owner
@@ -26,9 +26,9 @@ from src.model_registry import (
     enabled_models,
     resolve as resolve_model,
 )
-from src.remote_proxy import remote_auth_headers, remote_base_url
+from src.fleet.remote_proxy import remote_auth_headers, remote_base_url
 from app_web.admin_forward import forward_admin_request
-from src.server_process import (
+from src.process.server_process import (
     OWNERSHIP_EXTERNAL,
     OWNERSHIP_NONE,
     OWNERSHIP_OURS,
@@ -350,7 +350,7 @@ def _schedule_peer_sync() -> None:
     """Fire the #181 sync (git pull + hub restart) at every hub peer after a
     successful config push — the immediate leg of propagation; the periodic
     drift loop (``config_drift_sync_loop``) is the catch-up net."""
-    from src import remote_bootstrap
+    from src.fleet import remote_bootstrap
     from src.model_registry import hub_peer_ids
 
     async def _sync(peer: str) -> None:

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import psutil
 
-from src import backend_process as bp
+from src.process import backend_process as bp
 
 
 class _FakeProc:

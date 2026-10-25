@@ -100,7 +100,7 @@ def test_transient_httperror_stays_502(monkeypatch):
 def test_audio_health_ok_when_reachable(monkeypatch):
     """All audio backends reachable → 200 + status=ok."""
     monkeypatch.setattr(
-        "src.backend_process.is_reachable", lambda m, timeout=1.0: True
+        "src.process.backend_process.is_reachable", lambda m, timeout=1.0: True
     )
 
     client = TestClient(server_mod.app)
@@ -118,7 +118,7 @@ def test_audio_health_ok_when_reachable(monkeypatch):
 def test_audio_health_degraded_when_down(monkeypatch):
     """A down audio backend → 503 + status=degraded (preflight catches it)."""
     monkeypatch.setattr(
-        "src.backend_process.is_reachable", lambda m, timeout=1.0: False
+        "src.process.backend_process.is_reachable", lambda m, timeout=1.0: False
     )
 
     client = TestClient(server_mod.app)
@@ -141,7 +141,7 @@ def test_audio_health_reports_idle_on_demand_row_as_ok_not_degraded(monkeypatch)
         engine="tts-server", port=9999, startup=STARTUP_ON_DEMAND,
     )
     monkeypatch.setattr("src.model_registry.local_models", lambda: [idle_row])
-    monkeypatch.setattr("src.backend_process.is_reachable", lambda m, timeout=1.0: False)
+    monkeypatch.setattr("src.process.backend_process.is_reachable", lambda m, timeout=1.0: False)
 
     client = TestClient(server_mod.app)
     resp = client.get("/v1/audio/health")
@@ -170,7 +170,7 @@ def test_audio_health_stays_degraded_when_an_eager_row_is_down(monkeypatch):
     monkeypatch.setattr(
         "src.model_registry.local_models", lambda: [idle_row, eager_row]
     )
-    monkeypatch.setattr("src.backend_process.is_reachable", lambda m, timeout=1.0: False)
+    monkeypatch.setattr("src.process.backend_process.is_reachable", lambda m, timeout=1.0: False)
 
     client = TestClient(server_mod.app)
     resp = client.get("/v1/audio/health")

@@ -229,7 +229,7 @@ def _isolate_code_usage_history(tmp_path):
     into the repo's real snapshot and read the dev machine's history back
     into their assertions.
     """
-    from src import code_usage_history
+    from src.usage import code_usage_history
 
     code_usage_history._reset_for_tests(tmp_path / "code_usage_history.json")
     yield
@@ -244,7 +244,7 @@ def _isolate_claude_code_otel_store(tmp_path, monkeypatch):
     would read the dev machine's real ``data/telemetry`` history into their
     assertions.  Tests that want OTel data monkeypatch/write it themselves.
     """
-    from src import claude_code_otel as cco
+    from src.usage import claude_code_otel as cco
 
     monkeypatch.setattr(cco, "_DATA_DIR", tmp_path / "telemetry")
     monkeypatch.setattr(cco, "_DATA_FILE", tmp_path / "telemetry" / "usage.jsonl")
@@ -260,7 +260,7 @@ def _isolate_code_usage_summary_cache():
     test's request, and a background rebuild races the test's own patches.
     Tests drive refresh-ahead through ``_refresh_due_summaries()`` directly.
     """
-    from src import code_usage
+    from src.usage import code_usage
 
     code_usage._reset_summary_cache_for_tests()
     yield
@@ -280,7 +280,7 @@ def _hermetic_remote_probes(monkeypatch):
     (or ``_probe_port``) on top of this. The per-host caches are cleared on
     both sides so a cached liveness/dial route never leaks between tests.
     """
-    from src import remote_stats
+    from src.fleet import remote_stats
 
     monkeypatch.setattr(remote_stats, "_probe_port", lambda address, port: False)
     caches = (

@@ -106,7 +106,7 @@ invocation. Walking every backend with one shell-out each multiplied
 into ~10 s for the Models tab. `psutil.net_connections(kind='tcp')` is
 ~2 ms in-process.
 
-See `src/server_process.py::snapshot_listening_pids`. We keep
+See `src/process/server_process.py::snapshot_listening_pids`. We keep
 `netstat` / `lsof` as a fallback for the rare case psutil hits
 `AccessDenied` (locked-down Windows without admin), but the fast path
 covers everyone normally.
@@ -121,7 +121,7 @@ because they were spawned with `CREATE_NEW_PROCESS_GROUP` to detach
 from CTRL+BREAK), but the new hub has no `_STATES` entry → it sees
 them as "external" / adopted.
 
-`src/backend_process.py::inherit_running_backends()` runs at hub
+`src/process/backend_process.py::inherit_running_backends()` runs at hub
 startup, scans psutil for PIDs on the enabled-model ports, verifies
 the exe looks like ours (`llama-server.exe` / `whisper-server.exe` /
 `python`), and records the PID in `_BackendState.inherited_pid`.
@@ -166,7 +166,7 @@ last week on gemini-pro?", you want the telemetry layer, not this ring.
 - Audio proxy: `src/server.py::audio_transcriptions` /
   `audio_translations`. Forwards to the whisper backend so the call
   lands in the observability ring instead of going invisible.
-- Inheritance: `src/backend_process.py::inherit_running_backends`
+- Inheritance: `src/process/backend_process.py::inherit_running_backends`
   (called from `src/server.py` startup).
 - Bearer middleware: `app_web/middleware.py` —
   `BearerTokenMiddleware` (sub-app) and `ParentBearerTokenMiddleware`

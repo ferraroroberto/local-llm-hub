@@ -20,7 +20,8 @@ import httpx
 import pytest
 from fastapi import HTTPException
 
-from src import model_registry, server_audio_asr, transcription_glossary
+from src import model_registry
+from src.audio import server_audio_asr, transcription_glossary
 from src.hub_observability import ObservabilityCtx
 
 

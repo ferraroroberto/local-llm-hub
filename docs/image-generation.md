@@ -114,7 +114,7 @@ That is the whole design decision, and everything else follows from it for free:
   `data/logs/backend-flux1_local.log`, and inheritance across a hub restart —
   all inherited from `backend_process`, none of it written for this feature.
 
-`src/comfyui_client.py` speaks ComfyUI's prompt API: `POST /prompt` with a
+`src/images/comfyui_client.py` speaks ComfyUI's prompt API: `POST /prompt` with a
 workflow graph, poll `GET /history/<id>`, then `GET /view` for the bytes.
 
 Two details in that graph are load-bearing and fail *silently* if wrong:
@@ -164,7 +164,7 @@ often resolves an older CUDA build with no sm_120 kernels and falls back to CPU
 ### Sizes
 
 `size` accepts a preset name or an explicit `"WIDTHxHEIGHT"` string, and the
-presets live in one place — `src/image_sizes.py` — which is also what the
+presets live in one place — `src/images/image_sizes.py` — which is also what the
 Playground dropdown renders, so the UI can't offer a size the API rejects.
 
 | Preset | Pixels | Ratio | |
@@ -424,7 +424,7 @@ the audio proxies.
 
 The Playground's Image mode (one of the composer's four modes) has:
 pick the model, type a prompt, Generate, then Download the result. The
-**Size** dropdown (same `src/image_sizes.py` presets as the table above) sits
+**Size** dropdown (same `src/images/image_sizes.py` presets as the table above) sits
 right under the prompt. Under "More options": the per-backend **Refine after
 upscaling** toggle, and attaching a **reference image** switches the call to
 edit mode (with the slow/experimental warning above). The mode proxies

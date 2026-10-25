@@ -8,7 +8,7 @@ Launched by ``backend_process.build_command`` for any ``engine:
 parakeet-server`` row as ``python -m src.parakeet_server --model-id
 <id>`` — the same in-repo-shim pattern as ``tts_server``. The hub proxies
 ``/v1/audio/transcriptions`` to this port so requests land in the
-observability ring (``src/server_audio_asr.py``).
+observability ring (``src/audio/server_audio_asr.py``).
 
 darwin-only: keeps one long-lived ``mac/parakeet-worker`` Swift subprocess
 warm (the CoreML model loads once) and serializes requests through its
@@ -37,7 +37,7 @@ import uvicorn
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-from .backend_process import resolve_model_for_engine
+from .process.backend_process import resolve_model_for_engine
 from .event_loop import LOOP_FACTORY
 from .no_window import NO_WINDOW
 

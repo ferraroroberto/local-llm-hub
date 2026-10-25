@@ -12,7 +12,7 @@ from typing import Dict
 from fastapi import APIRouter, Request
 
 from src.config_write import config_sha
-from src.process_identity import IDENTITY
+from src.process.process_identity import IDENTITY
 from src.static_versioning import asset_hash_for
 
 router = APIRouter()

@@ -12,7 +12,8 @@ import asyncio
 
 import pytest
 
-from src import backend_process, model_failover, model_registry
+from src.process import backend_process
+from src import model_failover, model_registry
 from src.model_failover import (
     POLICY_STICKY,
     FailoverSettings,

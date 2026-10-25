@@ -20,8 +20,8 @@ import logging
 
 import pytest
 
-from src import machine_console as mc
-from src import remote_stats, ssh_exec
+from src.fleet import machine_console as mc
+from src.fleet import remote_stats, ssh_exec
 from src.host_profile import HostProfile, get_host
 from tests._worker_loop import run_on_worker_thread as _run
 
@@ -90,7 +90,7 @@ def test_dial_falls_back_to_tailnet_when_lan_dead(monkeypatch, caplog):
     """LAN dead → the tailscale name is tried and wins, with an info-level
     breadcrumb naming the host and both addresses."""
     _probe_stub(monkeypatch, alive={_TS})
-    with caplog.at_level(logging.INFO, logger="src.remote_stats"):
+    with caplog.at_level(logging.INFO, logger="src.fleet.remote_stats"):
         assert remote_stats.dial_address(_peer(), wait=True) == _TS
     messages = [r.getMessage() for r in caplog.records]
     assert any(
@@ -103,7 +103,7 @@ def test_dial_both_dead_returns_lan_primary(monkeypatch, caplog):
     """Both paths dead → the LAN primary comes back so callers fail with
     exactly today's connect errors, and no failover is (mis)logged."""
     _probe_stub(monkeypatch, alive=set())
-    with caplog.at_level(logging.INFO, logger="src.remote_stats"):
+    with caplog.at_level(logging.INFO, logger="src.fleet.remote_stats"):
         assert remote_stats.dial_address(_peer(), wait=True) == _LAN
     assert not any("tailnet" in r.getMessage() for r in caplog.records)
 
@@ -132,7 +132,7 @@ def test_dial_recovery_back_to_lan_logs_once(monkeypatch, caplog):
     clock = {"now": 1000.0}
     monkeypatch.setattr(remote_stats.time, "monotonic", lambda: clock["now"])
     host = _peer()
-    with caplog.at_level(logging.INFO, logger="src.remote_stats"):
+    with caplog.at_level(logging.INFO, logger="src.fleet.remote_stats"):
         assert remote_stats.dial_address(host, wait=True) == _TS  # outage: on tailnet
         alive.add(_LAN)  # wire restored
         clock["now"] += remote_stats._DIAL_TTL_S + 0.1
@@ -200,7 +200,7 @@ def test_locate_none_when_every_path_dead(monkeypatch):
 def test_remote_base_url_for_host_dials_the_winner(monkeypatch):
     """The model-proxy upstream resolves through the dial resolver — a peer on
     tailnet fallback gets proxied at its MagicDNS name."""
-    from src import remote_proxy
+    from src.fleet import remote_proxy
 
     monkeypatch.setattr(
         remote_stats, "dial_address", lambda host, **kw: "mac-peer.example-tailnet.ts.net"
@@ -236,7 +236,7 @@ def test_run_ssh_targets_the_dial_winner(monkeypatch):
 def test_power_command_dials_tailnet_when_lan_dead(monkeypatch):
     """SSH power actions survive a wired failure: with the resolver reporting
     the tailnet route, reboot/shutdown target ``user@<tailscale-name>``."""
-    from src import remote_bootstrap
+    from src.fleet import remote_bootstrap
 
     captured = {}
 

@@ -1,4 +1,4 @@
-"""Unit tests for src/wake_on_lan.py (issue #356)."""
+"""Unit tests for src/fleet/wake_on_lan.py (issue #356)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import socket
 
 import pytest
 
-from src import wake_on_lan
+from src.fleet import wake_on_lan
 
 
 def test_magic_packet_is_102_bytes():

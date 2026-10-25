@@ -36,7 +36,7 @@ implementations live behind one common interface
 [src/tts_engines/](../src/tts_engines/) package, one module per engine
 (`chatterbox.py`, `kokoro.py`, `orpheus.py`, `piper.py`). An engine that owns
 an OS child contains it with the fleet-wide Windows job-object helpers in
-[src/win_job.py](../src/win_job.py) (`create_kill_on_close_job` /
+[src/process/win_job.py](../src/process/win_job.py) (`create_kill_on_close_job` /
 `assign_pid` / `terminate_and_close`) — never its own ctypes copy.
 
 ## The TTS registry rows ([config/models.yaml](../config/models.yaml))
@@ -103,7 +103,7 @@ the fast option.
 | `src/model_registry.py` | `+tts_engine` field |
 | `src/tts_engines/` | Piper + Chatterbox + Orpheus + Kokoro engines, one module each, behind one common interface (`common.py`) |
 | `src/tts_server.py` | new — FastAPI shim (`/v1/audio/speech`, `/health`) |
-| `src/backend_process.py` | `build_command` branch for `engine: tts-server`; widen filters to `tts` |
+| `src/process/backend_process.py` | `build_command` branch for `engine: tts-server`; widen filters to `tts` |
 | `src/run_backend.py` | widen spawnable backends to `tts` |
 | `src/server.py` | hub `POST /v1/audio/speech` proxy + a `tts` 400 on the chat routes |
 | `src/install.py` | `_check_tts` / `_fix_tts`; widen model + port filters |

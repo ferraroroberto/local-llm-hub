@@ -16,8 +16,9 @@ import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app_web.routers import fleet_placement as fpr  # noqa: E402
-from src import backend_process as bp  # noqa: E402
-from src import fleet_reconcile, remote_stats, system_stats  # noqa: E402
+from src.process import backend_process as bp  # noqa: E402
+from src.fleet import fleet_reconcile, remote_stats  # noqa: E402
+from src import system_stats
 from src import server as server_mod  # noqa: E402
 from tests._placement_fixture import FIXTURE_DESIRED_PLACEMENT  # noqa: E402
 

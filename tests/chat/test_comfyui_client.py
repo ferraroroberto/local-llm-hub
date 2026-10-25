@@ -1,4 +1,4 @@
-"""Unit tests for src/comfyui_client.py — ComfyUI's HTTP API is mocked (#492).
+"""Unit tests for src/images/comfyui_client.py — ComfyUI's HTTP API is mocked (#492).
 
 No ComfyUI process is started and no weights are read. These cover the two
 things that are genuinely easy to get wrong and expensive to debug live: the
@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from src import comfyui_client as cc
-from src.comfyui_client import ComfyUIError
+from src.images import comfyui_client as cc
+from src.images.comfyui_client import ComfyUIError
 
 _PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 _CKPT = "flux1-dev-fp8.safetensors"

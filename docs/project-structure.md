@@ -40,7 +40,7 @@ Three paths depending on backend; same entry point.
 ```mermaid
 sequenceDiagram
     participant C as Client (SDK / curl)
-    participant F as FastAPI hub (src/server.py)
+    participant F as FastAPI hub (src/routes/anthropic_messages.py)
     participant R as model_registry.resolve
     participant T as chat_translation._run_claude_backend
     participant W as claude_cli.call_claude
@@ -65,7 +65,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant C as Client (SDK / curl)
-    participant F as FastAPI hub (src/server.py)
+    participant F as FastAPI hub (src/routes/anthropic_messages.py)
     participant R as model_registry.resolve
     participant T as chat_translation._run_gemini_backend
     participant G as gemini_cli.call_gemini
@@ -97,7 +97,7 @@ the requested Gemini row differs from the last-selected one.
 ```mermaid
 sequenceDiagram
     participant C as Client (Anthropic SDK)
-    participant F as FastAPI hub (src/server.py)
+    participant F as FastAPI hub (src/routes/anthropic_messages.py)
     participant R as model_registry.resolve
     participant T as chat_translation._run_openai_backend
     participant U as openai_upstream.call_openai_chat
@@ -134,7 +134,7 @@ request open.
 ```mermaid
 sequenceDiagram
     participant C as Client (OpenAI SDK / curl)
-    participant F as FastAPI hub (src/server_images.py)
+    participant F as FastAPI hub (src/images/server_images.py)
     participant O as on_demand.ensure_ready
     participant B as backend_process
     participant K as comfyui_client
@@ -224,19 +224,19 @@ use this path; it stays on the gemini backend.
     there); no separate launcher.
 - **Image generation.** `POST /v1/images/generations` and `/edits`
   (OpenAI Images shape) are handled by
-  [`src/server_images.py`](../src/server_images.py), which routes by
+  [`src/images/server_images.py`](../src/images/server_images.py), which routes by
   backend: `gemini` rows call `call_gemini_image()` in `src/gemini_cli.py`
   (Google **Imagen**, hosted as an agentic tool inside an `agy` Gemini
   text session — there is no Nano Banana / picker image model), and
   `comfyui` rows (`flux1_local`, `flux2_klein`) generate
   **entirely locally** on this host's own GPU via
-  [`src/comfyui_client.py`](../src/comfyui_client.py). Editing
+  [`src/images/comfyui_client.py`](../src/images/comfyui_client.py). Editing
   (`/v1/images/edits`) stays on the `gemini` backend only — see
   [docs/image-generation.md](image-generation.md) for the full rationale.
 - **Multi-host.** A model row can declare an owning `host:` (or an ordered
   `hosts:` preference chain) in `config/models.yaml`; when the active
   machine isn't the effective owner,
-  [`src/remote_proxy.py`](../src/remote_proxy.py) resolves the owning
+  [`src/fleet/remote_proxy.py`](../src/fleet/remote_proxy.py) resolves the owning
   host's own hub `base_url` and the request is forwarded there verbatim —
   a client never needs to know or care which machine actually runs a
   model, with [`src/model_failover.py`](../src/model_failover.py) picking
@@ -250,7 +250,7 @@ use this path; it stays on the gemini backend.
   [`src/gemini_cli.py`](../src/gemini_cli.py) (spawns the `agy`
   Antigravity CLI under a Windows ConPTY via `pywinpty` for the
   `gemini-*` rows), and
-  [`src/backend_process.py`](../src/backend_process.py) (owns
+  [`src/process/backend_process.py`](../src/process/backend_process.py) (owns
   `subprocess.Popen(["llama-server", ...])` /
   `subprocess.Popen(["whisper-server", ...])` for each local model). Many
   other modules also shell out for their own narrower purpose (installers,
@@ -260,9 +260,9 @@ use this path; it stays on the gemini backend.
 - **Admin SPA runs inside the hub.** The `app_web/` sub-app is mounted
   at `/admin` in the same process as the public `/v1` surface, so its
   routers call the process managers in-process: `app_web/routers/hub.py`
-  drives `src/hub_process_control.py` for self stop/restart and reads
-  `src/server_process.py` for port/PID + ownership lookups, while
-  `app_web/routers/models.py` drives `src/backend_process.py` to
+  drives `src/process/hub_process_control.py` for self stop/restart and reads
+  `src/process/server_process.py` for port/PID + ownership lookups, while
+  `app_web/routers/models.py` drives `src/process/backend_process.py` to
   start/stop/tail each model backend, and the Play tab proxies through
   the hub's own `/v1/messages`. `backend_process.py` exposes a
   module-level singleton so the long-lived hub keeps one handle per

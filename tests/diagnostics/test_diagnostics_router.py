@@ -14,7 +14,9 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from src import agentsview_service, backend_process, model_registry, server as server_mod, services
+from src.usage import agentsview_service
+from src.process import backend_process
+from src import model_registry, server as server_mod, services
 from src.diagnostics import report, sampler, settings as diag_settings, store
 
 

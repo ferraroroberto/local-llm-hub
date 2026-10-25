@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from src import chat_translation as chat_translation_mod
 from src import server as server_mod
+from src.routes import openai_chat as openai_chat_mod
 
 
 def _ok_envelope(text: str = "ok"):
@@ -210,7 +211,7 @@ def test_chat_completions_routes_gemini(monkeypatch):
     def fake_call(prompt, *, model=None, system=None, attachments=None, timeout=600.0):
         return _ok_envelope("chat-ok")
 
-    monkeypatch.setattr(server_mod, "call_gemini", fake_call)
+    monkeypatch.setattr(openai_chat_mod, "call_gemini", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -238,7 +239,7 @@ def test_chat_completions_multi_turn_flattens_same_as_messages(monkeypatch):
         captured["system"] = system
         return _ok_envelope()
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(openai_chat_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -269,7 +270,7 @@ def test_chat_completions_single_turn_unwraps_like_messages(monkeypatch):
         captured["prompt"] = prompt
         return _ok_envelope()
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(openai_chat_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -294,7 +295,7 @@ def test_chat_completions_refuses_image_url_instead_of_dropping_it(monkeypatch):
         called["n"] += 1
         return _ok_envelope()
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(openai_chat_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(
@@ -356,7 +357,7 @@ def test_chat_completions_dispatches_inline_file_to_cli_backend(
             "usage": {"input_tokens": 2, "output_tokens": 1},
         }
 
-    monkeypatch.setattr(server_mod, backend_attr, fake_call)
+    monkeypatch.setattr(openai_chat_mod, backend_attr, fake_call)
     r = TestClient(server_mod.app).post(
         "/v1/chat/completions",
         json={
@@ -406,7 +407,7 @@ def test_chat_completions_rejects_unsupported_or_invalid_file(
         called["n"] += 1
         raise AssertionError("backend must not run")
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(openai_chat_mod, "call_claude", fake_call)
     r = TestClient(server_mod.app).post(
         "/v1/chat/completions",
         json={
@@ -431,7 +432,7 @@ def test_chat_completions_still_accepts_all_text_parts(monkeypatch):
         captured["prompt"] = prompt
         return _ok_envelope()
 
-    monkeypatch.setattr(server_mod, "call_claude", fake_call)
+    monkeypatch.setattr(openai_chat_mod, "call_claude", fake_call)
 
     client = TestClient(server_mod.app)
     r = client.post(

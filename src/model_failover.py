@@ -39,7 +39,7 @@ deployments gain zero probes, zero tasks, zero behavior change.
 window competes with ``fleet_reconcile.py``'s own always-on convergence, which
 used to SSH-resurrect a deliberately-stopped peer within seconds — well inside
 this window — so failover could never observe a real outage. That race is
-closed on the reconcile side: arm ``src.fleet_maintenance`` for the target host
+closed on the reconcile side: arm ``src.fleet.fleet_maintenance`` for the target host
 before inducing an outage (via ``/admin/api/fleet-maintenance``) so reconcile
 stands down and this engine's probe/decide/act cycle gets a clean read.
 
@@ -283,7 +283,7 @@ async def _default_probe(host_id: str) -> bool:
 
     if host_id == resolve_host().id:
         return True
-    from . import remote_stats
+    from .fleet import remote_stats
 
     health = await remote_stats.peer_health(host_id)
     return bool(health.get("reachable"))
@@ -350,7 +350,7 @@ async def _ensure_running_local(
 ) -> Optional[Dict[str, Any]]:
     """Start ``model`` on this host if it isn't already serving (idempotent —
     ``backend_process.start`` adopts a live port and no-ops when running)."""
-    from . import backend_process as bp
+    from .process import backend_process as bp
 
     if model.virtual or model.backend not in SPAWNABLE_BACKENDS:
         return None
@@ -379,7 +379,7 @@ async def _release_local(
 ) -> Optional[Dict[str, Any]]:
     """Stop a *failover-started* local instance after ownership moved away.
     Never touches an instance this engine didn't start."""
-    from . import backend_process as bp
+    from .process import backend_process as bp
 
     if model.id not in _ENGINE_STARTED:
         return None

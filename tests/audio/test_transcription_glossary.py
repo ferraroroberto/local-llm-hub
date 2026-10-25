@@ -14,7 +14,7 @@ import os
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 
-from src.transcription_glossary import (  # noqa: E402
+from src.audio.transcription_glossary import (  # noqa: E402
     apply_rules,
     apply_to_response,
     load_boost_terms,
@@ -28,7 +28,7 @@ from src.transcription_glossary import (  # noqa: E402
 
 def _rules(pairs):
     """Compile a list of (from, to) tuples into Rule objects via the loader."""
-    from src.transcription_glossary import _compile_rules
+    from src.audio.transcription_glossary import _compile_rules
 
     return tuple(_compile_rules([{"from": f, "to": t} for f, t in pairs]))
 

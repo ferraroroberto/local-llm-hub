@@ -22,8 +22,8 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-from . import win_job
-from .backend_process import (
+from .process import win_job
+from .process.backend_process import (
     LIVENESS_PROBE_TIMEOUT_S,
     build_command,
     external_pid as backend_external_pid,
@@ -33,7 +33,7 @@ from .backend_process import (
 )
 from .host_profile import resolve as resolve_host
 from .model_registry import SPAWNABLE_BACKENDS, enabled_models, launchable_local_ids
-from .server_process import (
+from .process.server_process import (
     BASE_URL as HUB_BASE_URL,
     external_pid as hub_external_pid,
     is_reachable as hub_is_reachable,
@@ -52,7 +52,7 @@ def _self_contain() -> None:
     module entirely), which matters because the tray's hub deliberately
     leaves on-demand backends (e.g. an on-demand TTS row) running across its
     *own* restart so ``backend_process.inherit_running_backends`` can reclaim
-    them — see ``src/win_job.py``'s module docstring. A verification hub has
+    them — see ``src/process/win_job.py``'s module docstring. A verification hub has
     no such reinheritance story: nothing is ever going to reclaim what it
     spawns, so there is no feature to preserve, only an orphan risk to close.
 

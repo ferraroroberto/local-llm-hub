@@ -1,4 +1,4 @@
-"""Unit tests for src/fleet_maintenance.py (issue #411).
+"""Unit tests for src/fleet/fleet_maintenance.py (issue #411).
 
 Host-scoped drain marker: set/is_under/clear round-trip, lazy expiry (an
 entry with ``until`` in the past reads as not-under-maintenance with no
@@ -15,7 +15,7 @@ os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 import pytest  # noqa: E402
 
-from src import fleet_maintenance as fm  # noqa: E402
+from src.fleet import fleet_maintenance as fm  # noqa: E402
 
 
 def _isolate(monkeypatch, tmp_path, initial=None):

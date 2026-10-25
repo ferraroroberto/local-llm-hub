@@ -1,5 +1,5 @@
 {
-  "_comment": "Anthropic API list prices in USD per million tokens, keyed by model family. Used by the Code tab (src/code_usage.py) to show the equivalent metered-API cost of host-side Claude Code usage that actually billed against the subscription. Per-MTok rates: input = base input; output = output; cache_write = 5-minute cache write (1.25x base input); cache_read = cache hit (0.1x base input). Refresh when Anthropic changes pricing.",
+  "_comment": "Anthropic API list prices in USD per million tokens, keyed by model family. Used by the Code tab (src/usage/code_usage.py) to show the equivalent metered-API cost of host-side Claude Code usage that actually billed against the subscription. Per-MTok rates: input = base input; output = output; cache_write = 5-minute cache write (1.25x base input); cache_read = cache hit (0.1x base input). Refresh when Anthropic changes pricing.",
   "_source": "https://platform.claude.com/docs/en/docs/about-claude/pricing",
   "_fetched": "2026-07-09",
   "families": {

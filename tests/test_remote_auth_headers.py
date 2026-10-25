@@ -4,7 +4,7 @@ their empty value; the shared helper always returns a dict."""
 
 from __future__ import annotations
 
-from src import remote_proxy
+from src.fleet import remote_proxy
 from src.model_registry import Model
 
 _TOKEN = "dummy-test-token"

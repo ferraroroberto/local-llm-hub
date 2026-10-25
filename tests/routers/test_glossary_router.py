@@ -14,7 +14,7 @@ os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 from fastapi.testclient import TestClient  # noqa: E402
 
 from src import server as server_mod  # noqa: E402
-from src import transcription_glossary as tg  # noqa: E402
+from src.audio import transcription_glossary as tg  # noqa: E402
 
 
 def _isolate_glossary(monkeypatch, tmp_path):
@@ -83,7 +83,7 @@ def test_put_rejects_bad_shape(monkeypatch, tmp_path):
 
 def test_mine_endpoint_returns_suggestions(monkeypatch, tmp_path):
     _isolate_glossary(monkeypatch, tmp_path)
-    from src import dictionary_miner as dm
+    from src.audio import dictionary_miner as dm
 
     async def _fake_mine(days=None):
         return {
@@ -103,7 +103,7 @@ def test_mine_endpoint_returns_suggestions(monkeypatch, tmp_path):
 
 def test_mine_endpoint_maps_miner_error_to_502(monkeypatch, tmp_path):
     _isolate_glossary(monkeypatch, tmp_path)
-    from src import dictionary_miner as dm
+    from src.audio import dictionary_miner as dm
 
     async def _boom(days=None):
         raise dm.MinerError("voice-transcriber unreachable")

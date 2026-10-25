@@ -27,7 +27,7 @@ import httpx
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src import win_job  # noqa: E402
+from src.process import win_job  # noqa: E402
 from src.no_window import NO_WINDOW  # noqa: E402
 
 logger = logging.getLogger("design_review_synthetic")

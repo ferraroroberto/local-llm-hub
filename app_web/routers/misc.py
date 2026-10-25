@@ -11,7 +11,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 
-from src.process_identity import git_sha
+from src.process.process_identity import git_sha
 from src.static_versioning import fleet_hash_of, rewrite_index_html
 
 from ._helpers import PROJECT_ROOT, STATIC_DIR
@@ -45,6 +45,29 @@ def _icon_sprite() -> str:
     # examples, so a naive find("<svg") would land mid-comment and leak a
     # broken fragment as visible text). Drop all comments, keep the element.
     return re.sub(r"<!--.*?-->", "", text, flags=re.S).strip()
+
+
+# A line holding only `<!-- partial: NAME.html -->` in index.html.
+_PARTIAL_MARKER = re.compile(r"^[ \t]*<!-- partial: ([\w-]+\.html) -->[ \t]*$", re.M)
+
+
+def _inline_partials(body: str) -> str:
+    """Splice each partial marker in ``index.html`` with that static file.
+
+    The body-level sheets live in their own file so ``index.html`` stays
+    under the structure ratchet's size limit; the browser still receives one
+    document, byte-for-byte what a single file would serve. Read on every
+    request like ``index.html`` itself, so a markup edit needs no restart.
+    """
+    def _load(match: "re.Match[str]") -> str:
+        path = STATIC_DIR / match.group(1)
+        try:
+            return path.read_text(encoding="utf-8").rstrip("\n")
+        except OSError as exc:
+            logger.warning("⚠️ index partial unreadable at %s: %s", path, exc)
+            return ""
+
+    return _PARTIAL_MARKER.sub(_load, body)
 
 
 _INDEX_CACHE_CONTROL = "no-cache, must-revalidate"
@@ -81,7 +104,7 @@ async def index(request: Request) -> Response:
     if not index_path.exists():
         raise HTTPException(status_code=500, detail="index.html missing")
     asset_hashes = getattr(request.app.state, "asset_hashes", {}) or {}
-    body = index_path.read_text(encoding="utf-8")
+    body = _inline_partials(index_path.read_text(encoding="utf-8"))
     stamped = rewrite_index_html(body, asset_hashes)
     sprite = _icon_sprite()
     if sprite:

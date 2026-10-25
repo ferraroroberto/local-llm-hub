@@ -15,7 +15,7 @@ The old install tab's endpoints (``/admin/api/install/*``) split into their
 own ``install.py`` router (issue #533) — see that module. The platform
 process-supervision helpers behind /stop and /restart (self-signal,
 launchd/systemd, respawn-watchdog spawn) likewise moved to
-``src/hub_process_control.py`` — they raise no FastAPI ``HTTPException``, so
+``src/process/hub_process_control.py`` — they raise no FastAPI ``HTTPException``, so
 per ``app_web/admin_forward.py``'s layering rule they don't belong in
 ``app_web``.
 """
@@ -35,14 +35,14 @@ from fastapi.responses import StreamingResponse
 
 from src.hub_log import HUB_LOG
 from src.hub_observability import OBS
-from src.hub_process_control import (
+from src.process.hub_process_control import (
     _delayed_darwin_bootout,
     _delayed_shutdown,
     _delayed_systemctl,
     _spawn_respawn_watchdog,
     _under_systemd,
 )
-from src.server_process import lan_ip
+from src.process.server_process import lan_ip
 
 from ._helpers import sse_stream
 
@@ -82,7 +82,7 @@ async def hub_status(request: Request) -> Dict[str, Any]:
 
 # ---------------------------------------------------------------- control
 # The self-signal / launchd / systemd / respawn-watchdog helpers these two
-# endpoints drive now live in src/hub_process_control.py — pure
+# endpoints drive now live in src/process/hub_process_control.py — pure
 # process supervision, no FastAPI.
 
 @router.post("/api/hub/stop")
@@ -111,7 +111,7 @@ async def hub_restart() -> Dict[str, Any]:
     # Tell the shutdown handler to leave the model backends running so the
     # respawned hub adopts them, instead of killing the survivors that
     # inherit_running_backends() exists to reclaim.
-    from src import backend_process as bp
+    from src.process import backend_process as bp
 
     bp.set_restart_pending(True)
 

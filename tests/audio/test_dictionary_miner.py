@@ -1,4 +1,4 @@
-"""Unit tests for src/dictionary_miner.py (issue #94).
+"""Unit tests for src/audio/dictionary_miner.py (issue #94).
 
 Covers the pure heuristic/clustering helpers and the orchestrator with the
 corpus fetch + LLM pass mocked out — no network, no live voice-transcriber.
@@ -12,7 +12,7 @@ os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 import pytest  # noqa: E402
 
-from src import dictionary_miner as dm  # noqa: E402
+from src.audio import dictionary_miner as dm  # noqa: E402
 from tests._worker_loop import run_on_worker_thread as _run  # noqa: E402
 
 

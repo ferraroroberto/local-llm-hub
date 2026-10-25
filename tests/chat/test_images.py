@@ -13,8 +13,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src import server as server_mod
-from src import server_images as images_mod
-from src.comfyui_client import ComfyUIError
+from src.images import server_images as images_mod
+from src.images.comfyui_client import ComfyUIError
 from src.gemini_cli import GeminiCLIError
 
 # A 1x1 PNG — enough to round-trip through base64 in the response.

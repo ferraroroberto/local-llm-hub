@@ -15,7 +15,7 @@ codebase audit:
 
 from __future__ import annotations
 
-from src import backend_process as bp
+from src.process import backend_process as bp
 from src.model_registry import Model
 
 

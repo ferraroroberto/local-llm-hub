@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from src import backend_process as bp
+from src.process import backend_process as bp
 from src.model_registry import SPAWNABLE_BACKENDS, enabled_models
 
 
@@ -143,6 +143,6 @@ def test_is_reachable_probes_system_stats(flux_model, monkeypatch):
         seen.append(base_url)
         return True
 
-    monkeypatch.setattr("src.comfyui_client.is_reachable", fake_reachable)
+    monkeypatch.setattr("src.images.comfyui_client.is_reachable", fake_reachable)
     assert bp.is_reachable(flux_model) is True
     assert seen == [f"http://127.0.0.1:{flux_model.port}"]

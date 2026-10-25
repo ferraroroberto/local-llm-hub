@@ -29,7 +29,7 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field, conint
 
-from src.claude_code_otel import get_usage_summary as _claude_code_otel_summary
+from src.usage.claude_code_otel import get_usage_summary as _claude_code_otel_summary
 from src.http_client import get_async_client
 from src.hub_observability import OBS
 from src.observability import (
@@ -236,8 +236,8 @@ async def telemetry_metrics() -> Dict[str, Any]:
 async def telemetry_claude_code_usage(period: str = "today") -> Dict[str, Any]:
     """Per-(date, model, query_source, project) rollup of Claude Code's own
     OTel metrics export (issue #68, day breakdown #233, project attribution
-    #234), persisted at ``POST /v1/metrics`` (``src/server_otel_receiver.py``
-    -> ``src/claude_code_otel.py``). ``project`` is auto-populated for any
+    #234), persisted at ``POST /v1/metrics`` (``src/routes/server_otel_receiver.py``
+    -> ``src/usage/claude_code_otel.py``). ``project`` is auto-populated for any
     session launched via the ``claude`` shell wrapper fleet-config#310 wires
     into ``$PROFILE`` (derived from the invoking repo); ``None`` otherwise.
 

@@ -5,12 +5,12 @@ activity.  It parses each agent's local session logs server-side — zero
 subprocesses, no wrapper around any binary, no impact on the running CLIs:
 
 - **Claude Code** (`vendor="claude"`) — the JSONL transcripts at
-  `~/.claude/projects/<encoded-path>/*.jsonl` (`src/code_usage.py`).
+  `~/.claude/projects/<encoded-path>/*.jsonl` (`src/usage/code_usage.py`).
 - **Codex / OpenAI** (`vendor="codex"`) — the rollout JSONL files at
-  `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` (`src/codex_usage.py`).  One
+  `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` (`src/usage/codex_usage.py`).  One
   record per `token_count` event, using the per-turn delta `last_token_usage`
   (never the cumulative `total_token_usage`, which would double-count).
-- **GitHub Copilot** (`vendor="copilot"`, `src/copilot_usage.py`) — two local
+- **GitHub Copilot** (`vendor="copilot"`, `src/usage/copilot_usage.py`) — two local
   sources, both carrying **exact** billed AI Credits (not a rate-table
   estimate):
   - The **Copilot CLI**'s `~/.copilot/session-state/<uuid>/events.jsonl`,
@@ -31,9 +31,9 @@ subprocesses, no wrapper around any binary, no impact on the running CLIs:
   with the *authoritative* GitHub billing API — per-day × per-model spend,
   no session/project attribution, requires a `GITHUB_COPILOT_BILLING_PAT`
   fine-grained PAT (`.env`, "Plan: read-only" permission) or the card shows
-  "not configured" rather than erroring (`src/copilot_billing.py`,
+  "not configured" rather than erroring (`src/usage/copilot_billing.py`,
   `GET /admin/api/code/copilot/billing`).
-- **AGY / Antigravity** (`vendor="agy"`, `src/agentsview_usage.py`) — sourced
+- **AGY / Antigravity** (`vendor="agy"`, `src/usage/agentsview_usage.py`) — sourced
   from the optional external
   [AgentsView](https://github.com/kenn-io/agentsview) service, which indexes
   `agy`'s local session storage the hub declined to reverse-engineer itself. Merges AgentsView's `gemini` (hub-routed calls) and
@@ -120,7 +120,7 @@ Month → 30 days (all daily bars); All → weekly bars from the first record,
 monthly once that would pass 31 bars.  The **Recent sessions** sheet shows the
 last 15 sessions across every project on this host.
 
-> **⚠️ The local JSONL source undercounts Claude two ways.** (a) Sessions bridged through **claude.ai/code** (web/desktop remote-control) write `mode`/`permission` lines but **no assistant/usage records** to the local transcripts — their tokens are only visible via the Code tab's **Sub-agents (OTel)** source: the hub runs its own OTLP-metrics receiver (`POST /v1/metrics`) that Claude Code's telemetry export can point at; see [telemetry-langfuse.md](telemetry-langfuse.md#claude-code-otel-metrics-receiver) for the host env vars. (b) Claude Code **prunes transcripts after ~30 days** (`cleanupPeriodDays`) — to survive that, the hub snapshots daily rollups per (date, vendor, model, project) into `data/code_usage_history.json` (`src/code_usage_history.py`: max-merge on write, per-vendor cutoff on read so no day is double-counted) and feeds them back into the "All" period after the source files are gone. History accumulates from the first snapshot forward; days already pruned before it are unrecoverable from disk. Newer Claude Code also writes per-session directories with **sub-agent transcripts** (`projects/<proj>/<session>/subagents/agent-*.jsonl`), which the parser includes, so sub-agent usage is captured where those exist; finer per-subagent attribution is tracked in the [Claude Code issue tracker](https://github.com/anthropics/claude-code/issues/22625).
+> **⚠️ The local JSONL source undercounts Claude two ways.** (a) Sessions bridged through **claude.ai/code** (web/desktop remote-control) write `mode`/`permission` lines but **no assistant/usage records** to the local transcripts — their tokens are only visible via the Code tab's **Sub-agents (OTel)** source: the hub runs its own OTLP-metrics receiver (`POST /v1/metrics`) that Claude Code's telemetry export can point at; see [telemetry-langfuse.md](telemetry-langfuse.md#claude-code-otel-metrics-receiver) for the host env vars. (b) Claude Code **prunes transcripts after ~30 days** (`cleanupPeriodDays`) — to survive that, the hub snapshots daily rollups per (date, vendor, model, project) into `data/code_usage_history.json` (`src/usage/code_usage_history.py`: max-merge on write, per-vendor cutoff on read so no day is double-counted) and feeds them back into the "All" period after the source files are gone. History accumulates from the first snapshot forward; days already pruned before it are unrecoverable from disk. Newer Claude Code also writes per-session directories with **sub-agent transcripts** (`projects/<proj>/<session>/subagents/agent-*.jsonl`), which the parser includes, so sub-agent usage is captured where those exist; finer per-subagent attribution is tracked in the [Claude Code issue tracker](https://github.com/anthropics/claude-code/issues/22625).
 
 > **Why no host OTEL → Langfuse bridge?**  The JSONL counters above
 > already give the community-standard tokens-in / tokens-out view, and the

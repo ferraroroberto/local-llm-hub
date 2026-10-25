@@ -34,7 +34,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
-from .backend_process import resolve_model_for_engine
+from .process.backend_process import resolve_model_for_engine
 from .event_loop import LOOP_FACTORY
 from .model_registry import Model
 from .tts_engines import SpeechRequest, TTSEngine, build_engine

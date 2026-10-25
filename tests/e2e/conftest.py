@@ -25,7 +25,7 @@ from typing import Iterator, List
 import httpx
 import pytest
 
-from src import win_job
+from src.process import win_job
 from tests.e2e._isolated_hub import VIOLATIONS_FILE
 from tests.e2e._surface import pytest_collection_modifyitems  # noqa: F401
 

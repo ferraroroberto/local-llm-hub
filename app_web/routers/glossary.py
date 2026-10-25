@@ -3,7 +3,7 @@
 Backs the inline dictionary editor that opens from a whisper row on the
 Models tab (issue #94). The dictionary itself
 (``config/transcription_glossary.json``) is owned by
-``src.transcription_glossary``; this router is a thin CRUD + mining shell
+``src.audio.transcription_glossary``; this router is a thin CRUD + mining shell
 over it:
 
   * ``GET  /api/glossary``       → the editable ``{replacements, boost_terms}``.
@@ -21,7 +21,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
 
-from src import transcription_glossary as tg
+from src.audio import transcription_glossary as tg
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -62,7 +62,7 @@ async def mine_glossary(payload: Dict[str, Any] | None = None) -> Dict[str, Any]
     loopback and returns reviewable suggestions; it never writes the
     dictionary. ``days`` may override the configured default.
     """
-    from src.dictionary_miner import mine_suggestions, MinerError
+    from src.audio.dictionary_miner import mine_suggestions, MinerError
 
     days = None
     if isinstance(payload, dict) and payload.get("days") is not None:

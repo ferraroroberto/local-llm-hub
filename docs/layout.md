@@ -6,7 +6,7 @@ The structure ratchet (`scripts/structure_ratchet.py`, configured in `.fleet.tom
 
 | Folder | Holds |
 | --- | --- |
-| `src/` | The hub: FastAPI routing, backend wrappers, process managers, usage parsers. A new module goes in a subpackage (like `diagnostics/`), because the flat directory is past its limit and baselined. |
+| `src/` | The hub: FastAPI routing, backend wrappers, process managers, usage parsers. A new module goes in the subpackage of its domain (`routes/`, `audio/`, `images/`, `fleet/`, `process/`, `usage/`, `diagnostics/`, …), because the flat directory sits just under its 40-module limit. |
 | `app_web/` | The `/admin` sub-app: routers and the static SPA (no bundler). Declared by the shape instead of the scaffold's `app/webapp/`. |
 | `tray/` | The Windows system-tray launcher. Declared by the shape instead of the scaffold's `app/tray/`. |
 | `tests/` | Unit and integration tests, grouped by domain into subfolders (`chat/`, `audio/`, `backends/`, `routers/`, `usage/`, `diagnostics/`, `ratchets/`), with `tests/e2e/` for the Playwright suite. A new test goes in the subfolder of its domain. |
@@ -82,27 +82,67 @@ local-llm-hub/
 │   └── diagnostics.db           # SQLite capture store
 ├── src/
 │   ├── server.py             # FastAPI hub (both shapes) + /admin sub-app mount
+│   ├── routes/               # HTTP routes mounted by server.py
+│   │   ├── anthropic_messages.py     #   POST /v1/messages (buffered + SSE) and /v1/messages/count_tokens
+│   │   ├── openai_chat.py            #   POST /v1/chat/completions (passthrough + CLI translation)
+│   │   ├── sse_response.py           #   closing SSE response + the non-chat-backend 400, shared by both
+│   │   ├── token_counting.py         #   POST /v1/messages/count_tokens — per-backend input_tokens,
+│   │   │                             #   exact on llama-server, flagged approximate on the CLIs
+│   │   ├── anthropic_errors.py       #   Anthropic {"type":"error",…} envelope for /v1/messages
+│   │   │                             #   errors — path-scoped so /v1/chat/completions is
+│   │   │                             #   untouched
+│   │   ├── server_otel_receiver.py   #   POST /v1/metrics OTLP receiver
+│   │   └── server_systemone.py       #   /v1/systemone — TypeSafe Jev passthrough, the only third-party egress
+│   ├── audio/                # /v1/audio/* proxy + transcription glossary
+│   │   ├── server_audio_asr.py       #   /v1/audio/{transcriptions,translations,health} — whisper proxy + failover
+│   │   ├── server_audio_tts.py       #   /v1/audio/speech — TTS proxy, routes onto server_audio_asr's router
+│   │   ├── server_audio_common.py    #   header-safety + upstream-error helpers shared by the two above
+│   │   ├── audio_proxy.py            #   shared multipart bridging + default-language lookup for the whisper transcribe/translate paths
+│   │   ├── transcription_glossary.py #   post-process whisper transcripts through a committed glossary
+│   │   └── dictionary_miner.py       #   mine recent dictation transcripts for glossary suggestions
+│   ├── images/               # /v1/images/* + the ComfyUI client
+│   │   ├── server_images.py          #   /v1/images/* handlers (generations, edits)
+│   │   ├── comfyui_client.py         #   ComfyUI prompt API client — local FLUX.1 [dev]
+│   │   └── image_sizes.py            #   size presets + native/upscale split, one source for API + UI
+│   ├── fleet/                # remote machines: proxy, bootstrap, stats, SSH, wake, reconcile
+│   │   ├── remote_proxy.py           #   resolve a non-local model row's owning host + forward verbatim
+│   │   ├── remote_bootstrap.py       #   SSH-triggered remote hub bootstrap/sync + machine power
+│   │   ├── remote_stats.py           #   remote machine liveness + stats for the Machines console;
+│   │   │                             #   + the cross-host peer-probe pair: remote_models/peer_health
+│   │   ├── machine_console.py        #   Machines-tab data layer: per-machine CPU/RAM/GPU/disk/uptime
+│   │   ├── ssh_terminal.py           #   in-browser SSH terminal, reusing app-launcher's session-host PTY
+│   │   ├── ssh_exec.py               #   the one `ssh <user>@<host> <cmd>` builder (remote_stats + remote_bootstrap)
+│   │   ├── wake_on_lan.py            #   Wake-on-LAN magic-packet builder/sender
+│   │   ├── fleet_reconcile.py        #   additive reconcile loop: wake + start registry-desired models
+│   │   └── fleet_maintenance.py      #   config/fleet_maintenance.json load/save — reconcile drain markers
+│   ├── process/              # backend + hub process management
+│   │   ├── process_supervisor.py     #   shared subprocess start/stop lifecycle workflow (hub + model backends)
+│   │   ├── server_process.py         #   hub port/PID lookup + ownership tri-state (used by backend_process.py, admin routers)
+│   │   ├── backend_process.py        #   per-model Popen (llama-server + whisper-server);
+│   │   │                             #   stdout/stderr → data/logs/backend-<id>.log (child-owned)
+│   │   ├── process_identity.py       #   this process's one build_identity() capture, shared by /admin/api/version, the index ETag and peer_health
+│   │   ├── hub_process_control.py    #   self stop/restart: SIGINT/SIGTERM, launchd bootout/kickstart,
+│   │   │                             #   systemctl, respawn-watchdog spawn
+│   │   └── win_job.py                #   Windows Job Object containment — kills a subprocess tree when the last handle closes (#468)
+│   ├── usage/                # Code-tab usage parsers, pricing, history
+│   │   ├── agentsview_service.py     #   optional AgentsView process lifecycle: probe/launch/stop
+│   │   ├── code_usage.py             #   host-side Claude Code usage parser + get_summary aggregation API
+│   │   ├── usage_common.py           #   shared vendor substrate: UsageRecord/FileStats + parsing helpers
+│   │   ├── usage_pricing.py          #   per-vendor $/Mtok pricing tables + record_costs
+│   │   ├── usage_charts.py           #   time-series bucketing + period-over-period comparison
+│   │   ├── code_usage_history.py     #   durable daily rollups of Code-tab usage (outlives transcript pruning)
+│   │   ├── claude_code_otel.py       #   Claude Code OTel token/cost metrics receiver — data layer
+│   │   ├── codex_usage.py            #   host-side Codex (OpenAI) usage parser (~/.codex/sessions/*.jsonl)
+│   │   ├── copilot_usage.py          #   host-side GitHub Copilot usage parser
+│   │   ├── copilot_billing.py        #   GitHub Copilot billing-API daily credits poller
+│   │   └── agentsview_usage.py       #   usage records from the optional external AgentsView service
 │   ├── server_lifecycle.py   # startup/shutdown wiring + background resource sampler
-│   ├── server_otel_receiver.py  # POST /v1/metrics OTLP receiver
 │   ├── chat_translation.py   # request/response schemas, content-block extraction,
 │   │                         #   prompt flattening, per-backend dispatch
 │   ├── translation/          # pieces split out of chat_translation.py (re-exported there)
 │   │   └── anthropic_sse.py      #   Anthropic SSE event adapters (CLI, OpenAI-upstream, buffered)
-│   ├── token_counting.py     # POST /v1/messages/count_tokens — per-backend input_tokens,
-│   │                         #   exact on llama-server, flagged approximate on the CLIs
-│   ├── anthropic_errors.py   # Anthropic {"type":"error",…} envelope for /v1/messages
-│   │                         #   errors — path-scoped so /v1/chat/completions is
-│   │                         #   untouched
 │   ├── server_common.py      # model-resolution + OTel span helpers shared by
 │   │                         #   server.py / server_audio_asr.py / server_audio_tts.py / server_images.py
-│   ├── server_audio_asr.py   # /v1/audio/{transcriptions,translations,health} — whisper proxy + failover
-│   ├── server_audio_tts.py   # /v1/audio/speech — TTS proxy, routes onto server_audio_asr's router
-│   ├── server_audio_common.py  # header-safety + upstream-error helpers shared by the two above
-│   ├── audio_proxy.py        # shared multipart bridging + default-language lookup for the whisper transcribe/translate paths
-│   ├── server_images.py      # /v1/images/* handlers (generations, edits)
-│   ├── server_systemone.py   # /v1/systemone — TypeSafe Jev passthrough, the only third-party egress
-│   ├── comfyui_client.py     # ComfyUI prompt API client — local FLUX.1 [dev]
-│   ├── image_sizes.py        # size presets + native/upscale split, one source for API + UI
 │   ├── claude_cli.py         # subprocess wrapper around `claude -p`
 │   ├── gemini_cli.py         # Antigravity CLI (`agy`) wrapper via ConPTY (Google AI Pro)
 │   ├── openai_upstream.py    # httpx client + SSE think-strip pipeline
@@ -113,22 +153,11 @@ local-llm-hub/
 │   ├── config_write.py       # git-backed models.yaml placement writes: validate → ruamel
 │   │                         #   edit → config-bot commit → push + drift sync
 │   ├── startup_profile.py    # config/startup_profile.json load/save — service flags
-│   ├── fleet_reconcile.py    # additive reconcile loop: wake + start registry-desired models
-│   ├── fleet_maintenance.py  # config/fleet_maintenance.json load/save — reconcile drain markers
 │   ├── on_demand.py          # spawn-on-first-request / unload-when-idle model lifecycle
 │   ├── host_profile.py       # pick active host row
 │   ├── atomic_write.py       # atomic text-file write + tolerant JSON read for the hub's JSON config/state stores
 │   ├── no_window.py          # shared NO_WINDOW flag — suppresses the console flash on every windowless subprocess spawn (#450)
 │   ├── runtime_data.py       # one machine-stable path for an always-on service's SQLite state (project-scaffolding#243)
-│   ├── win_job.py            # Windows Job Object containment — kills a subprocess tree when the last handle closes (#468)
-│   ├── remote_proxy.py       # resolve a non-local model row's owning host + forward verbatim
-│   ├── remote_bootstrap.py   # SSH-triggered remote hub bootstrap/sync + machine power
-│   ├── remote_stats.py       # remote machine liveness + stats for the Machines console;
-│   │                         #   + the cross-host peer-probe pair: remote_models/peer_health
-│   ├── machine_console.py    # Machines-tab data layer: per-machine CPU/RAM/GPU/disk/uptime
-│   ├── ssh_terminal.py       # in-browser SSH terminal, reusing app-launcher's session-host PTY
-│   ├── ssh_exec.py           # the one `ssh <user>@<host> <cmd>` builder (remote_stats + remote_bootstrap)
-│   ├── wake_on_lan.py        # Wake-on-LAN magic-packet builder/sender
 │   ├── system_stats.py       # live RAM/CPU/GPU readings (consumed by Hub tab sparklines)
 │   ├── observability.py      # OpenTelemetry bootstrap: tracing + metrics → local Langfuse
 │   ├── async_fanout.py       # shared thread-safe asyncio pub/sub fan-out for SSE subscribers
@@ -138,21 +167,7 @@ local-llm-hub/
 │   │                         #   exposed response headers; installed outermost
 │   ├── event_loop.py         # Windows proactor-loop shim so uvicorn survives client aborts
 │   ├── build_info.py         # vendored scaffold helper: build_identity() -> git_sha + built_at
-│   ├── process_identity.py   # this process's one build_identity() capture, shared by /admin/api/version, the index ETag and peer_health
 │   ├── services.py           # host-side service helpers: Docker engine + Langfuse stack
-│   ├── agentsview_service.py # optional AgentsView process lifecycle: probe/launch/stop
-│   ├── code_usage.py         # host-side Claude Code usage parser + get_summary aggregation API
-│   ├── usage_common.py       # shared vendor substrate: UsageRecord/FileStats + parsing helpers
-│   ├── usage_pricing.py      # per-vendor $/Mtok pricing tables + record_costs
-│   ├── usage_charts.py       # time-series bucketing + period-over-period comparison
-│   ├── code_usage_history.py # durable daily rollups of Code-tab usage (outlives transcript pruning)
-│   ├── claude_code_otel.py   # Claude Code OTel token/cost metrics receiver — data layer
-│   ├── codex_usage.py        # host-side Codex (OpenAI) usage parser (~/.codex/sessions/*.jsonl)
-│   ├── copilot_usage.py      # host-side GitHub Copilot usage parser
-│   ├── copilot_billing.py    # GitHub Copilot billing-API daily credits poller
-│   ├── agentsview_usage.py   # usage records from the optional external AgentsView service
-│   ├── dictionary_miner.py   # mine recent dictation transcripts for glossary suggestions
-│   ├── transcription_glossary.py  # post-process whisper transcripts through a committed glossary
 │   ├── diagnostics/          # on-demand machine diagnostics — no resident process
 │   │   ├── sampler.py            #   in-hub asyncio capture loop + opt-in scheduled snapshot
 │   │   ├── store.py              #   SQLite store (data/diagnostics.db), migrations, retention
@@ -165,10 +180,6 @@ local-llm-hub/
 │   ├── install.py            # first-run checks + --fix
 │   ├── usage_log.py          # vendored usage-log router (admin UI view/tap log)
 │   ├── run_backend.py        # hub|qwen35_4b|gemma4_26b|whisper|… dispatcher
-│   ├── process_supervisor.py # shared subprocess start/stop lifecycle workflow (hub + model backends)
-│   ├── server_process.py     # hub port/PID lookup + ownership tri-state (used by backend_process.py, admin routers)
-│   ├── backend_process.py    # per-model Popen (llama-server + whisper-server);
-│   │                         #   stdout/stderr → data/logs/backend-<id>.log (child-owned)
 │   ├── parakeet_server.py    # OpenAI-shape ASR server wrapping the FluidAudio Parakeet CoreML worker
 │   ├── tts_server.py            # FastAPI shim for /v1/audio/speech (engine: tts-server)
 │   ├── tts_engines/             # TTS engines: piper + chatterbox + orpheus + kokoro
@@ -180,8 +191,6 @@ local-llm-hub/
 │   ├── static_versioning.py  # ?v=<hash> stamping for /admin/static assets
 │   ├── hub_log.py            # in-memory log ring buffer (admin Hub tab streams it)
 │   ├── hub_observability.py  # live request ring, per-backend counters, SSE fan-out
-│   ├── hub_process_control.py  # self stop/restart: SIGINT/SIGTERM, launchd bootout/kickstart,
-│   │                         #   systemctl, respawn-watchdog spawn
 │   └── _respawn_watchdog.py  # detached watchdog for the hub's admin-triggered restart
 ├── app_web/                  # FastAPI sub-app at /admin (HTML/JS SPA — no bundler)
 │   ├── server.py             #   create_app() — middleware, routers, static mount
@@ -192,7 +201,7 @@ local-llm-hub/
 │   │                         #   fleet_maintenance / roles / playground / services /
 │   │                         #   telemetry / code_usage / glossary / hosts / machines /
 │   │                         #   diagnostics
-│   └── static/               #   index.html + main.js + state.js + tabs.js + api.js +
+│   └── static/               #   index.html (+ sheets.html, spliced in at serve time) + main.js + state.js + tabs.js + api.js +
 │                             #   hub.js + models.js + startup.js + fleet_placement.js +
 │                             #   playground.js + playground_jev.js + code_usage.js/.css +
 │                             #   diagnostics.js + glossary.js + machines.js/.css +

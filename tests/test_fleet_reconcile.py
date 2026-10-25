@@ -1,4 +1,4 @@
-"""Unit tests for src/fleet_reconcile.py (issues #353, #430).
+"""Unit tests for src/fleet/fleet_reconcile.py (issues #353, #430).
 
 Covers the reconcile contract without any real network or process control:
 the desired state comes from the registry (``model_registry.desired_placement``
@@ -17,9 +17,10 @@ import pytest
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
-from src import backend_process as bp  # noqa: E402
-from src import fleet_maintenance, fleet_reconcile as fr, model_registry  # noqa: E402
-from src import remote_bootstrap, remote_stats  # noqa: E402
+from src.process import backend_process as bp  # noqa: E402
+from src.fleet import fleet_maintenance, fleet_reconcile as fr  # noqa: E402
+from src import model_registry
+from src.fleet import remote_bootstrap, remote_stats  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

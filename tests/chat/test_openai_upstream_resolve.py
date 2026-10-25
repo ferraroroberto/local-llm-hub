@@ -13,7 +13,8 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from src import chat_translation, remote_proxy
+from src import chat_translation
+from src.fleet import remote_proxy
 from src.model_registry import Model
 from src.openai_upstream import UpstreamError
 

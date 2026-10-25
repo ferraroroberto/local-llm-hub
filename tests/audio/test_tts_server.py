@@ -15,7 +15,8 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from src import host_profile, model_registry, server as server_mod, server_audio_tts, tts_server
+from src import host_profile, model_registry, server as server_mod, tts_server
+from src.audio import server_audio_tts
 from src.tts_engines import KokoroEngine, OrpheusEngine, PiperEngine, SpeechRequest
 
 
