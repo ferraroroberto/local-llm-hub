@@ -3,18 +3,12 @@
   "entries": [
     {"key": "dir:src", "modules": 74},
     {"key": "dir:tests", "modules": 124},
-    {"key": "fn:app_web/static/diagnostics.js:renderSummary", "lines": 106},
-    {"key": "fn:app_web/static/glossary.js:mountGlossaryEditor", "lines": 259},
-    {"key": "fn:app_web/static/hub.js:wireHub", "lines": 114},
-    {"key": "fn:app_web/static/models.js:mountPlacementEditor", "lines": 220},
-    {"key": "fn:app_web/static/models.js:mountPlacementEditor.render", "lines": 163},
     {"key": "fn:src/server.py:_stream_anthropic_response", "lines": 143},
     {"key": "fn:src/server.py:_stream_anthropic_response.event_stream", "lines": 101},
     {"key": "fn:src/server.py:_stream_openai_passthrough", "lines": 112},
     {"key": "fn:src/server.py:chat_completions", "lines": 162},
     {"key": "fn:src/server.py:messages", "lines": 107},
     {"key": "size:app_web/static/index.html", "lines": 1063},
-    {"key": "size:app_web/static/styles.css", "lines": 1451},
     {"key": "size:src/server.py", "lines": 1081},
     {"key": "size:tests/test_streaming.py", "lines": 1119}
   ]

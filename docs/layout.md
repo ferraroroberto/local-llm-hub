@@ -198,7 +198,7 @@ local-llm-hub/
 │                             #   diagnostics.js + glossary.js + machines.js/.css +
 │                             #   machines_terminal.js + rows.js/.css + settings.js +
 │                             #   langfuse.js + dormant.js + theme.js +
-│                             #   usage.js + styles.css +
+│                             #   usage.js + styles.css + panels.css +
 │                             #   manifest.webmanifest + icon-*.png/favicon.ico (generated
 │                             #   by scripts/gen_icons.py, committed)
 │       └── _vendored/        #   project-scaffolding components: action-row / button /

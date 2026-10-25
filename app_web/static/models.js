@@ -573,223 +573,241 @@ function openEditor(m, kind) {
 
 function mountPlacementEditor(panel, m) {
   const p = m.placement || {};
-  const draft = {
-    chain: (p.chain || []).map(function (e) { return { id: e.id, cpu: !!e.cpu }; }),
-    startup: p.startup === 'on_demand' ? 'on_demand' : 'eager',
-    idle: p.idle_unload_minutes || null,
+  const ed = {
+    panel: panel,
+    m: m,
+    draft: {
+      chain: (p.chain || []).map(function (e) { return { id: e.id, cpu: !!e.cpu }; }),
+      startup: p.startup === 'on_demand' ? 'on_demand' : 'eager',
+      idle: p.idle_unload_minutes || null,
+    },
+    errorMsg: '',
+    saving: false,
   };
-  let errorMsg = '';
-  let saving = false;
+  renderPlacementEditor(ed);
+}
 
-  function fleetHosts() {
-    const cfg = state.modelsConfig;
-    return (cfg && cfg.fleet_hosts) || [];
-  }
+function fleetHosts() {
+  const cfg = state.modelsConfig;
+  return (cfg && cfg.fleet_hosts) || [];
+}
 
-  function move(i, delta) {
-    const j = i + delta;
-    if (j < 0 || j >= draft.chain.length) return;
-    const tmp = draft.chain[i];
-    draft.chain[i] = draft.chain[j];
-    draft.chain[j] = tmp;
-    render();
-  }
+function movePlacementHost(ed, i, delta) {
+  const chain = ed.draft.chain;
+  const j = i + delta;
+  if (j < 0 || j >= chain.length) return;
+  const tmp = chain[i];
+  chain[i] = chain[j];
+  chain[j] = tmp;
+  renderPlacementEditor(ed);
+}
 
-  async function save() {
-    errorMsg = '';
-    saving = true;
-    render();
-    try {
-      const body = await putJson(
-        '/admin/api/models/' + encodeURIComponent(m.id) + '/placement',
-        {
-          hosts: draft.chain,
-          startup: draft.startup,
-          idle_unload_minutes:
-            draft.startup === 'on_demand' && draft.idle ? Number(draft.idle) : null,
-        }
-      );
-      if (body.changed) {
-        toast('Committed ' + (body.commit || '') + ' — syncing satellites', 'good');
-      } else {
-        toast('No changes — placement already matches', 'good');
+async function savePlacement(ed) {
+  const draft = ed.draft;
+  ed.errorMsg = '';
+  ed.saving = true;
+  renderPlacementEditor(ed);
+  try {
+    const body = await putJson(
+      '/admin/api/models/' + encodeURIComponent(ed.m.id) + '/placement',
+      {
+        hosts: draft.chain,
+        startup: draft.startup,
+        idle_unload_minutes:
+          draft.startup === 'on_demand' && draft.idle ? Number(draft.idle) : null,
       }
-      closeEditors();
-      fetchModels();
-    } catch (exc) {
-      // Inline, not just a toast: the validation detail (e.g. the VRAM
-      // overcommit arithmetic) is the whole point of the rejection.
-      errorMsg = String(exc.message || exc);
-      saving = false;
-      render();
+    );
+    if (body.changed) {
+      toast('Committed ' + (body.commit || '') + ' — syncing satellites', 'good');
+    } else {
+      toast('No changes — placement already matches', 'good');
     }
+    closeEditors();
+    fetchModels();
+  } catch (exc) {
+    // Inline, not just a toast: the validation detail (e.g. the VRAM
+    // overcommit arithmetic) is the whole point of the rejection.
+    ed.errorMsg = String(exc.message || exc);
+    ed.saving = false;
+    renderPlacementEditor(ed);
   }
+}
 
-  function render() {
-    panel.replaceChildren();
+function renderPlacementEditor(ed) {
+  const panel = ed.panel;
+  panel.replaceChildren();
 
-    const note = document.createElement('p');
-    note.className = 'pe-note muted small';
-    note.textContent =
-      'Edits are validated (schema + VRAM budget), then committed to config/models.yaml and pushed — satellites sync automatically.';
-    panel.appendChild(note);
+  const note = document.createElement('p');
+  note.className = 'pe-note muted small';
+  note.textContent =
+    'Edits are validated (schema + VRAM budget), then committed to config/models.yaml and pushed — satellites sync automatically.';
+  panel.appendChild(note);
 
-    const title = document.createElement('div');
-    title.className = 'opt-group-title';
-    title.textContent = 'Hosts chain — priority order';
-    panel.appendChild(title);
+  const title = document.createElement('div');
+  title.className = 'opt-group-title';
+  title.textContent = 'Hosts chain — priority order';
+  panel.appendChild(title);
 
-    const list = document.createElement('div');
-    list.className = 'pe-chain';
-    draft.chain.forEach(function (entry, i) {
-      const hostRow = document.createElement('div');
-      hostRow.className = 'pe-host-row';
-      hostRow.dataset.host = entry.id;
+  const list = document.createElement('div');
+  list.className = 'pe-chain';
+  ed.draft.chain.forEach(function (entry, i) { list.appendChild(placementHostRow(ed, entry, i)); });
+  panel.appendChild(list);
 
-      const name = document.createElement('span');
-      name.className = 'pe-host-name';
-      name.textContent = entry.id;
-      hostRow.appendChild(name);
+  const addRow = placementAddRow(ed);
+  if (addRow) panel.appendChild(addRow);
 
-      const cpuLabel = document.createElement('label');
-      cpuLabel.className = 'pe-cpu-label muted small';
-      const cpu = document.createElement('input');
-      cpu.type = 'checkbox';
-      cpu.className = 'pe-cpu';
-      cpu.checked = entry.cpu;
-      cpu.addEventListener('change', function () { entry.cpu = cpu.checked; });
-      cpuLabel.appendChild(cpu);
-      cpuLabel.appendChild(document.createTextNode(' cpu tier'));
-      cpuLabel.title = 'Degraded CPU-offload last resort (#342) — holds no VRAM';
-      hostRow.appendChild(cpuLabel);
+  const policyTitle = document.createElement('div');
+  policyTitle.className = 'opt-group-title';
+  policyTitle.textContent = 'Lifecycle';
+  panel.appendChild(policyTitle);
+  panel.appendChild(placementPolicy(ed));
 
-      const controls = [
-        { cls: 'pe-up', glyph: 'chevron-up', label: 'Move up', disabled: i === 0, fn: function () { move(i, -1); } },
-        { cls: 'pe-down', glyph: 'chevron-down', label: 'Move down', disabled: i === draft.chain.length - 1, fn: function () { move(i, 1); } },
-        { cls: 'pe-remove', glyph: 'x', label: 'Remove host', danger: true, fn: function () { draft.chain.splice(i, 1); render(); } },
-      ];
-      controls.forEach(function (c) {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'icon-button ' + c.cls + (c.danger ? ' danger' : '');
-        b.title = c.label;
-        b.setAttribute('aria-label', c.label);
-        b.disabled = !!c.disabled;
-        b.innerHTML = icon(c.glyph);
-        b.addEventListener('click', c.fn);
-        hostRow.appendChild(b);
-      });
-      list.appendChild(hostRow);
-    });
-    panel.appendChild(list);
+  const err = document.createElement('div');
+  err.className = 'pe-error';
+  err.setAttribute('role', 'alert');
+  err.hidden = !ed.errorMsg;
+  err.textContent = ed.errorMsg;
+  panel.appendChild(err);
 
-    const inChain = {};
-    draft.chain.forEach(function (e) { inChain[e.id] = true; });
-    const addable = fleetHosts().filter(function (h) { return !inChain[h.id]; });
-    if (addable.length) {
-      const addRow = document.createElement('div');
-      addRow.className = 'pe-add-row';
-      const sel = document.createElement('select');
-      sel.className = 'pe-add-select';
-      sel.setAttribute('aria-label', 'Host to add to the chain');
-      addable.forEach(function (h) {
-        const opt = document.createElement('option');
-        opt.value = h.id;
-        opt.textContent = h.id + (h.vram_mb ? ' · ' + fmtGb(h.vram_mb) + ' VRAM' : '');
-        sel.appendChild(opt);
-      });
-      const addBtn = document.createElement('button');
-      addBtn.type = 'button';
-      addBtn.className = 'ghost-btn pe-add-btn';
-      addBtn.innerHTML = icon('plus') + 'Add host';
-      addBtn.addEventListener('click', function () {
-        if (!sel.value) return;
-        draft.chain.push({ id: sel.value, cpu: false });
-        render();
-      });
-      addRow.appendChild(sel);
-      addRow.appendChild(addBtn);
-      panel.appendChild(addRow);
-    }
+  const actions = document.createElement('div');
+  actions.className = 'pe-actions';
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'ghost-btn primary pe-save';
+  saveBtn.innerHTML = icon('save') + (ed.saving ? 'Saving…' : 'Save & commit');
+  saveBtn.disabled = ed.saving;
+  saveBtn.addEventListener('click', function () { savePlacement(ed); });
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'ghost-btn pe-cancel';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', closeEditors);
+  actions.appendChild(saveBtn);
+  actions.appendChild(cancelBtn);
+  panel.appendChild(actions);
+}
 
-    const policyTitle = document.createElement('div');
-    policyTitle.className = 'opt-group-title';
-    policyTitle.textContent = 'Lifecycle';
-    panel.appendChild(policyTitle);
+function placementHostRow(ed, entry, i) {
+  const chain = ed.draft.chain;
+  const hostRow = document.createElement('div');
+  hostRow.className = 'pe-host-row';
+  hostRow.dataset.host = entry.id;
 
-    const policy = document.createElement('div');
-    policy.className = 'pe-policy';
+  const name = document.createElement('span');
+  name.className = 'pe-host-name';
+  name.textContent = entry.id;
+  hostRow.appendChild(name);
 
-    const startupLabel = document.createElement('label');
-    startupLabel.className = 'pe-field';
-    startupLabel.appendChild(document.createTextNode('Startup'));
-    const startupSel = document.createElement('select');
-    startupSel.className = 'pe-startup';
-    [
-      { v: 'eager', t: 'always on — load at startup' },
-      { v: 'on_demand', t: 'on demand — load on first request' },
-    ].forEach(function (o) {
-      const opt = document.createElement('option');
-      opt.value = o.v;
-      opt.textContent = o.t;
-      if (draft.startup === o.v) opt.selected = true;
-      startupSel.appendChild(opt);
-    });
-    startupSel.addEventListener('change', function () {
-      draft.startup = startupSel.value;
-      render();
-    });
-    startupLabel.appendChild(startupSel);
-    policy.appendChild(startupLabel);
+  const cpuLabel = document.createElement('label');
+  cpuLabel.className = 'pe-cpu-label muted small';
+  const cpu = document.createElement('input');
+  cpu.type = 'checkbox';
+  cpu.className = 'pe-cpu';
+  cpu.checked = entry.cpu;
+  cpu.addEventListener('change', function () { entry.cpu = cpu.checked; });
+  cpuLabel.appendChild(cpu);
+  cpuLabel.appendChild(document.createTextNode(' cpu tier'));
+  cpuLabel.title = 'Degraded CPU-offload last resort (#342) — holds no VRAM';
+  hostRow.appendChild(cpuLabel);
 
-    const idleLabel = document.createElement('label');
-    idleLabel.className = 'pe-field';
-    idleLabel.appendChild(document.createTextNode('Idle unload (min)'));
-    const idle = document.createElement('input');
-    idle.type = 'number';
-    idle.min = '1';
-    idle.step = '1';
-    idle.className = 'pe-idle';
-    idle.placeholder = 'never';
-    idle.value = draft.idle == null ? '' : String(draft.idle);
-    idle.disabled = draft.startup !== 'on_demand';
-    idle.title = draft.startup === 'on_demand'
-      ? 'Minutes without a request before the idle watchdog unloads the backend (empty = stays up)'
-      : 'Only applies to on-demand rows';
-    idle.addEventListener('input', function () {
-      const v = parseInt(idle.value, 10);
-      draft.idle = Number.isFinite(v) && v > 0 ? v : null;
-    });
-    idleLabel.appendChild(idle);
-    policy.appendChild(idleLabel);
-    panel.appendChild(policy);
+  const controls = [
+    { cls: 'pe-up', glyph: 'chevron-up', label: 'Move up', disabled: i === 0, fn: function () { movePlacementHost(ed, i, -1); } },
+    { cls: 'pe-down', glyph: 'chevron-down', label: 'Move down', disabled: i === chain.length - 1, fn: function () { movePlacementHost(ed, i, 1); } },
+    { cls: 'pe-remove', glyph: 'x', label: 'Remove host', danger: true, fn: function () { chain.splice(i, 1); renderPlacementEditor(ed); } },
+  ];
+  controls.forEach(function (c) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'icon-button ' + c.cls + (c.danger ? ' danger' : '');
+    b.title = c.label;
+    b.setAttribute('aria-label', c.label);
+    b.disabled = !!c.disabled;
+    b.innerHTML = icon(c.glyph);
+    b.addEventListener('click', c.fn);
+    hostRow.appendChild(b);
+  });
+  return hostRow;
+}
 
-    const err = document.createElement('div');
-    err.className = 'pe-error';
-    err.setAttribute('role', 'alert');
-    err.hidden = !errorMsg;
-    err.textContent = errorMsg;
-    panel.appendChild(err);
+// The "add host" picker, or null when every fleet host is already in the chain.
+function placementAddRow(ed) {
+  const inChain = {};
+  ed.draft.chain.forEach(function (e) { inChain[e.id] = true; });
+  const addable = fleetHosts().filter(function (h) { return !inChain[h.id]; });
+  if (!addable.length) return null;
+  const addRow = document.createElement('div');
+  addRow.className = 'pe-add-row';
+  const sel = document.createElement('select');
+  sel.className = 'pe-add-select';
+  sel.setAttribute('aria-label', 'Host to add to the chain');
+  addable.forEach(function (h) {
+    const opt = document.createElement('option');
+    opt.value = h.id;
+    opt.textContent = h.id + (h.vram_mb ? ' · ' + fmtGb(h.vram_mb) + ' VRAM' : '');
+    sel.appendChild(opt);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'ghost-btn pe-add-btn';
+  addBtn.innerHTML = icon('plus') + 'Add host';
+  addBtn.addEventListener('click', function () {
+    if (!sel.value) return;
+    ed.draft.chain.push({ id: sel.value, cpu: false });
+    renderPlacementEditor(ed);
+  });
+  addRow.appendChild(sel);
+  addRow.appendChild(addBtn);
+  return addRow;
+}
 
-    const actions = document.createElement('div');
-    actions.className = 'pe-actions';
-    const saveBtn = document.createElement('button');
-    saveBtn.type = 'button';
-    saveBtn.className = 'ghost-btn primary pe-save';
-    saveBtn.innerHTML = icon('save') + (saving ? 'Saving…' : 'Save & commit');
-    saveBtn.disabled = saving;
-    saveBtn.addEventListener('click', save);
-    const cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.className = 'ghost-btn pe-cancel';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.addEventListener('click', closeEditors);
-    actions.appendChild(saveBtn);
-    actions.appendChild(cancelBtn);
-    panel.appendChild(actions);
-  }
+function placementPolicy(ed) {
+  const draft = ed.draft;
+  const policy = document.createElement('div');
+  policy.className = 'pe-policy';
 
-  render();
+  const startupLabel = document.createElement('label');
+  startupLabel.className = 'pe-field';
+  startupLabel.appendChild(document.createTextNode('Startup'));
+  const startupSel = document.createElement('select');
+  startupSel.className = 'pe-startup';
+  [
+    { v: 'eager', t: 'always on — load at startup' },
+    { v: 'on_demand', t: 'on demand — load on first request' },
+  ].forEach(function (o) {
+    const opt = document.createElement('option');
+    opt.value = o.v;
+    opt.textContent = o.t;
+    if (draft.startup === o.v) opt.selected = true;
+    startupSel.appendChild(opt);
+  });
+  startupSel.addEventListener('change', function () {
+    draft.startup = startupSel.value;
+    renderPlacementEditor(ed);
+  });
+  startupLabel.appendChild(startupSel);
+  policy.appendChild(startupLabel);
+
+  const idleLabel = document.createElement('label');
+  idleLabel.className = 'pe-field';
+  idleLabel.appendChild(document.createTextNode('Idle unload (min)'));
+  const idle = document.createElement('input');
+  idle.type = 'number';
+  idle.min = '1';
+  idle.step = '1';
+  idle.className = 'pe-idle';
+  idle.placeholder = 'never';
+  idle.value = draft.idle == null ? '' : String(draft.idle);
+  idle.disabled = draft.startup !== 'on_demand';
+  idle.title = draft.startup === 'on_demand'
+    ? 'Minutes without a request before the idle watchdog unloads the backend (empty = stays up)'
+    : 'Only applies to on-demand rows';
+  idle.addEventListener('input', function () {
+    const v = parseInt(idle.value, 10);
+    draft.idle = Number.isFinite(v) && v > 0 ? v : null;
+  });
+  idleLabel.appendChild(idle);
+  policy.appendChild(idleLabel);
+  return policy;
 }
 
 // --------------------------------------------------------------- the log tail

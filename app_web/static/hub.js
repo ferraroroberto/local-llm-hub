@@ -609,7 +609,9 @@ function openSheet(dlg) {
 }
 
 // --------------------------------------------------------- wiring
-export function wireHub() {
+// The Activity card: its filter, scope switch and trace rows, plus the
+// trace sheet's feedback thumbs.
+function wireActivity() {
   if (els.liveRequestsFilter) {
     els.liveRequestsFilter.addEventListener('input', function () {
       applyListFilter(els.liveRequestsFilter, state.activityScope === 'errors' ? els.recentErrorsList : els.liveRequestsList);
@@ -641,6 +643,10 @@ export function wireHub() {
       if (holder) postFeedback(holder.dataset.traceId, parseInt(thumb.dataset.thumbs || '0', 10));
     });
   }
+}
+
+// The Services list and every Hub sheet's open and close controls.
+function wireSheets() {
   if (els.servicesList) {
     els.servicesList.addEventListener('click', function (ev) {
       const btn = ev.target.closest('[data-act]');
@@ -677,6 +683,11 @@ export function wireHub() {
       if (dlg) dlg.close();
     });
   });
+}
+
+export function wireHub() {
+  wireActivity();
+  wireSheets();
   if (els.hubSeries) {
     els.hubSeries.addEventListener('click', function (ev) {
       const seg = ev.target.closest('.segmented-item');
