@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from src import server as server_mod
 from src.images import server_images as images_mod
-from src.images.comfyui_client import ComfyUIError
+from src.images.comfyui_client import ComfyUIBackendWedged, ComfyUIError
 from src.gemini_cli import GeminiCLIError
 
 # A 1x1 PNG — enough to round-trip through base64 in the response.
@@ -225,6 +225,65 @@ def test_flux_generation_error_returns_502(monkeypatch):
                     json={"model": "flux1_local", "prompt": "x"})
     assert r.status_code == 502
     assert "KSampler" in r.json()["detail"]
+
+
+def _wedged_backend(monkeypatch, stop_result):
+    """flux1_local whose generate raises the wedged error; returns the list of
+    ids passed to ``backend_process.stop``."""
+    from src.process import backend_process as bp
+
+    monkeypatch.setattr(images_mod, "remote_base_url", lambda m: None)
+    monkeypatch.setattr(images_mod.on_demand, "ensure_ready", lambda *a, **k: None)
+
+    def wedged(*a, **k):
+        raise ComfyUIBackendWedged("ComfyUI's CUDA context is wedged (CUDA error)")
+
+    stopped = []
+    monkeypatch.setattr(images_mod, "generate_image", wedged)
+    monkeypatch.setattr(bp, "stop", lambda model_id: (stopped.append(model_id), stop_result)[1])
+    return stopped
+
+
+def test_flux_wedged_cuda_backend_is_stopped_and_reported_as_503(monkeypatch):
+    """A dead CUDA context is stopped so the next call reloads it, and is told
+    apart from an ordinary failed generation (502)."""
+    stopped = _wedged_backend(monkeypatch, (True, "stopped"))
+    client = TestClient(server_mod.app)
+    r = client.post("/v1/images/generations",
+                    json={"model": "flux1_local", "prompt": "x"})
+    assert r.status_code == 503
+    assert stopped == ["flux1_local"]
+    detail = r.json()["detail"]
+    assert "CUDA context is wedged" in detail
+    assert "next request reloads it" in detail
+
+
+def test_flux_wedged_backend_that_will_not_stop_says_so(monkeypatch):
+    _wedged_backend(monkeypatch, (False, "access denied"))
+    client = TestClient(server_mod.app)
+    r = client.post("/v1/images/generations",
+                    json={"model": "flux1_local", "prompt": "x"})
+    assert r.status_code == 503
+    assert "stopping 'flux1_local' failed (access denied)" in r.json()["detail"]
+
+
+def test_flux_ordinary_failure_does_not_stop_the_backend(monkeypatch):
+    from src.process import backend_process as bp
+
+    monkeypatch.setattr(images_mod, "remote_base_url", lambda m: None)
+    monkeypatch.setattr(images_mod.on_demand, "ensure_ready", lambda *a, **k: None)
+
+    def boom(*a, **k):
+        raise ComfyUIError("ComfyUI workflow failed: KSampler raised OOM")
+
+    stopped = []
+    monkeypatch.setattr(images_mod, "generate_image", boom)
+    monkeypatch.setattr(bp, "stop", lambda model_id: stopped.append(model_id) or (True, ""))
+    client = TestClient(server_mod.app)
+    r = client.post("/v1/images/generations",
+                    json={"model": "flux1_local", "prompt": "x"})
+    assert r.status_code == 502
+    assert stopped == []
 
 
 def test_flux_backend_that_never_comes_up_returns_503(monkeypatch):

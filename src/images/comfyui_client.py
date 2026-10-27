@@ -51,6 +51,15 @@ class ComfyUIError(RuntimeError):
     """A generation could not be produced (unreachable, rejected, or failed)."""
 
 
+class ComfyUIBackendWedged(ComfyUIError):
+    """ComfyUI's CUDA context is dead, so every further call on this process fails.
+
+    Distinct from an ordinary failed generation: the process must be restarted,
+    and retrying against it only fails again (in ~0.4 s, which looks like a
+    healthy backend rejecting prompts rather than a broken one).
+    """
+
+
 # FLUX.1 [dev] reference settings. Steps/sampler/scheduler are the values
 # ComfyUI's own FLUX dev template ships; guidance 3.5 is Black Forest Labs'
 # published default for the distilled dev checkpoint.
@@ -549,6 +558,21 @@ def _execution_error(record: Dict[str, Any]) -> Optional[str]:
     return status.get("status_str") or "execution failed"
 
 
+def is_fatal_cuda_error(message: str) -> bool:
+    """True for a CUDA failure that poisons the whole process, not one prompt.
+
+    PyTorch raises ``CUDA error: unknown error`` / ``an illegal memory access``
+    / ``device-side assert`` as ``AcceleratorError`` once the context is
+    corrupt; nothing short of a restart clears it. Out-of-memory carries the
+    same ``CUDA`` prefix but is recoverable (the next prompt can fit), so it is
+    deliberately excluded.
+    """
+    lowered = message.lower()
+    if "out of memory" in lowered:
+        return False
+    return "cuda error" in lowered or "acceleratorerror" in lowered
+
+
 def _first_image_ref(record: Dict[str, Any]) -> Dict[str, Any]:
     for node_output in (record.get("outputs") or {}).values():
         for image in node_output.get("images") or []:
@@ -701,6 +725,11 @@ def generate_image(
     record = _await_history(base, prompt_id, timeout_s)
     error = _execution_error(record)
     if error:
+        if is_fatal_cuda_error(error):
+            raise ComfyUIBackendWedged(
+                f"ComfyUI's CUDA context is wedged ({error}) — the backend "
+                "must be restarted"
+            )
         raise ComfyUIError(f"ComfyUI workflow failed: {error}")
 
     image_bytes, media_type = _fetch_image(base, _first_image_ref(record))

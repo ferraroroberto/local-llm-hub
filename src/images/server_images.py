@@ -38,6 +38,7 @@ from pydantic import BaseModel
 
 from .. import on_demand
 from .comfyui_client import (
+    ComfyUIBackendWedged,
     ComfyUIError,
     ModelSpec,
     checkpoint_name_for,
@@ -92,14 +93,40 @@ def _generate_via_comfyui(
         raise HTTPException(status_code=503, detail=str(e))
 
     with on_demand.tracking(model):
-        return generate_image(
-            prompt,
-            base_url=f"http://127.0.0.1:{model.port}",
-            spec=model_spec_for(model),
-            width=width,
-            height=height,
-            refine=refine,
+        try:
+            return generate_image(
+                prompt,
+                base_url=f"http://127.0.0.1:{model.port}",
+                spec=model_spec_for(model),
+                width=width,
+                height=height,
+                refine=refine,
+            )
+        except ComfyUIBackendWedged as exc:
+            raise ComfyUIBackendWedged(
+                f"{exc}; {_stop_wedged_backend(model)}"
+            ) from exc
+
+
+def _stop_wedged_backend(model: Model) -> str:
+    """Stop a backend whose CUDA context died so the next request cold-loads it.
+
+    A wedged ComfyUI still answers HTTP and fails each prompt in well under a
+    second, so ``ensure_ready`` sees a healthy process and never replaces it;
+    only stopping it lets the on-demand lifecycle spawn a clean one. Returns a
+    clause for the caller's error message saying what happened to the process.
+    """
+    from ..process import backend_process as bp
+
+    ok, msg = bp.stop(model.id)
+    if ok:
+        logger.warning(
+            "comfyui: %s hit a fatal CUDA error and was stopped; the next "
+            "request reloads it", model.id,
         )
+        return f"{model.id!r} was stopped and the next request reloads it"
+    logger.error("comfyui: could not stop wedged %s: %s", model.id, msg)
+    return f"stopping {model.id!r} failed ({msg}) — restart it from the Models tab"
 
 
 def model_spec_for(model: Model) -> ModelSpec:
@@ -213,6 +240,16 @@ def images_generations(req: ImagesGenerationRequest, request: Request) -> JSONRe
             # Imagen sizes its own output and ignores pixel hints, so req.size
             # is deliberately not forwarded here (docs/image-generation.md).
             out = call_gemini_image(req.prompt)
+    except ComfyUIBackendWedged as e:
+        # 503, not 502: the backend is down until it reloads, which is a
+        # different condition from a generation that failed on a healthy one.
+        record_route_metrics(
+            start_ns,
+            model=req.model, backend=model.backend,
+            route="/v1/images/generations", client_id=client_id,
+            error_type="comfyui_backend_wedged",
+        )
+        raise HTTPException(status_code=503, detail=str(e))
     except (GeminiCLIError, ComfyUIError) as e:
         record_route_metrics(
             start_ns,

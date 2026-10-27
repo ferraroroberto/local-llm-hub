@@ -233,6 +233,46 @@ def test_execution_error_is_reported_with_node_detail(monkeypatch):
         cc.generate_image("x", base_url=_BASE, spec=_SPEC)
 
 
+def _failed_history(exception_type, message, node_type="CLIPTextEncode"):
+    return [{
+        "pid-1": {
+            "status": {"status_str": "error", "completed": False, "messages": [
+                ["execution_error", {
+                    "node_type": node_type,
+                    "exception_type": exception_type,
+                    "exception_message": message,
+                }],
+            ]},
+            "outputs": {},
+        }
+    }]
+
+
+@pytest.mark.parametrize("message", [
+    "CUDA error: unknown error\nSearch for `cudaErrorUnknown` in https://docs.nvidia.com",
+    "CUDA error: an illegal memory access was encountered",
+    "CUDA error: device-side assert triggered",
+])
+def test_fatal_cuda_error_raises_the_distinct_wedged_error(monkeypatch, message):
+    """A dead CUDA context fails every later prompt on the process; it must not
+    surface as an ordinary failed generation a caller would just retry."""
+    _install(monkeypatch, _FakeClient(history_sequence=_failed_history(
+        "torch.AcceleratorError", message)))
+    with pytest.raises(cc.ComfyUIBackendWedged, match="CUDA context is wedged"):
+        cc.generate_image("x", base_url=_BASE, spec=_SPEC)
+
+
+def test_cuda_out_of_memory_is_not_a_wedged_backend(monkeypatch):
+    """OOM is recoverable — the next prompt can fit — so it must not trigger a
+    restart of an otherwise healthy backend."""
+    _install(monkeypatch, _FakeClient(history_sequence=_failed_history(
+        "torch.OutOfMemoryError", "CUDA out of memory. Tried to allocate 2 GiB",
+        node_type="KSampler")))
+    with pytest.raises(ComfyUIError) as ei:
+        cc.generate_image("x", base_url=_BASE, spec=_SPEC)
+    assert not isinstance(ei.value, cc.ComfyUIBackendWedged)
+
+
 def test_finished_with_no_image_raises(monkeypatch):
     _install(monkeypatch, _FakeClient(history_sequence=[_done_record(images=[])]))
     with pytest.raises(ComfyUIError, match="no image output"):
