@@ -8,6 +8,8 @@ driven with injected ``now`` values so the window math is deterministic.
 from __future__ import annotations
 
 import logging
+import time
+import types
 
 import pytest
 
@@ -87,6 +89,44 @@ def test_ensure_ready_spawns_and_waits_for_readiness(monkeypatch):
 
     on_demand.ensure_ready(_model(), deadline_s=5.0)
     assert started == ["gemma"]
+
+
+def test_cold_load_is_not_killed_by_idle_sweep_with_stale_last_used(monkeypatch):
+    """An unload leaves ``_LAST_USED`` at its pre-unload value; a sweep that
+    lands while the next cold start is still loading must not stop it."""
+    m = _model()  # 30-minute window
+    stopped = _wire_sweep(monkeypatch, [m])
+    monkeypatch.setattr(remote_proxy, "remote_base_url", lambda m: None)
+    monkeypatch.setattr(on_demand, "READY_POLL_S", 0.01)
+    monkeypatch.setattr(host_profile, "resolve", lambda: _Profile(None))
+    monkeypatch.setattr(bp, "running_backends", dict)
+    monkeypatch.setattr(bp, "start", lambda mid: (True, "started"))
+
+    # Last activity 40 min before the cold request: past the window.
+    on_demand.request_finished("gemma", now=1000.0)
+    clock = {"now": 1000.0 + 40 * 60}
+    monkeypatch.setattr(on_demand, "time", types.SimpleNamespace(
+        monotonic=lambda: clock["now"], sleep=time.sleep))
+
+    sweeps: list[dict] = []
+    probes = {"n": 0}
+
+    def _reachable(m, timeout=1.5):
+        probes["n"] += 1
+        if probes["n"] <= 2:
+            return False  # cold for the two pre-checks
+        if probes["n"] == 3:
+            # Mid-load: the watchdog sweeps 12 s after the spawn.
+            clock["now"] += 12
+            sweeps.append(on_demand.idle_unload_pass())
+            return False
+        return True
+
+    monkeypatch.setattr(bp, "is_reachable", _reachable)
+
+    on_demand.ensure_ready(m, deadline_s=600.0)
+    assert sweeps == [{"gemma": "warm"}]
+    assert stopped == []
 
 
 def test_ensure_ready_raises_on_deadline(monkeypatch):
