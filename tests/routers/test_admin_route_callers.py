@@ -52,10 +52,22 @@ def _spa_source() -> str:
 
 def _api_paths() -> set[str]:
     app = admin_server.create_app()
-    return {
-        r.path for r in app.routes
-        if isinstance(r, APIRoute) and r.path.startswith("/api/")
-    }
+    paths: set[str] = set()
+    for route in app.routes:
+        # FastAPI >= 0.16x keeps each include_router() as one wrapper and
+        # resolves its routes (prefix applied) on demand, so app.routes no
+        # longer lists the APIRoutes themselves.
+        resolve = getattr(route, "effective_route_contexts", None)
+        for r in resolve() if resolve else [route]:
+            if isinstance(getattr(r, "original_route", r), APIRoute) and (r.path or "").startswith("/api/"):
+                paths.add(r.path)
+    # An empty or tiny table would report every NON_SPA_CALLERS entry as stale
+    # and make the orphan check pass vacuously; fail on the enumeration itself.
+    assert "/api/healthz" in paths and len(paths) >= len(NON_SPA_CALLERS), (
+        f"could not enumerate the admin routes (got {len(paths)}); "
+        "the installed FastAPI changed how app.routes exposes included routers"
+    )
+    return paths
 
 
 def _called_by_spa(path: str, spa: str) -> bool:
