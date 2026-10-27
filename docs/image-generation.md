@@ -382,6 +382,18 @@ corrupted state and needs no cleanup: stop the other image model (admin Models
 tab) or wait out its 15-minute idle unload, and the request succeeds. Requesting
 one image model at a time is the supported pattern.
 
+**A wedged CUDA context is reported, not retried.** After a fatal CUDA error
+(`CUDA error: unknown error`, an illegal memory access, a device-side assert)
+a ComfyUI process fails every later prompt in well under a second at the text
+encoder, while still answering HTTP — so it looks like a healthy backend
+rejecting prompts, and the on-demand lifecycle never replaces it. The hub
+treats that failure as its own condition: it stops that one backend and returns
+**503** with a message naming the wedged CUDA context and saying the next
+request reloads it (a `comfyui_backend_wedged` error type in the request ring),
+rather than the 502 an ordinary failed generation gets. `CUDA out of memory` is
+recoverable and stays a plain 502 with the backend left running. The backend
+log (`data/logs/backend-<model-id>.log`) holds the original traceback.
+
 ### Install
 
 `scripts/install_comfyui.py` **pins `transformers==4.57.6`** into ComfyUI's venv. ComfyUI asks
