@@ -234,13 +234,19 @@ def ensure_ready(model: Model, deadline_s: float = READY_DEADLINE_S) -> None:
         if bp.is_reachable(model, timeout=bp.LIVENESS_PROBE_TIMEOUT_S):
             return
         _warn_on_vram_overcommit(model)
+        # The load is not a tracked request (callers enter ``tracking`` only
+        # after this returns), and an unload leaves ``_LAST_USED`` at its
+        # pre-unload value — without this refresh the watchdog sees a
+        # long-idle backend and kills the process mid-load.
+        with _LOCK:
+            _LAST_USED[model.id] = time.monotonic()
         ok, msg = bp.start(model.id)
         # "already running" means a process exists but isn't answering yet
         # (mid-load) — that's exactly what the readiness poll below absorbs.
         if not ok and "already running" not in msg.lower():
             raise OnDemandNotReady(f"on-demand start of {model.id!r} failed: {msg}")
-        logger.info("⏳ on-demand: loading %s (%s) — request waits for readiness",
-                    model.id, msg)
+        logger.info("⏳ on-demand: loading %s (%s) — idle clock armed, request waits "
+                    "for readiness", model.id, msg)
         started = time.monotonic()
         while time.monotonic() - started < deadline_s:
             if bp.is_reachable(model, timeout=1.0):
@@ -289,6 +295,8 @@ def idle_unload_pass(now: Optional[float] = None) -> Dict[str, Any]:
             results[m.id] = "armed"
             continue
         if in_flight > 0:
+            logger.info("on-demand: idle sweep skipped %s (%d request(s) in flight)",
+                        m.id, in_flight)
             results[m.id] = "busy"
             continue
         idle_s = t - last_used
