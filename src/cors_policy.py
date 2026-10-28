@@ -31,7 +31,7 @@ Three deliberate choices, each of which is the security-relevant half:
   list to contain it.
 
 CORS is **not** an auth relaxation: the middleware is installed
-outermost so a preflight ``OPTIONS`` is answered instead of 401'd, but a
+outside the bearer gate so a preflight ``OPTIONS`` is answered instead of 401'd, but a
 real request still travels the full stack and meets the bearer gate
 exactly as before.
 """
@@ -155,9 +155,9 @@ def cors_kwargs(configured: Optional[Iterable[Any]] = None) -> Dict[str, Any]:
 
 
 def install_cors(app: FastAPI, cfg: Optional[WebappConfig] = None) -> List[str]:
-    """Add the CORS middleware to ``app``, OUTERMOST.
+    """Add the CORS middleware to ``app``, outside the bearer gate.
 
-    Must be the last ``add_middleware`` call on the app: starlette builds
+    Must be added after :class:`ParentBearerTokenMiddleware`: starlette builds
     the stack so the last-added layer wraps every earlier one, and CORS
     has to sit outside :class:`ParentBearerTokenMiddleware` for a
     preflight ``OPTIONS`` — which carries no ``Authorization`` header, by

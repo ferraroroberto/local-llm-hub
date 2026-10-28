@@ -163,8 +163,9 @@ local-llm-hub/
 │   ├── async_fanout.py       # shared thread-safe asyncio pub/sub fan-out for SSE subscribers
 │   ├── trace_id_middleware.py  # X-Trace-Id contract + request-id / anthropic-* response headers
 │   ├── anthropic_headers.py  # anthropic-version / anthropic-beta parity decisions
+│   ├── compression.py        # vendored stream-safe gzip middleware; the outermost layer on the hub app
 │   ├── cors_policy.py        # CORS policy — loopback-by-default origins, SDK request headers,
-│   │                         #   exposed response headers; installed outermost
+│   │                         #   exposed response headers; installed outside the bearer gate
 │   ├── event_loop.py         # Windows proactor-loop shim so uvicorn survives client aborts
 │   ├── build_info.py         # vendored scaffold helper: build_identity() -> git_sha + built_at
 │   ├── services.py           # host-side service helpers: Docker engine + Langfuse stack

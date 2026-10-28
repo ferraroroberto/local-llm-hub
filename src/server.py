@@ -65,6 +65,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse, Response
 
 from .routes.anthropic_errors import install_anthropic_error_handlers
+from .compression import StreamSafeGZipMiddleware
 from .cors_policy import install_cors
 from . import gemini_cli
 from .host_profile import hub_bind_host, hub_port
@@ -179,8 +180,8 @@ def _load_startup_webapp_config() -> Optional[WebappConfig]:
 
 app.state.webapp_config = _load_startup_webapp_config()
 
-# CORS for browser-based clients — added LAST so it sits outside
-# every layer above, including the bearer gate. A preflight OPTIONS
+# CORS for browser-based clients — added after every layer above so it
+# sits outside them, including the bearer gate. A preflight OPTIONS
 # carries no Authorization header by the browser's design, so it has to
 # be answered here rather than 401'd downstream; real requests still
 # travel the full stack and meet the gate unchanged. Loopback origins are
@@ -188,6 +189,13 @@ app.state.webapp_config = _load_startup_webapp_config()
 # a wildcard never ships — the policy and its rationale live in
 # src/cors_policy.py.
 install_cors(app, getattr(app.state, "webapp_config", None))
+
+# Response compression — added after CORS so it is the true outermost layer:
+# an auth failure, a 304 or a preflight reply is bodyless and passes through
+# unchanged. Event streams and websockets are never compressed by the
+# middleware itself, and the audio / image content types it skips cover every
+# media route here, so no path needs a bypass.
+app.add_middleware(StreamSafeGZipMiddleware, bypass_paths=())
 
 
 # Startup/shutdown handlers + the background resource sampler live in
