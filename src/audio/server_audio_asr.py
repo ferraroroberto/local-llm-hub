@@ -504,8 +504,10 @@ def _passthrough_headers(
     # re-states them below (folding in the peer's answer via
     # :func:`_served_identity`), and leaving the originals in would emit the
     # header twice with two different requested-model values.
+    # `content-encoding` goes too: the body forwarded is httpx's already-decoded
+    # `.content`, so a peer's `gzip` label would make the client gunzip plain JSON.
     _drop = {
-        "content-length", "transfer-encoding", "connection",
+        "content-length", "transfer-encoding", "connection", "content-encoding",
         HEADER_REQUESTED_MODEL.lower(), HEADER_SERVED_MODEL.lower(),
         HEADER_SERVED_HOST.lower(),
     }
