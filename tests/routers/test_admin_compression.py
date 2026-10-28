@@ -176,11 +176,12 @@ def test_revalidation_stays_bodyless_and_unencoded():
     assert "content-encoding" not in r.headers
 
 
-def test_small_json_round_trips_under_compression():
+def test_small_json_stays_uncompressed():
     # Behind the hub's BaseHTTPMiddleware layers every 200 body arrives
-    # re-streamed, so the size minimum cannot hold; the body must still decode.
+    # re-streamed with no Content-Length; the size minimum must still hold.
     r = TestClient(server_mod.app).get("/admin/api/healthz", headers=_GZIP)
     assert r.status_code == 200
+    assert "content-encoding" not in r.headers
     assert r.json()
 
 
