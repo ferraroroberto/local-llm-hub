@@ -47,6 +47,9 @@ async def _service_action(
     icon = "🛑" if verb == "stop" else "🚀"
     logger.info("%s /admin/api/services/%s", icon, path)
     result = await coro
+    # Any action may have started or stopped the engine; the next status
+    # poll must not serve the pre-action probe.
+    svc.forget_docker_status()
     if result["ok"]:
         logger.info("✅ %s %s: %s", label, verb, result["steps"])
     else:
@@ -62,7 +65,7 @@ async def services_status() -> Dict[str, Any]:
     when everything is down; in steady state each returns in <100 ms.
     Per-peer hub health lives on the Machines tab, not here.
     """
-    docker = await svc.docker_status()
+    docker = await svc.docker_status_cached()
     langfuse = await svc.langfuse_health()
     agentsview = await agentsview_service.agentsview_health()
 

@@ -143,6 +143,35 @@ async def docker_status(timeout_s: float = DOCKER_PROBE_TIMEOUT_S) -> Dict[str, 
     return await asyncio.to_thread(_docker_info_sync, timeout_s)
 
 
+# `docker info` costs ~250 ms per spawn and the Hub tab polls the status
+# endpoint every few seconds; a short-lived copy keeps that spawn off most polls.
+# Short enough that an engine started or stopped outside the hub shows up quickly.
+DOCKER_STATUS_TTL_S = 5.0
+_docker_status_cache: Optional[tuple] = None  # (monotonic stamp, status dict)
+
+
+async def docker_status_cached() -> Dict[str, Any]:
+    """:func:`docker_status`, reused for up to ``DOCKER_STATUS_TTL_S``.
+
+    For the polled status card only. Start/stop paths call
+    :func:`docker_status` directly so they act on the live engine state.
+    """
+    global _docker_status_cache
+    now = time.monotonic()
+    cached = _docker_status_cache
+    if cached is not None and now - cached[0] < DOCKER_STATUS_TTL_S:
+        return dict(cached[1])
+    status = await docker_status()
+    _docker_status_cache = (time.monotonic(), status)
+    return dict(status)
+
+
+def forget_docker_status() -> None:
+    """Drop the cached probe so the next status read sees the live engine."""
+    global _docker_status_cache
+    _docker_status_cache = None
+
+
 # ---------------------------------------------------------------- langfuse
 
 

@@ -16,6 +16,8 @@ and is anything failing?* first:
   sheet: every service with Start / Stop and its detail, **Launch Docker +
   Langfuse**, and the **Langfuse** sheet with the Telemetry export state, Hide personal data,
   endpoint, stack health, **Open Langfuse UI** and the offline setup hint.
+  The Docker engine state is reused for 5 s between polls (the `docker info`
+  spawn is the slow part) and dropped as soon as any Start / Stop finishes.
 - **Activity.** One feed of request rows (model first, status and latency,
   backend · tokens · detail, clock last), **Requests · Errors**, with a
   filter. A row with a trace opens its sheet: the prompt and completion

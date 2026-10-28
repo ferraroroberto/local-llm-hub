@@ -119,6 +119,55 @@ def test_services_status_endpoint_shape():
     assert isinstance(body["launchable"], bool)
 
 
+def _count_docker_probes(monkeypatch) -> list:
+    """Stub the blocking ``docker info`` half and count its spawns."""
+    calls: list = []
+
+    def _info(timeout_s: float):
+        calls.append(timeout_s)
+        return {"running": True, "error": "", "server_version": "test"}
+
+    monkeypatch.setattr(svc, "_docker_info_sync", _info)
+    monkeypatch.setattr(svc.shutil, "which", lambda _name: "docker")
+    svc.forget_docker_status()
+    return calls
+
+
+def test_services_status_reuses_docker_probe_within_ttl(monkeypatch):
+    """The ~250 ms `docker info` spawn must not run on every poll."""
+    calls = _count_docker_probes(monkeypatch)
+    for _ in range(3):
+        r = _client().get("/admin/api/services/status")
+        assert r.status_code == 200, r.text
+        assert r.json()["docker"]["running"] is True
+    assert len(calls) == 1
+
+
+def test_services_status_reprobes_docker_after_ttl(monkeypatch):
+    """A cached engine state is never served past its staleness bound."""
+    calls = _count_docker_probes(monkeypatch)
+    now = [1000.0]
+    monkeypatch.setattr(svc.time, "monotonic", lambda: now[0])
+    _client().get("/admin/api/services/status")
+    now[0] += svc.DOCKER_STATUS_TTL_S + 0.1
+    _client().get("/admin/api/services/status")
+    assert len(calls) == 2
+
+
+def test_services_action_drops_cached_docker_state(monkeypatch):
+    """After a start/stop the next status read shows the new engine state."""
+    calls = _count_docker_probes(monkeypatch)
+
+    async def _stop_ok():
+        return {"ok": True, "steps": []}
+
+    monkeypatch.setattr(svc, "stop_docker_desktop", _stop_ok)
+    _client().get("/admin/api/services/status")
+    assert _client().post("/admin/api/services/docker/stop").status_code == 200
+    _client().get("/admin/api/services/status")
+    assert len(calls) == 2
+
+
 def test_services_status_does_not_probe_hub_peers(monkeypatch):
     """Per-peer health lives on the Machines tab; the Services poll must not
     wait on (or return) a peer probe nothing reads."""
