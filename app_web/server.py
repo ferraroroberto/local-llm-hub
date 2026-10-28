@@ -10,7 +10,7 @@ Static-asset cache busting:
   * ``.webmanifest`` / ``.png`` / ``.ico`` get a day of cache
   * ``index.html`` itself is ``no-cache, must-revalidate`` so the page
     always picks up the latest hashed asset URLs after a deploy
-  * responses over 1000 bytes are gzipped (#646); streams and media opt out
+  * responses are gzipped by the parent hub's ``StreamSafeGZipMiddleware``
 """
 
 from __future__ import annotations
@@ -24,7 +24,6 @@ from typing import Dict, Optional
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.gzip import GZipMiddleware
 from starlette.responses import Response
 from starlette.types import Scope
 
@@ -140,11 +139,6 @@ def create_app() -> FastAPI:
         openapi_url=None,
     )
 
-    # Registered first so it sits *inside* the bearer gate (P2): outside a
-    # BaseHTTPMiddleware gzip sees re-streamed chunks, ignores minimum_size and
-    # compresses even a bodyless reply. It skips text/event-stream by itself;
-    # streamed audio and stored images opt out with IDENTITY_ENCODING.
-    app.add_middleware(GZipMiddleware, minimum_size=1000)
     app.add_middleware(
         BearerTokenMiddleware,
         get_token=lambda: admin_token_from_state(app.state),

@@ -139,6 +139,7 @@ icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "5d460bd1
 action-row  = { src = "app/webapp/static/_vendored/action-row", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app_web/static/_vendored/action-row" }
 segmented   = { src = "app/webapp/static/_vendored/segmented", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app_web/static/_vendored/segmented" }
 usage-log    = { src = "app/webapp/static/_vendored/usage-log", sha = "98cdb1b7727d12a5c233580478e6fae40d98e6f3", dest = "app_web/static/_vendored/usage-log" }
+compression  = { src = "src/compression.py", sha = "40fe838efceefbda44cdafe8d01a4ec2c64ba4db", dest = "src/compression.py" }
 usage_log    = { src = "src/usage_log.py", sha = "98cdb1b7727d12a5c233580478e6fae40d98e6f3", dest = "src/usage_log.py" }
 build_info  = { src = "src/build_info.py", sha = "c9e54e917fd3cbc96011d6c09f9d363af460b205", dest = "src/build_info.py" }
 surface_capture = { src = "tests/e2e/_surface.py", sha = "5c4d3a7947dae8b3b4a028bf636c0f052ea3b1f7", dest = "tests/e2e/_surface.py" }
