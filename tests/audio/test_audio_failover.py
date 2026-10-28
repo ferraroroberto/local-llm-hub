@@ -313,6 +313,21 @@ def test_response_headers_name_requested_and_served(monkeypatch, write_config):
     assert resp.headers["x-hub-served-model"] == "wb"
 
 
+def test_decoded_upstream_body_is_not_labelled_encoded(monkeypatch, write_config):
+    """httpx hands back a *decoded* body, so a peer's `content-encoding: gzip`
+    must not ride along — the client would try to gunzip plain JSON."""
+    _two_whisper_config(write_config, monkeypatch, transcribe={"model_id": "wa"})
+    upstream_headers = {"content-type": "application/json", "content-encoding": "gzip"}
+    monkeypatch.setattr(
+        server_audio_asr, "get_async_client",
+        lambda: _FakeClient(lambda url, kwargs: _FakeResp(200, b'{"text":"hola"}', upstream_headers)),
+    )
+    resp = _proxy(_FakeReq())
+    assert resp.status_code == 200
+    assert "content-encoding" not in resp.headers
+    assert resp.body == b'{"text":"hola"}'
+
+
 def test_explicit_served_model_matches_requested(monkeypatch, write_config):
     """No substitution -> both names agree, so the UI shows a single model."""
     _two_whisper_config(write_config, monkeypatch, transcribe={"model_id": "wa", "fallback": ["wb"]})
