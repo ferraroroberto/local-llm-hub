@@ -68,7 +68,9 @@ _RESOURCE_INSTANCE_ID = ""
 # main web port; there is no separate gRPC endpoint and no native :4317
 # listener. The traces path is fixed by Langfuse; clients only need the
 # host. Auth is Basic against the project's public/secret key pair.
-DEFAULT_LANGFUSE_HOST = "http://localhost:3000"
+# 127.0.0.1, not ``localhost``: ``localhost`` can resolve to ::1 first, where
+# Docker's published port does not answer, so every dial hangs to its timeout.
+DEFAULT_LANGFUSE_HOST = "http://127.0.0.1:3000"
 LANGFUSE_OTLP_TRACES_PATH = "/api/public/otel/v1/traces"
 LANGFUSE_OTLP_METRICS_PATH = "/api/public/otel/v1/metrics"
 

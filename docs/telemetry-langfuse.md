@@ -98,6 +98,9 @@ not unattended.
 5. If `http://localhost:3000` returns empty replies although `docker ps` shows
    the web container up, `docker restart langfuse-langfuse-web-1` re-publishes
    the port (a stale port forward after the VM restart).
+6. If `http://localhost:3000` hangs but `http://127.0.0.1:3000` answers, the
+   name resolves to IPv6 first. The hub dials `127.0.0.1` by default
+   (`LANGFUSE_HOST`), so keep that value rather than `localhost`.
 
 The hub itself, whisper and the llama-server backends run on the host and are
 not touched by this.

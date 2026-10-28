@@ -30,6 +30,23 @@ def test_hash_prompts_default_off(monkeypatch):
     assert obs.hash_prompts_enabled() is True
 
 
+def test_default_langfuse_host_is_ipv4_loopback(monkeypatch):
+    monkeypatch.delenv("LANGFUSE_HOST", raising=False)
+    assert obs.DEFAULT_LANGFUSE_HOST == "http://127.0.0.1:3000"
+    assert obs.langfuse_host() == "http://127.0.0.1:3000"
+    assert obs.langfuse_otlp_traces_endpoint().startswith("http://127.0.0.1:3000/")
+    assert obs.langfuse_otlp_metrics_endpoint().startswith("http://127.0.0.1:3000/")
+
+
+def test_env_example_langfuse_host_matches_default():
+    from pathlib import Path
+
+    example = Path(__file__).resolve().parents[1] / ".env.example"
+    lines = example.read_text(encoding="utf-8").splitlines()
+    host = [ln for ln in lines if ln.startswith("LANGFUSE_HOST=")]
+    assert host == [f"LANGFUSE_HOST={obs.DEFAULT_LANGFUSE_HOST}"]
+
+
 def test_init_otel_disabled_is_idempotent():
     obs._reset_for_tests()
     assert obs.init_otel("test-service") is False
