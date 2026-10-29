@@ -3,12 +3,11 @@ prompt flattening, and per-backend dispatch shared by the ``/v1/messages`` and
 ``/v1/chat/completions`` routes in ``server.py``. The Anthropic SSE event
 adapters live in ``translation/anthropic_sse.py`` and are re-exported here.
 
-Split out of ``server.py`` (issue #245) — the Pydantic schemas, the
-Anthropic content-block media extractor, the multi-turn prompt flattener, and
-the three per-backend dispatchers (``_run_claude_backend`` /
-``_run_gemini_backend`` / ``_run_openai_backend``) were the one part of
-``server.py`` that hadn't yet had the splitting treatment already applied to
-the audio/images/lifecycle concerns (``server_audio_asr.py``/``server_audio_tts.py``, ``server_images.py``,
+Holds the Pydantic schemas, the Anthropic content-block media extractor, the
+multi-turn prompt flattener, and the three per-backend dispatchers
+(``_run_claude_backend`` / ``_run_gemini_backend`` / ``_run_openai_backend``)
+— out of ``server.py``, same as the audio/images/lifecycle concerns
+(``server_audio_asr.py``/``server_audio_tts.py``, ``server_images.py``,
 ``server_lifecycle.py``). ``server.py`` keeps the endpoint handlers
 themselves (including the OpenAI SSE passthrough generator) and the FastAPI
 app/middleware assembly.

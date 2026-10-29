@@ -277,19 +277,15 @@ LANGFUSE_START_TIMEOUT_S = 120.0
 
 
 def _run_script_sync(script: Path, timeout_s: float, verb: str) -> Dict[str, Any]:
-    """Blocking run of a start/stop shell script, off-thread (#530: was two
-    ~40-line near-clones — :func:`_run_langfuse_start_script_sync` and
-    :func:`_run_langfuse_stop_script_sync` — identical down to the
-    ``cmd.exe /c`` vs ``/bin/sh`` branch and the three-arm try/except,
-    differing only in which script-path helper they called, the timeout,
-    and the word in the timeout message).
+    """Blocking run of a start/stop shell script, off-thread.
 
-    Same ``SelectorEventLoop``-has-no-Windows-subprocess-support issue as
-    :func:`_docker_info_sync` — a blocking ``subprocess.run`` in a worker
-    thread avoids the event loop's subprocess transport entirely. ``verb``
-    (``"start"``/``"stop"``) only shapes the "not found" message; the
+    Shared by every service's start/stop script invocation: ``verb``
+    (``"start"``/``"stop"``) only shapes the "not found" message, and the
     timeout message uses the script's own filename stem so it always names
-    the actual script that hung.
+    the actual script that hung. Runs in a worker thread — same as
+    :func:`_docker_info_sync` — because ``SelectorEventLoop`` has no
+    Windows subprocess support, so a blocking ``subprocess.run`` off-thread
+    avoids the event loop's subprocess transport entirely.
     """
     if not script.exists():
         return {

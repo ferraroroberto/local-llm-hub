@@ -1,12 +1,10 @@
-"""One-shot SSH command execution — the single ``ssh`` invocation builder (#470).
+"""One-shot SSH command execution — the single ``ssh`` invocation builder.
 
-Two callers used to build the same command line independently:
-``remote_stats._run_ssh`` (read-only stats snapshots over the hub user's own
-passwordless channel) and ``remote_bootstrap._run_ssh`` (bootstrap/sync over
-the forced-command key, and reboot/shutdown over the general channel). They
-differed only in what they *returned* — raw stdout vs. an ``{ok, error}``
-dict — so the transport lives here and each caller adapts the result at its
-own call site.
+Shared by ``remote_stats._run_ssh`` (read-only stats snapshots over the hub
+user's own passwordless channel) and ``remote_bootstrap._run_ssh``
+(bootstrap/sync over the forced-command key, and reboot/shutdown over the
+general channel): the transport lives here, and each caller adapts the
+result — raw stdout vs. an ``{ok, error}`` dict — at its own call site.
 
 The option set is deliberately fixed: ``BatchMode=yes`` (never prompt — these
 run under a service with no tty), an explicit ``ConnectTimeout`` so a dead

@@ -6,7 +6,7 @@ hand ``whisper-server`` a byte-identical upstream request:
 
 ``whisper-server`` exposes a single inference path
 (``/v1/audio/transcriptions``) and honors whisper.cpp's own ``translate=true``
-boolean rather than OpenAI's ``task=translate`` string, and (#128) resets each
+boolean rather than OpenAI's ``task=translate`` string, and resets each
 request's language to ``en`` unless the body carries one — a row configured
 with a non-default ``-l``/``--language`` launch flag needs that value injected
 into requests that omit ``language``. :func:`build_whisper_upstream_request`
@@ -15,8 +15,7 @@ takes exactly one), bridges ``task`` → ``translate``, and forwards every other
 field untouched; :func:`default_language_from_args` reads a row's configured
 default off its launch ``args`` so the caller can inject it. This module is
 the single home for both so ``_dispatch_audio``'s translate and transcribe
-branches (and, before #530, the now-retired lazy-load whisper-translate shim)
-cannot silently diverge (issue #132).
+branches cannot silently diverge.
 
 Per-caller concerns stay at the call site: each parses the form with its own
 error shape and owns its upstream URL, timeout, observability stashing and

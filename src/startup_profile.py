@@ -1,4 +1,4 @@
-"""The hub's declarative "what should be up at launch" profile (issue #265).
+"""The hub's declarative "what should be up at launch" profile.
 
 Single source of truth for the *services* the hub brings up automatically on
 every boot (tray, ``run_hub.bat``, or ``python -m src.run_backend hub``):
@@ -6,19 +6,17 @@ every boot (tray, ``run_hub.bat``, or ``python -m src.run_backend hub``):
   * ``docker`` / ``langfuse`` — whether to run ``services.launch_stack()``
     (start Docker Desktop if down, then the Langfuse containers) at startup.
   * ``agentsview`` — whether to run ``agentsview_service.launch_agentsview()``
-    (the optional AgentsView server feeding the Code tab's AGY vendor, #280).
+    (the optional AgentsView server feeding the Code tab's AGY vendor).
 
-Since #430 this file carries **service flags only**. The former ``models``
-autostart list (and the fleet-wide ``config/fleet_placement.json`` it
-mirrored) duplicated what ``config/models.yaml`` already declares per row —
-``hosts:`` chains say *where* a model runs, ``startup: eager|on_demand``
-(#422) says *whether* it runs eagerly — so the desired running set is now
-derived from the registry (``model_registry.desired_model_ids``). A stale
+This file carries **service flags only** — which models run eagerly is
+``config/models.yaml``'s own ``startup: eager|on_demand`` per row (``hosts:``
+chains say *where* a model runs, that flag says *whether* it runs eagerly),
+so the desired running set is derived from the registry
+(``model_registry.desired_model_ids``) rather than duplicated here. A stale
 ``models`` key left in an existing gitignored live file is simply ignored on
-load and dropped on the next save — no migration needed, same treatment as
-the ``mac_mini_sync`` key retired in #374.
+load and dropped on the next save — no migration needed.
 
-The live ``config/startup_profile.json`` is **gitignored** (issue #304): the
+The live ``config/startup_profile.json`` is **gitignored**: the
 admin UI's Startup card rewrites it on every toggle, so tracking it would
 dirty the tree on every flip. The committed
 ``config/startup_profile.example.json`` is the template and the fresh-clone

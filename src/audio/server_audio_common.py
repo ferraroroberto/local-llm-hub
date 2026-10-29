@@ -1,16 +1,8 @@
-"""Helpers shared by the ``/v1/audio/*`` ASR and TTS route modules.
-
-``server_audio_asr.py`` (the whisper transcription/translation proxy) and
-``server_audio_tts.py`` (the speech-synthesis proxy) both need the same
-small set of header-safety, remote-auth-header, and upstream-error helpers
-below — the two used to be one file (``server_audio.py``) before #451 split
-it apart for size. Rather than have one of the two import the other's
-privates (the exact underscore-private cross-module problem #451 also fixes
-in ``code_usage.py``), the shared handful lives here: a leaf module with no
-dependency on the FastAPI ``app``, mirroring ``server_common.py``'s own
-pattern but scoped to audio only (``server_common.py`` stays the
-cross-*all*-route-module leaf — ``server.py``, ``server_audio_asr.py`` /
-``server_audio_tts.py`` and ``server_images.py``).
+"""Header-safety and upstream-error helpers shared by the ``/v1/audio/*``
+ASR and TTS route modules (``server_audio_asr.py`` and
+``server_audio_tts.py``). A leaf module with no dependency on the FastAPI
+``app``, mirroring ``server_common.py``'s own pattern but scoped to audio
+only — ``server_common.py`` stays the cross-*all*-route-module leaf.
 """
 
 from __future__ import annotations

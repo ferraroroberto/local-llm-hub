@@ -92,7 +92,7 @@
            health on the left, the Activity feed on the right. One column on a phone. -->
       <div class="hub-cols wide-cols">
         <div class="hub-col">
-          <!-- Glance (#738): "is the hub serving, is anything failing" — requests,
+          <!-- Glance: "is the hub serving, is anything failing" — requests,
                errors and median latency since hub start (the hub keeps no hourly
                history, so it says which window), one load sparkline whose series
                the control below swaps, and the process line. -->
@@ -113,7 +113,7 @@
             <p class="hub-proc muted">Up <span id="hubUptime">—</span></p>
           </section>
 
-          <!-- Services as exceptions (#738): healthy services fold into one row
+          <!-- Services as exceptions: healthy services fold into one row
                that opens the services sheet; a stopped or failing one is its own
                row with Start. -->
           <section class="card action-list" id="servicesCard" aria-label="Services">
@@ -122,7 +122,7 @@
         </div>
 
         <div class="hub-col">
-          <!-- Activity (#738): live requests, errors and traces in one feed of
+          <!-- Activity: live requests, errors and traces in one feed of
                shared rows. Requests · Errors are true alternatives; a row with a
                trace opens its preview, thumbs score and Langfuse link. -->
           <section class="card action-list" id="activityCard" aria-labelledby="activityTitle">
@@ -161,7 +161,7 @@
         <button type="button" class="icon-button home-toggle home-settings" data-track="settings-open" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
 
-      <!-- Glance card (#737): "how much room is left" — one memory meter per host,
+      <!-- Glance card: "how much room is left" — one memory meter per host,
            drawn at once from the models payload's fleet hosts and filled in by the
            fleet-placement probe (loaded on tab open and once after a Start / Stop,
            never polled). A row opens that host's running / loadable summary. -->
@@ -203,7 +203,7 @@
         <button type="button" class="icon-button home-toggle home-settings" data-track="settings-open" aria-label="Settings" title="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
 
-      <!-- One composer (#740): the four modes are true alternatives, so one
+      <!-- One composer: the four modes are true alternatives, so one
            segmented switch; the last mode is remembered on this device
            (llmhub.playground.mode). -->
       <div id="playMode" class="segmented play-mode" role="group" aria-label="Playground mode">
@@ -213,8 +213,8 @@
         <button type="button" class="segmented-item" data-mode="decide" aria-pressed="false" data-track="play-mode-decide">Decide</button>
       </div>
 
-      <!-- Composer left, result right on a wide window (the geometry proposed on
-           #740); one column below it. Each mode owns its composer and its result,
+      <!-- Composer left, result right on a wide window; one column below it.
+           Each mode owns its composer and its result,
            so a switch never cancels a request or shows another mode's result. -->
       <div class="play-cols wide-cols">
         <div class="play-col">
@@ -462,7 +462,7 @@
            left, the breakdowns on the right. One column on a phone. -->
       <div class="code-cols wide-cols">
         <div class="code-col">
-          <!-- Totals first (#739): the period switch over the four counters and the
+          <!-- Totals first: the period switch over the four counters and the
                total cost. The agent filter opens a sheet (every agent, the AgentsView
                extras with their freshness, and the separate Sub-agents (OTel) source). -->
           <section class="card cld-totals" id="cldTotalsCard">
@@ -483,7 +483,7 @@
               <button type="button" class="button-tint cld-agent-btn" id="cldAgentBtn" data-track="code-agent" aria-haspopup="dialog" aria-label="Choose the agent"><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg><span id="cldAgentLabel">All agents</span><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
             </div>
 
-            <!-- Load-failure banner (issue #580): a summary that could not be
+            <!-- Load-failure banner: a summary that could not be
                  built is its own state, never a zero-usage day. Shown only when
                  the server actually reports a failure. -->
             <p id="cldError" class="cld-error" hidden role="status">
@@ -527,7 +527,7 @@
               <p id="cldUndercountNote" class="cld-note muted"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg><span>Claude figures undercount: see ⓘ.</span></p>
             </div>
 
-            <!-- Sub-agents (OTel) source (#739): Claude Code's own OTel export, for the
+            <!-- Sub-agents (OTel) source: Claude Code's own OTel export, for the
                  one period switch above; a separate store, never added into All. -->
             <div class="cld-subagents" id="cldSubagents" hidden>
               <p class="cld-sub-summary" id="cldSubSummary">—</p>
@@ -543,7 +543,7 @@
             </div>
           </section>
 
-          <!-- Copilot official credits (issue #231, part B) — under the counters when
+          <!-- Copilot official credits — under the counters when
                Copilot is chosen. Authoritative $ from the GitHub billing API. -->
           <section class="card" id="cldCopilotBillingCard" hidden>
             <div class="card-header">
@@ -571,7 +571,7 @@
             </div>
           </section>
 
-          <!-- One trend chart (#739): its metric is the counter last tapped. -->
+          <!-- One trend chart: its metric is the counter last tapped. -->
           <section class="card" id="cldChartsCard" hidden>
             <div class="card-header">
               <h2><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Trend · <span id="cldChartLabel">Input tokens</span></h2>
@@ -584,10 +584,10 @@
         <div class="code-col">
           <!-- Until the first usage summary lands the breakdowns stay hidden: a
                header-only table or a "none found" line would claim emptiness
-               nothing has measured (#647). -->
+               nothing has measured. -->
           <div id="cldPending" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-clock"></use></svg><p class="empty-state-message">Reading usage…</p></div>
 
-          <!-- Breakdowns as rows (#739): By project first; By model, every project
+          <!-- Breakdowns as rows: By project first; By model, every project
                and the recent sessions open as sheets. -->
           <section class="card action-list" id="cldProjectCard" hidden aria-labelledby="cldProjectTitle">
             <div class="glance-head">
@@ -602,7 +602,7 @@
             </ul>
           </section>
 
-          <!-- Per-vendor table (issue #71): the wide window's full table, in All. On
+          <!-- Per-vendor table: the wide window's full table, in All. On
                a phone each agent's figures sit in the agent sheet instead. -->
           <section class="card" id="cldVendorCard" hidden>
             <div class="card-header">
@@ -636,9 +636,9 @@
       </div>
       <!-- Async lifecycle (design.md): loading / error empty-states, then one
            shared row per machine (rows.js) in machinesList; the stale age is the
-           header line. Only one of loading/error/the list is visible at a time
-           (issue #309). A row opens the machine sheet (phone) or fills
-           #machinesDetail beside the list (wide window, #736). -->
+           header line. Only one of loading/error/the list is visible at a time.
+           A row opens the machine sheet (phone) or fills
+           #machinesDetail beside the list (wide window). -->
       <div id="machinesLoading" class="empty-state">
         <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-server"></use></svg>
         <p class="empty-state-message">Reading machine status…</p>
@@ -680,7 +680,7 @@
     </form>
   </div>
 
-  <!-- Machines tab (issue #309): destructive-action confirm + the SSH
+  <!-- Machines tab: destructive-action confirm + the SSH
        terminal overlay. Both use the vendored editor-modal shell
        (_vendored/modal) — a native <dialog>, so the fleet nav auto-hides
        itself while either is open (body:has(dialog[open])). -->
@@ -701,7 +701,7 @@
 
   <!-- partial: sheets.html -->
 
-  <!-- One model's (or one machine's memory) sheet on the phone (#737): placement,
+  <!-- One model's (or one machine's memory) sheet on the phone: placement,
        roles, details, the placement editor or dictionary, the log tail. The wide
        window renders the same body in #modelsDetail instead. -->
   <dialog class="detail-dialog model-sheet" id="modelSheet" aria-labelledby="modelSheetTitle">
@@ -716,7 +716,7 @@
     </div>
   </dialog>
 
-  <!-- One machine's sheet on the phone (#736): gauges, Terminal and Remote,
+  <!-- One machine's sheet on the phone: gauges, Terminal and Remote,
        connection, its own hub, then Reboot / Shut down last. The wide window
        renders the same body in #machinesDetail instead. -->
   <dialog class="detail-dialog machine-sheet" id="machineSheet" aria-labelledby="machineSheetTitle">
@@ -745,7 +745,7 @@
     </div>
   </dialog>
 
-  <!-- Diagnostics drill-in (issue #315): capture · runs · settings. Same
+  <!-- Diagnostics drill-in: capture · runs · settings. Same
        vendored dialog shell; read-heavy rather than an editor, so the body
        scrolls and the footer primary is replaced by per-section actions. -->
   <dialog class="detail-dialog machines-diag-dialog" id="diagDialog">
@@ -776,12 +776,11 @@
     </div>
   </dialog>
 
-  <!-- Settings (the home-head gear on every pane): a vendored dialog shell holding
-       the vendored text-size control (_vendored/text-size). -->
-  <!-- Settings (#741): the gear on every pane opens the design system's settings
-       groups (Display, Startup, Health, About). A row with a body opens it in
-       place on a phone (with a back row) and beside the list on a wide window
-       (list : detail, the geometry proposed on #741). -->
+  <!-- Settings: the home-head gear on every pane opens this vendored dialog
+       shell, holding the vendored text-size control (_vendored/text-size)
+       and the design system's settings groups (Display, Startup, Health,
+       About). A row with a body opens it in place on a phone (with a back
+       row) and beside the list on a wide window (list : detail). -->
   <dialog class="detail-dialog settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
     <div class="detail-card">
       <div class="detail-header">
