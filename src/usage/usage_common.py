@@ -1,22 +1,13 @@
 """Shared substrate for every vendor's usage parser (Claude/Codex/Copilot/AgentsView).
 
-Hoisted out of ``code_usage.py`` (#451) — that module started as the
-Claude-only parser its docstring still describes, but ``codex_usage.py``,
-``copilot_usage.py`` and ``agentsview_usage.py`` had all grown to import its
-underscore-private names as a de facto shared API (``_UsageRecord``,
-``_FileStats``, ``_load_cached``, ``_encode_project_key``, ``_project_pretty``,
-``_parse_iso_ts``), and ``claude_code_otel.py`` imported ``_model_display`` the
-same way. A leading underscore claims "module-private", but the real contract
-was already cross-module — a rename inside ``code_usage.py`` could silently
-break four importers with nothing in the naming to warn about it. This module
-is that contract made explicit: the record shape, the mtime-cache wrapper,
-and the small parsing/display helpers every vendor parser needs, under public
-names. ``code_usage.py`` (Claude JSONL parsing + the ``get_summary``
-aggregation API) and the vendor parsers all import from here.
-
-``_period_since`` (with the ``_today_utc`` it is built on) was missed by that
-sweep and kept being reached for across the boundary by ``claude_code_otel.py``;
-it moved here as :func:`period_since` / :func:`today_utc` in #471.
+``codex_usage.py``, ``copilot_usage.py``, ``agentsview_usage.py`` and
+``claude_code_otel.py`` all need the same record shape, mtime-cache wrapper,
+and small parsing/display helpers (``UsageRecord``, ``FileStats``,
+``load_cached``, ``encode_project_key``, ``project_pretty``, ``parse_iso_ts``,
+``model_display``, ``period_since``, ``today_utc``) that ``code_usage.py``
+(Claude JSONL parsing + the ``get_summary`` aggregation API) also uses — this
+module is the one, explicit, public-named home for that shared contract so a
+change inside one parser can't silently break the others.
 """
 
 from __future__ import annotations

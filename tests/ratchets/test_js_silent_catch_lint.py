@@ -19,35 +19,10 @@ accepted fire-and-forget idiom for a poll that will just retry next tick).
 from __future__ import annotations
 
 import re
-import subprocess
-from pathlib import Path
 
-from src.no_window import NO_WINDOW
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-
-# Vendored admin-SPA components are copies by design (same exclusion the
-# static ratchet uses, .fleet.toml [static_ratchet]) -- not this lint's concern.
-_EXCLUDED_PREFIXES = ("app_web/static/_vendored/",)
+from tests.ratchets._js_lint_support import REPO_ROOT, tracked_js
 
 _CATCH_RE = re.compile(r"catch\s*\(([^)]*)\)\s*\{")
-
-
-def _tracked_js() -> list[Path]:
-    out = subprocess.run(
-        ["git", "ls-files", "app_web/static/*.js", "app_web/static/**/*.js"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-        creationflags=NO_WINDOW,
-    ).stdout
-    paths = sorted(set(p for p in out.splitlines() if p.strip()))
-    return [
-        REPO_ROOT / p
-        for p in paths
-        if not any(p.startswith(prefix) for prefix in _EXCLUDED_PREFIXES)
-    ]
 
 
 def _empty_catch_lines(text: str) -> list[int]:
@@ -80,7 +55,7 @@ def _empty_catch_lines(text: str) -> list[int]:
 
 def test_no_silent_catch_without_a_comment():
     offenders: dict[str, list[int]] = {}
-    for path in _tracked_js():
+    for path in tracked_js():
         lines = _empty_catch_lines(path.read_text(encoding="utf-8"))
         if lines:
             offenders[path.relative_to(REPO_ROOT).as_posix()] = lines

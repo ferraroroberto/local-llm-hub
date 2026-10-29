@@ -35,6 +35,8 @@ defineInfo('models-about', 'Models and memory',
   + 'load. Placement is changed per model with Edit placement, or in <code>config/models.yaml</code>.</p>');
 
 let modelsLoaded = false;
+// Set when a read fails after a good load (Hub/Machines track the same not-confirmed state).
+let modelsStale = false;
 
 // One controller for the whole list: at most one row's menu is open, and it
 // reopens on its rebuilt kebab when the 5 s poll repaints the rows.
@@ -46,9 +48,14 @@ export async function fetchModels() {
     state.models = body.models || [];
     state.modelsConfig = body.config || null;
     modelsLoaded = true;
+    modelsStale = false;
     renderConfigChip();
     renderModels();
-  } catch (_) { /* ignore */ }
+  } catch (_) {
+    // Before any load this stays "Reading models…"; after one, flag stale.
+    if (modelsLoaded) modelsStale = true;
+    renderModels();
+  }
 }
 
 /* Roles (role → model) — read with the fleet summary on tab open, so each
@@ -323,6 +330,7 @@ function renderHeadLine(models) {
   const el = els.modelsHeadLine;
   if (!modelsLoaded) { setHeadLine(el, [], 'Reading models…'); return; }
   const parts = [];
+  if (modelsStale) parts.push({ text: 'not confirmed', tone: 'attention' });
   const failover = models.filter(function (m) { return m.failover; }).length;
   if (failover) parts.push({ text: failover + ' failover', tone: 'attention' });
   const over = overCapacityHosts();

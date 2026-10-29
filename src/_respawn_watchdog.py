@@ -1,4 +1,4 @@
-"""Respawn watchdog for the hub's admin-triggered restart (issue #198).
+"""Respawn watchdog for the hub's admin-triggered restart.
 
 Spawned by ``app_web/routers/hub.py``'s ``_spawn_respawn_watchdog()`` as a
 detached ``python -m src._respawn_watchdog`` child right before the hub
@@ -12,12 +12,9 @@ introduced mid-restart by a ``git pull``, say), so it can't assume the
 rest of the ``src`` package still imports cleanly; only the empty
 ``src/__init__.py`` and this module itself need to load.
 
-Previously this logic was a ~60-line string literal built up line-by-line
-and fed to ``python -c`` — unlintable, untestable, no type-checking, and
-any quoting slip in an interpolated value was invisible until a live
-restart silently failed. Now a real module: covered by this project's
-byte-compile gate, and its pure helpers are unit-tested directly
-(``tests/backends/test_respawn_watchdog.py``).
+A real module rather than an inline string fed to ``python -c``: covered by
+this project's byte-compile gate, and its pure helpers are unit-tested
+directly (``tests/backends/test_respawn_watchdog.py``).
 """
 
 from __future__ import annotations

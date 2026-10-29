@@ -688,12 +688,15 @@ async def peer_health(
             v = await get_async_client().get(f"{base}/admin/api/version", timeout=timeout_s)
             remote_sha = v.json().get("git_sha") if v.status_code < 500 else None
             result["remote_git_sha"] = remote_sha
-            result["git_sha_match"] = (
+            # Only compare when both SHAs are real values; otherwise leave
+            # git_sha_match as the None set above ("Build not compared"),
+            # never fold a missing SHA into "Out of sync" (False).
+            if (
                 remote_sha is not None
                 and remote_sha != "unknown"
                 and local_sha != "unknown"
-                and remote_sha == local_sha
-            )
+            ):
+                result["git_sha_match"] = remote_sha == local_sha
         except Exception:  # noqa: BLE001 — version probe is best-effort
             pass
     return result

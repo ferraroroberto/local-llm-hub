@@ -1,6 +1,6 @@
 """Self-supervision for the running hub process — stop/restart signaling.
 
-Split out of ``app_web/routers/hub.py`` (issue #533) — these helpers are
+Lives apart from ``app_web/routers/hub.py`` because these helpers are
 pure platform process-supervision (a self-signal thread, ``launchctl
 bootout``/``kickstart``, ``sudo -n systemctl``, and a detached
 respawn-watchdog spawn) with no FastAPI in them at all, unlike the

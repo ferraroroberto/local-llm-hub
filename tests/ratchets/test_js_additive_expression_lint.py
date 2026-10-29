@@ -16,17 +16,9 @@ the same way fails here too.
 from __future__ import annotations
 
 import re
-import subprocess
 from collections import Counter
-from pathlib import Path
 
-from src.no_window import NO_WINDOW
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-
-# Vendored admin-SPA components are copies by design (same exclusion the
-# static ratchet uses, .fleet.toml [static_ratchet]) -- not this lint's concern.
-_EXCLUDED_PREFIXES = ("app_web/static/_vendored/",)
+from tests.ratchets._js_lint_support import REPO_ROOT, tracked_js
 
 # One `(expr.field || 0)` term.
 _TERM = r"\(\s*[\w$]+(?:\.\w+)*\.(\w+)\s*\|\|\s*0\)"
@@ -37,23 +29,6 @@ _CHAIN_RE = re.compile(rf"{_TERM}(?:\s*\+\s*{_TERM})+")
 # The repo's own documented convention (global CLAUDE.md "Conventions"):
 # three similar lines is where a helper replaces hand-copied ones.
 _DUPLICATE_THRESHOLD = 3
-
-
-def _tracked_js() -> list[Path]:
-    out = subprocess.run(
-        ["git", "ls-files", "app_web/static/*.js", "app_web/static/**/*.js"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-        creationflags=NO_WINDOW,
-    ).stdout
-    paths = sorted(set(p for p in out.splitlines() if p.strip()))
-    return [
-        REPO_ROOT / p
-        for p in paths
-        if not any(p.startswith(prefix) for prefix in _EXCLUDED_PREFIXES)
-    ]
 
 
 _FIELD_RE = re.compile(r"\.(\w+)\s*\|\|\s*0\)")
@@ -71,7 +46,7 @@ def _signatures(text: str) -> list[tuple[str, ...]]:
 def test_no_additive_business_rule_retyped_three_times():
     counts: Counter[tuple[str, ...]] = Counter()
     locations: dict[tuple[str, ...], list[str]] = {}
-    for path in _tracked_js():
+    for path in tracked_js():
         text = path.read_text(encoding="utf-8")
         rel = path.relative_to(REPO_ROOT).as_posix()
         for lineno, line in enumerate(text.splitlines(), start=1):

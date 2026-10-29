@@ -1,4 +1,4 @@
-"""OTLP metrics receiver — ``POST /v1/metrics`` (issue #68).
+"""OTLP metrics receiver — ``POST /v1/metrics``.
 
 Split out like ``server_images.py``/``server_audio_asr.py`` so ``server.py``'s
 routing core stays readable. Mounted directly on the main hub app (not the

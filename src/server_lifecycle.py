@@ -1,11 +1,9 @@
 """FastAPI startup/shutdown lifecycle wiring + the background resource
 sampler for the hub app.
 
-Extracted out of ``server.py`` (issue #198) — that module's own docstring
-already flagged ``/v1/images/*`` and ``/v1/audio/*`` as prior splits for
-exactly this reason (keeping the god-module from growing further); the
-startup/shutdown event bodies and the 2s-tick resource sampler were the
-next-largest chunk still living inline, mixed in with route registration.
+Lives apart from ``server.py`` so the startup/shutdown event bodies and the
+2s-tick resource sampler don't mix in with that module's route registration
+— same split already applied to ``/v1/images/*`` and ``/v1/audio/*``.
 
 ``server.py`` wires these on with ``app.add_event_handler(...)`` (the
 non-decorator form of ``@app.on_event``) rather than decorating them here,
