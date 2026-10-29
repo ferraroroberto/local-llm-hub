@@ -84,6 +84,15 @@
   text-align: right;
 }
 .sheet-row-value[data-tone] { color: var(--tone-text); font-weight: 600; }
+/* Sentence-length body text in a sheet row (a peer hub's sync reason): wraps
+ * inside the sheet instead of running off its edge like a one-line label. */
+.sheet-row-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-body-sm);
+  overflow-wrap: anywhere;
+}
+.sheet-row-text[data-tone] { color: var(--tone-text); font-weight: 600; }
 .sheet-row .button-tint { min-height: var(--row-sm); padding: 0 12px; flex: none; display: inline-flex; align-items: center; gap: 6px; }
 
 /* A disclosure row in the sheet (Connection): the summary is the row, the body
