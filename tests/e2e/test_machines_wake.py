@@ -344,3 +344,36 @@ def test_sync_is_offered_only_when_it_can_help_and_reports_the_outcome(phone_pag
     toast = page.locator("#toast")
     toast.wait_for(state="visible", timeout=5000)
     assert "Desktop hub is in sync" in toast.inner_text()
+
+
+def test_a_long_sync_reason_wraps_inside_the_phone_sheet(phone_page, admin_url):
+    """The reason is body text: at phone width a sentence-length reason wraps
+    within the sheet instead of running off its right edge."""
+    page = phone_page
+    body = _hub_status({
+        "kind": "peer_behind", "sync_helps": True,
+        "reason": "Mac Mini M4 is 1 commit behind main. Sync updates it, then restarts "
+                  "its hub so the new build is the one answering requests."})
+    body["machines"][0]["health"] = FAKE_STATUS["machines"][0]["health"]
+    page.route(
+        "**/admin/api/machines/status",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(body)),
+    )
+    page.goto(admin_url, wait_until="load")
+    page.click("#tabMachines")
+    page.wait_for_selector(".machine-row", state="visible", timeout=15000)
+    _row(page, "desktop").locator(".action-row-main").click()
+    page.wait_for_selector("#machineSheet[open]", timeout=5000)
+    sheet = page.locator("#machineSheetBody")
+
+    reason = sheet.locator("[data-machine-hub-reason]")
+    assert "restarts its hub" in reason.inner_text()
+    fits = reason.evaluate("el => el.scrollWidth <= el.clientWidth")
+    assert fits, "the reason overflows its own box"
+    assert sheet.evaluate("el => el.scrollWidth <= el.clientWidth"), "the sheet scrolls sideways"
+    box = reason.bounding_box()
+    sheet_box = sheet.bounding_box()
+    assert box["x"] + box["width"] <= sheet_box["x"] + sheet_box["width"] + 0.5
+    assert box["height"] > 30, "a long reason should wrap onto several lines"
+    surface(page, "machines.peer-out-of-sync-phone")

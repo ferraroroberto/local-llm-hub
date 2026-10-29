@@ -354,7 +354,7 @@ function hubSection(m) {
       + '<dt>That hub</dt><dd data-tone="attention">' + escapeHtml(h.remote_git_sha || '?') + '</dd></dl>'
     : '';
   const reason = h.reachable && h.git_sha_match !== true && h.sync && h.sync.reason
-    ? '<div class="sheet-row"><span class="sheet-row-label" data-machine-hub-reason'
+    ? '<div class="sheet-row"><span class="sheet-row-text" data-machine-hub-reason'
       + (h.git_sha_match === false ? ' data-tone="attention"' : '') + '>' + escapeHtml(h.sync.reason) + '</span></div>'
     : '';
   // In sync or not compared keeps Sync as a manual refresh; a known mismatch
