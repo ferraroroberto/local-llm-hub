@@ -45,8 +45,8 @@ feasibility spike found that premise is **not reachable**:
 ## How the hub drives it
 
 `src/gemini_cli.py::call_gemini_image` hosts the Imagen tool inside the
-cheapest/fastest text session (`_IMAGE_HOST_MODEL = "Gemini 3.6 Flash"`,
-kept in sync with `gemini_flash`'s `display_name`), under the same global
+cheapest/fastest text session (`_IMAGE_HOST_MODEL_ID = "gemini_flash"`,
+resolved to that row's `display_name` at call time), under the same global
 `_LOCK` + persisted-model-switch contract as text calls. It runs an
 `agy -p` print-mode prompt that asks the model to
 generate the image and **save it into a throwaway working dir**, then captures
@@ -413,14 +413,17 @@ Request (`POST /v1/images/generations`):
   "n": 1, "response_format": "b64_json" }
 ```
 
-Swap `"model"` for `"flux1_local"` (or `"flux"`) to run it locally — the request
-and response shapes are identical.
+Swap `"model"` for `"flux1_local"` / `"flux2_klein"` (or their aliases) to run it
+locally — the request and response shapes are identical.
 
 - Only `n=1` and `response_format="b64_json"` are supported (400 otherwise).
-- **No `size`.** Imagen controls the dimensions and ignores pixel-size hints —
-  a `size` field on the request is silently dropped. Steer aspect ratio from
-  the prompt text instead (e.g. "16:9"), which works.
-- Any non-`gemini_image` model 400s — every other backend is text/audio only.
+- **`size`** (preset name or `WIDTHxHEIGHT`) is honoured on the comfyui rows
+  (`flux1_local`, `flux2_klein`) and validated against the FLUX grid there.
+  On `gemini_image`, Imagen controls its own dimensions and the field is
+  accepted but ignored rather than rejected — steer aspect ratio from the
+  prompt text instead (e.g. "16:9"), which works.
+- Any model that isn't one of the three image rows above 400s — every other
+  backend is text/audio only.
 
 Response (OpenAI Images shape):
 

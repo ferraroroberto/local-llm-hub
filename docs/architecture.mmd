@@ -1,10 +1,10 @@
 %% docs/architecture.mmd — local-llm-hub's own internal structure.
 %% Hand-authored, not generated — companion to the fleet-wide convention in
-%% ferraroroberto/fleet-config#256 (see that repo's own docs/architecture.mmd
+%% ferraroroberto/fleet-config (see that repo's own docs/architecture.mmd
 %% for the reference dogfood). This is the repo's ONE component/runtime map:
 %% docs/project-structure.md used to carry a second copy and it drifted, so it
 %% now points here and keeps only the per-backend request-lifecycle sequences
-%% plus the LLM key-facts briefing (issue #475). Update this diagram in the
+%% plus the LLM key-facts briefing. Update this diagram in the
 %% same PR as any material structural change (a backend added/removed, a router
 %% moved, a process manager relocated) — same anti-staleness contract as this
 %% repo's own `.fleet.toml` `description` field.
@@ -16,22 +16,22 @@ flowchart TB
   subgraph entry["Entry points"]
     TRAY["tray.bat / tray/tray.py\npystray icon + Cloudflare tunnel"]
     RUNHUB["run_hub.bat / .sh\npython -m src.run_backend hub"]
-    RUNMODEL["launchers/run_model.bat / .sh <id> (#448)\npython -m src.run_backend <model_id>"]
+    RUNMODEL["launchers/run_model.bat / .sh <id>\npython -m src.run_backend <model_id>"]
   end
 
   subgraph core["src/server.py — FastAPI hub (:8000)"]
     SRV["routes/anthropic_messages.py: POST /v1/messages ·\n/v1/messages/count_tokens (Anthropic shape)\nroutes/openai_chat.py: POST /v1/chat/completions (OpenAI shape)\nserver.py: GET /v1/models · /health · /info\nGET / -> 307 /admin/"]
-    CHATT["chat_translation.py\nschemas + media extraction + prompt flatten +\nper-backend dispatch (split out of server.py, issue #245);\nre-exports translation/anthropic_sse.py SSE adapters"]
-    TOKCNT["routes/token_counting.py (issue #463)\nper-backend input_tokens: llama-server\n/apply-template + /tokenize = exact;\nclaude/gemini CLI = char heuristic, returned\nwith exact:false + warning, never as a measurement"]
-    ANTHERR["routes/anthropic_errors.py (issue #460)\napp-level exception handlers: Anthropic\n{type:error, error:{type,message}} envelope,\npath-scoped to /v1/messages so the OpenAI\nshape keeps FastAPI's {detail: ...}"]
-    ANTHHDR["trace_id_middleware.py + anthropic_headers.py (issues #4, #461)\noutermost ASGI middleware: X-Trace-Id in/out,\nrequest-id aliased to the trace ID on every response,\nanthropic-version/-beta echo (+ Warning: 299 for\nbetas the hub does not implement)"]
-    CORS["cors_policy.py (issue #462)\nCORSMiddleware added LAST, so it wraps even the\nbearer gate and a credential-less preflight OPTIONS\nis answered, not 401'd; loopback origins by default,\nextras named in webapp_config.json, never a wildcard"]
-    LIFECYCLE["server_lifecycle.py\nstartup/shutdown hooks + resource sampler +\nstartup-profile autostart (backends/Docker/\nLangfuse, issue #265) +\nfleet reconcile loop (boot + ~5min, issue #353)"]
-    REG["model_registry.py\nModel rows from config/models.yaml +\nhub_peer_ids() (hub-running peers, #372)"]
+    CHATT["chat_translation.py\nschemas + media extraction + prompt flatten +\nper-backend dispatch (split out of server.py);\nre-exports translation/anthropic_sse.py SSE adapters"]
+    TOKCNT["routes/token_counting.py\nper-backend input_tokens: llama-server\n/apply-template + /tokenize = exact;\nclaude/gemini CLI = char heuristic, returned\nwith exact:false + warning, never as a measurement"]
+    ANTHERR["routes/anthropic_errors.py\napp-level exception handlers: Anthropic\n{type:error, error:{type,message}} envelope,\npath-scoped to /v1/messages so the OpenAI\nshape keeps FastAPI's {detail: ...}"]
+    ANTHHDR["trace_id_middleware.py + anthropic_headers.py\noutermost ASGI middleware: X-Trace-Id in/out,\nrequest-id aliased to the trace ID on every response,\nanthropic-version/-beta echo (+ Warning: 299 for\nbetas the hub does not implement)"]
+    CORS["cors_policy.py\nCORSMiddleware added LAST, so it wraps even the\nbearer gate and a credential-less preflight OPTIONS\nis answered, not 401'd; loopback origins by default,\nextras named in webapp_config.json, never a wildcard"]
+    LIFECYCLE["server_lifecycle.py\nstartup/shutdown hooks + resource sampler +\nstartup-profile autostart (backends/Docker/\nLangfuse) +\nfleet reconcile loop (boot + ~5min)"]
+    REG["model_registry.py\nModel rows from config/models.yaml +\nhub_peer_ids() (hub-running peers)"]
     HOSTP["host_profile.py\nresolve active host"]
-    OTELRECV["routes/server_otel_receiver.py\nPOST /v1/metrics (OTLP receiver, issue #68)"]
-    SVC["services.py\nDocker/Langfuse probe + launch_stack\n(issue #27; peer probe -> remote_stats,\nagentsview -> agentsview_service, #533)"]
-    CFGWRITE["config_write.py (issue #424)\nadmin placement edits write through to git:\nvalidate (#375 hard gate) -> ruamel comment-preserving\nmodels.yaml edit -> config-bot commit -> push origin main;\nsingle writer (hub.config_write_host) + drift sync loop"]
+    OTELRECV["routes/server_otel_receiver.py\nPOST /v1/metrics (OTLP receiver)"]
+    SVC["services.py\nDocker/Langfuse probe + launch_stack\n(peer probe -> remote_stats,\nagentsview -> agentsview_service)"]
+    CFGWRITE["config_write.py\nadmin placement edits write through to git:\nvalidate (hard gate) -> ruamel comment-preserving\nmodels.yaml edit -> config-bot commit -> push origin main;\nsingle writer (hub.config_write_host) + drift sync loop"]
   end
   TRAY --> SRV
   RUNHUB --> SRV
@@ -53,13 +53,13 @@ flowchart TB
     CLAUDECLI["claude_cli.py\nsubprocess.run claude -p"]
     GEMINICLI["gemini_cli.py\nConPTY (pywinpty) -> agy"]
     OAIUP["openai_upstream.py\nhttpx -> llama-server /v1"]
-    AUDIOR["audio/server_audio_asr.py + audio/server_audio_tts.py\n/v1/audio/* proxy (#451 split)"]
-    IMAGESR["images/server_images.py\n/v1/images/* proxy — dispatches on backend:\ngemini (Imagen) | comfyui (FLUX, #492)"]
-    COMFYCLI["images/comfyui_client.py (#492)\nhttpx -> ComfyUI prompt API:\nPOST /prompt -> poll /history -> GET /view;\ntwo graphs behind one ModelSpec (#498):\nflux1 all-in-one · flux2 split-loader;\n>2 MP: sample native -> 4x upscale\n-> optional refine pass (#497)"]
-    SYSONER["routes/server_systemone.py (#611)
+    AUDIOR["audio/server_audio_asr.py + audio/server_audio_tts.py\n/v1/audio/* proxy"]
+    IMAGESR["images/server_images.py\n/v1/images/* proxy — dispatches on backend:\ngemini (Imagen) | comfyui (FLUX)"]
+    COMFYCLI["images/comfyui_client.py\nhttpx -> ComfyUI prompt API:\nPOST /prompt -> poll /history -> GET /view;\ntwo graphs behind one ModelSpec:\nflux1 all-in-one · flux2 split-loader;\n>2 MP: sample native -> 4x upscale\n-> optional refine pass"]
+    SYSONER["routes/server_systemone.py
 /v1/systemone passthrough — body + status
 unchanged, no retries, opt-in only"]
-    IMGSIZE["images/image_sizes.py (#497)\nsize presets + 16px-grid validation +\nnative-vs-upscale split — one source\nfor the API and the Playground dropdown"]
+    IMGSIZE["images/image_sizes.py\nsize presets + 16px-grid validation +\nnative-vs-upscale split — one source\nfor the API and the Playground dropdown"]
   end
   CHATT -->|backend=claude| CLAUDECLI
   CHATT -->|backend=gemini| GEMINICLI
@@ -74,24 +74,24 @@ unchanged, no retries, opt-in only"]
   SYSONER -->|httpx, Bearer TYPESAFE_API_KEY| TYPESAFE
   IMAGESR -->|backend=gemini: call_gemini_image| GEMINICLI
   IMAGESR -->|backend=comfyui: generate_image| COMFYCLI
-  IMAGESR -->|ensure_ready before generating (#492)| ONDEMAND
+  IMAGESR -->|ensure_ready before generating| ONDEMAND
   IMAGESR -->|parse/validate size| IMGSIZE
   COMFYCLI -->|native-vs-upscale decision| IMGSIZE
   WROUT -->|playground image card: presets| IMGSIZE
 
-  subgraph multihost["Multi-host (Mac Mini + gaming peers, issue #181/#372)"]
+  subgraph multihost["Multi-host (Mac Mini + gaming peers)"]
     REMOTEPROXY["fleet/remote_proxy.py\nresolve owning host's own base_url\nfor a model this host doesn't own"]
-    REMOTEBOOT["fleet/remote_bootstrap.py\nSSH forced-command verbs: bootstrap/sync\n(dead peer hub, #181; OS-agnostic tower side —\nmac/ + linux/ bin/hub-remote-ctl.sh dispatchers, #368)\n+ general-SSH reboot/shutdown (#309/#311)"]
-    MACHINECON["fleet/machine_console.py\nMachines-tab console (#309): host inventory\n+ per-machine card assembly + RDP gen"]
-    REMOTESTATS["fleet/remote_stats.py\nTCP liveness (is the box on?) + general-SSH\nCPU/RAM/GPU/disk/uptime snapshot (#309);\npeer-probe pair: remote_models/peer_health"]
-    SSHTERM["fleet/ssh_terminal.py\nin-browser SSH terminal (#309): drives\napp-launcher's session-host over loopback"]
-    SSHEXEC["fleet/ssh_exec.py (#470)\nthe one `ssh <user>@<host> <cmd>` builder:\nBatchMode + ConnectTimeout + accept-new,\nNO_WINDOW spawn; callers adapt the result shape"]
-    DIAG["diagnostics/ (issue #315)\nsampler (in-hub asyncio task, no resident proc) ·\nattribution (process -> fleet app + ports, per-OS) ·\nrules (health verdict) · coverage (measured vs blind, #322) ·\nreport (summary/drift/md) · store (SQLite) ·\ningest (foreign portable capture, #316)"]
+    REMOTEBOOT["fleet/remote_bootstrap.py\nSSH forced-command verbs: bootstrap/sync\n(dead peer hub; OS-agnostic tower side —\nmac/ + linux/ bin/hub-remote-ctl.sh dispatchers)\n+ general-SSH reboot/shutdown"]
+    MACHINECON["fleet/machine_console.py\nMachines-tab console: host inventory\n+ per-machine card assembly + RDP gen"]
+    REMOTESTATS["fleet/remote_stats.py\nTCP liveness (is the box on?) + general-SSH\nCPU/RAM/GPU/disk/uptime snapshot;\npeer-probe pair: remote_models/peer_health"]
+    SSHTERM["fleet/ssh_terminal.py\nin-browser SSH terminal: drives\napp-launcher's session-host over loopback"]
+    SSHEXEC["fleet/ssh_exec.py\nthe one `ssh <user>@<host> <cmd>` builder:\nBatchMode + ConnectTimeout + accept-new,\nNO_WINDOW spawn; callers adapt the result shape"]
+    DIAG["diagnostics/\nsampler (in-hub asyncio task, no resident proc) ·\nattribution (process -> fleet app + ports, per-OS) ·\nrules (health verdict) · coverage (measured vs blind) ·\nreport (summary/drift/md) · store (SQLite) ·\ningest (foreign portable capture)"]
     PARAKEETSRV["parakeet_server.py\nOpenAI-shape ASR shim ->\nFluidAudio Parakeet CoreML worker"]
-    FLEETREC["fleet/fleet_reconcile.py (issues #353, #430)\nadditive convergence: wake offline can-ssh\nsatellite -> start desired-but-not-running models\n(desired state derived from the registry:\nmodel_registry.desired_placement)"]
-    WOL["fleet/wake_on_lan.py (issue #356)\nmagic-packet builder + UDP broadcast\n(true power-on beneath the SSH bootstrap)"]
-    FAILOVER["model_failover.py (issue #342)\nordered hosts: chain -> live effective owner;\nfailover after fail_after_s, failback with\nfailback_after_s hysteresis (anti-flap);\ndecentralized: each host starts/stops only itself"]
-    FLEETMAINT["fleet/fleet_maintenance.py (issue #411)\nhost-scoped drain marker: reconcile skips a\nmaintained host entirely, so a deliberate stop\nisn't resurrected before fail_after_s elapses"]
+    FLEETREC["fleet/fleet_reconcile.py\nadditive convergence: wake offline can-ssh\nsatellite -> start desired-but-not-running models\n(desired state derived from the registry:\nmodel_registry.desired_placement)"]
+    WOL["fleet/wake_on_lan.py\nmagic-packet builder + UDP broadcast\n(true power-on beneath the SSH bootstrap)"]
+    FAILOVER["model_failover.py\nordered hosts: chain -> live effective owner;\nfailover after fail_after_s, failback with\nfailback_after_s hysteresis (anti-flap);\ndecentralized: each host starts/stops only itself"]
+    FLEETMAINT["fleet/fleet_maintenance.py\nhost-scoped drain marker: reconcile skips a\nmaintained host entirely, so a deliberate stop\nisn't resurrected before fail_after_s elapses"]
   end
   CHATT --> REMOTEPROXY
   SRV --> REMOTEPROXY
@@ -103,7 +103,7 @@ unchanged, no retries, opt-in only"]
   LIFECYCLE -->|periodic reconcile| FLEETREC
   FLEETREC -->|skip host if under maintenance| FLEETMAINT
   FLEETREC -->|wake unreachable satellite| REMOTEBOOT
-  FLEETREC -->|WOL cold satellite first (#364)| WOL
+  FLEETREC -->|WOL cold satellite first| WOL
   FLEETREC -->|start local desired models| BACKPROC
   FLEETREC -->|peer model start| MACMINI
   FLEETREC -.derives desired state.-> REG
@@ -123,7 +123,7 @@ unchanged, no retries, opt-in only"]
   LIFECYCLE -->|close orphan runs + arm scheduled snapshot| DIAG
   DIAG -.reads.-> DIAGCFG
   DIAG -.writes.-> DIAGDB
-  PORTCAP["scripts/portable_capture.py\nstandalone psutil sampler, SSH-delivered,\nno src/ imports (issue #316)"]
+  PORTCAP["scripts/portable_capture.py\nstandalone psutil sampler, SSH-delivered,\nno src/ imports"]
   OPENCLAW -.ssh: run + capture raw JSON.-> PORTCAP
   PORTCAP -->|raw capture ingested centrally| DIAG
   REMOTESTATS -->|TCP :22 + read-only ssh| MACMINI
@@ -135,15 +135,15 @@ unchanged, no retries, opt-in only"]
 
   subgraph procmgr["Process managers"]
     SUPERVISOR["process/process_supervisor.py\nshared subprocess start/stop workflow"]
-    SERVPROC["process/server_process.py\nport/PID lookup + ownership tri-state\n(no Popen of its own, #531)"]
-    BACKPROC["process/backend_process.py\nper-model Popen: llama-server ·\nwhisper-server · tts_server shim ·\nparakeet_server · comfyui-server (#492)"]
-    ONDEMAND["on_demand.py (issue #422)\nstartup: on_demand lifecycle:\nspawn-on-first-request (request waits for\nreadiness) + idle-unload watchdog +\nVRAM overcommit warning (#375 math)"]
-    WATCHDOG["_respawn_watchdog.py\ndetached: wait for parent PID to die,\nthen relaunch (stdlib-only, issue #198)"]
-    HUBCTL["process/hub_process_control.py (#533)\nself stop/restart: SIGINT/SIGTERM,\nlaunchd bootout/kickstart, systemctl,\nrespawn-watchdog spawn"]
-    AGENTSVIEWSVC["usage/agentsview_service.py (#533)\nAgentsView probe/launch/stop\n(split out of services.py)"]
+    SERVPROC["process/server_process.py\nport/PID lookup + ownership tri-state\n(no Popen of its own)"]
+    BACKPROC["process/backend_process.py\nper-model Popen: llama-server ·\nwhisper-server · tts_server shim ·\nparakeet_server · comfyui-server"]
+    ONDEMAND["on_demand.py\nstartup: on_demand lifecycle:\nspawn-on-first-request (request waits for\nreadiness) + idle-unload watchdog +\nVRAM overcommit warning"]
+    WATCHDOG["_respawn_watchdog.py\ndetached: wait for parent PID to die,\nthen relaunch (stdlib-only)"]
+    HUBCTL["process/hub_process_control.py\nself stop/restart: SIGINT/SIGTERM,\nlaunchd bootout/kickstart, systemctl,\nrespawn-watchdog spawn"]
+    AGENTSVIEWSVC["usage/agentsview_service.py\nAgentsView probe/launch/stop\n(split out of services.py)"]
   end
   RUNMODEL --> BACKPROC
-  TRAY -->|Models submenu| BACKPROC
+  TRAY -->|Models submenu: POST /admin/api/models/{id}/start,stop,force-stop| WROUT
   BACKPROC --> SUPERVISOR
   BACKPROC -.spawns.-> PARAKEETSRV
   SRV -->|ensure_ready before dispatch (chat/messages/speech)| ONDEMAND
@@ -155,18 +155,18 @@ unchanged, no retries, opt-in only"]
     CLAUDEBIN["claude -p CLI\n(Claude Code subscription)"]
     AGYBIN["agy Antigravity CLI\n(Google AI Pro/Ultra subscription)"]
     LLAMA["llama-server (vendor/llama.cpp)\nQwen3.5-4B :8088 · Gemma4-26B-A4B :8087\n+ ad-hoc :8081/:8082/:8086"]
-    TTS["tts_engines/ (piper · kokoro · chatterbox · orpheus)\nvia tts_server.py shim :8092/:8093/:8095/:8096\n(orpheus back on tower, gaming = fallback, #422)"]
-    COMFY["ComfyUI (vendor/comfyui, own .venv)\n:8188 FLUX.1 [dev] fp8 (#492) · :8190 FLUX.2 [klein] 4B (#498)\nloopback-bound · on_demand · one process per row\n(the process layer keys state by model id)\nFLUX.2 [dev] 32B removed #501 — ~4 h/image on 16 GB"]
+    TTS["tts_engines/ (piper · kokoro · chatterbox · orpheus)\nvia tts_server.py shim :8092/:8093/:8095/:8096\n(current per-host placement: config/models.yaml)"]
+    COMFY["ComfyUI (vendor/comfyui, own .venv)\n:8188 FLUX.1 [dev] fp8 · :8190 FLUX.2 [klein] 4B\nloopback-bound · on_demand · one process per row\n(the process layer keys state by model id)\nFLUX.2 [dev] 32B removed — ~4 h/image on 16 GB"]
     CCHOST["Any host Claude Code CLI session\n(incl. sub-agents — CLAUDE_CODE_ENABLE_TELEMETRY)"]
     MACMINI["Mac Mini (mac-mini-m4)\npeer local-llm-hub install :8000"]
     PARAKEETWORKER["mac/parakeet-worker/ (Swift, ANE)\nFluidAudio Parakeet TDT 0.6B v3\nvia CoreML"]
-    AGENTSVIEW["AgentsView server (optional, external)\nkenn-io/agentsview · :8080 (issue #280)"]
-    SESSIONHOST["app-launcher session-host (:8446)\nloopback ConPTY/WS engine reused for the\nSSH terminal — needs app-launcher#558"]
+    AGENTSVIEW["AgentsView server (optional, external)\nkenn-io/agentsview · :8080"]
+    SESSIONHOST["app-launcher session-host (:8446)\nloopback ConPTY/WS engine reused for the\nSSH terminal"]
     TYPESAFE["TypeSafe API (third-party, US-hosted)
 api.typesafe.ai/v1/systemone · Jev
-the hub's only internet egress (#611)"]
-    OPENCLAW["OpenClaw (Linux laptop)\nmanaged-only machine: SSH reboot/shutdown/\nuptime + RDP (Machines console, #309)"]
-    GAMING["gaming (Ryzen Linux satellite)\npeer local-llm-hub install :8000 (systemd, #341;\ninstall.py + bootstrap/sync parity #368)\nGTX 1070, CUDA sm_61 builds"]
+the hub's only internet egress"]
+    OPENCLAW["OpenClaw (Linux laptop)\nmanaged-only machine: SSH reboot/shutdown/\nuptime + RDP (Machines console)"]
+    GAMING["gaming (Ryzen Linux satellite)\npeer local-llm-hub install :8000 (systemd;\ninstall.py + bootstrap/sync parity)\nGTX 1070, CUDA sm_61 builds"]
   end
   CLAUDECLI --> CLAUDEBIN
   GEMINICLI --> AGYBIN
@@ -180,12 +180,12 @@ the hub's only internet egress (#611)"]
   REMOTEPROXY -->|forwards verbatim to owning :8000| MACMINI
   REMOTEPROXY -->|all whisper.cpp STT to owning :8000| GAMING
   REMOTEBOOT -->|SSH forced-command bootstrap/sync| MACMINI
-  REMOTEBOOT -->|SSH forced-command bootstrap/sync (systemctl, #368)| GAMING
+  REMOTEBOOT -->|SSH forced-command bootstrap/sync (systemctl)| GAMING
   PARAKEETSRV -.spawns.-> PARAKEETWORKER
 
   subgraph admin["app_web/ — admin SPA, sub-app mounted at /admin"]
     WSRV["server.py\ncreate_app() + versioned static"]
-    WROUT["routers/\nhub · install (#533) · models · startup_profile ·\nfleet_placement · roles · playground · services ·\ntelemetry · code_usage · glossary · hosts · machines ·\ndiagnostics · usage_log (#777) · auth · webauthn · version · misc"]
+    WROUT["routers/\nhub · install · models · startup_profile ·\nfleet_placement · roles · playground · services ·\ntelemetry · code_usage · glossary · hosts · machines ·\ndiagnostics · usage_log · auth · webauthn · version · misc"]
     WSTATIC["static/\nindex.html SPA + per-tab JS/CSS"]
   end
   SRV -.mounts.-> WSRV
@@ -194,18 +194,18 @@ the hub's only internet egress (#611)"]
   WROUT -->|hub tab| SERVPROC
   WROUT -->|hub stop/restart| HUBCTL
   WROUT -->|models tab| BACKPROC
-  WROUT -->|fleet-placement tab: reconcile (read-only summary, #431)| FLEETREC
-  WROUT -->|models tab: PUT placement (#424)| CFGWRITE
+  WROUT -->|fleet-placement tab: reconcile (read-only summary)| FLEETREC
+  WROUT -->|models tab: PUT placement| CFGWRITE
   CFGWRITE -.comment-preserving edit + commit + push.-> MODELSYAML
   CFGWRITE -->|post-write + drift sync of satellites| REMOTEBOOT
   LIFECYCLE -->|config drift loop| CFGWRITE
   WROUT -->|playground tab| SRV
-  WROUT -->|playground Decision card: loopback /v1/systemone;\nmodels tab: read-only Jev tile (#611)| SYSONER
+  WROUT -->|playground Decision card: loopback /v1/systemone;\nmodels tab: read-only Jev tile| SYSONER
 
   subgraph obs["Observability"]
     HUBLOG["hub_log.py / hub_observability.py\nin-memory ring -> admin Hub tab"]
     OTEL["observability.py\nOTel bootstrap (traces + genai metrics)"]
-    CCOTEL["usage/claude_code_otel.py\nOTLP parse + JSONL persist + rollups (issue #68)"]
+    CCOTEL["usage/claude_code_otel.py\nOTLP parse + JSONL persist + rollups"]
   end
   SRV --> HUBLOG
   SRV --> OTEL
@@ -215,14 +215,14 @@ the hub's only internet egress (#611)"]
   WROUT -->|Code tab: AGY vendor via src/usage/agentsview_usage.py| AGENTSVIEW
 
   subgraph cfg["Config + data"]
-    MODELSYAML[("config/models.yaml\nhosts (+ vram_mb ceiling) + model registry\n(+ est_vram_mb footprint, #375) — placement truth:\nhosts chains + startup eager|on_demand (#430)")]
+    MODELSYAML[("config/models.yaml\nhosts (+ vram_mb ceiling) + model registry\n(+ est_vram_mb footprint) — placement truth:\nhosts chains + startup eager|on_demand")]
     WEBCFG[("config/webapp_config.json\nauth token + allowlist")]
     GLOSSARY[("config/transcription_glossary.json\nASR post-processing rules")]
-    STARTUPCFG[("config/startup_profile.json (gitignored; .example committed)\ndocker/langfuse/agentsview — each host's own service autostart\n(issues #265, #304; models list retired #430)")]
-    MODELSDIR["models/ (gitignored)\nGGUF + whisper weights +\ncomfyui/checkpoints FLUX fp8 (#492)"]
-    USAGEHIST[("data/code_usage_history.json\ndaily usage rollups — outlive\ntranscript pruning (issue #280)")]
-    DIAGCFG[("config/diagnostics_apps.json + _rules.json (committed)\nprocess->app attribution + health thresholds;\nconfig/diagnostics_settings.json (gitignored)\nretention + scheduled snapshot (issue #315)")]
-    DIAGDB[("data/diagnostics.db (gitignored)\nSQLite capture store: runs · samples ·\nprocess_samples · ports · verdicts (issue #315)")]
+    STARTUPCFG[("config/startup_profile.json (gitignored; .example committed)\ndocker/langfuse/agentsview — each host's own service autostart\n(models list retired)")]
+    MODELSDIR["models/ (gitignored)\nGGUF + whisper weights +\ncomfyui/checkpoints FLUX fp8"]
+    USAGEHIST[("data/code_usage_history.json\ndaily usage rollups — outlive\ntranscript pruning")]
+    DIAGCFG[("config/diagnostics_apps.json + _rules.json (committed)\nprocess->app attribution + health thresholds;\nconfig/diagnostics_settings.json (gitignored)\nretention + scheduled snapshot")]
+    DIAGDB[("data/diagnostics.db (gitignored)\nSQLite capture store: runs · samples ·\nprocess_samples · ports · verdicts")]
   end
   REG -.reads.-> MODELSYAML
   HOSTP -.reads.-> MODELSYAML

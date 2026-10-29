@@ -41,78 +41,23 @@ an OS child contains it with the fleet-wide Windows job-object helpers in
 
 ## The TTS registry rows ([config/models.yaml](../config/models.yaml))
 
-```yaml
-piper:                          # auto-loaded default (startup: eager, #430)
-  display_name: piper-tts
-  aliases: ["audio_speech"]     # the role alias clients should address
-  backend: tts
-  engine: tts-server
-  tts_engine: piper
-  port: 8096
-  model_path: "models/piper/en_US-amy-medium.onnx"
-  args: ["--device", "cpu"]
-
-orpheus:                        # on demand — expressive
-  display_name: orpheus-tts
-  backend: tts
-  engine: tts-server
-  tts_engine: orpheus
-  port: 8093
-  internal_port: 18093          # llama-server child (loopback) for the GGUF
-  hf_repo: "isaiahbjork/orpheus-3b-0.1-ft-Q4_K_M-GGUF"
-  hf_pattern: "*q4_k_m*.gguf"
-  model_path: "models/orpheus-3b-0.1-ft-q4_k_m.gguf"
-  args: ["--device", "auto"]    # cuda if the GPU has room, else cpu
-
-chatterbox:                     # on demand — NOT autostarted
-  display_name: chatterbox-tts
-  backend: tts
-  engine: tts-server
-  tts_engine: chatterbox
-  port: 8092
-  args: ["--device", "auto"]
-
-kokoro:                         # on demand — low-footprint comparison model
-  display_name: kokoro-tts
-  backend: tts
-  engine: tts-server
-  tts_engine: kokoro
-  port: 8095
-  model_path: "models/kokoro/kokoro-v1.0.int8.onnx"
-  args: ["--device", "auto"]
-```
-
-Current per-host enablement lives in [config/models.yaml](../config/models.yaml)
-alone; the role lives at `roles.audio.speech.model_id: piper`. Piper is the auto-loaded default because
-it measures sub-second for short assistant phrases. Orpheus is the expressive
-on-demand alternate, Chatterbox is kept for its tone dial / voice cloning, and
-Kokoro is the tiny ONNX comparison model whose current Windows ONNX path is not
-the fast option.
+The four TTS rows (`piper`, `orpheus`, `chatterbox`, `kokoro`) live in
+[config/models.yaml](../config/models.yaml) alone — their `startup`
+(`eager`/`on_demand`), `hosts`/`host`, ports and model paths are never
+restated here, only there. The role lives at `roles.audio.speech.model_id:
+piper`. Piper is the always-on default because it measures sub-second for
+short assistant phrases and runs CPU-only. Orpheus is the expressive
+alternate (also `startup: eager` on its hosts, served on an explicit
+`model=orpheus` request rather than through the role), Chatterbox is
+on-demand and kept for its tone dial / voice cloning, and Kokoro is the tiny
+on-demand ONNX comparison model whose current Windows ONNX path is not the
+fast option.
 
 > **Orpheus GGUF caveat.** The exact upstream repo / filename for the
 > community Q4_K_M build pairs with the llama.cpp route but drifts over
 > time. If `python scripts/download_models.py --only orpheus` can't match a
 > file, adjust `hf_repo` / `hf_pattern` / `model_path` to a current GGUF
 > (e.g. `lex-au/Orpheus-3b-FT-Q4_K_M.gguf`, `QuantFactory/...`).
-
-## What got wired (mirrors the whisper change shape)
-
-| area | change |
-| ---- | ------ |
-| `config/models.yaml` | TTS rows (`piper`, `chatterbox`, `orpheus`, `kokoro`); `roles.audio.speech` points at `piper` |
-| `src/model_registry.py` | `+tts_engine` field |
-| `src/tts_engines/` | Piper + Chatterbox + Orpheus + Kokoro engines, one module each, behind one common interface (`common.py`) |
-| `src/tts_server.py` | new — FastAPI shim (`/v1/audio/speech`, `/health`) |
-| `src/process/backend_process.py` | `build_command` branch for `engine: tts-server`; widen filters to `tts` |
-| `src/run_backend.py` | widen spawnable backends to `tts` |
-| `src/server.py` | hub `POST /v1/audio/speech` proxy + a `tts` 400 on the chat routes |
-| `src/install.py` | `_check_tts` / `_fix_tts`; widen model + port filters |
-| `scripts/download_models.py` | widen to `tts` rows with `hf_repo` (Orpheus GGUF) |
-| `scripts/install_tts.py` | pip install + warm Chatterbox/SNAC/Piper/Kokoro + fetch Piper assets, Orpheus GGUF, and Kokoro ONNX assets |
-| `scripts/smoke_test.py` | synth probe when a TTS port is reachable |
-| `app_web/...` | Models-tab 🔊 tile + a synthesis-based ping |
-| `launchers/run_model.{bat,sh} <id>` | parameterized per-model launcher; `run_all.*` includes all enabled TTS rows |
-| `requirements-tts.txt` | `chatterbox-tts`, `snac`, `kokoro-onnx`, `soundfile` (torch transitively); Piper is a downloaded binary |
 
 ## Dependencies — kept off the base install
 
@@ -241,7 +186,7 @@ curl -N -X POST http://127.0.0.1:8000/v1/audio/speech \
 
 What streams:
 
-- **Orpheus** (default) streams natively. Its llama-server child emits SNAC
+- **Orpheus** streams natively. Its llama-server child emits SNAC
   audio tokens incrementally; the engine switches that `/completion` call to
   `stream: true` and decodes a **sliding 28-token (4-frame) window**,
   emitting each window's artefact-free `[2048:4096]` segment (~85 ms at
@@ -326,10 +271,13 @@ is a Playground filter; the submitted OpenAI-compatible payload remains
 
 ## VRAM note
 
-On the 16 GB reference GPU, dropping the heavy Gemma model out of tray
-autostart leaves room for Orpheus (~3–4 GB: 3B Q4 GGUF + SNAC) to be the
-auto-loaded default alongside qwen + whisper. Chatterbox (~1–2 GB) is the
-on-demand alternate, competing for VRAM only when you start it.
+Piper is CPU-only (no VRAM) and is the always-on default alongside qwen +
+whisper. Orpheus (`startup` default `eager`, ~2.2 GB: 3B Q4 GGUF + SNAC on
+CPU) is also resident on its hosts (`tower`, `gaming`) for the expressive
+on-demand role, served only on an explicit `model=orpheus` request. Chatterbox
+(~2 GB, `startup: on_demand`) and Kokoro (~0.5 GB, `startup: on_demand`) load
+on first request and idle-unload after 30 minutes, competing for VRAM only
+while resident.
 
 ## Live validation (local only — CI has no torch/GPU)
 

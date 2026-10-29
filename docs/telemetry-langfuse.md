@@ -385,10 +385,10 @@ pipelines.
 ### What's captured — and what isn't
 
 - `POST /v1/metrics` (`src/routes/server_otel_receiver.py`) accepts an OTLP/HTTP
-  protobuf `ExportMetricsServiceRequest`, unauthenticated — same posture as
-  the hub's other `/v1/*` routes (personal-localhost hub; if you ever bind
-  beyond loopback, this endpoint inherits the same no-auth posture as the
-  rest of that surface).
+  protobuf `ExportMetricsServiceRequest` — same posture as the hub's other
+  `/v1/*` routes: a loopback caller bypasses auth, but `ParentBearerTokenMiddleware`
+  (`app_web/middleware.py`) gates every other caller behind the bearer token
+  (or an `extra_allowlist` match) per `docs/running.md`'s security section.
 - Only `claude_code.token.usage` and `claude_code.cost.usage` are kept
   (`src/usage/claude_code_otel.py`). Both are `Sum` metrics exported with
   **delta** temporality (verified empirically against a real Claude Code

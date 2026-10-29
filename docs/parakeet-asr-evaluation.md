@@ -1,585 +1,110 @@
 # Parakeet ASR transcribe-backend evaluation
 
-Spike on Windows+CUDA (measured 2026-06-17), extended to the Mac Mini
-Apple Neural Engine / CoreML (measured 2026-07-02, then accepted as a
-selectable alternative the same day — a different runtime, not a re-run).
-Follows the faster-whisper NO-GO,
-which named NVIDIA Parakeet (TDT 0.6B v3) — not faster-whisper — as the
-higher-value ASR target *if* a transcribe-backend swap is ever justified.
-
-**Decision (Windows+CUDA): NO-GO.** Keep `whisper-large-v3-turbo`
-(boosted, `:8090`) as the `audio_transcribe` role. Parakeet is ~3× faster but
-~4× *less* accurate on this English+Spanish domain-jargon workload, has no
-recognition-boosting lever, and ships no OpenAI-compatible server on
-Windows+CUDA. See [When to revisit](#when-to-revisit).
-
-**Decision (Mac Mini ANE): accepted as a selectable, non-default
-alternative** (superseding the original "NO-GO for now" call below — see
-[part 2 update](#accepted-as-a-selectable-alternative)).
-Faster end-to-end (even over the LAN) and jargon survival is much closer than
-the Windows spike, but it drops the "Claude Code" wake phrase and still
-mangles "YOLO"→"yellow" every time. Neither is a blocker for every use case —
-e.g. Home Assistant voice commands care about speed more than perfect jargon
-recognition — so Parakeet is enrolled as `model=parakeet`, explicitly *not*
-the `audio_transcribe` role default (whisper-turbo keeps that). A real
-term-boosting lever exists in this runtime (unlike Windows+CUDA) but wasn't
-integrated in this pass. See the
-[Mac Mini ANE update](#mac-mini-ane-coreml-spike)
-below.
-
-**Current status (since 2026-07-22): Parakeet is the `audio_transcribe`
-role primary, with whisper-turbo as its automatic fallback** — a
-latency/placement decision taken with the accuracy findings above unchanged;
-callers that need the jargon-safe path send `model=whisper` explicitly. See
-[the role-primary update](#promoted-to-the-role-primary).
-The live assignment is `config/models.yaml` → `roles.audio.transcribe`; this
-doc records why, not what is deployed.
-
----
-
-## What Parakeet is, and which port actually fits
-
-"Parakeet" is NVIDIA's NeMo ASR family. The 2026 interest is **TDT 0.6B v3** —
-on the HF Open ASR leaderboard it posts ~6.3% English WER vs Whisper large-v3's
-~7.4%, at far higher throughput. The hub's architecture (a C++ server binary on
-a port speaking OpenAI's `/v1/audio/transcriptions`) only fits if a Parakeet
-runtime can do the same. The landscape is **fragmented**, and no single port
-gives Windows + CUDA *and* the OpenAI shape:
-
-| Project | Runtime | Windows | GPU | OpenAI server | Boosting |
-| --- | --- | --- | --- | --- | --- |
-| **mudler/parakeet.cpp** | ggml/C++ (GGUF) | ✅ prebuilt | ✅ **CUDA** | ❌ CLI only | ❌ none |
-| achetronic/parakeet | ONNX/Go | ❌ Linux | ❌ CPU-only | ✅ yes | ❌ `prompt` ignored |
-| groxaxo/…-fastapi-openai | Python/FastAPI | unclear | varies | ✅ yes | ❌ |
-| Frikallo/parakeet.cpp | Axiom/Metal | ❌ | Metal (Apple) | ❌ | ❌ |
-
-So the runtime that runs fast on the reference hardware (**mudler/parakeet.cpp**,
-ggml, Windows-CUDA prebuilt, GGUF weights from `mudler/parakeet-cpp-gguf`) is
-**CLI-only** — it has no HTTP server at all, let alone the OpenAI shape. A "go"
-would mean writing and maintaining a thin FastAPI wrapper around its CLI / C-API
-(the same shape as `src/tts_server.py` wrapping `llama-server`). The only
-ready-made OpenAI-shape Parakeet server (achetronic) is **CPU-only and
-Linux-only**, which throws away the entire speed rationale. **This answers
-acceptance criterion 2: not directly — only via a wrapper we'd have to build.**
-
-## How it was measured
-
-Everything ran on the reference Windows box — **RTX 5060 Ti (16 GB), CUDA
-12.0** — fully reproducible from `.scratch/parakeet-bench/` (gitignored):
-
-- **Parakeet:** `mudler/parakeet.cpp` v0.2.0 Windows-CUDA prebuilt
-  (`parakeet-cli`), model `tdt-0.6b-v3-q8_0.gguf` (q8_0 = near-lossless; the
-  vendor reports all quants at ~WER-0 vs NeMo, so quant is not the variable).
-  `parakeet-cli bench` loads the model once (406 ms) and reports per-clip *warm*
-  inference time — the correct number to compare against a warm server.
-- **Whisper:** the live `:8090` `whisper-large-v3-turbo`, **boosted** exactly as
-  shipped (`--max-context 64 --carry-initial-prompt`, glossary `boost_terms`).
-  Round-trip HTTP latency over loopback (warm).
-- **Clips:** 12 real dictation recordings pulled from the **voice-transcriber
-  archive** (`E:\automation\voice-transcriber\archive`, 392 sessions) — 6 s to
-  127 s, 531 s total, 6 jargon-heavy + 6 general English, plus one English↔
-  Spanish code-switch.
-
-**WER caveat (important).** I cannot listen to the audio, so there is no truly
-independent gold transcript. References were **adjudicated from both engines'
-outputs plus the known domain vocabulary**, so neither engine is treated as
-ground truth; genuinely ambiguous spots are reconstructed by judgement. Filled
-pauses (`uh`/`um`) and number formatting (`64` vs "sixty-four") are normalised
-out of refs *and* hypotheses so neither style is penalised. The WER figures are
-**comparative, not absolute** — but the gap is far larger than the curation
-uncertainty.
-
-## Results
-
-| Metric (12 clips, 531 s) | Parakeet TDT v3 q8_0 (CUDA, warm) | whisper-large-v3-turbo (boosted) |
-| --- | --- | --- |
-| **Word error rate** | **6.62 %** | **1.63 %** |
-| **Throughput** | **159.9× realtime** | 53.8× realtime |
-| **Total warm inference** | 3.3 s | 9.9 s |
-| **Jargon-term survival** | 16 / 23 | **21 / 23** |
-
-### What the numbers mean
-
-- **Speed: Parakeet wins (~3×), but it doesn't matter here.** Whisper turbo
-  already runs at ~54× realtime on this GPU — a 30 s dictation clip transcribes
-  in ~0.5 s. Faster than "instant" is not a benefit for human-in-the-loop
-  dictation. Parakeet's lead would matter for a *different* use case (long-form
-  batch, latency-critical, English-only) — not this one.
-- **Accuracy: whisper wins decisively (~4×).** On this English-heavy domain
-  workload whisper-turbo-boosted lands ~1.6 % WER vs Parakeet's ~6.6 %.
-- **Jargon: whisper wins, structurally.** Parakeet mangled the exact terms the
-  hub cares about — Orpheus → "off-heos"/"off-seus", Sonnet → "Sonic",
-  Chatterbox → "chapter box", Kokoro → "coco roll", YOLO → "yellow", PC →
-  "APC" — and **has no lever to fix them**: there is no `initial_prompt` /
-  `hotwords` flag (`parakeet-cli transcribe` exposes only `--decoder --lang
-  --threads --timestamps --json`). Whisper hits these because of the
-  `--carry-initial-prompt` boost sourced from the committed glossary. Both
-  engines miss "cloud code" → "Claude Code" equally — the replacement
-  glossary fixes that downstream for both, so it is not a differentiator.
-- **Multilingual gap, confirmed empirically.** Despite v3's multilingual
-  billing, Parakeet **dropped the Spanish tail "muchas gracias"** entirely (clip
-  `j2`); whisper caught it. The hub's workload includes ES/CA dictation, which
-  Parakeet's ~25-language coverage serves worse than Whisper's 99.
-- **One genuine Parakeet strength:** clean flowing prose on long clips. On the
-  127 s clip whisper fragmented into one-phrase-per-line; Parakeet produced
-  well-punctuated continuous text. Nice, but cosmetic — the hub's downstream
-  consumers don't depend on it, and an LLM cleanup pass (the follow-up to the faster-whisper NO-GO) would
-  normalise either engine's formatting anyway.
-
-## Decision: NO-GO
-
-Migrating the `audio_transcribe` role from whisper-turbo to Parakeet would, on
-the hub's real workload, **regress accuracy (~1.6 % → ~6.6 % WER) and jargon
-recognition (21/23 → 16/23)**, lose Spanish code-switch coverage, and **add a
-bespoke OpenAI-shape HTTP wrapper to build and maintain** (no Windows+CUDA
-Parakeet server exists) — in exchange for speed the use case does not need. The
-one structural blocker is decisive on its own: Parakeet has **no
-recognition-boosting mechanism**, so the jargon gap cannot be closed the way
-whisper closes it (the `--carry-initial-prompt` boost), and domain-term
-accuracy is the whole reason this line of spikes exists.
-
-This reinforces the faster-whisper NO-GO's conclusion: the higher-value next step toward the
-voice "gold standard" is **not** an ASR backend swap — it is the optional
-**ASR → local-LLM cleanup pass** using the hub's existing models.
-
-## When to revisit
-
-Reopen this only if **all three** flip:
-
-1. A `parakeet.cpp` build serves OpenAI `/v1/audio/transcriptions` on
-   Windows+CUDA out of the box (no bespoke wrapper).
-2. Parakeet gains a term-boosting lever (`initial_prompt` / `hotwords`
-   equivalent) so domain jargon can be biased like whisper's `--carry-initial-prompt` path.
-3. The workload shifts to long-form, English-only, latency-critical
-   transcription where Parakeet's throughput and clean long-form output become
-   decision-relevant.
-
-Until then, `whisper-large-v3-turbo` (boosted) + the replacement glossary + a future
-LLM cleanup pass is the better-fitting stack.
-
----
-
-## Mac Mini ANE (CoreML) spike
-
-Measured on 2026-07-02. This update revisits
-Parakeet on a **different deployment target**: the Mac Mini's Apple Neural
-Engine via CoreML, using [FluidInference/FluidAudio](https://github.com/FluidInference/FluidAudio)
-(Swift, `parakeet-tdt-0.6b-v3-coreml`). This directly answers revisit condition
-1 above (a real OpenAI-shape server exists on this runtime) and partially
-answers condition 2 (a term-boosting lever exists, though not yet integrated — see
-below). Decision below is scoped to *this* runtime; the Windows+CUDA NO-GO
-above is unchanged.
-
-**Original decision: NO-GO for now** on enrolling Parakeet-on-ANE as a
-selectable `audio_transcribe` alternative. It is faster end-to-end (including
-the LAN hop) than the boosted whisper-turbo path, and jargon survival is much
-closer than the Windows+CUDA spike suggested — but it drops the "Claude Code"
-wake phrase outright in both clips that opened with it, and still mangles
-"YOLO" → "yellow" every time. Revisit if the custom-vocabulary integration
-(below) closes those two gaps.
-
-**This call was revisited the same day — see
-[part 2](#accepted-as-a-selectable-alternative)
-below**, once the underlying multi-host routing infrastructure made
-"enroll as a selectable, non-default alternative" a real, low-risk option
-distinct from "swap the `audio_transcribe` default."
-
-### What was built
-
-- Provisioned the Mac Mini (`roberto.local`, Apple M4, 16 GB, macOS 26.2)
-  entirely over SSH/sudo — no GUI touched. Xcode Command Line Tools installed
-  headlessly via `softwareupdate --install`; Homebrew via the no-sudo
-  `git clone` method (the official installer's multi-step `sudo` script
-  doesn't survive a non-tty SSH session cleanly).
-- A small Swift package (`~/parakeet-worker` on the Mac, not committed —
-  see below) wraps `FluidAudio`'s `AsrManager`: loads
-  `AsrModels.downloadAndLoad(version: .v3)` once, then serves transcription
-  requests over stdin/stdout (one JSON result per line, model stays warm).
-- A thin FastAPI wrapper (`parakeet_server.py`, also on the Mac only) exposes
-  OpenAI-shaped `POST /v1/audio/transcriptions` on `:8098`, converting
-  uploads to 16 kHz mono via `afconvert` and forwarding to the worker.
-  **Not the hub's own `tts-server`/whisper-server pattern** — this is spike
-  scaffolding to answer the evaluation question, not a production install.
-  Wiring an approved backend into the hub properly is tracked separately
-  (enroll on `mac-mini-m4` in `config/models.yaml`, generalize
-  `_pick_whisper_port` role resolution — the spike's own acceptance criteria,
-  deferred pending a clearer go).
-
-### How it was measured
-
-12 real dictation clips pulled fresh from the **voice-transcriber archive**
-(`E:\automation\voice-transcriber\archive`, ~1700 sessions as of 2026-07-02)
-— the original Windows+CUDA spike's clip selection no longer exists on disk
-(`.scratch/parakeet-bench/` is gitignored and was cleaned up after that spike
-closed), so this is a new but comparably-structured sample: 6 jargon-heavy +
-6 general, one of the jargon clips containing the same "Orpheus... muchas
-gracias" English→Spanish code-switch the Windows+CUDA spike used. 561 s total, 7 s–213 s
-range (word-count-weighted, not time-weighted like the Windows+CUDA spike — see below).
-Reproducible from `.scratch/parakeet-bench/` (gitignored; clips are personal
-dictation audio, not committed).
-
-- **Parakeet:** the from-scratch FluidAudio worker above, called over the
-  LAN from the Windows PC (full HTTP round trip, not loopback).
-- **Whisper:** the live hub `:8000` → `:8090` `whisper-large-v3-turbo`
-  (boosted), same as the Windows+CUDA spike, also over HTTP (loopback on the Windows box).
-- **Reference for WER:** the *original* voice-transcriber archived
-  transcript for each clip (produced live by the user's daily-driver boosted
-  whisper.cpp pipeline) — not a third fresh engine call. This is the closest
-  available approximation to ground truth without listening to the audio,
-  but **structurally favors whisper**: the reference is itself a
-  whisper-family transcript, so it shares whisper's phrasing/punctuation
-  conventions in a way Parakeet's differently-styled output doesn't get
-  credit for. Filler words (`uh`/`um`) and case/punctuation were normalized
-  out of both hypothesis and reference before scoring, same as the Windows+CUDA spike.
-
-### Results
-
-| Metric (12 clips) | Parakeet TDT v3 (Mac ANE, CoreML, over LAN) | whisper-large-v3-turbo (boosted, loopback) |
-| --- | --- | --- |
-| **Word error rate** (vs archived ref) | 7.9 % | 3.8 % |
-| **Total wall-clock, all 12 clips** | **7.9 s** | 16.5 s |
-| **Per-clip engine-only inference** (7–92 s clips) | 0.09 s – 0.27 s | n/a (not separately instrumented) |
-
-The WER gap here (≈2×) is narrower than the Windows+CUDA spike's ≈4× gap —
-partly a real runtime/model difference, partly reference bias (above). Take
-the ratio as directional, not absolute.
-
-**The wall-clock result is the headline finding.** Parakeet-on-ANE, called
-over the LAN from the Windows PC (network hop + `afconvert` + CoreML
-inference), was faster in total wall-clock than whisper-turbo-boosted called
-over *loopback* on the reference CUDA box — 7.9 s vs 16.5 s for the same 12
-clips, roughly 2× faster despite paying a network round trip whisper doesn't.
-A single representative round trip (7.7 s clip): **0.30 s total** (Windows
-client → Mac Mini server → response), of which only 0.14 s was engine
-inference — the rest is network + format conversion. This is the concrete
-number for the "how much latency does routing through a Mac Mini backend
-add" question that motivated this spike: on a same-LAN reference, the answer
-is "well under whisper's own loopback CUDA latency," not "an expensive extra
-hop."
-
-### Jargon-term survival (why NO-GO despite the speed/WER story)
-
-Across the 6 jargon clips, tracking domain terms the hub's glossary-boosting
-line of work cares about:
-
-| Term | Parakeet (ANE) | whisper-turbo (boosted) |
-| --- | --- | --- |
-| "Claude Code" (×2, wake phrase) | **dropped entirely, both times** ("Yes, new issue..." / "Yeah, look at this...") | ✅ both |
-| "YOLO" (×3) | **"yellow", all three times** (reproduces the Windows-CUDA finding exactly) | ✅ all three |
-| "Orpheus" | ✅ correct | ✅ correct |
-| "muchas gracias" (ES tail) | ✗ missing | ✗ **also missing this run** — inconclusive vs the Windows-CUDA spike's confirmed multilingual-gap finding; needs a re-test isolating this clip |
-| "Shift-Tab" | ✗ → "shift dub" | ✅ |
-| "PTI", "Crosslinked", "Elgato", issue number | ✅ all | ✅ all |
-| "Dangerous Skip Permission" | ✅ correct | ✗ whisper mis-heard as "Dangerous Escape Permission" |
-| "Auto Approve" | ✅ correct | ✗ whisper mis-heard as "Auto-Proof" |
-
-Two findings cut against the Windows-CUDA verdict: "Orpheus" is now
-recognized correctly (the v3 CoreML build may simply be a better checkpoint
-than the Windows GGUF quant), and whisper-turbo made two of its own domain
-errors that Parakeet didn't. But the **dropped wake phrase is a new,
-practical blocker** the Windows-CUDA spike never tested — "Claude Code" is the trigger phrase
-for voice-command dictation flows, and losing it silently (no error, just
-absent from the transcript) is worse than a garbled-but-present transcription.
-
-### Custom vocabulary / term-boosting — real, but not integrated today
-
-Unlike the Windows+CUDA `parakeet.cpp` build evaluated above (no boosting
-lever at all), **FluidAudio does ship one**:
-`CustomVocabularyContext`/`CustomVocabularyTerm`, documented in
-[`Documentation/ASR/CustomVocabulary.md`](https://github.com/FluidInference/FluidAudio/blob/main/Documentation/ASR/CustomVocabulary.md).
-It's a post-processing rescorer, not a decoder bias: a separate CTC head
-scores each vocabulary term against per-frame log-probabilities and replaces
-transcript words when a boosted term has stronger acoustic evidence
-(default context-biasing weight 3.0). This is a plausible fix for exactly
-the "YOLO"→"yellow" and dropped-"Claude Code" failures above.
-
-**Not validated this session** — confirmed to exist and read the source
-(`VocabularyRescorer`, `CtcKeywordSpotter`), but wiring it requires loading a
-second CTC model and the token-timing rescoring pipeline
-(`TranscribeCommand.swift`'s implementation is ~50 lines beyond what the
-thin worker does today), a meaningfully bigger lift than fit in this spike.
-The full `fluidaudiocli` also currently fails to build on this toolchain
-(Swift 6.3.3 / Xcode CLT 26.6) — an unrelated compiler type-checking timeout
-in `NemotronMultilingualFleursBenchmark.swift`, not something blocking the
-library itself (our own worker, which only depends on the `FluidAudio`
-library target, builds and runs fine).
-
-### TTS: what was and wasn't measured
-
-Per the spike's acceptance criteria, a same-text (~15-word sentence) latency
-comparison across what's actually running today:
-
-| Path | Wall-clock | Notes |
-| --- | --- | --- |
-| Piper (`audio_speech` role, CPU, Windows) | **0.33 s** | hub's fast default |
-| macOS `say` / `AVSpeechSynthesizer` (Mac Mini) | 1.04 s (for 4.5 s of audio) | confirmed working, on-device, zero setup |
-| Orpheus (GGUF+SNAC, CUDA, Windows) | 3.61 s | hub's expressive/reference default |
-| Kokoro (ONNX, CUDA, Windows, `:8095`) | not measured | backend wasn't warm (not in `tray.autostart_models`); starting it costs a cold-load cycle not worth conflating with steady-state numbers in this pass |
-| Kokoro-on-Mac (MLX/CoreML) | not attempted | no ready FluidAudio path found; would need its own CoreML/MLX integration, same scope as the ASR worker |
-| FluidAudio `KokoroAne` / `PocketTTS` | not attempted | present in the FluidAudio library (per its README) but require their own model downloads/integration — out of today's time budget |
-
-**Apple-native TTS finding:** confirms the issue's own expectation — there is
-no supported local "Apple Intelligence" neural TTS API distinct from
-AVFoundation. `say`/`AVSpeechSynthesizer` is the only on-device path, it
-works today with zero setup, and it's a legitimate pragmatic fallback/quick
-option (1.04 s for a ~4.5 s utterance), but nothing here beat or clearly
-complemented Orpheus/Piper enough to warrant enrolling it as a real
-`audio_speech` alternative — it's closer to "already available if ever
-needed" than "measured and chosen."
-
-**Not a complete bake-off.** The interesting comparison — a genuine
-Apple-native/CoreML TTS (KokoroAne, PocketTTS) vs Kokoro-on-the-5060 — is
-still open. Flagging rather than silently dropping it: this needs its own
-follow-up pass once/if the ASR side's custom-vocabulary integration is
-judged worth the additional Mac Mini Swift-engineering investment.
-
-### When to revisit (Mac-ANE specific)
-
-1. ~~Custom-vocabulary boosting gets wired into the worker and closes the
-   "Claude Code" / "YOLO" gaps above.~~ **DISPROVEN 2026-07-24 — see
-   the update at the end of this doc.** The FluidAudio rescorer was wired in
-   and cannot close either gap without corrupting clean dictation; item
-   closed, not deferred.
-2. The Kokoro-on-Mac vs Kokoro-on-5060 TTS comparison actually runs.
-3. The Spanish code-switch finding gets re-tested in isolation (this run was
-   inconclusive — both engines missed it, unlike the Windows-CUDA spike's confident whisper-catches-it
-   result on a differently-sourced clip).
-
----
-
-## Accepted as a selectable alternative
-
-Decided on 2026-07-02, the same day as the Mac Mini ANE spike above.
-
-The NO-GO-for-now call above was a **default-swap** recommendation: don't
-make Parakeet the `audio_transcribe` role's backend, because it would
-regress every caller of that role, including ones (like the "Claude Code"
-wake phrase) that can't tolerate the accuracy loss. That conclusion still
-holds and is unchanged.
-
-What changed is the option space. Building out generic multi-host model
-routing
-— a model can be "owned" by one hub and proxied through any other, with
-start/stop/log/ping all working transparently across machines — made a third
-option available that the original spike didn't consider: enroll Parakeet as
-an **explicitly-selected, non-default** model (`model=parakeet`), reachable
-from either hub, sitting *alongside* whisper-turbo rather than replacing it.
-Callers that need the wake phrase and jargon accuracy keep using the default
-role unchanged; callers that care more about latency than perfect recognition
-(the concrete example: Home Assistant voice commands) can opt in explicitly.
-
-This is a different, lower-risk decision made with full knowledge of the
-measured trade-offs above (dropped wake phrase, "YOLO"→"yellow", narrower
-language coverage) — not a reversal of the accuracy findings themselves, and
-not a call to revisit custom-vocabulary integration (still open, still
-tracked in [When to revisit](#when-to-revisit-mac-ane-specific) above).
-Enrolled together with the multi-host routing work and the Mac
-Mini status indicator;
-`mac/parakeet-worker/` (the Swift FluidAudio package) and
-`src/parakeet_server.py` are now committed to the repo instead of living
-only on the Mac, so the install is reproducible (`python -m src.install
---fix` builds the worker via `swift build -c release`) rather than
-hand-provisioned.
-
-Mac-native TTS (`say`-based `mac_say` model, also scoped in the original
-plan) was **not** built in this pass — deferred, not attempted; the
-`say`/`AVSpeechSynthesizer` measurement above still stands as the reference
-number if it's picked up later.
-
----
-
-## Promoted to the role primary
-
-On 2026-07-22 the part-2 call above — Parakeet opt-in only, whisper-turbo the role
-default — was reversed for the **role default**, not for the accuracy
-findings. `roles.audio.transcribe` is set to `{model_id: parakeet, fallback: [whisper]}`,
-activating the audio-role failover chain: a
-`/v1/audio/transcriptions` call with no `model` (or a role alias, or an
-OpenAI placeholder like `whisper-1`) is served by Parakeet on the Mac ANE,
-and transparently by whisper-turbo when Parakeet is down.
-
-The driver was latency and fleet placement — the cross-host voice benchmark
-measured ~65.8× RTFx on the Mac ANE vs whisper's ~40× on the tower — not a
-change in jargon accuracy: the dropped "Claude Code" wake phrase and
-"YOLO"→"yellow" still hold. Callers that cannot tolerate them address
-whisper explicitly (`model=whisper`), which the hub honours exactly and never
-substitutes. voice-transcriber's dictation client moved onto the hub's role
-the same day.
-
----
-
-## Custom-vocabulary rescorer wired and DISPROVEN
-
-Recorded on 2026-07-24.
-
-[When to revisit](#when-to-revisit-mac-ane-specific) item 1 above — "wire
-custom-vocabulary boosting into the worker and close the 'Claude Code' /
-'YOLO' gaps" — was built end-to-end and **does not work**. The FluidAudio
-rescorer flagged as a "plausible fix" in *Custom vocabulary / term-boosting*
-above cannot recover either failure without corrupting correctly-transcribed
-words. The spike was **not merged**; this section is the durable record.
-No role change: Parakeet stays the `audio_transcribe` primary with
-whisper-turbo as its fallback, and `model=whisper` remains the explicit
-jargon-safe path.
-
-### What was wired
-
-FluidAudio 0.15.4's *only* vocabulary mechanism for the Parakeet TDT 0.6B v3
-model is a **post-hoc CTC rescorer** — there is no decode-time TDT biasing
-hook (`AsrManager.transcribe` takes no vocabulary argument, and
-`SlidingWindowAsrManager` applies the same rescorer *after* decode). The
-worker was extended to run FluidAudio's own `TranscribeCommand.swift`
-reference pipeline: `CustomVocabularyContext.loadWithCtcTokens` (which loads
-a separate ~97 MB CTC-110M encoder — the 0.6B TDT model has no built-in CTC
-head, so Approach 2 is mandatory) → `CtcKeywordSpotter.spotKeywordsWithLogProbs`
-→ `VocabularyRescorer.ctcTokenRescore`, seeded from the hub's existing
-`boost_terms` glossary via `src/parakeet_server.py`'s single loader. It
-builds clean (`swift build -c release`, Swift 6.3.3 / FluidAudio 0.15.4) —
-the `fluidaudiocli` build-timeout noted above never blocked the library
-target the worker depends on.
-
-### Before/after: threshold sweep over the jargon clips
-
-Ran the rescorer against the jargon clips (`jargon_01/02` open with the
-"Claude Code" wake phrase; `jargon_04/06` end with "issue YOLO") at four
-`(context-biasing-weight, min-similarity)` settings, plus an isolating
-two-term run:
-
-| Setting (cbw / minSim) | "Claude Code" drop recovered | "YOLO"→"yellow" recovered | Clean words corrupted |
-| --- | --- | --- | --- |
-| 4.5 / 0.55 (size-default, 28 terms) | ✗ | ✗ | ✗ `mention`→`Notion`, `left, right`→`Playwright`, `tab`→`Tailscale`, `model`→`Codex` |
-| 3.0 / 0.65 | ✗ | ✗ | some remain |
-| 2.0 / 0.72 | ✗ | ✗ | none (general clips clean) |
-| 1.5 / 0.80 | ✗ | ✗ | none |
-| 4.5 / 0.50, vocab = {Claude Code, YOLO} only | ✓ | ✓ | ✗ `so they both mention`→`the YOLO both YOLO`, `side of`→`Claude Code`, `feature to`→`YOLO` |
-
-The result is a hard precision/recall wall: **every false-positive-free
-setting is a no-op on both target failures, and every setting that recovers a
-target simultaneously corrupts correct words.** There is no usable threshold
-in between.
-
-### Root cause
-
-The rescorer only **swaps an existing transcript word** for a vocabulary term
-when that term has both stronger CTC acoustic evidence *and* enough string
-similarity to the word it would replace. It cannot **insert** a token the TDT
-decoder never emitted. That breaks both target cases:
-
-- **"Claude Code" is dropped, not mis-spelled** — the decoder emits an
-  unrelated word ("Yes" / "Yeah") where the phrase was spoken.
-  `similarity("Yes", "Claude Code") ≈ 0`, so no false-positive-safe threshold
-  swaps it in; only recklessly-low thresholds do, and those rewrite unrelated
-  words elsewhere. A dropped phrase is structurally unreachable for a
-  swap-only rescorer.
-- **"YOLO" (4 chars) is gated by the short-word guard** — terms ≤4 chars need
-  ≥0.80 similarity, and `similarity("yellow", "YOLO")` is below that, so
-  FP-safe settings never fire it; permissive settings fire "YOLO" onto
-  unrelated short fragments ("so they", "feature to").
-
-For daily-driver dictation, silently rewriting a correctly-transcribed word
-(`mention`→`Notion`) is worse than a known-absent wake phrase, so no
-permissive setting is shippable — and the FP-safe settings change nothing
-while adding a ~97 MB model load plus per-request CTC inference. Hence
-**not planned**.
-
-### Consequence
-
-- [When to revisit](#when-to-revisit-mac-ane-specific) item 1 is **closed as
-  disproven**, not deferred. Items 2 (Kokoro-on-Mac TTS) and 3 (Spanish
-  code-switch isolation) remain open and untouched by this pass.
-- No change to the `audio_transcribe` role or its glossary: Parakeet stays
-  the primary with whisper-turbo as its fallback. Whisper-turbo
-  already recognizes both "Claude Code" and "YOLO" correctly (see the
-  survival table above), so it remains the jargon-safe path for callers that
-  address it explicitly (`model=whisper`).
-
----
-
-## Parakeet Ultra pre-flight — evaluated (swap applied same day, see below)
-
-Evaluated on 2026-10-02. The 2026-10-01 frontier verdict `runtime_upgrade` for this role calls for a swap of the worker's
-pinned checkpoint from `.v3` to FluidAudio's `.ultra` (Moondream's post-trained,
-drop-in derivative of the same `parakeet-tdt-0.6b-v3`). This pass covers only
-the license check and the pre-flight comparison; **the swap itself was not
-applied in that pass** (it follows in the decision below) and the live worker,
-hub and whisper were not touched while measuring.
-
-**License: CC-BY-4.0, confirmed from the model cards.** The upstream
-`moondream/parakeet-ultra` card has `license: cc-by-4.0` and states "License is
-CC-BY-4.0, same as the original"; the `FluidInference/parakeet-ultra-coreml`
-card (the CoreML build FluidAudio downloads) has `license: cc-by-4.0` and
-"License CC-BY-4.0, as the upstream checkpoint". That matches NVIDIA's
-`parakeet-tdt-0.6b-v3`, so no new terms versus today. CC-BY-4.0 requires
-attribution (NVIDIA as the original author, Moondream for the derivative) —
-carry that credit wherever the model is credited. The FluidAudio release notes
-for v0.17.3 state no license; FluidAudio itself is Apache-2.0.
-
-### How it was measured
-
-A throwaway copy of the worker (FluidAudio 0.17.3, which `.ultra` needs; the
-live worker resolves 0.15.4) was built in a scratch directory on `mac-mini-m4`
-and run by hand, `.v3` and `.ultra` from the same binary, each clip run twice
-(second run timed). Clips: the same 12 dictation clips as the Mac ANE spike
-(556 s, 6 general + 6 jargon, one with an English→Spanish tail), plus 8
-synthetic sentences (4 EN, 4 ES, macOS `say`) with exact known text. WER is
-against the archived transcripts, which are whisper-derived and so favour
-whisper-style output — directional, not absolute, as in the Mac ANE spike. Scratch build,
-clips and the extra model download were removed afterwards; the live v3 cache
-was verified byte-identical before and after.
-
-### Results
-
-| | `.v3` | `.ultra` |
-| --- | --- | --- |
-| WER vs archived refs (12 clips, 1232 words) | 8.85 % | **7.71 %** |
-| Warm inference, 556 s of audio | 2.40 s (232× RT) | 2.09 s (266× RT) |
-| "Claude Code" wake phrase (2 spoken) | 0 / 2 | 0 / 2 |
-| "YOLO" (3 spoken) | 1 / 3 ("yellow" ×2) | 1 / 3 ("yellow" ×2) |
-| "Shift-Tab" (2 spoken) | 0 / 2 ("shift dub") | **2 / 2** |
-| Spanish tail ("muchas gracias") | dropped — output truncated mid-sentence | **recovered** |
-| "PTI" (1 spoken) | **correct** | "PPI" |
-| Synthetic ES, 4 sentences (66 words) | 0 errors | 0 errors |
-| Synthetic EN, 4 sentences (62 words) | 7 errors | 8 errors |
-
-- **No regression on the wake-phrase/jargon axis** (acceptance criterion 2):
-  "Claude Code" is dropped and "YOLO" is mangled to "yellow" exactly as under
-  `.v3`; Ultra was not trained for that gap and does not close it (the custom-vocabulary gap stays
-  open). Net jargon movement is positive (Shift-Tab, "approve") with one
-  regression ("PTI" → "PPI").
-- **Spanish:** on the one real code-switch clip `.v3` stops mid-sentence and
-  `.ultra` transcribes through to the Spanish tail (one clip: suggestive, not
-  proof that it fixes the earlier dropped-tail finding). The clean synthetic ES/EN
-  sentences are saturated (identical text, bar numeral style) and do not
-  discriminate.
-- **Behaviour change to expect:** Ultra writes numerals as digits ("241",
-  "2026", "1st", "8 o'clock") where `.v3` spelled them out. Harmless for
-  dictation; check any downstream consumer that parses the text.
-- **Footprint/latency:** same ANE path; model dir 606 MB vs 461 MB on disk;
-  the first load of `.ultra` was ~25 s including the download (warm loads
-  ~0.3 s). Output was identical across two `.ultra` runs.
-- **Swap implications:** `Package.swift` must raise the FluidAudio lower bound
-  to `0.17.3` (it floors at `0.12.4`; the Mac resolves 0.15.4 today and
-  `Package.resolved` is not tracked) before the pin can move to `.ultra`; the
-  scratch build took ~90 s on Swift 6.3.3.
-
-Recommendation: **go** for the swap on this evidence, with the numeral-style
-change and the attribution requirement noted. The decision and the
-`/swap-model` run remain with the owner.
-
-### Decision: swap applied
-
-Applied on 2026-10-02. The owner approved the swap on the evidence above. The worker's pinned
-checkpoint moved from `.v3` to `.ultra`
-(`mac/parakeet-worker/Sources/ParakeetWorker/main.swift`) and the FluidAudio
-floor in `Package.swift` rose from `0.12.4` to `0.17.3`, which `.ultra` needs.
-`parakeet` stays the model id and the `audio_transcribe` role primary with
-`fallback: [whisper]`; no registry row, role, port or concurrency change, and
-`model=whisper` remains the explicit jargon-safe escape hatch. The wake-phrase /
-jargon gap is unchanged and stays open (see the custom-vocabulary update above). The post-deploy live
-verification is recorded in the swap's closing comment.
-
-**Attribution (CC-BY-4.0).** Parakeet Ultra is a derivative of NVIDIA's
-`parakeet-tdt-0.6b-v3` (NVIDIA, CC-BY-4.0), post-trained by Moondream
-(`moondream/parakeet-ultra`, CC-BY-4.0) and converted to CoreML by FluidInference
-(`FluidInference/parakeet-ultra-coreml`, CC-BY-4.0). The credit is carried in the
-README "License" section.
+NVIDIA's NeMo Parakeet TDT family vs `whisper-large-v3-turbo` as the
+`audio_transcribe` role backend. The live assignment is
+`config/models.yaml` → `roles.audio.transcribe`; this doc records why,
+not what is deployed.
+
+## Current state
+
+- **Role:** `audio_transcribe` primary is Parakeet (`model=parakeet`,
+  served on the Mac Mini's Apple Neural Engine via
+  [FluidInference/FluidAudio](https://github.com/FluidInference/FluidAudio)),
+  with `whisper-large-v3-turbo` (boosted, `:8090`) as the automatic
+  fallback (`{model_id: parakeet, fallback: [whisper]}`). Callers that
+  need the jargon-safe path send `model=whisper` explicitly — the hub
+  honours that and never substitutes.
+- **Checkpoint:** the worker's pinned checkpoint is FluidInference's
+  `.ultra` derivative (`FluidInference/parakeet-ultra-coreml`,
+  post-trained by Moondream from NVIDIA's `parakeet-tdt-0.6b-v3`), not
+  the original `.v3`. `mac/parakeet-worker/` (Swift, FluidAudio) and
+  `src/parakeet_server.py` are committed to the repo; install builds the
+  worker via `swift build -c release`.
+- **Windows+CUDA:** no viable Parakeet path exists there (see
+  [Why Windows+CUDA is out](#why-windowscuda-is-out)) — the role only
+  runs Parakeet on the Mac ANE.
+
+## Why Parakeet is the role primary despite worse jargon accuracy
+
+The driver is latency and fleet placement, not a jargon-accuracy win: a
+cross-host voice benchmark measured ~65.8× RTFx on the Mac ANE vs
+whisper's ~40× on the tower. Parakeet measurably loses the accuracy and
+jargon comparison on this hub's English/Spanish domain-jargon dictation
+workload (both on Windows+CUDA and on the Mac ANE — see below), but
+whisper-turbo stays one HTTP call away as the fallback and the explicit
+`model=whisper` escape hatch, so the role swap trades default-path
+accuracy for default-path latency without removing the accurate path.
+
+## Measured trade-offs
+
+- **Word error rate.** Across two independently-measured sample sets
+  (12 real dictation clips each, English+Spanish domain jargon), whisper
+  consistently beats Parakeet: ~1.6% vs ~6.6% on the Windows+CUDA
+  `.v3` q8_0 GGUF spike, ~3.8% vs ~7.9% on the Mac ANE `.v3` CoreML
+  spike (the latter's reference is itself whisper-derived, which
+  structurally favors whisper — directional, not absolute). The
+  `.ultra` checkpoint narrows this further (8.85% → 7.71% WER vs `.v3`
+  on the same 12 clips) but does not close it.
+- **Jargon/wake-phrase survival — the structural blocker.** Parakeet has
+  no decode-time term-boosting hook (`AsrManager.transcribe` takes no
+  vocabulary argument); whisper has one (`--carry-initial-prompt` seeded
+  from the hub's glossary) and uses it. Both `.v3` and `.ultra` drop the
+  "Claude Code" wake phrase entirely (0/2) and mangle "YOLO" → "yellow"
+  (1/3) — unchanged by the checkpoint swap. A post-hoc CTC rescorer
+  (FluidAudio's `CustomVocabularyContext`/`VocabularyRescorer`) was
+  built and evaluated as a fix and **disproven**: it can only swap an
+  existing transcript word for a boosted term with sufficient acoustic
+  + string similarity, so it cannot insert a dropped phrase or fix a
+  short word ("YOLO") below its similarity guard. Every
+  false-positive-free threshold was a no-op on both target failures,
+  and every threshold that fixed one corrupted unrelated correct words
+  (`mention`→`Notion`, `tab`→`Tailscale`). **Not planned** — do not
+  re-attempt this approach without a decode-time biasing hook instead
+  of a post-hoc rescorer.
+- **Spanish code-switch.** `.v3` drops the Spanish tail ("muchas
+  gracias") on one real code-switch clip; `.ultra` recovers it on that
+  same clip (one clip — suggestive, not confirmed on a larger sample).
+- **Multilingual coverage.** Parakeet's ~25-language coverage is
+  narrower than whisper's 99 — relevant for the hub's ES/CA dictation
+  workload.
+- **Numeral formatting.** `.ultra` writes numerals as digits ("241",
+  "1st") where `.v3` spelled them out — harmless for dictation, but a
+  downstream text consumer parsing transcripts should account for it.
+- **Fleet placement latency.** Routing through the Mac Mini backend over
+  the LAN adds well under whisper's own loopback-CUDA latency on this
+  reference network — a representative round trip measured ~0.30 s
+  total, of which ~0.14 s was engine inference.
+
+## Why Windows+CUDA is out
+
+The runtime that runs fastest on Windows+CUDA (`mudler/parakeet.cpp`,
+ggml, CUDA prebuilt) is CLI-only — no HTTP server, let alone the OpenAI
+`/v1/audio/transcriptions` shape the hub's architecture needs. The one
+ready-made OpenAI-shape Parakeet server (`achetronic/...`) is CPU-only
+and Linux-only, which throws away the speed rationale entirely. Parakeet
+only runs through the hub today on the Mac ANE via FluidAudio, which
+ships a real HTTP server.
+
+## License (CC-BY-4.0 — attribution required)
+
+Parakeet Ultra is a derivative of NVIDIA's `parakeet-tdt-0.6b-v3`
+(NVIDIA, CC-BY-4.0), post-trained by Moondream (`moondream/parakeet-ultra`,
+CC-BY-4.0) and converted to CoreML by FluidInference
+(`FluidInference/parakeet-ultra-coreml`, CC-BY-4.0). The credit is
+carried in the README "License" section. FluidAudio itself is
+Apache-2.0.
+
+## Revisit triggers
+
+- A Parakeet runtime ships a decode-time term-biasing hook (not a
+  post-hoc rescorer) that can insert a dropped phrase or fix a
+  short boosted word — the structural blocker above, not the
+  checkpoint, is what needs to change.
+- A Windows+CUDA Parakeet runtime ships an OpenAI-shape HTTP server out
+  of the box, removing the need for a bespoke wrapper.
+- The Spanish code-switch improvement under `.ultra` gets confirmed on
+  a larger sample than one clip.
+- The workload shifts to long-form, latency-critical, English-only
+  transcription where Parakeet's throughput and clean long-form output
+  (no one-phrase-per-line fragmentation) become decision-relevant over
+  jargon accuracy.
