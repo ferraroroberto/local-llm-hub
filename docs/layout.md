@@ -9,7 +9,7 @@ The structure ratchet (`scripts/structure_ratchet.py`, configured in `.fleet.tom
 | `src/` | The hub: FastAPI routing, backend wrappers, process managers, usage parsers. A new module goes in the subpackage of its domain (`routes/`, `audio/`, `images/`, `fleet/`, `process/`, `usage/`, `diagnostics/`, …), because the flat directory sits just under its 40-module limit. |
 | `app_web/` | The `/admin` sub-app: routers and the static SPA (no bundler). Declared by the shape instead of the scaffold's `app/webapp/`. |
 | `tray/` | The Windows system-tray launcher. Declared by the shape instead of the scaffold's `app/tray/`. |
-| `tests/` | Unit and integration tests, grouped by domain into subfolders (`chat/`, `audio/`, `backends/`, `routers/`, `usage/`, `diagnostics/`, `ratchets/`), with `tests/e2e/` for the Playwright suite. A new test goes in the subfolder of its domain. |
+| `tests/` | Unit and integration tests, grouped by domain into subfolders (`chat/`, `audio/`, `backends/`, `routers/`, `usage/`, `diagnostics/`, `health/`, `ratchets/`), with `tests/e2e/` for the Playwright suite. A new test goes in the subfolder of its domain. |
 | `scripts/` | Gate, ratchets, installers, benchmarks and one-off tools. |
 | `config/` | Committed config, samples and pricing tables. |
 | `launchers/` | Per-model backend launchers (`.bat` and `.sh`). |
@@ -62,6 +62,7 @@ local-llm-hub/
 │   ├── diagnostics_apps.json         # process -> fleet-app attribution rules (committed)
 │   ├── diagnostics_rules.json        # health-verdict thresholds (committed)
 │   ├── diagnostics_settings.json     # retention + scheduled snapshot (gitignored)
+│   ├── health_watch.json             # health-watch thresholds + cadence (committed)
 │   ├── startup_profile.example.json  # template + fresh-clone default for service autostart (services-only)
 │   ├── startup_profile.json          # live service-autostart profile, rewritten by the admin UI (gitignored)
 │   ├── fleet_maintenance.json        # live {host: {until, reason}} reconcile drain markers (gitignored)
@@ -179,6 +180,12 @@ local-llm-hub/
 │   │   ├── report.py             #   summary digest, baseline drift, markdown report
 │   │   ├── ingest.py             #   ingest a portable foreign capture as a run
 │   │   └── settings.py           #   retention + scheduled-snapshot settings
+│   ├── health/               # machine health watch — slow resident sampler, leak/pressure verdict
+│   │   ├── win_probe.py          #   native Windows reads (one-call process table, perf info)
+│   │   ├── sampler.py            #   one sample: system counters + top processes per metric
+│   │   ├── classifier.py         #   pure ok/watch/act/unknown verdict + suggested fix
+│   │   ├── settings.py           #   config/health_watch.json loader + defaults
+│   │   └── watch.py              #   the loop, rolling history, act/cleared alerts
 │   ├── install.py            # first-run checks + --fix
 │   ├── usage_log.py          # vendored usage-log router (admin UI view/tap log)
 │   ├── run_backend.py        # hub|qwen35_4b|gemma4_26b|whisper|… dispatcher
@@ -260,6 +267,7 @@ local-llm-hub/
 │   ├── routers/              # admin /admin/api routers and the auth middleware
 │   ├── usage/                # Code-tab usage parsers, history and OTel receivers
 │   ├── diagnostics/          # machine diagnostics capture, rules, report
+│   ├── health/               # health-watch classifier, leaking-process probe, endpoint
 │   ├── ratchets/             # pre-ship gate stages, e2e routing, static JS lints
 │   └── e2e/                  # Playwright smoke tests (Chromium): tab-level coverage
 │                             #   for Code Usage, Fleet Placement, Machines, Roles, Telemetry;
@@ -301,6 +309,7 @@ local-llm-hub/
     ├── architecture.mmd          # hand-authored internal-structure diagram (CLAUDE.md-bound, same-PR upkeep)
     ├── model-comparison.md       # per-model specs, quantisation, docs links
     ├── diagnostics.md            # on-demand machine diagnostics
+    ├── health-watch.md           # resident leak/pressure watch + restart-or-reboot verdict
     ├── machines.md               # fleet machine inventory + Tailscale identities
     ├── whisper-asr.md            # whisper STT backend: glossary, boosting, tuning
     ├── whisper-turbo-vs-large-v3.md  # whisper model-size decision rationale

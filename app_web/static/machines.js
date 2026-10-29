@@ -10,7 +10,7 @@
  * most one verb (Wake on a down machine, Start hub on a machine whose own hub
  * is down). Tapping a row opens the machine's sheet on a phone, or fills the
  * detail pane beside the list on a wide window; both render machineBody():
- * gauges, Terminal and Remote, connection, the machine's own hub (Sync, the
+ * gauges, the health watch (this machine), Terminal and Remote, connection, the machine's own hub (Sync, the
  * out-of-sync state, Start hub), then Reboot and Shut down last, behind the
  * confirm dialog. The pane header line names "N offline" or the stale age,
  * else the machine count (plus how many are dormant). A dormant machine
@@ -34,6 +34,13 @@ defineInfo('peer-hub', 'Its own hub',
   + 'behind main. When this hub is the stale side, or either side runs work that is not on main, the '
   + 'line under the state says what to do instead. Start hub brings a stopped hub back up. Both run '
   + 'over a restricted remote command.</p>');
+
+defineInfo('health-watch', 'Health watch',
+  '<p>The hub samples this machine every few minutes: per-process handles, memory, GDI/USER objects and '
+  + 'threads, plus commit charge, kernel pools, system handles, ports and disk. A process that keeps '
+  + 'growing over hours, or a counter past its limit, moves the verdict to Watch, then Act.</p>'
+  + '<p>The suggested fix restarts one process before it suggests a reboot. Nothing is restarted for you. '
+  + 'Not confirmed means a probe failed or no fresh sample exists yet, so the machine is not known to be fine.</p>');
 
 // --------------------------------------------------------- fetch + lifecycle
 export async function fetchMachinesStatus() {
@@ -157,9 +164,19 @@ function hubOutOfSync(m) { return !!(m.hub && m.hub.reachable && m.hub.git_sha_m
  * A status without a diagnosis keeps the old rule: offered whenever out of sync. */
 function syncHelps(h) { return h.sync ? !!h.sync.sync_helps : h.git_sha_match === false; }
 
+/* The health watch reports on this machine only; a disabled watch says nothing. */
+function healthOf(m) { return m.health && m.health.enabled ? m.health : null; }
+const HEALTH_CHIPS = {
+  act: { text: 'needs action', tone: 'danger' },
+  watch: { text: 'health watch', tone: 'attention' },
+  unknown: { text: 'health not confirmed', tone: '' },
+};
+
 /* Exceptions only, in the tone map: a healthy machine carries no chip. */
 function exceptionChips(m) {
   const out = [];
+  const health = healthOf(m);
+  if (health && HEALTH_CHIPS[health.verdict]) out.push(HEALTH_CHIPS[health.verdict]);
   if (m.state === 'up' && hubDown(m)) out.push({ text: 'hub down', tone: 'danger' });
   if (hubOutOfSync(m)) out.push({ text: 'out of sync', tone: 'attention' });
   if (m.via_tailscale) out.push({ text: 'via tailnet', tone: 'attention' });
@@ -359,6 +376,34 @@ function hubSection(m) {
     + '</div>';
 }
 
+const HEALTH_WORDS = { ok: 'Fine', watch: 'Watch', act: 'Act', unknown: 'Not confirmed' };
+const HEALTH_TONES = { watch: 'attention', act: 'danger' };
+
+/* The health watch's verdict, every finding, and the suggested fix. Read-only:
+ * the fix is advice, never a button. */
+function healthSection(m) {
+  const h = healthOf(m);
+  if (!h) return '';
+  const tone = HEALTH_TONES[h.verdict] || '';
+  const findings = h.findings || [];
+  const list = findings.length > 1
+    ? '<dl class="sheet-pairs">' + findings.map(function (f) {
+      const t = HEALTH_TONES[f.level];
+      return '<dt>' + escapeHtml(HEALTH_WORDS[f.level] || f.level) + '</dt><dd' + (t ? ' data-tone="' + t + '"' : '') + '>'
+        + escapeHtml(f.reason) + '</dd>';
+    }).join('') + '</dl>'
+    : '<p class="sheet-meta">' + escapeHtml(h.reason || '') + '</p>';
+  const fix = h.fix ? '<p class="sheet-meta" data-machine-health-fix>Suggested: ' + escapeHtml(h.fix) + '</p>' : '';
+  return '<div class="sheet-section machine-health">'
+    + '<div class="sheet-row">' + icon('activity') + '<span class="sheet-row-label">Health</span>'
+    + '<span class="sheet-row-value" data-machine-health' + (tone ? ' data-tone="' + tone + '"' : '') + '>'
+    + escapeHtml(HEALTH_WORDS[h.verdict] || h.verdict) + '</span>'
+    + infoButton('health-watch', 'About the health watch') + '</div>'
+    + list
+    + fix
+    + '</div>';
+}
+
 /* Reboot and Shut down: last, in danger-text, each behind the confirm dialog.
  * Freshness-sensitive (design.md "stale"): never fired against data already
  * known to be out of date, nor while one is in flight or being rechecked. An
@@ -396,6 +441,7 @@ function machineBody(m, isStale, wide, connOpen) {
       : '')
     + '</div>'
     + statsSection(m)
+    + healthSection(m)
     + toolsSection(m, wide)
     + connectionSection(m, connOpen)
     + hubSection(m)

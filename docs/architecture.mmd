@@ -87,6 +87,10 @@ unchanged, no retries, opt-in only"]
     SSHTERM["fleet/ssh_terminal.py\nin-browser SSH terminal: drives\napp-launcher's session-host over loopback"]
     SSHEXEC["fleet/ssh_exec.py\nthe one `ssh <user>@<host> <cmd>` builder:\nBatchMode + ConnectTimeout + accept-new,\nNO_WINDOW spawn; callers adapt the result shape"]
     DIAG["diagnostics/\nsampler (in-hub asyncio task, no resident proc) ·\nattribution (process -> fleet app + ports, per-OS) ·\nrules (health verdict) · coverage (measured vs blind) ·\nreport (summary/drift/md) · store (SQLite) ·\ningest (foreign portable capture)"]
+    HEALTH["health/
+resident watch (asyncio task, sample in a thread
+every 10 min) · win_probe (one-call process table) ·
+classifier (ok/watch/act/unknown + restart-or-reboot fix)"]
     PARAKEETSRV["parakeet_server.py\nOpenAI-shape ASR shim ->\nFluidAudio Parakeet CoreML worker"]
     FLEETREC["fleet/fleet_reconcile.py\nadditive convergence: wake offline can-ssh\nsatellite -> start desired-but-not-running models\n(desired state derived from the registry:\nmodel_registry.desired_placement)"]
     WOL["fleet/wake_on_lan.py\nmagic-packet builder + UDP broadcast\n(true power-on beneath the SSH bootstrap)"]
@@ -122,6 +126,10 @@ unchanged, no retries, opt-in only"]
   WROUT -->|POST diagnostics/ingest| DIAG
   LIFECYCLE -->|close orphan runs + arm scheduled snapshot| DIAG
   DIAG -.reads.-> DIAGCFG
+  LIFECYCLE -->|start health watch loop| HEALTH
+  MACHINECON -->|host card health| HEALTH
+  WROUT -->|GET machines/health| HEALTH
+  HEALTH -.reads.-> HEALTHCFG
   DIAG -.writes.-> DIAGDB
   PORTCAP["scripts/portable_capture.py\nstandalone psutil sampler, SSH-delivered,\nno src/ imports"]
   OPENCLAW -.ssh: run + capture raw JSON.-> PORTCAP
@@ -222,6 +230,8 @@ the hub's only internet egress"]
     MODELSDIR["models/ (gitignored)\nGGUF + whisper weights +\ncomfyui/checkpoints FLUX fp8"]
     USAGEHIST[("data/code_usage_history.json\ndaily usage rollups — outlive\ntranscript pruning")]
     DIAGCFG[("config/diagnostics_apps.json + _rules.json (committed)\nprocess->app attribution + health thresholds;\nconfig/diagnostics_settings.json (gitignored)\nretention + scheduled snapshot")]
+    HEALTHCFG[("config/health_watch.json (committed)
+health-watch thresholds + cadence")]
     DIAGDB[("data/diagnostics.db (gitignored)\nSQLite capture store: runs · samples ·\nprocess_samples · ports · verdicts")]
   end
   REG -.reads.-> MODELSYAML
