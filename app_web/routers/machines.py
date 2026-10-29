@@ -6,6 +6,9 @@ Machines tab.
   * ``GET  /admin/api/machines/dormant`` and ``PUT .../{id}/dormant`` — read
     and set the per-machine dormant flag (intentionally off, #765) behind
     Settings › Machines; the write lands in ``machines.local.yaml`` only.
+  * ``GET  /admin/api/machines/health`` — this machine's health-watch
+    verdict (leaks and pressure, ``ok``/``watch``/``act``/``unknown``) for
+    the Machines view and the launcher.
   * ``GET  /admin/api/machines/self`` — this machine's own detailed snapshot
     (CPU/RAM/GPU/disk/uptime/version). Also fetched cross-host by a peer's
     aggregator, so it rides the normal bearer-token/loopback middleware.
@@ -44,6 +47,7 @@ from starlette.responses import Response
 
 from src import config_write
 from src.fleet import machine_console, remote_bootstrap, ssh_terminal
+from src.health import watch as health_watch
 from src.host_profile import all_hosts, get_host, resolve
 from src.fleet.wake_on_lan import WakeOnLanError, send_wake
 
@@ -64,6 +68,14 @@ async def machine_self() -> Dict[str, Any]:
     """This machine's own detailed snapshot — used for its own card and
     fetched cross-host by a peer's aggregator."""
     return await machine_console.self_snapshot()
+
+
+@router.get("/api/machines/health")
+async def machines_health() -> Dict[str, Any]:
+    """This machine's health-watch verdict (leaks and pressure) with its
+    reasons, suggested fix, top offenders and recent act/cleared alerts.
+    In memory only, so it is cheap to poll."""
+    return {"host_id": resolve().id, **health_watch.WATCH.current()}
 
 
 @router.get("/api/machines/dormant")

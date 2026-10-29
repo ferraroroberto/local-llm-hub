@@ -42,6 +42,16 @@ FAKE_STATUS = {
             "id": "tower", "display_name": "Tower", "icon": "monitor",
             "state": "self", "is_host": True, "runs_hub": True,
             "role": "hub", "actions": {"wake": False}, "hub": None,
+            # The health watch reports a leaking process (invented name).
+            "health": {"enabled": True, "verdict": "act", "sampled_at": 0,
+                       "reason": "leaky.exe at 1.2 M handles, +90 k/h (+1 more)",
+                       "fix": "Restart leaky.exe",
+                       "findings": [
+                           {"level": "act", "kind": "process", "reason": "leaky.exe at 1.2 M handles, +90 k/h",
+                            "fix": "Restart leaky.exe"},
+                           {"level": "watch", "kind": "system", "reason": "System handles 2.4 M, mostly leaky.exe",
+                            "fix": "Restart leaky.exe"},
+                       ]},
         },
         {
             # A reachable peer that advertises wake capability but is UP — the
@@ -187,6 +197,17 @@ def test_no_wake_button_on_up_or_self_machines(phone_page, admin_url, browser):
     sheet.locator('[data-machine-action="reboot"]').click()
     page.wait_for_selector("#machinesConfirmDialog[open]", timeout=5000)
     page.click("#machinesConfirmCloseBtn")
+    page.click("#machineSheetCloseBtn")
+
+    # This machine's health watch: a danger chip on the row, and the sheet's
+    # Health section lists every finding with the suggested fix.
+    host = _row(page, "tower")
+    assert host.locator(".chip").inner_text() == "needs action"
+    host.locator(".action-row-main").click()
+    page.wait_for_selector("#machineSheet[open]", timeout=5000)
+    assert sheet.locator("[data-machine-health]").inner_text() == "Act"
+    assert "System handles 2.4 M" in sheet.locator(".machine-health").inner_text()
+    assert sheet.locator("[data-machine-health-fix]").inner_text() == "Suggested: Restart leaky.exe"
     page.click("#machineSheetCloseBtn")
 
     # The down hub peer's sheet offers Start hub (bootstrap) instead of Sync.

@@ -26,6 +26,7 @@ NON_SPA_CALLERS = {
     "/api/hub/errors/recent": "hub_log reading the error ring",
     "/api/telemetry/recent": "request-ring regression tests (the OBS ring contract)",
     "/api/machines/self": "machine_console self snapshot for peer hubs",
+    "/api/machines/health": "app-launcher's machine-health display (docs/health-watch.md)",
     "/api/fleet-maintenance": "fleet-maintenance CLI and peer hubs (docs/fleet-maintenance.md)",
     "/api/fleet-maintenance/{host_id}": "fleet-maintenance CLI and peer hubs (docs/fleet-maintenance.md)",
     "/api/fleet-placement/reconcile": "operator/CLI-triggered reconcile (docs/multi-host.md)",
