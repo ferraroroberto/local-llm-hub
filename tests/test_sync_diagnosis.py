@@ -12,6 +12,7 @@ import subprocess
 import pytest
 
 from src.fleet import sync_diagnosis as sd
+from src.no_window import NO_WINDOW
 
 # Linear history a <- b <- c <- d (d newest); "x" forks off b.
 _LINE = ["a", "b", "c", "d"]
@@ -140,7 +141,10 @@ def test_running_build_missing_from_checkout_is_unknown():
 
 # ---------------------------------------------------------------- git binding
 def _git(root, *args):
-    subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "-C", str(root), *args], check=True, capture_output=True, text=True,
+        creationflags=NO_WINDOW,
+    )
 
 
 @pytest.fixture()
