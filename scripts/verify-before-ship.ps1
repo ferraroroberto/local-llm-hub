@@ -38,8 +38,13 @@
 #      logging-not-print, no-drive-path) rises beyond .conventions-ratchet-baseline.json.
 #      Whole tree, never routed; exit 3 (git unusable, a file that does not parse)
 #      fails.
-#   10. `pytest -q` (unit tests, no GPU / no real CLIs)
-#   11. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
+#   10. mmd history check (repo-specific, not vendored): no docs/**/*.mmd diagram
+#      carries a #NNN issue reference -- the vendored docs ratchet only scans
+#      .md files, so a hand-authored diagram is otherwise a blind spot for the
+#      same "history belongs in git/issues, not docs" convention. Zero-tolerance,
+#      no baseline; exit 3 (a file could not be read) fails.
+#   11. `pytest -q` (unit tests, no GPU / no real CLIs)
+#   12. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
 #      the .fleet.toml [e2e] rules): nothing for a docs/backend-only diff, a
 #      smoke target or one surface's slice for a narrow one, otherwise
 #      `pytest tests/e2e -q --browser chromium --junitxml=data/e2e-junit.xml`.
@@ -124,6 +129,15 @@ Step "conventions ratchet" {
     # (git unusable, a file that does not parse) is a failure here, never a pass
     # or a skip.
     & $Python scripts/conventions_ratchet.py
+}
+
+Step "mmd history check" {
+    # Repo-specific, not vendored: docs_ratchet.py (vendored) only scans .md
+    # files by its own suffix check, so a hand-authored .mmd diagram never
+    # gets the "no issue references" convention applied to it. Same Step
+    # semantics as the ratchets above: exit 3 (a file could not be read) is a
+    # failure here, never a pass or a skip.
+    & $Python scripts/mmd_history_check.py
 }
 
 Step "pytest (unit)" {

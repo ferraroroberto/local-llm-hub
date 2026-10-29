@@ -14,8 +14,9 @@ they want; ask. Plan-mode rules apply throughout.
 - **Never** delete or overwrite `models/*` weights without explicit
   user confirmation in this session. (Adding new weights via
   `scripts/download_models.py` is fine after they confirm.)
-- The four valid local roles are: `agentic_light`, `agentic_heavy`,
-  `audio.transcribe`, `audio.translate`. Anything else is out of scope.
+- The five valid local roles are: `agentic_light`, `agentic_heavy`,
+  `audio.transcribe`, `audio.translate`, `audio.speech`. Anything else is
+  out of scope.
 - Edit `config/models.yaml` as text (or with surgical replacements).
   Do **not** round-trip the whole file through `yaml.safe_dump` — it
   will strip the heavy in-line commenting that documents each entry.
@@ -27,7 +28,10 @@ they want; ask. Plan-mode rules apply throughout.
   `retire`, the role alias **must move** from the ex-incumbent row to
   the new role-holder's row in the same edit. Leaving it on the
   ex-incumbent silently keeps clients pointed at the old model after
-  the swap. Audio roles do not currently use this pattern.
+  the swap. `audio.speech` follows the same rule: the `piper` row
+  carries the `audio_speech` alias today, and an `upgrade`/`retire`
+  of that role must move it to the new holder's row. `audio.transcribe`
+  and `audio.translate` do not currently use this pattern.
 - After every `upgrade` or `retire` action, **the swap is not done
   until the rest of the repo agrees with the new role pointer**.
   README, `docs/model-comparison.md`, and the tests that name the
@@ -390,10 +394,11 @@ confirm before stopping anything they might still be using.
   rather than writing a dated changelog file.
 
 Do **not** edit the `claude` row. Do **not** restart or edit the
-tray (its autostart list was already updated in §5; the change takes
-effect on next tray boot, which the user controls). Do **not**
-restart the hub unless step 6 surfaced a routing bug that genuinely
-requires it.
+tray — model autostart is not a tray concern; the tray reads each
+model's `startup: eager`/`on_demand` key straight from
+`config/models.yaml` on its next boot, which the user controls. Do
+**not** restart the hub unless step 6 surfaced a routing bug that
+genuinely requires it.
 
 ## What success looks like
 

@@ -70,8 +70,8 @@ machine's GPU changes.
 2026-07-21 (Secure Boot off, DKMS built against the running HWE kernel), so its
 Machines-tab card now renders a live GPU gauge alongside CPU/RAM/disk. Until
 then the box ran only `nouveau` with no `nvidia-smi`, which is why the GPU gauge
-was absent. The STT/TTS model offload itself is still deferred
-(replica-first) — the driver is prerequisite groundwork, not the migration.
+was absent. Current STT/TTS placement across hosts is
+[`config/models.yaml`](../config/models.yaml)'s alone.
 
 ## Wake-on-LAN
 
@@ -180,14 +180,11 @@ boxes):
   ethernet went live 2026-07-23 and is now the only routine link; the dongle
   stays plugged as a parked manual fallback (`autoconnect no`). If it must
   carry a bulk transfer again, use the burst+bounce pattern from that dongle-collapse test.
-- **`gaming` serves all four whisper voice backends** —
-  `whisper` (STT, transcribe-role fallback; ~9.1 RTFx) and `orpheus` (TTS,
-  explicit-model; ~2× real-time) moved there first; `whisper_translate`
-  (translate-role, CPU-only) and `whisper_vanilla` (unbiased auto-detect,
-  GPU/lazy) joined later, so **tower carries no whisper backends at all**.
-  All four run under the systemd-supervised hub on `:8000`, CUDA-built for
-  the GTX 1070 (`sm_61`) where applicable. The tower proxies all of them
-  transparently and keeps its VRAM for the agentic lanes.
+- **`gaming` runs under a systemd-supervised hub on `:8000`, CUDA-built for
+  the GTX 1070 (`sm_61`) where applicable.** Current per-host model placement
+  (which STT/TTS backends each box owns or cross-enables) is
+  [`config/models.yaml`](../config/models.yaml)'s alone — see each row's
+  `host:`/`hosts:` and the per-host `enabled:` list there, not here.
 - **`gaming`'s torch must come from the cu126 wheel index**: PyTorch
   dropped Pascal (`sm_61`) kernels from cu128+ builds, so a default
   `pip install torch` silently yields a CUDA-blind torch and orpheus's SNAC

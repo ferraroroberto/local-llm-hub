@@ -2,10 +2,12 @@
 
 Split out like ``server_images.py``/``server_audio_asr.py`` so ``server.py``'s
 routing core stays readable. Mounted directly on the main hub app (not the
-``/admin`` sub-app), unauthenticated — same posture as the existing
-``/v1/messages``/``/v1/chat/completions`` routes: this is a personal-
-localhost hub, and any client that can already reach the hub's other
-unauthenticated model-routing surface can reach this one too.
+``/admin`` sub-app) — same posture as the existing ``/v1/messages``/
+``/v1/chat/completions`` routes: ``ParentBearerTokenMiddleware``
+(``app_web/middleware.py``) lets a loopback caller through and gates every
+other caller behind the bearer token or an ``extra_allowlist`` match, so any
+client trusted to reach the hub's other model-routing surface can reach this
+one too.
 
 The only consumer today is Claude Code's own OTel export
 (``CLAUDE_CODE_ENABLE_TELEMETRY=1`` + ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT``
