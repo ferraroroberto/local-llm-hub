@@ -30,8 +30,10 @@ let pollHandle = null;
 defineInfo('peer-hub', 'Its own hub',
   '<p>This machine runs its own copy of the hub. Its diagnostics capture runs inside that hub, '
   + 'so open that machine’s admin to start a capture or read its runs.</p>'
-  + '<p>Sync updates that hub to this hub’s build and restarts it. Start hub brings a stopped '
-  + 'hub back up. Both run over a restricted remote command.</p>');
+  + '<p>Sync updates that hub to the latest main and restarts it, so it is offered only when that hub is '
+  + 'behind main. When this hub is the stale side, or either side runs work that is not on main, the '
+  + 'line under the state says what to do instead. Start hub brings a stopped hub back up. Both run '
+  + 'over a restricted remote command.</p>');
 
 // --------------------------------------------------------- fetch + lifecycle
 export async function fetchMachinesStatus() {
@@ -48,8 +50,9 @@ export async function fetchMachinesStatus() {
     // The re-render replaced the Diagnostics row, so its meta line needs
     // repainting from its own (cheap) read.
     refreshDiagnosticsChip();
+    return body;
   } catch (exc) {
-    if (isAuthError(exc)) return;
+    if (isAuthError(exc)) return null;
     if (state.machinesStatus) {
       // Good data exists from an earlier fetch — stale, not error (design.md:
       // preserve + label last-known content, disable freshness-sensitive
@@ -62,6 +65,7 @@ export async function fetchMachinesStatus() {
       state.machinesErrorMsg = 'Could not read machine status.';
     }
     renderMachines();
+    return null;
   }
 }
 
@@ -149,6 +153,9 @@ function leadFor(m) {
 
 function hubDown(m) { return !!(m.hub && !m.hub.reachable); }
 function hubOutOfSync(m) { return !!(m.hub && m.hub.reachable && m.hub.git_sha_match === false); }
+/* Sync can close the gap only when the diagnosis says the peer is behind main.
+ * A status without a diagnosis keeps the old rule: offered whenever out of sync. */
+function syncHelps(h) { return h.sync ? !!h.sync.sync_helps : h.git_sha_match === false; }
 
 /* Exceptions only, in the tone map: a healthy machine carries no chip. */
 function exceptionChips(m) {
@@ -329,7 +336,15 @@ function hubSection(m) {
     ? '<dl class="sheet-pairs"><dt>This hub</dt><dd>' + escapeHtml(h.local_git_sha || '?') + '</dd>'
       + '<dt>That hub</dt><dd data-tone="attention">' + escapeHtml(h.remote_git_sha || '?') + '</dd></dl>'
     : '';
-  const action = h.reachable
+  const reason = h.reachable && h.git_sha_match !== true && h.sync && h.sync.reason
+    ? '<div class="sheet-row"><span class="sheet-row-label" data-machine-hub-reason'
+      + (h.git_sha_match === false ? ' data-tone="attention"' : '') + '>' + escapeHtml(h.sync.reason) + '</span></div>'
+    : '';
+  // In sync or not compared keeps Sync as a manual refresh; a known mismatch
+  // that Sync cannot close offers no button, since pressing it would change nothing.
+  const action = h.reachable && h.git_sha_match === false && !syncHelps(h)
+    ? ''
+    : h.reachable
     ? '<button type="button" class="button-tint" data-machine-action="sync"' + (busy ? ' disabled' : '') + '>'
       + icon('refresh-cw') + '<span>' + (busy ? 'Syncing…' : 'Sync') + '</span></button>'
     : '<button type="button" class="button-tint" data-machine-action="bootstrap"' + (busy ? ' disabled' : '') + '>'
@@ -339,7 +354,8 @@ function hubSection(m) {
     + '<span class="sheet-row-value"' + (tone ? ' data-tone="' + tone + '"' : '') + '>' + escapeHtml(value) + '</span>'
     + infoButton('peer-hub', 'About this machine’s own hub') + '</div>'
     + ids
-    + '<div class="sheet-row">' + action + '</div>'
+    + reason
+    + (action ? '<div class="sheet-row">' + action + '</div>' : '')
     + '</div>';
 }
 
@@ -617,8 +633,10 @@ async function wakeMachine(id, displayName) {
 }
 
 // --------------------------------------------------------- peer hub
-/* Start a peer's stopped hub (bootstrap) or update it to this hub's build and
- * restart it (sync) — the same endpoints the Hub tab's peer rows call. */
+/* Start a peer's stopped hub (bootstrap) or update it to the latest main and
+ * restart it (sync) — the same endpoints the Hub tab's peer rows call. A sync
+ * is reported by its outcome, not its request: the status is re-read and the
+ * toast says whether the hubs now match, and if not, why. */
 async function peerHubAction(id, displayName, action) {
   if (state.machinesHubBusyIds[id]) return;
   state.machinesHubBusyIds = Object.assign({}, state.machinesHubBusyIds);
@@ -626,7 +644,14 @@ async function peerHubAction(id, displayName, action) {
   renderMachines();
   try {
     await postJson('/admin/api/hosts/' + encodeURIComponent(id) + '/' + action, {});
-    toast(displayName + (action === 'sync' ? ' hub synced.' : ' hub started.'), 'good');
+    if (action === 'sync') {
+      const body = await fetchMachinesStatus();
+      const fresh = body && (body.machines || []).find(function (x) { return x.id === id; });
+      const kind = fresh && fresh.hub && fresh.hub.sync && fresh.hub.sync.kind;
+      toast(syncOutcome(fresh, displayName), kind === 'in_sync' ? 'good' : 'error');
+    } else {
+      toast(displayName + ' hub started.', 'good');
+    }
   } catch (exc) {
     if (isAuthError(exc)) return;
     toast((action === 'sync' ? 'Sync' : 'Start hub') + ' failed on ' + displayName + '.', 'error');
@@ -636,6 +661,16 @@ async function peerHubAction(id, displayName, action) {
     state.machinesHubBusyIds = next;
     fetchMachinesStatus();
   }
+}
+
+/* The sentence a finished Sync toasts: in sync now, still out of sync and why,
+ * or not confirmed when the re-read could not compare the builds. */
+function syncOutcome(m, displayName) {
+  const sync = m && m.hub && m.hub.sync;
+  if (!sync) return displayName + ' hub synced; the builds were not re-checked.';
+  if (sync.kind === 'in_sync') return displayName + ' hub is in sync.';
+  if (sync.kind === 'unknown') return displayName + ' hub synced; not confirmed. ' + sync.reason;
+  return displayName + ' hub is still out of sync. ' + sync.reason;
 }
 
 // --------------------------------------------------------- wiring

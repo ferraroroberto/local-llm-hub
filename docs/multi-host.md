@@ -87,7 +87,16 @@ when reachable → `.../sync`, which `git pull --ff-only`s that peer's
 checkout before restarting it — the Linux dispatcher, `linux/bin/hub-remote-ctl.sh`,
 gives `gaming` the same two verbs). An **out-of-sync** badge
 appears on a peer's row when the two hubs' `git_sha` (from
-`/admin/api/version`) differ — `sync` is the fix.
+`/admin/api/version`) differ. The sheet then says *why*, because `sync` only
+moves a peer to `origin/main` and so closes just one of the causes.
+`src/fleet/sync_diagnosis.py` resolves both served builds against this hub's own
+checkout and `origin/main` (one `git fetch` per five minutes at most) and names
+the case: this hub runs an older build than its checkout (restart this hub), this
+hub's checkout is behind main (pull and restart here), the peer is behind main
+(**Sync** is offered), the peer is ahead of main, or either side runs work that is
+not on main (neither fixes it). A build id or `origin/main` that cannot be
+resolved reads as *not confirmed*, never as a cause, and offers no Sync. After a
+Sync the status is re-read and the toast reports whether the hubs now match.
 
 Automatic peer wake/sync on the tower's own boot is not a separate
 per-service toggle; it is owned entirely by the **fleet reconcile loop**

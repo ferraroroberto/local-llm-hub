@@ -71,8 +71,8 @@ A down machine with a MAC shows a **Wake** (power) icon-button on the row; a rea
 own hub is down shows **Start hub**. Tapping a row opens the machine's sheet on
 a phone, or fills the detail pane beside the list on a wide window (1100px+,
 mouse): the gauges, **Terminal** and **Remote**, the **Connection** row, the
-machine's own **Hub** (state, both builds when they differ, **Sync** or
-**Start hub**), then **Reboot** and **Shut down** last, behind a confirm. The
+machine's own **Hub** (state, both builds and the reason when they differ,
+**Sync** only when it can close the gap, or **Start hub**), then **Reboot** and **Shut down** last, behind a confirm. The
 header line names *N offline* or the stale age, else the machine count, and
 **Diagnostics** is its own row under the list (this machine only). The shared
 row, chip, header line, ⓘ info sheet and wide-window primitives live in
