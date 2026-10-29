@@ -26,7 +26,7 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
-from src.fleet import remote_stats
+from src.fleet import remote_stats, sync_diagnosis
 from src import system_stats
 from src.host_profile import HostProfile, all_hosts, resolve
 from src.process.server_process import lan_ip
@@ -126,7 +126,10 @@ def _hub_facts_down(host: HostProfile) -> Optional[Dict[str, Any]]:
     machine that runs no hub of its own."""
     if not host.enabled:
         return None
-    return {"reachable": False, "git_sha_match": None, "local_git_sha": None, "remote_git_sha": None}
+    return {
+        "reachable": False, "git_sha_match": None, "local_git_sha": None, "remote_git_sha": None,
+        "sync": None,
+    }
 
 
 async def _hub_facts(host: HostProfile) -> Optional[Dict[str, Any]]:
@@ -142,12 +145,25 @@ async def _hub_facts(host: HostProfile) -> Optional[Dict[str, Any]]:
         "peer hub %s: reachable=%s sha_match=%s",
         host.id, health.get("reachable"), health.get("git_sha_match"),
     )
-    return {
-        "reachable": bool(health.get("reachable")),
+    reachable = bool(health.get("reachable"))
+    facts: Dict[str, Any] = {
+        "reachable": reachable,
         "git_sha_match": health.get("git_sha_match"),
         "local_git_sha": health.get("local_git_sha"),
         "remote_git_sha": health.get("remote_git_sha"),
+        "sync": None,
     }
+    if reachable:
+        # Which side is behind and whether Sync can close it: only worth the
+        # git work for a peer that answered.
+        facts["sync"] = await asyncio.to_thread(
+            sync_diagnosis.diagnose,
+            peer_name=host.display_name or host.id,
+            git_sha_match=facts["git_sha_match"],
+            local_running=facts["local_git_sha"],
+            peer_running=facts["remote_git_sha"],
+        )
+    return facts
 
 
 async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:

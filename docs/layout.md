@@ -113,6 +113,7 @@ local-llm-hub/
 │   │   ├── ssh_terminal.py           #   in-browser SSH terminal, reusing app-launcher's session-host PTY
 │   │   ├── ssh_exec.py               #   the one `ssh <user>@<host> <cmd>` builder (remote_stats + remote_bootstrap)
 │   │   ├── wake_on_lan.py            #   Wake-on-LAN magic-packet builder/sender
+│   │   ├── sync_diagnosis.py         #   why a peer hub is out of sync with this one + whether Sync can fix it
 │   │   ├── fleet_reconcile.py        #   additive reconcile loop: wake + start registry-desired models
 │   │   └── fleet_maintenance.py      #   config/fleet_maintenance.json load/save — reconcile drain markers
 │   ├── process/              # backend + hub process management

@@ -54,7 +54,9 @@ FAKE_STATUS = {
             "ip": "192.0.2.10", "mac": "02:00:00:00:00:01",
             "actions": {"wake": True, "reboot": True, "shutdown": True, "ssh_terminal": True, "rdp": True},
             "hub": {"reachable": True, "git_sha_match": False,
-                    "local_git_sha": "aaa1111", "remote_git_sha": "bbb2222"},
+                    "local_git_sha": "aaa1111", "remote_git_sha": "bbb2222",
+                    "sync": {"kind": "peer_behind", "sync_helps": True,
+                             "reason": "Desktop is 2 commits behind main. Sync updates it."}},
         },
         {
             # A powered-off, MAC-equipped peer whose hub is down too — the row
@@ -176,6 +178,7 @@ def test_no_wake_button_on_up_or_self_machines(phone_page, admin_url, browser):
     sheet = page.locator("#machineSheetBody")
     assert "Out of sync" in sheet.inner_text()
     assert "aaa1111" in sheet.inner_text() and "bbb2222" in sheet.inner_text()
+    assert "Desktop is 2 commits behind main" in sheet.locator("[data-machine-hub-reason]").inner_text()
     assert sheet.locator('[data-machine-action="sync"]').count() == 1
     # Reboot and Shut down are the last rows, and Reboot opens the confirm.
     actions = sheet.locator("[data-machine-action]").evaluate_all(
@@ -261,3 +264,62 @@ def test_address_and_mac_render_as_code(phone_page, admin_url):
     codes = sheet.locator(".sheet-disclosure code").all_inner_texts()
     assert codes.count("192.0.2.10") == 2, codes  # the row value and the Address pair
     assert "02:00:00:00:00:01" in codes, codes
+
+
+def _hub_status(sync, match=False):
+    """A one-peer status whose hub block carries ``sync``."""
+    return {"machines": [{
+        "id": "desktop", "display_name": "Desktop", "icon": "monitor",
+        "state": "up", "is_host": False, "runs_hub": True, "role": "peer",
+        "uptime_seconds": 60, "ip": "192.0.2.10", "actions": {},
+        "hub": {"reachable": True, "git_sha_match": match,
+                "local_git_sha": "aaa1111", "remote_git_sha": "bbb2222", "sync": sync},
+    }]}
+
+
+def test_sync_is_offered_only_when_it_can_help_and_reports_the_outcome(phone_page, admin_url):
+    """A stale local hub gets its reason and no Sync button; a peer behind main
+    gets Sync, and after it runs the status is re-read and the toast says
+    whether the hubs now match."""
+    page = phone_page
+    current = {"body": _hub_status({
+        "kind": "restart_local", "sync_helps": False,
+        "reason": "This hub is running an older build than its own checkout. Restart this hub."})}
+    page.route(
+        "**/admin/api/machines/status",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(current["body"])),
+    )
+    page.route(
+        "**/admin/api/hosts/desktop/sync",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps({"ok": True})),
+    )
+    page.goto(admin_url, wait_until="load")
+    page.click("#tabMachines")
+    page.wait_for_selector(".machine-row", state="visible", timeout=15000)
+    _row(page, "desktop").locator(".action-row-main").click()
+    page.wait_for_selector("#machineSheet[open]", timeout=5000)
+    sheet = page.locator("#machineSheetBody")
+
+    assert "Restart this hub" in sheet.locator("[data-machine-hub-reason]").inner_text()
+    assert sheet.locator('[data-machine-action="sync"]').count() == 0
+
+    # The next poll finds the peer behind main: Sync appears, and running it
+    # lands on an in-sync re-read.
+    current["body"] = _hub_status({
+        "kind": "peer_behind", "sync_helps": True,
+        "reason": "Desktop is 1 commit behind main. Sync updates it."})
+    page.reload(wait_until="load")
+    page.click("#tabMachines")
+    page.wait_for_selector(".machine-row", state="visible", timeout=15000)
+    _row(page, "desktop").locator(".action-row-main").click()
+    page.wait_for_selector("#machineSheet[open]", timeout=5000)
+    sync_btn = sheet.locator('[data-machine-action="sync"]')
+    sync_btn.wait_for(timeout=5000)
+
+    current["body"] = _hub_status({"kind": "in_sync", "sync_helps": False, "reason": "Both hubs run the same build."}, match=True)
+    sync_btn.click()
+    toast = page.locator("#toast")
+    toast.wait_for(state="visible", timeout=5000)
+    assert "Desktop hub is in sync" in toast.inner_text()

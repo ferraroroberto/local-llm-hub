@@ -335,11 +335,21 @@ def test_probe_machine_hub_peer_carries_build_identity_without_error_text(monkey
 
     monkeypatch.setattr(mc.remote_stats, "located_address", _reachable)
     monkeypatch.setattr(mc.remote_stats, "collect", _fake_collect)
+    seen = {}
+
+    def _fake_diagnose(**kw):
+        seen.update(kw)
+        return {"kind": "peer_behind", "reason": "behind", "sync_helps": True}
+
     monkeypatch.setattr(mc.remote_stats, "peer_health", _fake_health)
+    monkeypatch.setattr(mc.sync_diagnosis, "diagnose", _fake_diagnose)
     card = _run(mc._probe_machine(get_host("mac-mini-m4"), "tower"))
     assert card["runs_hub"] is True
     assert card["hub"] == {"reachable": True, "git_sha_match": False,
-                           "local_git_sha": "aaa1111", "remote_git_sha": "bbb2222"}
+                           "local_git_sha": "aaa1111", "remote_git_sha": "bbb2222",
+                           "sync": {"kind": "peer_behind", "reason": "behind", "sync_helps": True}}
+    assert seen["git_sha_match"] is False
+    assert (seen["local_running"], seen["peer_running"]) == ("aaa1111", "bbb2222")
 
 
 def test_probe_machine_down_hub_peer_reports_hub_down_without_probing(monkeypatch):
@@ -355,7 +365,7 @@ def test_probe_machine_down_hub_peer_reports_hub_down_without_probing(monkeypatc
     monkeypatch.setattr(mc.remote_stats, "peer_health", _no_health)
     card = _run(mc._probe_machine(get_host("mac-mini-m4"), "tower"))
     assert card["hub"] == {"reachable": False, "git_sha_match": None,
-                           "local_git_sha": None, "remote_git_sha": None}
+                           "local_git_sha": None, "remote_git_sha": None, "sync": None}
 
 
 def test_probe_machine_managed_only_peer_has_no_hub_block(monkeypatch):
