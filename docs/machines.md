@@ -62,8 +62,9 @@ The `est_vram_mb` estimates are engineering approximations (weights quant + KV
 cache + any CPU-offload), each documented inline in `config/models.yaml`; they
 are deliberately static, not live telemetry (exact live VRAM accounting was
 explicitly out of scope). CPU-only backends (`whisper_translate`,
-`piper`), off-GPU paths (`parakeet` on the Mac ANE), and virtual aliases are
-`0`. Keep both the prose Hardware column and these fields in sync when a
+`piper`) and virtual aliases are `0`. On the Mac (unified memory, no `vram_mb`)
+the field is the RAM footprint, so `parakeet` on the ANE carries its measured
+value, which the grid sums against the host's `ram_mb`. Keep both the prose Hardware column and these fields in sync when a
 machine's GPU changes.
 
 `gaming`'s NVIDIA proprietary driver (`nvidia-driver-535`) was installed

@@ -187,10 +187,13 @@ hosts:
 # estimate in MB — enough for the placement grid to flag a host overcommit
 # (sum of a host's placed models vs its `vram_mb` ceiling), NOT live telemetry.
 # Each value carries a one-line rationale next to it (weights quant + KV + any
-# CPU-offload). CPU-only backends (whisper_translate, piper) and off-GPU paths
-# (parakeet on the Mac ANE, virtual aliases sharing another backend) are 0 —
-# they cost RAM/ANE, not discrete VRAM. Subscription rows (claude/gemini) have
-# no field at all. A row with no `est_vram_mb` contributes 0 to the sum.
+# CPU-offload). On a unified-memory host (the Mac Mini, no `vram_mb`) the field
+# is the row's RAM footprint — the grid sums it against that host's `ram_mb` —
+# so ANE/CoreML backends there (parakeet) carry a real, measured value. Only
+# CPU-only rows on a discrete-GPU host (whisper_translate, piper) and virtual
+# aliases sharing another backend's process are 0. Subscription rows
+# (claude/gemini) have no field at all. A row with no `est_vram_mb`
+# contributes 0 to the sum.
 #
 # --- On-demand lifecycle (issue #422) ---
 # A row may declare `startup: on_demand` (default `eager` — always-on, the
@@ -887,8 +890,11 @@ models:
     host: mac-mini-m4  # owning host (#178) — cross-enabled on tower below
     port: 8098
     aliases: ["parakeet"]
-    # Runs on the Mac's ANE via CoreML (unified memory), not discrete GPU VRAM.
-    est_vram_mb: 0
+    # Unified-memory footprint on the Mac while serving one transcription,
+    # measured with `footprint` (~684 MB): ~45 MB server + ~32 MB worker + ~607 MB
+    # CoreML weights held as ANE-owned "neural" memory. Process RSS (~157 MB)
+    # misses the neural share, so it is not the figure to use.
+    est_vram_mb: 700
 
   # --- Local Chatterbox TTS (Resemble AI) — OpenAI /v1/audio/speech ---
   # The inverse of the whisper STT pair: text -> speech. Served by the
