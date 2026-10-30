@@ -281,3 +281,9 @@ def test_load_aliases_tolerates_bare_list_and_bad_files(tmp_path):
     broken.write_text("{not json", encoding="utf-8")
     assert load_aliases(str(broken)) == []
     assert load_aliases(str(tmp_path / "missing.json")) == []
+
+
+def test_backslash_in_replacement_stays_literal():
+    # A saved rule with a backslash must not be parsed as a re.sub template.
+    rules = _rules([("dev drive", r"C:\Dev\n")])
+    assert apply_rules("open the dev drive now", rules) == r"open the C:\Dev\n now"

@@ -61,6 +61,32 @@ class ChatCompletionRequest(BaseModel):
     chat_template_kwargs: Optional[Dict[str, Any]] = None
 
 
+def _reject_unservable_on_cli_backend(model: Model, req: ChatCompletionRequest) -> None:
+    """400 when an OpenAI-shape request asks a CLI row for what it cannot serve.
+
+    ``claude`` / ``gemini`` rows flatten the conversation into one text prompt,
+    so ``tools``, ``tool_choice`` and ``response_format`` have nowhere to go;
+    dropping them would answer in prose a caller that asked for a tool call or
+    a JSON schema - the refusal ``/v1/messages`` already makes.
+    """
+    unsupported = [
+        name
+        for name in ("tools", "tool_choice", "response_format")
+        if getattr(req, name)
+    ]
+    if not unsupported:
+        return
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            f"backend {model.id!r} ({model.display_name}) cannot serve "
+            f"{', '.join(repr(n) for n in unsupported)}: the CLI backends "
+            "flatten a conversation into a single text prompt. Route the "
+            "request to a local openai-backend model instead."
+        ),
+    )
+
+
 @dataclass
 class _ErrorLabel:
     """The ring/metrics error label a failing request is recorded under."""
@@ -408,6 +434,11 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
     telemetry = {"span": span, "client_id": client_id, "start_ns": start_ns}
     try:
         if model.backend in ("claude", "gemini"):
+            try:
+                _reject_unservable_on_cli_backend(model, req)
+            except HTTPException:
+                label.value = "http_400"
+                raise
             return _complete_via_cli(model, req, label, **telemetry)
 
         reject = reject_non_chat_backend(model, req.model)
