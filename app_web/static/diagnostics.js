@@ -16,6 +16,7 @@ import { jsonApi, postJson, putJson, api, toast, escapeHtml, fmtDuration, isAuth
 import { icon } from './_vendored/icons/icons.js';
 import { setSwitch } from './_vendored/switch/switch.js';
 import { chip } from './rows.js';
+import { confirmDialog } from './confirm_dialog.js';
 
 const POLL_MS = 5000;
 let pollHandle = null;
@@ -522,11 +523,7 @@ async function markBaseline() {
   }
 }
 
-// Delete shares the Machines confirm dialog (a vendored modal, never the
-// browser's confirm()) — the same pattern models.js uses for Force stop.
-let pendingDeleteRun = null;
-
-function deleteRun() {
+async function deleteRun() {
   const runId = state.diagSelectedRun;
   if (!runId) return;
   const run = (state.diagRuns || []).find(function (r) { return r.run_id === runId; }) || {};
@@ -534,21 +531,12 @@ function deleteRun() {
   const baselineWarning = run.is_baseline
     ? ' It is the current baseline — later runs will have nothing to report drift against.'
     : '';
-  pendingDeleteRun = runId;
-  els.machinesConfirmTitle.textContent = 'Delete capture';
-  els.machinesConfirmBody.textContent = 'Delete the capture from ' + when + '?' + baselineWarning
-    + ' This cannot be undone.';
-  els.machinesConfirmBtn.textContent = 'Delete';
-  els.machinesConfirmBtn.disabled = false;
-  els.machinesConfirmBtn.dataset.for = 'diagnostics';
-  els.machinesConfirmDialog.showModal();
-}
-
-async function onDeleteRunConfirmed() {
-  const runId = pendingDeleteRun;
-  pendingDeleteRun = null;
-  els.machinesConfirmDialog.close();
-  if (!runId) return;
+  const ok = await confirmDialog({
+    title: 'Delete capture',
+    body: 'Delete the capture from ' + when + '?' + baselineWarning + ' This cannot be undone.',
+    confirmLabel: 'Delete',
+  });
+  if (!ok) return;
   try {
     const res = await api('/admin/api/diagnostics/runs/' + encodeURIComponent(runId), { method: 'DELETE' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -689,18 +677,5 @@ export function wireDiagnostics() {
     // Esc fires 'close' on a native <dialog> — stop the poll either way so a
     // dismissed dialog never leaves a timer running.
     els.diagDialog.addEventListener('close', stopPoll);
-  }
-  if (els.machinesConfirmBtn) {
-    els.machinesConfirmBtn.addEventListener('click', function (ev) {
-      if (els.machinesConfirmBtn.dataset.for !== 'diagnostics') return;
-      ev.stopImmediatePropagation();
-      onDeleteRunConfirmed();
-    }, true);
-  }
-  if (els.machinesConfirmDialog) {
-    els.machinesConfirmDialog.addEventListener('close', function () {
-      delete els.machinesConfirmBtn.dataset.for;
-      pendingDeleteRun = null;
-    });
   }
 }

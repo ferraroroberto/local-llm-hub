@@ -195,8 +195,8 @@ def test_no_wake_button_on_up_or_self_machines(phone_page, admin_url, browser):
         "els => els.map(e => e.dataset.machineAction)")
     assert actions[-2:] == ["reboot", "shutdown"], actions
     sheet.locator('[data-machine-action="reboot"]').click()
-    page.wait_for_selector("#machinesConfirmDialog[open]", timeout=5000)
-    page.click("#machinesConfirmCloseBtn")
+    page.wait_for_selector("#confirmDialog[open]", timeout=5000)
+    page.click("#confirmDialogCloseBtn")
     page.click("#machineSheetCloseBtn")
 
     # This machine's health watch: a danger chip on the row, and the sheet's
@@ -263,7 +263,7 @@ def test_wake_is_non_destructive_and_posts(phone_page, admin_url):
 
     assert wake_calls, "clicking Wake did not POST to the wake endpoint"
     # No confirm dialog was opened — unlike reboot/shutdown.
-    assert page.locator("#machinesConfirmDialog[open]").count() == 0, (
+    assert page.locator("#confirmDialog[open]").count() == 0, (
         "Wake must not open the destructive-action confirm dialog"
     )
     # Success toast surfaces the machine name.

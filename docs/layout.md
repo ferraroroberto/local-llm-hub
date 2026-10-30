@@ -214,7 +214,7 @@ local-llm-hub/
 │   └── static/               #   index.html (+ sheets.html, spliced in at serve time) + main.js + state.js + tabs.js + api.js +
 │                             #   hub.js + models.js + startup.js + fleet_placement.js +
 │                             #   playground.js + playground_jev.js + code_usage.js/.css +
-│                             #   diagnostics.js + glossary.js + machines.js/.css +
+│                             #   confirm_dialog.js + diagnostics.js + glossary.js + machines.js/.css +
 │                             #   machines_terminal.js + rows.js/.css + settings.js +
 │                             #   langfuse.js + dormant.js + theme.js +
 │                             #   usage.js + styles.css + panels.css +

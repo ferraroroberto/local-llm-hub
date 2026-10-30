@@ -17,6 +17,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, IO, Optional
 
+# Stop budgets for a model-backend child (llama-server, the TTS server). The
+# polite window is long enough for a backend to flush its KV cache / close its
+# listener after CTRL_BREAK or terminate(); the kill window only covers the OS
+# reaping a process that was already force-killed, so it is shorter.
+STOP_TERMINATE_TIMEOUT_S = 8.0
+STOP_KILL_TIMEOUT_S = 5.0
+
 
 @dataclass(frozen=True)
 class SpawnSpec:

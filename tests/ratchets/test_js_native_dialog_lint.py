@@ -38,7 +38,7 @@ def test_no_native_browser_dialog():
 
     assert not offenders, (
         "Native browser dialog call(s) -- route confirm/rename/detail through "
-        "the vendored dialog (_vendored/modal), same as machines.js's "
-        "machinesConfirmDialog, instead of window.confirm()/alert()/prompt():\n"
+        "the vendored dialog (_vendored/modal), same as "
+        "confirm_dialog.js's confirmDialog, instead of window.confirm()/alert()/prompt():\n"
         + "\n".join(f"  {rel}: lines {lns}" for rel, lns in offenders.items())
     )

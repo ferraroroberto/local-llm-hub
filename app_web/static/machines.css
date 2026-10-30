@@ -44,11 +44,11 @@
   .gauge-fill { transition: none; }
 }
 
-/* ---------- confirm dialog (reboot / shutdown) ----------
+/* ---------- shared confirm dialog (confirm_dialog.js) ----------
  * Built on the vendored .detail-dialog/.detail-card shell (_vendored/modal);
  * this file only adds the body copy spacing. The final action is the vendored
  * outlined `.button-tint.danger` (_vendored/button), never a tint or fill. */
-.machines-confirm-body {
+.confirm-dialog-body {
   margin: 4px 0 14px;
   color: var(--ink);
   font-size: var(--font-body);

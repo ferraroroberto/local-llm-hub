@@ -102,10 +102,10 @@ def test_model_row_power_control_is_a_named_glyph(page, admin_url):
     assert items.last.get_attribute("data-act") == "force-stop", "Force stop is the menu's last item"
     assert "row-menu-danger" in (items.last.get_attribute("class") or "")
     items.last.click()
-    page.wait_for_selector("#machinesConfirmDialog[open]", timeout=5000)
-    assert "Force stop" in page.locator("#machinesConfirmTitle").inner_text()
+    page.wait_for_selector("#confirmDialog[open]", timeout=5000)
+    assert "Force stop" in page.locator("#confirmDialogTitle").inner_text()
     assert not dialogs, "Force stop must not use the browser's confirm()"
-    page.click("#machinesConfirmCloseBtn")
+    page.click("#confirmDialogCloseBtn")
 
     # Model log opens the backend's log tail.
     running = page.locator('#modelsList .model-row[data-id="running_row"]')

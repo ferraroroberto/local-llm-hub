@@ -71,6 +71,10 @@ TUNNEL_CONFIG_PATH = PROJECT_ROOT / "webapp" / "cloudflared.yml"
 # on it, seconds: room for a large GGUF to load from disk (not measured; the
 # value predates this name and is kept as is).
 _MODEL_READY_TIMEOUT_S = 120.0
+# Each stop window for the hub child, seconds: its CTRL_BREAK shutdown handler,
+# then the OS reaping it after a force-kill. Not measured; model backends use
+# the longer process_supervisor.STOP_* pair.
+_HUB_STOP_TIMEOUT_S = 5.0
 
 
 # --------------------------------------------------------------- TrayConfig
@@ -188,7 +192,8 @@ class HubProcess:
                 # "restarted" once start() re-adopts the same stale process.
                 return False, "adopted (not ours to stop)"
             return False, "not running"
-        ok, msg = ProcessSupervisor.stop_popen(p, terminate_timeout=5, kill_timeout=5)
+        ok, msg = ProcessSupervisor.stop_popen(
+            p, terminate_timeout=_HUB_STOP_TIMEOUT_S, kill_timeout=_HUB_STOP_TIMEOUT_S)
         if not ok:
             return ok, msg
         self._set_proc(None)

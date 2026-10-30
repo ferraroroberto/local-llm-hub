@@ -38,7 +38,12 @@ from ..model_registry import (
     enabled_models,
     local_models,
 )
-from .process_supervisor import ProcessSupervisor, SpawnSpec
+from .process_supervisor import (
+    STOP_KILL_TIMEOUT_S,
+    STOP_TERMINATE_TIMEOUT_S,
+    ProcessSupervisor,
+    SpawnSpec,
+)
 from .server_process import (
     WIN_NEW_GROUP,
     kill_pid,
@@ -577,8 +582,8 @@ def stop(model_id: str) -> tuple[bool, str]:
         return False, "not running"
     ok, msg = ProcessSupervisor.stop_popen(
         p,
-        terminate_timeout=8,
-        kill_timeout=5,
+        terminate_timeout=STOP_TERMINATE_TIMEOUT_S,
+        kill_timeout=STOP_KILL_TIMEOUT_S,
     )
     if not ok:
         return ok, msg
