@@ -121,3 +121,4 @@ test-results/
 mac/*/.build/
 mac/*/.swiftpm/
 mac/*/Package.resolved
+.proof/
