@@ -31,6 +31,7 @@ NON_SPA_CALLERS = {
     "/api/fleet-maintenance/{host_id}": "fleet-maintenance CLI and peer hubs (docs/fleet-maintenance.md)",
     "/api/fleet-placement/reconcile": "operator/CLI-triggered reconcile (docs/multi-host.md)",
     "/api/diagnostics/ingest": "external diagnostics reporters (docs/diagnostics.md)",
+    "/api/aliases": "journal skill and voice transcriber reading the shared alias file (docs/whisper-asr.md)",
     # Parked reference implementation, deliberately unwired — docs/running.md,
     # "Passkey (WebAuthn) gate — parked".
     "/api/webauthn/status": "parked passkey gate (docs/running.md)",

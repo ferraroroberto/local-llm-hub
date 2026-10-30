@@ -95,6 +95,21 @@ def _no_real_config_git_write(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_alias_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point the shared alias file at a missing temp path for every test.
+
+    ``config/aliases.local.json`` is real personal vocabulary on a developer
+    box; a test comparing glossary output must not see it.
+    """
+    from src.audio import transcription_glossary
+
+    monkeypatch.setattr(
+        transcription_glossary, "DEFAULT_ALIAS_PATH", tmp_path / "no-aliases.json"
+    )
+    transcription_glossary.load_rules.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_diagnostics_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep every test's diagnostics writes off the real store.
 

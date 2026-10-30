@@ -12,6 +12,10 @@ over it:
   * ``POST /api/glossary/mine``  → run the transcript miner (reads
     voice-transcriber's session API) and return reviewable suggestions —
     never writes.
+  * ``GET  /api/aliases``        → the shared alias file, read-only: the one
+    place downstream consumers (journal skill, voice transcriber) read the
+    proper-noun / mishear knowledge from. There is deliberately no write
+    route; the file is hand-edited.
 """
 
 from __future__ import annotations
@@ -31,6 +35,13 @@ router = APIRouter()
 async def get_glossary() -> Dict[str, Any]:
     """Return the editable dictionary shape for the admin editor."""
     return tg.load_glossary()
+
+
+@router.get("/api/aliases")
+async def get_aliases() -> Dict[str, Any]:
+    """Return the shared alias entries ``{canonical, variants, kind}``."""
+    aliases = tg.load_aliases()
+    return {"aliases": aliases, "count": len(aliases)}
 
 
 @router.put("/api/glossary")
