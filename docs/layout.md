@@ -40,7 +40,7 @@ local-llm-hub/
 │           ├── run-weekly.bat    #   headless runner (app-launcher job, self-skips alternate weeks)
 │           └── week_parity.ps1   #   on/off-week gate, answered as an exit code
 ├── requirements.txt
-├── requirements-dev.txt      # e2e + passkey deps (Playwright, pytest-playwright, webauthn)
+├── requirements-dev.txt      # e2e deps (Playwright, pytest-playwright)
 ├── requirements-tts.txt      # TTS deps (chatterbox-tts, snac, kokoro-onnx, soundfile — torch); Piper is a downloaded binary
 ├── .env.example               # template for the gitignored .env (host override, Langfuse/OTel flags, keys)
 ├── tray.bat                  # Windows-only system-tray launcher (silent)
@@ -66,7 +66,7 @@ local-llm-hub/
 │   ├── startup_profile.example.json  # template + fresh-clone default for service autostart (services-only)
 │   ├── startup_profile.json          # live service-autostart profile, rewritten by the admin UI (gitignored)
 │   ├── fleet_maintenance.json        # live {host: {until, reason}} reconcile drain markers (gitignored)
-│   ├── webapp_config.json            # admin auth: bearer token, optional password, webauthn rp, CORS origins (gitignored)
+│   ├── webapp_config.json            # admin auth: bearer token, optional password, tailnet allowlist, CORS origins (gitignored)
 │   ├── webapp_config.sample.json     # committed template + fresh-clone default for the above
 │   ├── machine_specs_example.yaml    # template for scripts/detect_machine_specs.py's real output
 │   ├── claude_pricing.json / gemini_pricing.json / openai_pricing.json  # per-model $/token
@@ -197,8 +197,7 @@ local-llm-hub/
 │   │   ├── common.py                #   shared TTSEngine interface, SpeechRequest, audio helpers
 │   │   ├── chatterbox.py, kokoro.py, orpheus.py, piper.py  #   one module per engine
 │   │   └── __init__.py              #   build_engine() dispatch + re-exports
-│   ├── webapp_config.py      # admin webapp config loader (bearer token, webauthn, allowlist, CORS origins)
-│   ├── webauthn_gate.py      # passkey gate (optional — needs `webauthn` package)
+│   ├── webapp_config.py      # admin webapp config loader (bearer token, allowlist, CORS origins)
 │   ├── static_versioning.py  # ?v=<hash> stamping for /admin/static assets
 │   ├── hub_log.py            # in-memory log ring buffer (admin Hub tab streams it)
 │   ├── hub_observability.py  # live request ring, per-backend counters, SSE fan-out
@@ -207,7 +206,7 @@ local-llm-hub/
 │   ├── server.py             #   create_app() — middleware, routers, static mount
 │   ├── middleware.py         #   bearer-token gate (loopback bypasses)
 │   ├── admin_forward.py      #   forward a request into the /admin sub-app in-process
-│   ├── routers/              #   misc / version / auth / webauthn / hub / install /
+│   ├── routers/              #   misc / version / auth / hub / install /
 │   │                         #   models / startup_profile / fleet_placement /
 │   │                         #   fleet_maintenance / roles / playground / services /
 │   │                         #   telemetry / code_usage / glossary / hosts / machines /

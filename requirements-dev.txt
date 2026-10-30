@@ -7,10 +7,6 @@
 pytest-playwright>=0.5
 playwright>=1.45
 
-# Passkey gate is optional in `requirements.txt`; here it's required so
-# the webauthn router gets exercised in the e2e gate.
-webauthn>=2.1
-
 # Unused-import / unused-variable pass of the gate's static ratchet
 # (scripts/static_ratchet.py selects F401,F841 itself).
 ruff>=0.17.1

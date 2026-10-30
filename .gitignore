@@ -83,10 +83,9 @@ config/fleet_maintenance.json
 # Tray single-instance lock
 .tray.pid
 
-# /admin webapp runtime data — bearer token, webauthn devices, auth.log,
+# /admin webapp runtime data — bearer token, auth.log,
 # user cloudflared config.
 config/webapp_config.json
-config/webauthn_devices.json
 # TTS voice-cloning reference clips (config/tts_voices/<voice>.wav) — local audio
 config/tts_voices/
 webapp/cloudflared.yml

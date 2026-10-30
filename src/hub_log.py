@@ -38,7 +38,6 @@ _POLLING_NOISE_PATHS = (
     "/admin/api/version",
     "/admin/api/healthz",
     "/admin/api/playground/models",
-    "/admin/api/webauthn/status",
 )
 
 

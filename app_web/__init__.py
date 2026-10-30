@@ -8,8 +8,6 @@ Auth model (mirrors app-launcher):
   * Loopback callers (PC itself) bypass the bearer token.
   * Non-loopback callers must present ``Authorization: Bearer <token>``
     (or ``?token=…`` on the initial URL). Token is hashed-compare.
-  * A WebAuthn passkey implementation exists but is parked and gates
-    nothing (docs/running.md, "Passkey (WebAuthn) gate — parked").
 
 Cloudflare tunnel termination is supported via ``webapp/cloudflared.yml``;
 the tray surfaces the configured public hostname as a "Copy Cloudflare URL"

@@ -44,7 +44,7 @@ def test_login_succeeds_with_a_non_ascii_configured_password():
 def test_non_ascii_bearer_from_remote_caller_is_401_not_500():
     client = _client(auth_token="secret123")
     r = client.get(
-        "/api/webauthn/status",
+        "/api/hub/counters",
         headers={**_PROXY_HEADERS, "Authorization": "Bearer é".encode("utf-8")},
     )
     assert r.status_code == 401
@@ -53,7 +53,7 @@ def test_non_ascii_bearer_from_remote_caller_is_401_not_500():
 def test_non_ascii_query_token_from_remote_caller_is_401_not_500():
     client = _client(auth_token="secret123")
     r = client.get(
-        "/api/webauthn/status", params={"token": "é"}, headers=_PROXY_HEADERS
+        "/api/hub/counters", params={"token": "é"}, headers=_PROXY_HEADERS
     )
     assert r.status_code == 401
 

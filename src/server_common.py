@@ -1,7 +1,8 @@
 """Helpers shared by the hub's route modules.
 
-``server.py`` (chat routes + app), ``server_audio_asr.py`` / ``server_audio_tts.py``
-(the ``/v1/audio/*`` proxy) and ``server_images.py`` (the ``/v1/images/*``
+``routes/anthropic_messages.py`` / ``routes/openai_chat.py`` (chat routes),
+``audio/server_audio_asr.py`` / ``audio/server_audio_tts.py`` (the
+``/v1/audio/*`` proxy) and ``images/server_images.py`` (the ``/v1/images/*``
 handlers) all need the same small set of model-resolution and OpenTelemetry
 helpers. They live here, in a leaf module with no dependency on the FastAPI
 ``app``, so the route modules can import them without a circular import back

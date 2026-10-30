@@ -111,20 +111,12 @@ def admin_client(broken_config, caplog):
 def test_admin_malformed_config_refuses_non_loopback(admin_client):
     r = admin_client.get("/api/version", headers=_PROXY_HEADERS)  # exempt: still up
     assert r.status_code == 200
-    r = admin_client.get("/api/webauthn/status", headers=_PROXY_HEADERS)
+    r = admin_client.get("/api/hub/counters", headers=_PROXY_HEADERS)
     assert r.status_code == 401
 
 
 def test_admin_malformed_config_login_reports_unreadable(admin_client):
     r = admin_client.post("/api/login", json={"password": "anything"})
-    assert r.status_code == 503
-    assert r.json()["detail"] == "webapp config could not be loaded"
-
-
-def test_admin_malformed_config_webauthn_reports_unreadable(admin_client):
-    """Loopback gets past the gate, and the router reports unknown rather
-    than ``configured: false``."""
-    r = admin_client.get("/api/webauthn/status")
     assert r.status_code == 503
     assert r.json()["detail"] == "webapp config could not be loaded"
 

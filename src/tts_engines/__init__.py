@@ -20,9 +20,10 @@ selected per registry row's ``tts_engine`` field by :func:`build_engine`:
     Piper binary. Fast CPU path for short assistant replies; voices live in
     ``models/piper``.
 
-``process.py`` holds the shared Windows job-object process-lifecycle
-helpers (kill-on-close job, no-window subprocess flags) used by Piper's
-resident process pool and Orpheus's llama-server child. ``common.py`` holds
+The shared Windows job-object helpers (kill-on-close job) live in
+``src/process/win_job.py`` and the no-window subprocess flag ``NO_WINDOW`` in
+``src/no_window.py``; Piper's resident process pool and Orpheus's
+llama-server child use them. ``common.py`` holds
 the shared :class:`TTSEngine` interface, ``SpeechRequest``, device
 resolution, and audio helpers.
 
