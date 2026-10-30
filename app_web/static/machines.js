@@ -19,7 +19,7 @@
  */
 
 import { els, state, MACHINES_POLL_MS } from './state.js';
-import { jsonApi, postJson, api, toast, escapeHtml, codeHtml, fmtClock, shortGpu, fmtGbValue, isAuthError } from './api.js';
+import { jsonApi, postJson, api, toast, escapeHtml, codeHtml, fmtClock, fmtDuration, shortGpu, fmtGbValue, isAuthError } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { row, chip, setHeadLine, infoButton, defineInfo, isWide, onWideChange } from './rows.js';
 import { openMachinesTerminal, wireMachinesTerminal } from './machines_terminal.js';
@@ -87,31 +87,6 @@ export function stopMachinesPolls() {
 }
 
 // --------------------------------------------------------- formatting
-/* "3d 14h" / "22m" / "45s" — the Machines uptime format (distinct from
- * hub.js's fmtUptime, which stops at hours for the Hub card's own process). */
-function fmtUptimeHuman(seconds) {
-  if (!Number.isFinite(seconds)) return null;
-  const s = Math.max(0, Math.floor(seconds));
-  if (s < 60) return s + 's';
-  const m = Math.floor(s / 60);
-  if (m < 60) return m + 'm';
-  const h = Math.floor(m / 60);
-  const remM = m % 60;
-  if (h < 24) return h + 'h' + (remM ? ' ' + remM + 'm' : '');
-  const d = Math.floor(h / 24);
-  const remH = h % 24;
-  return d + 'd' + (remH ? ' ' + remH + 'h' : '');
-}
-
-/* The stale age on the header line: "40s" / "3m" / "2h". */
-function fmtAge(ms) {
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return s + 's';
-  const m = Math.round(s / 60);
-  if (m < 60) return m + 'm';
-  return Math.round(m / 60) + 'h';
-}
-
 function fmtPct(n) { return Number.isFinite(n) ? Math.round(n) + '%' : '—'; }
 
 /* Wi-Fi RSSI (dBm) -> a plain-English band. Conventional Wi-Fi
@@ -150,7 +125,7 @@ function badgeFor(m) {
 /* The meta line's lead: the state in words (the badge is decoration, so the
  * text must say it too), then the uptime. */
 function leadFor(m) {
-  const uptime = fmtUptimeHuman(m.uptime_seconds);
+  const uptime = fmtDuration(m.uptime_seconds, { days: true, empty: null });
   if (m.state === 'self') return 'This machine' + (uptime ? ' · up ' + uptime : '');
   if (m.state === 'up') return uptime ? 'Up ' + uptime : 'Up';
   if (isAnswering(m)) return 'Reachable · still dormant';
@@ -460,7 +435,7 @@ function renderHeadLine(machines) {
   if (down) parts.push({ text: down + ' offline', tone: 'danger' });
   let title = '';
   if (ds === 'stale' && state.machinesLastUpdated) {
-    parts.push({ text: 'stale ' + fmtAge(Date.now() - state.machinesLastUpdated) });
+    parts.push({ text: 'stale ' + fmtDuration((Date.now() - state.machinesLastUpdated) / 1000) });
     title = 'Last updated ' + fmtClock(state.machinesLastUpdated / 1000) + ' · live data unavailable';
   }
   let fact = machines.length ? machines.length + (machines.length === 1 ? ' machine' : ' machines') : 'No machines';

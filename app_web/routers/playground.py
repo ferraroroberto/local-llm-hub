@@ -10,8 +10,9 @@ import base64
 import json
 import logging
 import mimetypes
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
+import httpx
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 
@@ -34,6 +35,45 @@ _IMAGE_MEDIA_TYPES = {
     "webp": "image/webp",
     "gif": "image/gif",
 }
+
+
+def _upstream_error(exc: Exception) -> HTTPException:
+    return HTTPException(status_code=502, detail=f"upstream error: {exc}")
+
+
+def _upstream_detail(r: httpx.Response) -> str:
+    """Readable message from a failed loopback answer.
+
+    ``/v1/messages`` answers errors in the Anthropic envelope; the audio and
+    image endpoints use FastAPI's ``{"detail": ...}``; anything else falls back
+    to the raw text.
+    """
+    detail = r.text or f"HTTP {r.status_code}"
+    try:
+        body = r.json()
+    except ValueError:
+        return detail[:500]
+    if isinstance(body, dict):
+        err = body.get("error")
+        detail = (
+            (err.get("message") if isinstance(err, dict) else None)
+            or body.get("detail")
+            or detail
+        )
+    return str(detail)[:500]
+
+
+async def _loopback_post(
+    url: str,
+    *,
+    describe_error: Callable[[Exception], HTTPException] = _upstream_error,
+    **kwargs: Any,
+) -> httpx.Response:
+    """POST to the hub's own endpoint, mapping transport failures to a 502."""
+    try:
+        return await get_async_client().post(url, **kwargs)
+    except httpx.HTTPError as exc:
+        raise describe_error(exc) from exc
 
 
 @router.get("/api/playground/models")
@@ -186,8 +226,6 @@ async def playground_speak(
     hub's streaming shape (``stream_format: "audio"``) is forwarded through
     so the SPA can play audio as it synthesizes and time the first chunk.
     """
-    import httpx
-
     target = resolve_model(model)
     if target is None or target.backend != "tts":
         raise HTTPException(status_code=400, detail=f"not a TTS model: {model!r}")
@@ -213,12 +251,13 @@ async def playground_speak(
         try:
             upstream = await stream_cm.__aenter__()
         except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail=f"upstream error: {exc}")
+            raise _upstream_error(exc) from exc
         if not upstream.is_success:
-            detail = (await upstream.aread()).decode("utf-8", "replace") or f"HTTP {upstream.status_code}"
+            await upstream.aread()
             status = upstream.status_code
+            detail = _upstream_detail(upstream)
             await stream_cm.__aexit__(None, None, None)
-            raise HTTPException(status_code=status, detail=str(detail)[:500])
+            raise HTTPException(status_code=status, detail=detail)
 
         async def _forward():
             try:
@@ -237,18 +276,9 @@ async def playground_speak(
             headers=out_headers,
         )
 
-    try:
-        r = await get_async_client().post(url, json=payload, timeout=300.0)
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"upstream error: {exc}")
+    r = await _loopback_post(url, json=payload, timeout=300.0)
     if not r.is_success:
-        detail = r.text or f"HTTP {r.status_code}"
-        try:
-            body = r.json()
-            detail = body.get("detail") or detail
-        except Exception:  # noqa: BLE001
-            pass
-        raise HTTPException(status_code=r.status_code, detail=str(detail)[:500])
+        raise HTTPException(status_code=r.status_code, detail=_upstream_detail(r))
     return Response(
         content=r.content,
         media_type=r.headers.get("content-type", "audio/wav"),
@@ -272,8 +302,6 @@ async def playground_send(
     ring like any other request, which is exactly what an operator wants
     when sanity-checking a new backend.
     """
-    import httpx
-
     target = resolve_model(model)
     if target is None:
         raise HTTPException(status_code=400, detail=f"unknown model {model!r}")
@@ -319,26 +347,14 @@ async def playground_send(
         payload["system"] = system
 
     url = f"http://127.0.0.1:{hub_port()}/v1/messages"
-    try:
-        r = await get_async_client().post(url, json=payload, timeout=120.0)
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"upstream error: {exc}")
+    r = await _loopback_post(url, json=payload, timeout=120.0)
+    if not r.is_success:
+        raise HTTPException(status_code=r.status_code, detail=_upstream_detail(r))
     body: Dict[str, Any] = {}
     try:
         body = r.json()
     except Exception:  # noqa: BLE001
         body = {}
-    if not r.is_success:
-        # /v1/messages answers errors in the Anthropic envelope;
-        # `detail` is kept as a fallback for anything else on this path.
-        err = body.get("error") if isinstance(body, dict) else None
-        detail = (
-            (err.get("message") if isinstance(err, dict) else None)
-            or (body.get("detail") if isinstance(body, dict) else None)
-            or r.text
-            or f"HTTP {r.status_code}"
-        )
-        raise HTTPException(status_code=r.status_code, detail=str(detail)[:500])
 
     text = ""
     blocks = body.get("content") if isinstance(body, dict) else None
@@ -393,8 +409,6 @@ async def playground_systemone(payload: Dict[str, Any]) -> Dict[str, Any]:
     lands in the request ring and Langfuse like any external call. Only shape
     is checked here — the vendor's 422 is the authoritative validator.
     """
-    import httpx
-
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="body must be a JSON object")
     state_value = payload.get("state")
@@ -407,10 +421,13 @@ async def playground_systemone(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     url = f"http://127.0.0.1:{hub_port()}{server_systemone.ROUTE}"
     body = {"model": model, "state": state_value, "questions": questions}
-    try:
-        r = await get_async_client().post(url, json=body, timeout=server_systemone.TIMEOUT_S + 5)
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"hub loopback error: {type(exc).__name__}")
+    r = await _loopback_post(
+        url,
+        json=body,
+        timeout=server_systemone.TIMEOUT_S + 5,
+        describe_error=lambda exc: HTTPException(
+            status_code=502, detail=f"hub loopback error: {type(exc).__name__}"),
+    )
     if not r.is_success:
         detail = _systemone_error_detail(r)
         if r.status_code == 401:
@@ -443,8 +460,6 @@ async def playground_generate_image(
     ``<img>`` preview. Editing is slow (procedural-agentic), so the timeout is
     generous.
     """
-    import httpx
-
     target = resolve_model(model)
     if target is None or not getattr(target, "image_gen", False):
         raise HTTPException(
@@ -453,44 +468,35 @@ async def playground_generate_image(
         raise HTTPException(status_code=400, detail="prompt is empty")
 
     base = f"http://127.0.0.1:{hub_port()}"
-    client = get_async_client()
-    try:
-        if image is not None and image.filename:
-            raw = await image.read()
-            files = {
-                "image": (
-                    image.filename, raw,
-                    image.content_type or "application/octet-stream",
-                )
-            }
-            data = {"model": model, "prompt": prompt}
-            r = await client.post(
-                base + "/v1/images/edits", files=files, data=data, timeout=900.0)
-        else:
-            payload: Dict[str, Any] = {"model": model, "prompt": prompt}
-            # Only forward when set, so the hub's own default stays the single
-            # place the default size is defined.
-            if size:
-                payload["size"] = size
-            if refine:
-                payload["refine"] = True
-            r = await client.post(
-                base + "/v1/images/generations",
-                json=payload,
-                # An upscale + refine pass at 4K is the longest job this card
-                # can start; it must not be cut off by the proxy's own clock.
-                timeout=1800.0,
+    if image is not None and image.filename:
+        raw = await image.read()
+        files = {
+            "image": (
+                image.filename, raw,
+                image.content_type or "application/octet-stream",
             )
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"upstream error: {exc}")
+        }
+        data = {"model": model, "prompt": prompt}
+        r = await _loopback_post(
+            base + "/v1/images/edits", files=files, data=data, timeout=900.0)
+    else:
+        payload: Dict[str, Any] = {"model": model, "prompt": prompt}
+        # Only forward when set, so the hub's own default stays the single
+        # place the default size is defined.
+        if size:
+            payload["size"] = size
+        if refine:
+            payload["refine"] = True
+        r = await _loopback_post(
+            base + "/v1/images/generations",
+            json=payload,
+            # An upscale + refine pass at 4K is the longest job this card
+            # can start; it must not be cut off by the proxy's own clock.
+            timeout=1800.0,
+        )
 
     if not r.is_success:
-        detail = r.text or f"HTTP {r.status_code}"
-        try:
-            detail = r.json().get("detail") or detail
-        except Exception:  # noqa: BLE001
-            pass
-        raise HTTPException(status_code=r.status_code, detail=str(detail)[:500])
+        raise HTTPException(status_code=r.status_code, detail=_upstream_detail(r))
 
     body = r.json()
     b64 = (body.get("data") or [{}])[0].get("b64_json")

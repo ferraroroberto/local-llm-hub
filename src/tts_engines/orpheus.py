@@ -435,14 +435,7 @@ class OrpheusEngine(TTSEngine):
         the first real audio token; indexing every token instead would shift
         every frame and make all codes fall out of range (silent output).
         """
-        ids: List[int] = []
-        pos = 0
-        for m in _ORPHEUS_TOKEN_RE.finditer(text):
-            tid = int(m.group(1)) - 10 - ((pos % 7) * _SNAC_CODEBOOK)
-            if tid > 0:
-                ids.append(tid)
-                pos += 1
-        return ids
+        return list(OrpheusEngine._iter_token_ids([text]))
 
     def _decode_snac(self, code_list: List[int]):
         import numpy as np
