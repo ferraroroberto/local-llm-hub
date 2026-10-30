@@ -1,9 +1,8 @@
 """Text-to-speech proxy route (``/v1/audio/speech``).
 
-Split out of ``server.py`` originally alongside the whisper ASR proxy, then
-split again out of the combined ``server_audio.py`` (#451) — see
-``server_audio_asr.py`` for the transcription/translation half and
-``server_audio_common.py`` for the small handful of helpers both need.
+The speech-synthesis half of the audio proxy; see ``server_audio_asr.py`` for
+the transcription/translation half and ``server_audio_common.py`` for the
+small handful of helpers both need.
 
 Routes are collected on a module-level :class:`fastapi.APIRouter` and mounted
 onto the parent hub app by ``server.py`` via ``include_router``.

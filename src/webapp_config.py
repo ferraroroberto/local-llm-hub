@@ -9,7 +9,6 @@ every surface shares one source of truth.
 
 Holds:
   * auth token (bearer) and optional password gate
-  * WebAuthn relying-party identity for the passkey gate
   * tailnet allowlist (extra IPs/CIDRs beyond loopback that bypass
     bearer-token enforcement)
   * CORS allowed origins (extra browser origins beyond loopback that may
@@ -46,12 +45,6 @@ class WebappConfig:
     # browser when the user types it correctly. Lets a fresh device
     # bootstrap without copy-pasting a tokenised URL.
     auth_password: str = ""
-    # WebAuthn relying-party identity. ``rp_id`` is the bare public
-    # hostname (e.g. ``llm.example.com``); ``origin`` is the full
-    # https origin the phone connects to. Empty disables the passkey gate.
-    webauthn_rp_id: str = ""
-    webauthn_rp_name: str = "Local LLM Hub"
-    webauthn_origin: str = ""
     # Extra IPs / CIDRs allowed to bypass the bearer-token gate on top
     # of loopback. Empty by default — keep auth strict.
     extra_allowlist: list = field(default_factory=list)
@@ -94,9 +87,6 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
         return WebappConfig(
             auth_token=str(raw.get("auth_token", "")),
             auth_password=str(raw.get("auth_password", "")),
-            webauthn_rp_id=str(raw.get("webauthn_rp_id", "")),
-            webauthn_rp_name=str(raw.get("webauthn_rp_name", "Local LLM Hub")),
-            webauthn_origin=str(raw.get("webauthn_origin", "")),
             extra_allowlist=list(raw.get("extra_allowlist") or []),
             cors_allow_origins=list(raw.get("cors_allow_origins") or []),
         )
@@ -114,9 +104,6 @@ def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
     payload = {
         "auth_token": cfg.auth_token,
         "auth_password": cfg.auth_password,
-        "webauthn_rp_id": cfg.webauthn_rp_id,
-        "webauthn_rp_name": cfg.webauthn_rp_name,
-        "webauthn_origin": cfg.webauthn_origin,
         "extra_allowlist": cfg.extra_allowlist,
         "cors_allow_origins": cfg.cors_allow_origins,
     }

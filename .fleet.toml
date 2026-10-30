@@ -248,9 +248,6 @@ allow_refs = [
 [dead_code_ratchet]
 enabled  = true
 baseline = ".dead-code-ratchet-baseline.json"
-# The parked passkey gate (docs/running.md) keeps its session-token check and revoke as the
-# reference implementation, deliberately unwired.
-allow    = ["src/webauthn_gate.py:WebAuthnGate.valid_session_token", "src/webauthn_gate.py:WebAuthnGate.revoke_session_tokens"]
 
 # [conventions_ratchet] -- the scaffold's baseline-and-ratchet for fleet conventions
 # held as `ast` rules. The gate (scripts/verify-before-ship.ps1) runs

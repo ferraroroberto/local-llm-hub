@@ -32,15 +32,6 @@ NON_SPA_CALLERS = {
     "/api/fleet-placement/reconcile": "operator/CLI-triggered reconcile (docs/multi-host.md)",
     "/api/diagnostics/ingest": "external diagnostics reporters (docs/diagnostics.md)",
     "/api/aliases": "journal skill and voice transcriber reading the shared alias file (docs/whisper-asr.md)",
-    # Parked reference implementation, deliberately unwired — docs/running.md,
-    # "Passkey (WebAuthn) gate — parked".
-    "/api/webauthn/status": "parked passkey gate (docs/running.md)",
-    "/api/webauthn/enroll/window": "parked passkey gate (docs/running.md)",
-    "/api/webauthn/enroll/begin": "parked passkey gate (docs/running.md)",
-    "/api/webauthn/enroll/finish": "parked passkey gate (docs/running.md)",
-    "/api/webauthn/auth/begin": "parked passkey gate (docs/running.md)",
-    "/api/webauthn/auth/finish": "parked passkey gate (docs/running.md)",
-    "/api/webauthn/devices/{device_id}": "parked passkey gate (docs/running.md)",
 }
 
 

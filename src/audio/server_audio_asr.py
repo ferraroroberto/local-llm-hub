@@ -1,13 +1,10 @@
 """Whisper ASR proxy routes (``/v1/audio/transcriptions``, ``/translations``,
 ``/health``).
 
-Split out of ``server.py`` originally (the whisper transcription/translation
-proxy and the TTS speech proxy together were ~300 lines of multipart-and-httpx
-plumbing sitting between the chat routes), then split again out of the
-combined ``server_audio.py`` (#451) once that file grew to 820 lines mixing
-both audio directions with essentially no shared logic between them — see
-``server_audio_tts.py`` for the speech-synthesis half and
-``server_audio_common.py`` for the small handful of helpers both need.
+The transcription/translation half of the audio proxy: the multipart-and-httpx
+plumbing lives here, apart from the chat routes. See ``server_audio_tts.py``
+for the speech-synthesis half and ``server_audio_common.py`` for the small
+handful of helpers both need.
 
 The whisper-server already speaks the OpenAI ``/v1/audio/*`` shape, so the
 hub mostly forwards bytes — the point of routing through here (rather than

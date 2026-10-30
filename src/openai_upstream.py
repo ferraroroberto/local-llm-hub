@@ -452,9 +452,12 @@ def clean_openai_chunk(
         # Fold reasoning delta into content delta when content is empty.
         # llama-server with --reasoning-format=deepseek emits
         # ``reasoning_content`` deltas separately; OpenAI-shape clients
-        # ignore them. Treat them as part of the answer if and only if
-        # the model never produced a real ``content`` delta on this
-        # stream — that's still better than emitting nothing.
+        # ignore them. A stream can't know whether a real ``content``
+        # delta will follow, so every reasoning-only delta is folded: on a
+        # reasoning-channel upstream the streamed answer therefore includes
+        # the reasoning, unlike the buffered path (which folds only when
+        # the final ``content`` is empty) — still better than emitting
+        # nothing.
         if not delta.get("content") and delta.get("reasoning_content"):
             delta["content"] = delta["reasoning_content"]
             delta["reasoning_content"] = ""
@@ -600,9 +603,9 @@ def openai_tool_use_blocks(resp: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def openai_to_anthropic_envelope(resp: Dict[str, Any]) -> Dict[str, Any]:
-    """Shape an OpenAI response into the envelope src.server consumes.
+    """Shape an OpenAI response into the envelope the Anthropic route consumes.
 
-    The hub's ``_envelope_to_anthropic`` reads ``{"result": str,
+    ``_envelope_to_anthropic`` (``routes/anthropic_messages.py``) reads ``{"result": str,
     "content": [block, ...], "stop_reason": str, "usage": {...}}``.
     ``result`` stays the plain-text rendering used for logging and the
     observability payload; ``content`` carries the real block list so a

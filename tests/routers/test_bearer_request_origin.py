@@ -31,7 +31,7 @@ from src.webapp_config import WebappConfig
 # these at a real mutation (``/api/services/docker/stop`` and friends) would
 # make the passing assertions actually stop the developer's Docker.
 MUTATING_PATH = "/api/__request_origin_probe__"
-READ_ONLY_PATH = "/api/webauthn/status"
+READ_ONLY_PATH = "/api/hub/counters"
 
 ADMITTED = 404  # past the gate, no such route
 REFUSED = 401

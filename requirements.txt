@@ -24,12 +24,6 @@ winotify>=1.1; platform_system == "Windows"
 # runtime dependency, not dev-only.
 resvg-py>=0.3.0
 
-# Passkey gate for /admin (issue #7). Optional at runtime — when
-# absent, WebAuthnGate.available() returns False and the bearer-token
-# alone protects the webapp. Install to enable platform-passkey
-# enrollment from the iOS PWA.
-webauthn>=2.1
-
 # Gemini backend drives the Antigravity CLI (`agy`) under a ConPTY,
 # since `agy -p` print mode renders to a console rather than stdout.
 pywinpty>=2.0; platform_system == "Windows"

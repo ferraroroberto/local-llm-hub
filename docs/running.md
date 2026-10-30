@@ -94,40 +94,11 @@ A missing `config/webapp_config.json` means "nothing configured yet"
 (defaults). An **unreadable or malformed** one is a different state and
 is never treated as defaults: the hub and `/admin` admit loopback
 callers only — no token and no `extra_allowlist`, so Tailscale peers are
-refused too — `/admin/api/login` and the passkey endpoints answer 503
+refused too — `/admin/api/login` answers 503
 `webapp config could not be loaded`, and the tray leaves the file
 untouched instead of minting a token over it. Each surface logs a
 `could not load webapp_config` warning. Fix the file, then restart the
 tray/hub.
-
-## Passkey (WebAuthn) gate — parked, server-side only (not planned)
-
-`src/webauthn_gate.py` and `app_web/routers/webauthn.py` implement a
-tested, working passkey (WebAuthn) second factor for `/admin` —
-registration/authentication ceremonies, a device whitelist, session
-tokens — but it is **deliberately unwired**: no enrollment button or
-ceremony call anywhere in `app_web/static/`, and the session token
-`finish_authentication` mints isn't checked by any request path.
-
-Building that frontend piece is **not planned**:
-`/admin` is only ever reached over loopback or Tailscale, and both
-already bypass the bearer-token gate as fully trusted (loopback
-outright, Tailscale via `extra_allowlist`) — there's no Cloudflare
-tunnel exposure of `/admin` in practice, so a passkey second factor
-has no remaining trust boundary left to protect. The code stays in
-the tree untouched as a reference implementation in case that trust
-model changes later; it isn't a live security feature today.
-
-To poke at it directly anyway: set `webauthn_rp_id` / `webauthn_origin`
-in `config/webapp_config.json` (needs the `webauthn` package from
-`requirements.txt`; its absence just makes
-`GET /admin/api/webauthn/status` report `available: false`), then
-drive `POST /admin/api/webauthn/enroll/window` (loopback-only, opens
-a 5-minute window) followed by the `/enroll/begin` →
-`navigator.credentials.create()` → `/enroll/finish` ceremony from a
-WebAuthn-capable browser tab — there's no built-in page for this, so
-script it or drive it from devtools. Even fully enrolled, it won't
-gate anything.
 
 ## Server adoption between launchers
 

@@ -17,7 +17,7 @@ src/server.py            ── parent FastAPI hub (:8000)
   ↓
 app_web/server.py        ── sub-app, owns its own middleware + routers
   ├── middleware.py      ── BearerTokenMiddleware (sub-app, /admin only)
-  ├── routers/           ── misc / version / auth / webauthn / hub /
+  ├── routers/           ── misc / version / auth / hub /
   │                        install / models / startup_profile /
   │                        fleet_placement / fleet_maintenance / roles /
   │                        glossary / playground / services / hosts /

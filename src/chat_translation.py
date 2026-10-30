@@ -1,16 +1,18 @@
 """Chat-shape translation: request/response schemas, media-block extraction,
 prompt flattening, and per-backend dispatch shared by the ``/v1/messages`` and
-``/v1/chat/completions`` routes in ``server.py``. The Anthropic SSE event
+``/v1/chat/completions`` routes (``routes/anthropic_messages.py`` and
+``routes/openai_chat.py``). The Anthropic SSE event
 adapters live in ``translation/anthropic_sse.py`` and are re-exported here.
 
 Holds the Pydantic schemas, the Anthropic content-block media extractor, the
 multi-turn prompt flattener, and the three per-backend dispatchers
 (``_run_claude_backend`` / ``_run_gemini_backend`` / ``_run_openai_backend``)
-— out of ``server.py``, same as the audio/images/lifecycle concerns
-(``server_audio_asr.py``/``server_audio_tts.py``, ``server_images.py``,
-``server_lifecycle.py``). ``server.py`` keeps the endpoint handlers
-themselves (including the OpenAI SSE passthrough generator) and the FastAPI
-app/middleware assembly.
+— out of the route modules, same as the audio/images/lifecycle concerns
+(``audio/server_audio_asr.py``/``audio/server_audio_tts.py``,
+``images/server_images.py``, ``server_lifecycle.py``). The route modules keep
+the endpoint handlers themselves (including the OpenAI SSE passthrough
+generator); ``server.py`` only includes their routers and assembles the
+FastAPI app/middleware.
 
 A leaf module with no dependency on ``server.py``'s ``app`` — mirrors
 ``server_common.py``'s reason for existing, so route modules (and this one)
@@ -662,7 +664,7 @@ def prepare_openai_messages_call(
         )
     # On-demand lifecycle: a cold ``startup: on_demand`` local backend
     # is spawned here and the request blocks until it answers (503 on load
-    # failure) — same hook the OpenAI-shape route applies in server.py.
+    # failure) — same hook the OpenAI-shape route applies in routes/openai_chat.py.
     from .server_common import ensure_backend_ready_or_503
     ensure_backend_ready_or_503(model)
     upstream = resolve_openai_upstream(model)

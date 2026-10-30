@@ -16,9 +16,8 @@ Menu (mirrors app-launcher's tray):
     ℹ Status                               — popup with hub state
     Quit
 
-Replaces ``tray/app.py``, ``tray/log_window.py``, and ``tray/config.py``
-in one file. The tk log window is gone — logs live in the admin's Hub
-tab now that the hub IS the process serving its own admin.
+Logs live in the admin's Hub tab because the hub is the process serving its
+own admin; the tray has no log window of its own.
 """
 
 from __future__ import annotations

@@ -31,7 +31,7 @@ def _admin_client(token: str) -> TestClient:
 
 def test_admin_blocks_non_loopback_without_token():
     client = _admin_client("secret123")
-    r = client.get("/api/webauthn/status", headers=_PROXY_HEADERS)
+    r = client.get("/api/hub/counters", headers=_PROXY_HEADERS)
     assert r.status_code == 401
     assert "WWW-Authenticate" in r.headers
 
@@ -39,7 +39,7 @@ def test_admin_blocks_non_loopback_without_token():
 def test_admin_allows_non_loopback_with_correct_token():
     client = _admin_client("secret123")
     r = client.get(
-        "/api/webauthn/status",
+        "/api/hub/counters",
         headers={**_PROXY_HEADERS, "Authorization": "Bearer secret123"},
     )
     assert r.status_code == 200
@@ -48,7 +48,7 @@ def test_admin_allows_non_loopback_with_correct_token():
 def test_admin_blocks_non_loopback_with_wrong_token():
     client = _admin_client("secret123")
     r = client.get(
-        "/api/webauthn/status",
+        "/api/hub/counters",
         headers={**_PROXY_HEADERS, "Authorization": "Bearer nope"},
     )
     assert r.status_code == 401
@@ -62,7 +62,7 @@ def test_admin_exempt_path_bypasses_even_without_token():
 
 def test_admin_loopback_bypasses_without_token():
     client = _admin_client("secret123")
-    r = client.get("/api/webauthn/status")  # no proxy headers -> loopback
+    r = client.get("/api/hub/counters")  # no proxy headers -> loopback
     assert r.status_code == 200
 
 

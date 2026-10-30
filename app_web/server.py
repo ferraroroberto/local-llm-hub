@@ -35,10 +35,9 @@ from src.static_versioning import (
 )
 from src.usage_log import usage_router
 from src.webapp_config import WebappConfig, WebappConfigError, load_webapp_config
-from src.webauthn_gate import WebAuthnGate
 
 from .middleware import BearerTokenMiddleware, admin_token_from_state
-from .routers import auth, code_usage, diagnostics, fleet_maintenance, fleet_placement, glossary, hosts, hub, install, machines, misc, models, playground, roles, services, startup_profile, telemetry, version, webauthn
+from .routers import auth, code_usage, diagnostics, fleet_maintenance, fleet_placement, glossary, hosts, hub, install, machines, misc, models, playground, roles, services, startup_profile, telemetry, version
 from .routers._helpers import STATIC_DIR
 
 _log = logging.getLogger(__name__)
@@ -117,7 +116,7 @@ def _load_admin_webapp_config() -> Optional[WebappConfig]:
     except WebappConfigError as exc:
         _log.warning(
             "⚠️ could not load webapp_config for /admin (%s); non-loopback "
-            "callers are refused and login/passkey report it until a restart",
+            "callers are refused and login reports it until a restart",
             exc,
         )
         return None
@@ -145,7 +144,6 @@ def create_app() -> FastAPI:
     )
 
     app.state.webapp_config = webapp_cfg
-    app.state.webauthn_gate = WebAuthnGate()
 
     asset_hashes = compute_asset_hashes(STATIC_DIR)
     app.state.asset_hashes = asset_hashes
@@ -167,7 +165,6 @@ def create_app() -> FastAPI:
     app.include_router(misc.router)
     app.include_router(version.router)
     app.include_router(auth.router)
-    app.include_router(webauthn.router)
     app.include_router(hub.router)
     app.include_router(install.router)
     app.include_router(models.router)
