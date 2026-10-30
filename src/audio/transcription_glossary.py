@@ -26,6 +26,9 @@ variant becomes a replacement rule to its canonical, so one correction feeds
 both halves and every consumer that reads the hub's read-only alias endpoint.
 Absent file → behaviour is exactly the two-file dictionary above.
 
+The boost vocabulary is capped to a token budget (:func:`build_boost_plan`)
+because whisper honours only the tail of a long initial prompt.
+
 Rules are cached after first load; edit the JSON and restart the hub to
 pick up changes (same lifecycle as ``config/models.yaml``).
 """
@@ -47,6 +50,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_GLOSSARY_PATH = PROJECT_ROOT / "config" / "transcription_glossary.json"
 DEFAULT_LOCAL_BOOST_PATH = PROJECT_ROOT / "config" / "transcription_glossary.local.json"
 DEFAULT_ALIAS_PATH = PROJECT_ROOT / "config" / "aliases.local.json"
+
+# Whisper honours only the last ~224 initial-prompt tokens; 200 leaves headroom
+# for the estimate being approximate. Overridable via ``boost_token_budget``.
+DEFAULT_BOOST_TOKEN_BUDGET = 200
+_PROMPT_PREFIX = "Glossary: "
+_PROMPT_SUFFIX = "."
+_CHARS_PER_TOKEN = 3
 
 
 class Rule(NamedTuple):
@@ -176,6 +186,96 @@ def load_boost_terms(
     return terms
 
 
+class BoostPlan(NamedTuple):
+    """The launch prompt after ranking and capping to the token budget."""
+
+    prompt: str
+    kept: List[str]
+    dropped: List[str]
+    used_tokens: int
+    total_tokens: int
+    budget: int
+
+
+def estimate_tokens(text: str) -> int:
+    """Cheap token estimate: ``ceil(len / 3)``.
+
+    English averages ~4 chars/token but proper nouns and jargon split finer, so
+    3 deliberately over-counts: an under-count would let whisper silently drop
+    the oldest prompt terms instead of us dropping the lowest-ranked ones.
+    """
+    return -(-len(text) // _CHARS_PER_TOKEN)
+
+
+def _prompt_tokens(terms: List[str]) -> int:
+    """Estimated tokens of the prompt rendered from ``terms`` (+1 per ", ")."""
+    frame = estimate_tokens(_PROMPT_PREFIX + _PROMPT_SUFFIX)
+    return frame + sum(estimate_tokens(t) + 1 for t in terms)
+
+
+def _configured_budget(target: Path) -> Optional[int]:
+    """The glossary file's own ``boost_token_budget``, if it is a valid int."""
+    data = read_json(target, "transcription glossary")
+    value = data.get("boost_token_budget") if isinstance(data, dict) else None
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    return None
+
+
+def load_boost_budget(path: Optional[str] = None) -> int:
+    """Token budget for the boost prompt (file value, else the default)."""
+    target = Path(path) if path else DEFAULT_GLOSSARY_PATH
+    return _configured_budget(target) or DEFAULT_BOOST_TOKEN_BUDGET
+
+
+def rank_boost_terms(terms: List[str], aliases: List[Dict[str, Any]]) -> List[str]:
+    """Order ``terms`` by how much a boost is worth, highest first.
+
+    The only usage signal stored is the alias file: a canonical with more known
+    mishearings is one whisper demonstrably gets wrong, so it ranks first.
+    Everything else keeps its file order (the sort is stable), so the ranking
+    is deterministic.
+    """
+    mishears = {e["canonical"].lower(): len(e["variants"]) for e in aliases}
+    return sorted(terms, key=lambda t: -mishears.get(t.lower(), 0))
+
+
+def build_boost_plan(
+    path: Optional[str] = None,
+    local_path: Optional[str] = None,
+    alias_path: Optional[str] = None,
+    budget: Optional[int] = None,
+) -> BoostPlan:
+    """Fit the boost vocabulary into the token budget.
+
+    Whisper honours only the last ~224 prompt tokens, so an over-long list
+    would lose terms at random. When everything fits the prompt keeps file
+    order untouched; otherwise the top-ranked terms are kept (a strict prefix
+    of the ranking, so a short low-ranked term never jumps a long one) and the
+    survivors are re-emitted in file order.
+    """
+    terms = load_boost_terms(path, local_path, alias_path)
+    limit = budget if budget is not None else load_boost_budget(path)
+    total = _prompt_tokens(terms) if terms else 0
+
+    kept = terms
+    if total > limit:
+        keep = set()
+        used = _prompt_tokens([])
+        for term in rank_boost_terms(terms, load_aliases(alias_path)):
+            used += estimate_tokens(term) + 1
+            if used > limit:
+                break
+            keep.add(term)
+        kept = [t for t in terms if t in keep]
+
+    kept_set = set(kept)
+    dropped = [t for t in terms if t not in kept_set]
+    prompt = _PROMPT_PREFIX + ", ".join(kept) + _PROMPT_SUFFIX if kept else ""
+    used_tokens = _prompt_tokens(kept) if kept else 0
+    return BoostPlan(prompt, kept, dropped, used_tokens, total, limit)
+
+
 def load_glossary(path: Optional[str] = None) -> Dict[str, Any]:
     """Return the raw, editable glossary: ``{replacements, boost_terms}``.
 
@@ -244,8 +344,13 @@ def save_glossary(data: Dict[str, Any], path: Optional[str] = None) -> Dict[str,
     """
     target = Path(path) if path else DEFAULT_GLOSSARY_PATH
     clean = normalize_glossary(data)
+    persisted = dict(clean)
+    # The editor never sends the budget; carry a hand-set one across the save.
+    budget = _configured_budget(target)
+    if budget is not None:
+        persisted["boost_token_budget"] = budget
     atomic_write_text(
-        target, json.dumps(clean, indent=2, ensure_ascii=False) + "\n"
+        target, json.dumps(persisted, indent=2, ensure_ascii=False) + "\n"
     )
     load_rules.cache_clear()
     logger.info(

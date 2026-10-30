@@ -305,6 +305,8 @@
 }
 .glossary-chip-suggest:hover { background: var(--accent-soft); }
 .glossary-add-row { display: flex; gap: 6px; }
+.glossary-budget.warn { display: flex; align-items: flex-start; gap: 6px; color: var(--attention-text); }
+.glossary-budget .icon { width: 16px; height: 16px; flex-shrink: 0; color: var(--attention); }
 .glossary-add-row input {
   flex: 1 1 0;
   min-width: 0;
