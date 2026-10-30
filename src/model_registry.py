@@ -476,8 +476,8 @@ def cpu_resident_map() -> Dict[str, set]:
     Reads ``all_models(apply_cpu_offload=False)`` deliberately: the registry
     bakes the CPU rewrite in for the *active* host, so the default view would
     show ``-ng`` on this box's row and smear that verdict across every other
-    chain member (#405). Deliberately **not** ``est_vram_mb == 0`` alone —
-    ``parakeet`` is also 0 but runs on the Mac's ANE via CoreML, a real (if
+    chain member (#405). Deliberately **not** keyed on ``est_vram_mb`` —
+    ``parakeet`` runs on the Mac's ANE via CoreML, a real (if
     non-discrete-VRAM) device, not "cpu".
     """
     out: Dict[str, set] = {h.id: set() for h in all_hosts()}

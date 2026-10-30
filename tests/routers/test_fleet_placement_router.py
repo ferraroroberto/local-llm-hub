@@ -120,9 +120,15 @@ def test_get_returns_registry_derived_placement(monkeypatch):
     assert hosts["mac-mini-m4"]["placed"] == FIXTURE_DESIRED_PLACEMENT["mac-mini-m4"]
     # eligible carries display names for the grid to render
     assert all("display_name" in e for e in hosts["mac-mini-m4"]["eligible"])
-    # parakeet is 0-VRAM but runs on the Mac's ANE, not CPU — no device hint
+    # parakeet runs on the Mac's ANE, not CPU — no device hint
     by_id = {e["id"]: e for e in hosts["mac-mini-m4"]["eligible"]}
     assert by_id["parakeet"]["device"] is None
+    # on unified memory the footprint is real RAM: parakeet is rated and the
+    # Mac's summed estimate (the placement RAM bar) includes it
+    from src import model_registry
+    parakeet_mb = next(m for m in model_registry.all_models() if m.id == "parakeet").est_vram_mb
+    assert parakeet_mb and parakeet_mb > 0
+    assert hosts["mac-mini-m4"]["est_vram_mb"] >= parakeet_mb
 
 
 def test_reachable_peer_with_unanswering_hub_reports_running_unknown(monkeypatch):
