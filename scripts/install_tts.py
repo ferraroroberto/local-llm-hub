@@ -30,7 +30,6 @@ import os
 import shutil
 import subprocess
 import sys
-import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -40,7 +39,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _lib import no_window_flags  # noqa: E402
+from _lib import download, no_window_flags  # noqa: E402
 from src.model_registry import enabled_models  # noqa: E402
 
 
@@ -222,28 +221,9 @@ def _download_kokoro_onnx() -> None:
         for filename, url in _KOKORO_ASSETS.items():
             out = out_dir / filename
             try:
-                _download_file(url, out, "Kokoro asset")
+                download(url, out, skip_existing=True)
             except Exception as exc:  # noqa: BLE001
                 log.warning("Kokoro asset download skipped: %s", exc)
-
-
-def _download_file(url: str, out: Path, label: str) -> None:
-    if out.exists() and out.stat().st_size > 0:
-        log.info("%s already present: %s", label, out)
-        return
-    out.parent.mkdir(parents=True, exist_ok=True)
-    tmp = out.with_suffix(out.suffix + ".tmp")
-    log.info("downloading %s …", label)
-    try:
-        urllib.request.urlretrieve(url, tmp)
-        tmp.replace(out)
-        log.info("  -> %s", out)
-    except Exception:
-        try:
-            tmp.unlink(missing_ok=True)
-        except OSError:
-            pass
-        raise
 
 
 def _download_piper_assets() -> None:
@@ -259,7 +239,7 @@ def _download_piper_assets() -> None:
     try:
         if not piper_exe.exists():
             zip_path = PROJECT_ROOT / "models" / "piper" / "piper_windows_amd64.zip"
-            _download_file(_PIPER_RELEASE_URL, zip_path, "Piper Windows binary")
+            download(_PIPER_RELEASE_URL, zip_path, skip_existing=True)
             log.info("extracting Piper binary to %s", vendor_dir / "piper")
             with zipfile.ZipFile(zip_path) as zf:
                 zf.extractall(vendor_dir)
@@ -271,7 +251,7 @@ def _download_piper_assets() -> None:
     out_dir = PROJECT_ROOT / "models" / "piper"
     for filename, url in _PIPER_VOICES.items():
         try:
-            _download_file(url, out_dir / filename, f"Piper voice {filename}")
+            download(url, out_dir / filename, skip_existing=True)
         except Exception as exc:  # noqa: BLE001
             log.warning("Piper voice download skipped: %s", exc)
 

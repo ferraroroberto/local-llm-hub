@@ -266,6 +266,25 @@ export function fmtSecs(ms) {
   return (n / 1000).toFixed(n < 995 ? 2 : 1) + 's';
 }
 
+/* Elapsed seconds as "45s" / "22m" / "3h 5m"; with `days` the hours roll over
+ * to "3d 14h". A zero remainder is dropped ("3h", not "3h 0m"). `empty` is
+ * what a missing or negative value reads as — '—' unless the caller wants to
+ * test for absence (null). */
+export function fmtDuration(seconds, { days = false, empty = '—' } = {}) {
+  if (!Number.isFinite(seconds) || seconds < 0) return empty;
+  const s = Math.floor(seconds);
+  if (s < 60) return s + 's';
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + 'm';
+  const h = Math.floor(m / 60);
+  if (days && h >= 24) {
+    const remH = h % 24;
+    return Math.floor(h / 24) + 'd' + (remH ? ' ' + remH + 'h' : '');
+  }
+  const remM = m % 60;
+  return h + 'h' + (remM ? ' ' + remM + 'm' : '');
+}
+
 /* Client-side row filter for a rendered list (design.md action-row: a list over
  * 12 rows gets a filter). Hides the rows whose text lacks the query; call it
  * after every re-render and from the input's own `input` event. */

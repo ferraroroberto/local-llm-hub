@@ -106,25 +106,38 @@ def linux_cuda_build_hint(
     )
 
 
-def download(url: str, dest: Path) -> None:
+def download(url: str, dest: Path, *, skip_existing: bool = False) -> None:
+    """Fetch ``url`` to ``dest`` via a ``.tmp`` sibling renamed on success, so a
+    failed or interrupted transfer never leaves a truncated ``dest`` behind.
+    ``skip_existing`` leaves a non-empty ``dest`` alone (idempotent re-installs).
+    """
+    if skip_existing and dest.exists() and dest.stat().st_size > 0:
+        log.info("already present: %s", dest)
+        return
     dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_suffix(dest.suffix + ".tmp")
     log.info("downloading %s", url)
     log.info("       -> %s", dest)
-    with urllib.request.urlopen(url, timeout=120) as r:
-        total = int(r.headers.get("Content-Length", 0))
-        seen = 0
-        next_report = 0
-        with dest.open("wb") as f:
-            while True:
-                chunk = r.read(1024 * 1024)
-                if not chunk:
-                    break
-                f.write(chunk)
-                seen += len(chunk)
-                if total and seen >= next_report:
-                    pct = 100 * seen / total
-                    log.info("  %6.1f / %6.1f MB (%5.1f%%)", seen/1_048_576, total/1_048_576, pct)
-                    next_report = seen + total // 20
+    try:
+        with urllib.request.urlopen(url, timeout=120) as r:
+            total = int(r.headers.get("Content-Length", 0))
+            seen = 0
+            next_report = 0
+            with tmp.open("wb") as f:
+                while True:
+                    chunk = r.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    seen += len(chunk)
+                    if total and seen >= next_report:
+                        pct = 100 * seen / total
+                        log.info("  %6.1f / %6.1f MB (%5.1f%%)", seen/1_048_576, total/1_048_576, pct)
+                        next_report = seen + total // 20
+        tmp.replace(dest)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     log.info("  done: %.1f MB", seen/1_048_576)
 
 

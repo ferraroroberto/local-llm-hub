@@ -19,7 +19,7 @@
  */
 
 import { els, state, HUB_STATS_POLL_MS, HUB_LOG_MAX_LINES } from './state.js';
-import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, renderCounterTable, shortGpu, modelLabelText, applyListFilter, isAuthError, tokPair } from './api.js';
+import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, fmtDuration, renderCounterTable, shortGpu, modelLabelText, applyListFilter, isAuthError, tokPair } from './api.js';
 import { langfuseTraceUrl, langfuseUiBase, fetchOtelHealth, hydrateTraceDetail, postFeedback } from './langfuse.js';
 import { icon } from './_vendored/icons/icons.js';
 import { row, chip, setHeadLine, defineInfo } from './rows.js';
@@ -38,22 +38,12 @@ export async function fetchHubStatus() {
     state.status = body;
     state.hubStatusOk = true;
     if (els.aboutPid) els.aboutPid.textContent = body.pid || '—';
-    if (els.hubUptime) els.hubUptime.textContent = fmtUptime(body.uptime_s);
+    if (els.hubUptime) els.hubUptime.textContent = fmtDuration(body.uptime_s, { days: true });
   } catch (exc) {
     if (isAuthError(exc)) return;
     state.hubStatusOk = false;
   }
   renderHeadLine();
-}
-
-function fmtUptime(seconds) {
-  if (!Number.isFinite(seconds)) return '—';
-  if (seconds < 60) return Math.floor(seconds) + 's';
-  if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + Math.floor(seconds % 60) + 's';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h < 48) return h + 'h ' + m + 'm';
-  return Math.floor(h / 24) + 'd ' + (h % 24) + 'h';
 }
 
 function fmtMs(ms) {
@@ -83,7 +73,7 @@ export function renderHeadLine() {
     return c.status === 'missing' || c.status === 'error';
   }).length;
   if (failing) parts.push({ text: failing + (failing === 1 ? ' install check failing' : ' install checks failing'), tone: 'attention' });
-  const up = state.status && Number.isFinite(state.status.uptime_s) ? 'Up ' + fmtUptime(state.status.uptime_s) : 'Serving';
+  const up = state.status && Number.isFinite(state.status.uptime_s) ? 'Up ' + fmtDuration(state.status.uptime_s, { days: true }) : 'Serving';
   setHeadLine(el, parts, up);
 }
 
@@ -116,7 +106,7 @@ function renderGlance() {
   if (els.hubP50) els.hubP50.textContent = ok ? fmtMs(s.p50_ms) : '—';
   if (els.hubWindow) {
     els.hubWindow.textContent = ok
-      ? 'since start · ' + fmtUptime(s.since_uptime_s)
+      ? 'since start · ' + fmtDuration(s.since_uptime_s, { days: true })
       : (state.hubMetricsOk === false ? 'since start · not confirmed' : 'since start · reading…');
   }
 }
@@ -126,7 +116,7 @@ function renderByModel() {
   const s = (state.hubMetrics && state.hubMetrics.summary) || null;
   const text = state.hubMetricsOk === true && s
     ? s.requests + ' req · ' + (s.requests ? ((s.errors / s.requests) * 100).toFixed(1) : '0.0') + '% err · since '
-      + fmtUptime(s.since_uptime_s)
+      + fmtDuration(s.since_uptime_s, { days: true })
     : (state.hubMetricsOk === false ? 'Not confirmed — the counters could not be read.' : 'Reading…');
   if (els.hubByModelSummary) els.hubByModelSummary.textContent = text;
   if (els.byModelMeta) els.byModelMeta.textContent = text;
