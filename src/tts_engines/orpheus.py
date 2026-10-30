@@ -23,7 +23,11 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional
 import httpx
 
 from ..model_registry import Model
-from ..process.process_supervisor import ProcessSupervisor
+from ..process.process_supervisor import (
+    STOP_KILL_TIMEOUT_S,
+    STOP_TERMINATE_TIMEOUT_S,
+    ProcessSupervisor,
+)
 from ..process.win_job import assign_pid, create_kill_on_close_job, terminate_and_close
 from .common import (
     PROJECT_ROOT,
@@ -57,6 +61,10 @@ _ORPHEUS_TOKEN_RE = re.compile(r"<custom_token_(\d+)>")
 # that single generations stay coherent (very long ones also degrade quality).
 _N_PREDICT = 4096
 _MAX_CHARS_PER_CHUNK = 480
+# Read budget for one loopback ``/completion``: a full chunk is ~27 s of audio
+# and the 3B model on a loaded GPU generates well below real time, so the
+# worst case runs minutes, not seconds.
+_COMPLETION_TIMEOUT_S = 300.0
 # Split on whitespace that follows sentence-ending punctuation, keeping the
 # punctuation with its sentence.
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
@@ -109,7 +117,7 @@ class OrpheusEngine(TTSEngine):
         self.device = resolve_device(self.device_arg)
         log.info("loading SNAC codec on %s …", self.device)
         self.snac = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval().to(self.device)
-        self._client = httpx.Client(timeout=300.0)
+        self._client = httpx.Client(timeout=_COMPLETION_TIMEOUT_S)
         self._spawn_llama()
         self._wait_llama_ready()
         log.info("Orpheus ready (llama-server :%d, SNAC on %s)", self.internal_port, self.device)
@@ -315,7 +323,7 @@ class OrpheusEngine(TTSEngine):
         url = f"http://127.0.0.1:{self.internal_port}/completion"
         assert self._client is not None
         r = self._client.post(
-            url, json=self._completion_payload(prompt, stream=False), timeout=300.0
+            url, json=self._completion_payload(prompt, stream=False), timeout=_COMPLETION_TIMEOUT_S
         )
         r.raise_for_status()
         content = r.json().get("content", "")
@@ -366,7 +374,7 @@ class OrpheusEngine(TTSEngine):
         url = f"http://127.0.0.1:{self.internal_port}/completion"
         assert self._client is not None
         with self._client.stream(
-            "POST", url, json=self._completion_payload(prompt, stream=True), timeout=300.0
+            "POST", url, json=self._completion_payload(prompt, stream=True), timeout=_COMPLETION_TIMEOUT_S
         ) as r:
             r.raise_for_status()
             for line in r.iter_lines():
@@ -484,7 +492,11 @@ class OrpheusEngine(TTSEngine):
         proc = self.proc
         self.proc = None
         if proc is not None and proc.poll() is None:
-            ok, msg = ProcessSupervisor.stop_popen(proc, terminate_timeout=8.0, kill_timeout=3.0)
+            ok, msg = ProcessSupervisor.stop_popen(
+                proc,
+                terminate_timeout=STOP_TERMINATE_TIMEOUT_S,
+                kill_timeout=STOP_KILL_TIMEOUT_S,
+            )
             if not ok:
                 log.warning("error stopping Orpheus llama-server: %s", msg)
         job = self._job

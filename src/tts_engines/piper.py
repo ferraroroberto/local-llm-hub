@@ -27,6 +27,12 @@ from .common import PROJECT_ROOT, SpeechRequest, TTSEngine, TTS_LANGUAGE_LABELS,
 
 log = logging.getLogger(__name__)
 
+# How long a resident piper gets to exit after its stdin closes and terminate()
+# lands before close() kills it. Piper holds only an ONNX voice and no listener,
+# so it exits in well under a second; this bound just keeps a wedged one from
+# stalling the engine's shutdown.
+_CLOSE_WAIT_S = 5.0
+
 
 class _PiperProc:
     """One resident ``piper.exe`` for a fixed (voice model, length_scale).
@@ -116,7 +122,7 @@ class _PiperProc:
                 proc.stdin.close()
             proc.terminate()
             try:
-                proc.wait(timeout=5.0)
+                proc.wait(timeout=_CLOSE_WAIT_S)
             except subprocess.TimeoutExpired:
                 proc.kill()
         except Exception:  # noqa: BLE001

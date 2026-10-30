@@ -21,6 +21,7 @@
 import { els, state, MACHINES_POLL_MS } from './state.js';
 import { jsonApi, postJson, api, toast, escapeHtml, codeHtml, fmtClock, fmtDuration, shortGpu, fmtGbValue, isAuthError } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
+import { confirmDialog } from './confirm_dialog.js';
 import { row, chip, setHeadLine, infoButton, defineInfo, isWide, onWideChange } from './rows.js';
 import { openMachinesTerminal, wireMachinesTerminal } from './machines_terminal.js';
 import { openDiagnostics, wireDiagnostics, refreshDiagnosticsChip } from './diagnostics.js';
@@ -550,38 +551,16 @@ function openMachine(id) {
 }
 
 // --------------------------------------------------------- destructive confirm
-let pendingConfirm = null; // { id, displayName, action }
-
-function openConfirm(id, displayName, action) {
-  pendingConfirm = { id: id, displayName: displayName, action: action };
-  if (els.machinesConfirmTitle) {
-    els.machinesConfirmTitle.textContent = action === 'reboot' ? 'Reboot machine' : 'Shut down machine';
-  }
-  if (els.machinesConfirmBody) {
-    els.machinesConfirmBody.textContent = action === 'reboot'
+async function confirmPowerAction(id, displayName, action) {
+  const reboot = action === 'reboot';
+  const ok = await confirmDialog({
+    title: reboot ? 'Reboot machine' : 'Shut down machine',
+    body: reboot
       ? 'Reboot "' + displayName + '"? Anything running there right now will be interrupted.'
-      : 'Shut down "' + displayName + '"? It will need to be turned back on manually.';
-  }
-  if (els.machinesConfirmBtn) {
-    els.machinesConfirmBtn.textContent = action === 'reboot' ? 'Reboot' : 'Shut down';
-    els.machinesConfirmBtn.disabled = false;
-  }
-  if (els.machinesConfirmDialog && els.machinesConfirmDialog.showModal) {
-    els.machinesConfirmDialog.showModal();
-  }
-}
-
-function closeConfirm() {
-  pendingConfirm = null;
-  if (els.machinesConfirmDialog && els.machinesConfirmDialog.open) els.machinesConfirmDialog.close();
-}
-
-async function onConfirmClick() {
-  if (!pendingConfirm) return;
-  const id = pendingConfirm.id;
-  const displayName = pendingConfirm.displayName;
-  const action = pendingConfirm.action;
-  closeConfirm();
+      : 'Shut down "' + displayName + '"? It will need to be turned back on manually.',
+    confirmLabel: reboot ? 'Reboot' : 'Shut down',
+  });
+  if (!ok) return;
   state.machinesBusyIds = Object.assign({}, state.machinesBusyIds);
   state.machinesBusyIds[id] = true;
   renderMachines();
@@ -710,7 +689,7 @@ function onMachinesClick(ev) {
   else if (action === 'rdp') downloadRdp(id, displayName);
   else if (action === 'wake') wakeMachine(id, displayName);
   else if (action === 'bootstrap' || action === 'sync') peerHubAction(id, displayName, action);
-  else if (action === 'reboot' || action === 'shutdown') openConfirm(id, displayName, action);
+  else if (action === 'reboot' || action === 'shutdown') confirmPowerAction(id, displayName, action);
 }
 
 export function wireMachines() {
@@ -734,12 +713,5 @@ export function wireMachines() {
     if (state.machinesStatus) renderMachines();
   });
   wireDiagnostics();
-  if (els.machinesConfirmCloseBtn) els.machinesConfirmCloseBtn.addEventListener('click', closeConfirm);
-  if (els.machinesConfirmBtn) els.machinesConfirmBtn.addEventListener('click', onConfirmClick);
-  if (els.machinesConfirmDialog) {
-    // Esc also fires 'cancel' on a native <dialog> — drop the pending
-    // action so a later stray click on a since-hidden button can't fire.
-    els.machinesConfirmDialog.addEventListener('cancel', function () { pendingConfirm = null; });
-  }
   wireMachinesTerminal();
 }

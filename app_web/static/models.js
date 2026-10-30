@@ -22,6 +22,7 @@ import { jsonApi, postJson, putJson, toast, escapeHtml, codeHtml, fmtGb, isAuthE
 import { mountGlossaryEditor } from './glossary.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createRowMenu } from './_vendored/row-menu/row-menu.js';
+import { confirmDialog } from './confirm_dialog.js';
 import { row, chip, setHeadLine, defineInfo, isWide, onWideChange } from './rows.js';
 import { fetchFleetPlacement, renderMemory, hostBodyEl, hostLabel, overCapacityHosts, onFleetPlacement } from './fleet_placement.js';
 
@@ -860,24 +861,14 @@ function refreshMemorySoon(ms) {
   setTimeout(function () { fetchFleetPlacement(); }, ms);
 }
 
-let pendingForceStop = null;
-
-function openForceStopConfirm(m) {
-  pendingForceStop = m;
-  els.machinesConfirmTitle.textContent = 'Force stop';
-  els.machinesConfirmBody.textContent = 'Force stop "' + m.display_name
-    + '"? Another process started it, so the hub ends whatever holds its port. Anything it is doing now is lost.';
-  els.machinesConfirmBtn.textContent = 'Force stop';
-  els.machinesConfirmBtn.disabled = false;
-  els.machinesConfirmBtn.dataset.for = 'models';
-  els.machinesConfirmDialog.showModal();
-}
-
-async function onForceStopConfirmed() {
-  const m = pendingForceStop;
-  pendingForceStop = null;
-  els.machinesConfirmDialog.close();
-  if (!m) return;
+async function forceStopModel(m) {
+  const ok = await confirmDialog({
+    title: 'Force stop',
+    body: 'Force stop "' + m.display_name
+      + '"? Another process started it, so the hub ends whatever holds its port. Anything it is doing now is lost.',
+    confirmLabel: 'Force stop',
+  });
+  if (!ok) return;
   try {
     await postJson('/admin/api/models/' + encodeURIComponent(m.id) + '/force-stop', {});
     toast('Force-stopped ' + m.display_name, 'good');
@@ -907,7 +898,7 @@ async function handleAction(m, act) {
       refreshMemorySoon(STOP_MEMORY_MS);
     } catch (exc) { toast(String(exc.message || exc), 'error'); }
   } else if (act === 'force-stop') {
-    openForceStopConfirm(m);
+    forceStopModel(m);
   } else if (act === 'ping') {
     try {
       const body = await postJson('/admin/api/models/' + encodeURIComponent(m.id) + '/ping', {});
@@ -974,21 +965,6 @@ export function wireModels() {
         localStorage.setItem(MODELS_ACTIVE_ONLY_KEY, String(state.modelsActiveOnly));
       } catch (_) { /* private mode */ }
       renderModels();
-    });
-  }
-  // Force stop shares the Machines confirm dialog (a vendored modal, never
-  // the browser's confirm()); this listener acts only for a Models request.
-  if (els.machinesConfirmBtn) {
-    els.machinesConfirmBtn.addEventListener('click', function (ev) {
-      if (els.machinesConfirmBtn.dataset.for !== 'models') return;
-      ev.stopImmediatePropagation();
-      onForceStopConfirmed();
-    }, true);
-  }
-  if (els.machinesConfirmDialog) {
-    els.machinesConfirmDialog.addEventListener('close', function () {
-      delete els.machinesConfirmBtn.dataset.for;
-      pendingForceStop = null;
     });
   }
   // Crossing the wide breakpoint swaps the sheet for the detail pane (or back).

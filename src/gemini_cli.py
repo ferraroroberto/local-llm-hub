@@ -309,6 +309,16 @@ _TRUST_PROMPT_TIMEOUT_S = 30.0   # main UI after accepting the folder-trust dial
 _PICKER_OPEN_TIMEOUT_S = 25.0    # `/model` picker rendered
 _MODEL_TOAST_TIMEOUT_S = 15.0    # "Model set to ..." confirmation (may not appear)
 
+# Fixed pauses in `_switch_model`'s keystroke sequence, in seconds. Unlike the
+# waits above, none of these has an on-screen marker to poll for, so each is a
+# settle time for the TUI to take the previous input; when `agy` changes and
+# the picker misreads or skips input, retune these first.
+_SLASH_SETTLE_S = 0.8        # after typing `/model`, before Enter runs the command
+_PICKER_DRAW_S = 0.6         # after the picker title shows, before its rows are parsed
+_ARROW_STEP_S = 0.15         # between Up/Down presses moving the highlight
+_SELECT_SETTLE_S = 0.3       # after the last arrow, before Enter picks the row
+_CTRL_C_GAP_S = 0.3          # after each of the two exit Ctrl-Cs
+
 
 def _switch_model(exe: str, target: str) -> None:
     """Switch `agy`'s globally-selected model to ``target`` via `/model`."""
@@ -326,11 +336,11 @@ def _switch_model(exe: str, target: str) -> None:
                 raise GeminiCLIError("agy did not reach main UI after trust prompt")
 
         pty.write("/model")
-        time.sleep(0.8)
+        time.sleep(_SLASH_SETTLE_S)
         pty.write("\r")
         if pty.wait_for(["Switch Model"], _PICKER_OPEN_TIMEOUT_S) is None:
             raise GeminiCLIError("agy `/model` picker did not open")
-        time.sleep(0.6)
+        time.sleep(_PICKER_DRAW_S)
 
         global _catalogue
         labels, current = _parse_picker(_strip_ansi(pty.text()))
@@ -357,8 +367,8 @@ def _switch_model(exe: str, target: str) -> None:
         key = "\x1b[B" if delta > 0 else "\x1b[A"
         for _ in range(abs(delta)):
             pty.write(key)
-            time.sleep(0.15)
-        time.sleep(0.3)
+            time.sleep(_ARROW_STEP_S)
+        time.sleep(_SELECT_SETTLE_S)
         pty.write("\r")
         # The confirmation toast reads "Model set to <label>". Selecting
         # the already-current model may not toast — tolerate that.
@@ -367,9 +377,9 @@ def _switch_model(exe: str, target: str) -> None:
     finally:
         try:
             pty.write("\x03")
-            time.sleep(0.3)
+            time.sleep(_CTRL_C_GAP_S)
             pty.write("\x03")
-            time.sleep(0.3)
+            time.sleep(_CTRL_C_GAP_S)
         except Exception:  # pragma: no cover - best-effort cleanup
             pass
         pty.kill()

@@ -680,21 +680,22 @@
     </form>
   </div>
 
-  <!-- Machines tab: destructive-action confirm + the SSH
-       terminal overlay. Both use the vendored editor-modal shell
-       (_vendored/modal) — a native <dialog>, so the fleet nav auto-hides
-       itself while either is open (body:has(dialog[open])). -->
-  <dialog class="detail-dialog" id="machinesConfirmDialog">
+  <!-- Destructive-action confirm (confirm_dialog.js, shared by Models,
+       Machines and Diagnostics) + the Machines SSH terminal overlay. Both use
+       the vendored editor-modal shell (_vendored/modal) — a native <dialog>,
+       so the fleet nav auto-hides itself while either is open
+       (body:has(dialog[open])). -->
+  <dialog class="detail-dialog" id="confirmDialog">
     <div class="detail-card">
       <div class="detail-header">
-        <h2 id="machinesConfirmTitle">Confirm</h2>
-        <button type="button" class="icon-button detail-close" id="machinesConfirmCloseBtn" aria-label="Close">
+        <h2 id="confirmDialogTitle">Confirm</h2>
+        <button type="button" class="icon-button detail-close" id="confirmDialogCloseBtn" aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
-      <p id="machinesConfirmBody" class="machines-confirm-body"></p>
+      <p id="confirmDialogBody" class="confirm-dialog-body"></p>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn button-tint danger" id="machinesConfirmBtn">Confirm</button>
+        <button type="button" class="detail-save-btn button-tint danger" id="confirmDialogBtn">Confirm</button>
       </div>
     </div>
   </dialog>
