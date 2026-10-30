@@ -187,3 +187,97 @@ def test_proxy_rewrites_glossary_term_in_response(monkeypatch):
     )
     assert resp.status_code == 200
     assert resp.json()["text"] == "open Claude Code please"
+
+
+# ---------------------------------------------------------------------------
+# Shared alias file
+# ---------------------------------------------------------------------------
+
+def _write_aliases(tmp_path, entries):
+    path = tmp_path / "aliases.json"
+    path.write_text(json.dumps({"aliases": entries}), encoding="utf-8")
+    return str(path)
+
+
+def _glossary_file(tmp_path):
+    path = tmp_path / "glossary.json"
+    path.write_text(
+        json.dumps({
+            "replacements": [{"from": "cloud code", "to": "Claude Code"}],
+            "boost_terms": ["Claude Code"],
+        }),
+        encoding="utf-8",
+    )
+    return str(path)
+
+
+def test_alias_canonical_joins_boost_terms(tmp_path):
+    aliases = _write_aliases(tmp_path, [
+        {"canonical": "Exampleville", "variants": ["example vill"], "kind": "place"},
+    ])
+    terms = load_boost_terms(
+        _glossary_file(tmp_path), str(tmp_path / "none.json"), aliases
+    )
+    assert terms == ["Claude Code", "Exampleville"]
+
+
+def test_alias_canonical_already_boosted_is_not_repeated(tmp_path):
+    aliases = _write_aliases(tmp_path, [{"canonical": "claude code", "variants": []}])
+    terms = load_boost_terms(
+        _glossary_file(tmp_path), str(tmp_path / "none.json"), aliases
+    )
+    assert terms == ["Claude Code"]
+
+
+def test_alias_variants_become_replacement_rules(tmp_path):
+    aliases = _write_aliases(tmp_path, [
+        {"canonical": "Exampleville", "variants": ["example vill", "egg sample ville"]},
+    ])
+    load_rules.cache_clear()
+    rules = load_rules(_glossary_file(tmp_path), aliases)
+    body = json.dumps({"text": "i left Example Vill and cloud code"}).encode("utf-8")
+    out = json.loads(apply_to_response(body, "application/json", rules))
+    # The alias variant and the glossary's own rule both apply.
+    assert out["text"] == "i left Exampleville and Claude Code"
+
+
+def test_no_alias_file_leaves_rules_and_boost_terms_unchanged(tmp_path):
+    glossary = _glossary_file(tmp_path)
+    missing = str(tmp_path / "missing-aliases.json")
+    load_rules.cache_clear()
+    rules = load_rules(glossary, missing)
+    assert [(r.pattern.pattern, r.replacement) for r in rules] == [
+        (r"\bcloud\ code\b", "Claude Code")
+    ]
+    assert load_boost_terms(glossary, str(tmp_path / "none.json"), missing) == [
+        "Claude Code"
+    ]
+
+
+def test_load_aliases_normalises_and_drops_junk(tmp_path):
+    path = _write_aliases(tmp_path, [
+        {"canonical": " Exampleville ", "variants": [" a b ", "A B", "exampleville", 3, ""]},
+        {"canonical": "", "variants": ["orphan"]},
+        "not a dict",
+        {"canonical": "Widget", "kind": "project"},
+    ])
+    from src.audio.transcription_glossary import load_aliases
+
+    assert load_aliases(path) == [
+        {"canonical": "Exampleville", "variants": ["a b"], "kind": "term"},
+        {"canonical": "Widget", "variants": [], "kind": "project"},
+    ]
+
+
+def test_load_aliases_tolerates_bare_list_and_bad_files(tmp_path):
+    from src.audio.transcription_glossary import load_aliases
+
+    bare = tmp_path / "bare.json"
+    bare.write_text(json.dumps([{"canonical": "Widget"}]), encoding="utf-8")
+    assert load_aliases(str(bare)) == [
+        {"canonical": "Widget", "variants": [], "kind": "term"}
+    ]
+    broken = tmp_path / "broken.json"
+    broken.write_text("{not json", encoding="utf-8")
+    assert load_aliases(str(broken)) == []
+    assert load_aliases(str(tmp_path / "missing.json")) == []

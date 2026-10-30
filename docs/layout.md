@@ -72,6 +72,8 @@ local-llm-hub/
 │   ├── claude_pricing.json / gemini_pricing.json / openai_pricing.json  # per-model $/token
 │   │                                  #   tables for the Code-tab usage/cost parsers
 │   ├── dictionary_miner.json         # glossary-miner state
+│   ├── aliases.local.sample.json     # template for the gitignored shared alias file
+│   │                                  #   (canonical + variants; feeds boost terms and rules)
 │   └── transcription_glossary.json / transcription_glossary.local.sample.json  # whisper
 │                                      #   replacement-rules dictionary
 ├── webapp/                   # runtime data dir written by the /admin webapp

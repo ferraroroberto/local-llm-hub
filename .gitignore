@@ -95,6 +95,10 @@ webapp/cloudflared.yml
 # vocabulary (e.g. a caller's proper nouns) that must never be committed.
 # Sample file is committed as config/transcription_glossary.local.sample.json.
 config/transcription_glossary.local.json
+
+# Shared alias file (proper nouns + known mishearings) — personal vocabulary,
+# local only. Sample file is committed as config/aliases.local.sample.json.
+config/aliases.local.json
 webapp/auth.log
 webapp/last_tunnel_url.txt
 webapp/certificates/

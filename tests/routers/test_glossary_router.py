@@ -113,3 +113,37 @@ def test_mine_endpoint_maps_miner_error_to_502(monkeypatch, tmp_path):
     r = client.post("/admin/api/glossary/mine", json={})
     assert r.status_code == 502
     assert "unreachable" in r.json()["detail"]
+
+
+def test_aliases_endpoint_is_read_only(monkeypatch, tmp_path):
+    alias_file = tmp_path / "aliases.json"
+    alias_file.write_text(
+        json.dumps({"aliases": [
+            {"canonical": "Exampleville", "variants": ["example vill"], "kind": "place"},
+        ]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tg, "DEFAULT_ALIAS_PATH", alias_file)
+    client = TestClient(server_mod.app)
+
+    r = client.get("/admin/api/aliases")
+    assert r.status_code == 200
+    assert r.json() == {
+        "aliases": [
+            {"canonical": "Exampleville", "variants": ["example vill"], "kind": "place"},
+        ],
+        "count": 1,
+    }
+
+    before = alias_file.read_text(encoding="utf-8")
+    for method in ("put", "post", "patch", "delete"):
+        rejected = getattr(client, method)("/admin/api/aliases")
+        assert rejected.status_code == 405, method
+    assert alias_file.read_text(encoding="utf-8") == before
+
+
+def test_aliases_endpoint_empty_without_file():
+    client = TestClient(server_mod.app)
+    r = client.get("/admin/api/aliases")
+    assert r.status_code == 200
+    assert r.json() == {"aliases": [], "count": 0}

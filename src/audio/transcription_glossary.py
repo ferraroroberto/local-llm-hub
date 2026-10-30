@@ -19,6 +19,13 @@ word-boundary-anchored, longest-phrase-first, applied in file order.
 Multi-word / unambiguous phrases only, so non-listed text is returned
 byte-for-byte unchanged.
 
+A third, gitignored source — ``config/aliases.local.json`` — is the shared
+alias file: entries ``{canonical, variants[], kind}`` of proper nouns and
+their known mishearings. Every canonical joins the boost vocabulary and every
+variant becomes a replacement rule to its canonical, so one correction feeds
+both halves and every consumer that reads the hub's read-only alias endpoint.
+Absent file → behaviour is exactly the two-file dictionary above.
+
 Rules are cached after first load; edit the JSON and restart the hub to
 pick up changes (same lifecycle as ``config/models.yaml``).
 """
@@ -39,6 +46,7 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_GLOSSARY_PATH = PROJECT_ROOT / "config" / "transcription_glossary.json"
 DEFAULT_LOCAL_BOOST_PATH = PROJECT_ROOT / "config" / "transcription_glossary.local.json"
+DEFAULT_ALIAS_PATH = PROJECT_ROOT / "config" / "aliases.local.json"
 
 
 class Rule(NamedTuple):
@@ -67,23 +75,69 @@ def _compile_rules(replacements: List[Dict[str, str]]) -> List[Rule]:
     return rules
 
 
-@lru_cache(maxsize=4)
-def load_rules(path: Optional[str] = None) -> Tuple[Rule, ...]:
-    """Load and compile the replacement rules from the glossary file.
+def load_aliases(path: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Return the shared alias entries, normalised to ``{canonical, variants, kind}``.
 
-    Returns an empty tuple if the file is missing or unparseable — a
-    broken glossary must never break transcription.
+    The file is ``{"aliases": [...]}`` (a bare list is accepted too). Entries
+    without a canonical are dropped; variants are trimmed, de-duplicated
+    (case-insensitive) and exclude the canonical itself; ``kind`` defaults to
+    ``"term"``. Missing, unparseable or oddly shaped file → empty list, so a
+    broken alias file can never break transcription.
+    """
+    target = Path(path) if path else DEFAULT_ALIAS_PATH
+    data = read_json(target, "alias file")
+    raw = data.get("aliases", []) if isinstance(data, dict) else data
+    if not isinstance(raw, list):
+        return []
+
+    entries: List[Dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        canonical = str(item.get("canonical") or "").strip()
+        if not canonical:
+            continue
+        variants: List[str] = []
+        seen = {canonical.lower()}
+        for v in item.get("variants") or []:
+            if not isinstance(v, str):
+                continue
+            variant = v.strip()
+            if variant and variant.lower() not in seen:
+                seen.add(variant.lower())
+                variants.append(variant)
+        kind = str(item.get("kind") or "term").strip() or "term"
+        entries.append({"canonical": canonical, "variants": variants, "kind": kind})
+    return entries
+
+
+@lru_cache(maxsize=4)
+def load_rules(
+    path: Optional[str] = None, alias_path: Optional[str] = None
+) -> Tuple[Rule, ...]:
+    """Load and compile the replacement rules from the glossary + alias files.
+
+    Each alias variant becomes a ``variant → canonical`` rule, merged after the
+    glossary's own ``replacements``. Returns an empty tuple if neither file
+    yields rules — a broken glossary must never break transcription.
     """
     target = Path(path) if path else DEFAULT_GLOSSARY_PATH
-    if not target.exists():
-        return tuple()
-    data = read_json(target, "transcription glossary")
-    replacements = data.get("replacements", []) if isinstance(data, dict) else []
+    replacements: List[Dict[str, str]] = []
+    if target.exists():
+        data = read_json(target, "transcription glossary")
+        if isinstance(data, dict):
+            replacements = list(data.get("replacements", []))
+    for entry in load_aliases(alias_path):
+        replacements.extend(
+            {"from": variant, "to": entry["canonical"]} for variant in entry["variants"]
+        )
     return tuple(_compile_rules(replacements))
 
 
 def load_boost_terms(
-    path: Optional[str] = None, local_path: Optional[str] = None
+    path: Optional[str] = None,
+    local_path: Optional[str] = None,
+    alias_path: Optional[str] = None,
 ) -> List[str]:
     """Return the ``boost_terms`` vocabulary list (issue #91).
 
@@ -97,7 +151,8 @@ def load_boost_terms(
     Missing overlay file is a silent no-op. The overlay is **not** visible
     to :func:`load_glossary`/:func:`save_glossary` (the admin editor round
     trip), so editing the committed dictionary in-app can never leak or
-    overwrite it.
+    overwrite it. The alias file (:func:`load_aliases`) is likewise outside
+    the editor round trip.
     """
     target = Path(path) if path else DEFAULT_GLOSSARY_PATH
     terms: List[str] = []
@@ -109,6 +164,14 @@ def load_boost_terms(
     local_data = read_json(local_target, "local transcription glossary")
     raw_local = local_data.get("boost_terms", []) if isinstance(local_data, dict) else []
     terms.extend(t for t in raw_local if isinstance(t, str) and t.strip())
+
+    # Alias canonicals join last; a canonical already listed (any case) is
+    # skipped so the launch prompt never repeats a term.
+    known = {t.lower() for t in terms}
+    for entry in load_aliases(alias_path):
+        if entry["canonical"].lower() not in known:
+            known.add(entry["canonical"].lower())
+            terms.append(entry["canonical"])
 
     return terms
 

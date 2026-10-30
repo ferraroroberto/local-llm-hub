@@ -222,3 +222,30 @@ The overlay is deliberately invisible to the admin SPA's glossary editor
 (`load_glossary()`/`save_glossary()`, `app_web/routers/glossary.py`) — that
 editor only ever reads/writes the committed file, so opening and saving it
 in-app can never leak or silently drop the local terms.
+
+### Shared alias file
+
+`config/aliases.local.json` (gitignored; committed placeholder at
+[config/aliases.local.sample.json](../config/aliases.local.sample.json)) is the
+single home for proper-noun and mishear knowledge. It is a list of
+`{canonical, variants[], kind}` entries (`kind` is free text, e.g. `person`,
+`place`, `project`, `term`) under an `"aliases"` key.
+
+The hub derives both halves of the dictionary from it:
+
+- every `canonical` joins the whisper boost vocabulary (`load_boost_terms()`,
+  after the committed and local-overlay terms, skipping duplicates);
+- every `variant` becomes a replacement rule to its `canonical`
+  (`load_rules()`, merged with the glossary's own `replacements`).
+
+A missing file changes nothing. Like the other glossary sources it is read at
+load time: replacement rules are cached until the hub restarts, boost terms
+bind on the next whisper launch.
+
+Consumers read the same data through the hub, never by copying the file:
+`GET /admin/api/aliases` returns `{"aliases": [...], "count": n}` and has no
+write route (any other method answers 405). The journal skill and the voice
+transcriber are the intended readers. The admin glossary editor still edits
+only the committed `config/transcription_glossary.json`; the alias file is
+hand-edited and invisible to that editor round trip, so saving in-app can
+never overwrite it.

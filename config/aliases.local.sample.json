@@ -1,0 +1,14 @@
+{
+  "aliases": [
+    {
+      "canonical": "Example Person",
+      "variants": ["exam pull person", "example persson"],
+      "kind": "person"
+    },
+    {
+      "canonical": "Exampleville",
+      "variants": ["example vill"],
+      "kind": "place"
+    }
+  ]
+}
