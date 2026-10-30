@@ -42,3 +42,5 @@ def test_fix_all_with_a_failure_shows_an_error_toast(page, admin_url):
     assert "error" in (toast.get_attribute("class") or "")
     assert "create_env" in toast.inner_text()
     assert "boom" in toast.inner_text()
+    # The wrench icon is part of the label and must survive the Running… swap.
+    assert page.locator("#installFixAllBtn svg").count() == 1
