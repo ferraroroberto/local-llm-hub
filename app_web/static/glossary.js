@@ -174,7 +174,7 @@ function renderBudget(ed, b) {
   ed.boostBudget.innerHTML = icon('triangle-alert');
   ed.boostBudget.append(
     'Over budget (saved): ~' + b.total_tokens + ' / ' + b.budget + ' tokens — '
-    + dropped.length + ' term(s) will be dropped at launch (lowest-ranked first): ' + names + '.');
+    + dropped.length + ' term(s) will be dropped at launch, e.g. ' + names + '.');
 }
 
 function addBoost(ed, value) {
