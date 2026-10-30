@@ -6,7 +6,8 @@ Models tab (issue #94). The dictionary itself
 ``src.audio.transcription_glossary``; this router is a thin CRUD + mining shell
 over it:
 
-  * ``GET  /api/glossary``       → the editable ``{replacements, boost_terms}``.
+  * ``GET  /api/glossary``       → the editable ``{replacements, boost_terms}``
+    plus ``boost_budget`` (token estimate and the terms launch would drop).
   * ``PUT  /api/glossary``       → validate + persist, invalidating the
     replacement-rule cache so edits apply without a hub restart.
   * ``POST /api/glossary/mine``  → run the transcript miner (reads
@@ -31,10 +32,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _boost_budget() -> Dict[str, Any]:
+    """Token-budget view of the *saved* boost vocabulary, as launch would use it."""
+    plan = tg.build_boost_plan()
+    return {
+        "budget": plan.budget,
+        "total_tokens": plan.total_tokens,
+        "used_tokens": plan.used_tokens,
+        "dropped": plan.dropped,
+    }
+
+
 @router.get("/api/glossary")
 async def get_glossary() -> Dict[str, Any]:
-    """Return the editable dictionary shape for the admin editor."""
-    return tg.load_glossary()
+    """Return the editable dictionary shape plus the boost token-budget view."""
+    return {**tg.load_glossary(), "boost_budget": _boost_budget()}
 
 
 @router.get("/api/aliases")
@@ -60,6 +72,7 @@ async def put_glossary(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "ok": True,
         "glossary": saved,
+        "boost_budget": _boost_budget(),
         # Replacement edits are live now; boost-term edits need a relaunch.
         "boost_terms_need_restart": True,
     }

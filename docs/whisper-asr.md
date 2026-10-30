@@ -117,6 +117,20 @@ reads `boost_terms` from `config/transcription_glossary.json` and appends
 the replacement rules below. (Because `args` are passed as an argv list,
 the spaces/commas in the prompt are one token — no shell-quoting artifact.)
 
+Whisper honours only roughly the last 224 prompt tokens, so an over-long
+list would silently lose terms. `build_boost_plan` in
+[src/audio/transcription_glossary.py](../src/audio/transcription_glossary.py)
+caps the prompt to a token budget (default 200, estimated as `ceil(chars / 3)`
+per term plus its separator, which over-counts on purpose). Within budget the
+prompt is the terms in file order, unchanged. Over budget, terms are ranked —
+an alias canonical with more known mishearings first, everything else in file
+order — and the top of that ranking is kept, re-emitted in file order. The
+dropped terms are logged at info level at launch, and the glossary editor
+shows the saved list's `used / budget` estimate with a warning naming the
+terms that would be dropped. Override the budget with an integer
+`boost_token_budget` in `config/transcription_glossary.json`; the editor's
+Save keeps it.
+
 Because the transcribe row carries the English tech-dictation glossary as
 its initial prompt, it biases language detection toward English. Callers
 transcribing general multilingual audio should select the glossary-free

@@ -348,17 +348,23 @@ def _whisper_boost_args(existing_args: list[str]) -> list[str]:
     initial prompt from the committed dictionary's ``boost_terms`` so the
     boosting vocabulary lives in one place
     (``config/transcription_glossary.json``, shared with the #90
-    replacement rules). No-op if boosting isn't requested or the row
-    already supplies its own ``--prompt``.
+    replacement rules). The vocabulary is ranked and capped to a token
+    budget, and any dropped terms are logged. No-op if boosting isn't
+    requested or the row already supplies its own ``--prompt``.
     """
     if "--carry-initial-prompt" not in existing_args or "--prompt" in existing_args:
         return []
-    from ..audio.transcription_glossary import load_boost_terms
+    from ..audio.transcription_glossary import build_boost_plan
 
-    terms = load_boost_terms()
-    if not terms:
+    plan = build_boost_plan()
+    if plan.dropped:
+        logging.getLogger(__name__).info(
+            "ℹ️ whisper boost prompt over budget (~%d/%d tokens): dropped %d term(s): %s",
+            plan.total_tokens, plan.budget, len(plan.dropped), ", ".join(plan.dropped),
+        )
+    if not plan.prompt:
         return []
-    return ["--prompt", "Glossary: " + ", ".join(terms) + "."]
+    return ["--prompt", plan.prompt]
 
 
 def build_command(model: Model) -> list[str]:

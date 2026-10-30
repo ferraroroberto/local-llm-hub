@@ -147,3 +147,42 @@ def test_aliases_endpoint_empty_without_file():
     r = client.get("/admin/api/aliases")
     assert r.status_code == 200
     assert r.json() == {"aliases": [], "count": 0}
+
+
+def test_get_glossary_reports_boost_budget(monkeypatch, tmp_path):
+    _isolate_glossary(monkeypatch, tmp_path)
+    monkeypatch.setattr(tg, "DEFAULT_LOCAL_BOOST_PATH", tmp_path / "none.json")
+    monkeypatch.setattr(tg, "DEFAULT_ALIAS_PATH", tmp_path / "none-aliases.json")
+    client = TestClient(server_mod.app)
+    budget = client.get("/admin/api/glossary").json()["boost_budget"]
+    assert budget["budget"] == tg.DEFAULT_BOOST_TOKEN_BUDGET
+    assert 0 < budget["total_tokens"] <= budget["budget"]
+    assert budget["dropped"] == []
+
+
+def test_over_budget_glossary_lists_dropped_terms(monkeypatch, tmp_path):
+    target = _isolate_glossary(monkeypatch, tmp_path)
+    monkeypatch.setattr(tg, "DEFAULT_LOCAL_BOOST_PATH", tmp_path / "none.json")
+    monkeypatch.setattr(tg, "DEFAULT_ALIAS_PATH", tmp_path / "none-aliases.json")
+    terms = [f"Filler{i:03d}" for i in range(100)]
+    client = TestClient(server_mod.app)
+    r = client.put("/admin/api/glossary", json={"replacements": [], "boost_terms": terms})
+    assert r.status_code == 200, r.text
+    budget = r.json()["boost_budget"]
+    assert budget["total_tokens"] > budget["budget"]
+    assert budget["dropped"] and budget["dropped"][-1] == "Filler099"
+    assert client.get("/admin/api/glossary").json()["boost_budget"]["dropped"] == budget["dropped"]
+    assert target.exists()
+
+
+def test_put_preserves_hand_set_budget(monkeypatch, tmp_path):
+    target = _isolate_glossary(monkeypatch, tmp_path)
+    target.write_text(
+        json.dumps({"replacements": [], "boost_terms": ["Qwen"], "boost_token_budget": 120}),
+        encoding="utf-8",
+    )
+    client = TestClient(server_mod.app)
+    r = client.put("/admin/api/glossary", json={"replacements": [], "boost_terms": ["Qwen", "Codex"]})
+    assert r.status_code == 200, r.text
+    assert r.json()["boost_budget"]["budget"] == 120
+    assert json.loads(target.read_text(encoding="utf-8"))["boost_token_budget"] == 120

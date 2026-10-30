@@ -58,7 +58,9 @@ export function mountGlossaryEditor(container) {
     if (ev.key === 'Enter') { ev.preventDefault(); addBoost(ed, boostInput.value); boostInput.value = ''; }
   });
   boostAddRow.append(boostInput, ghostBtn('+ add', function () { addBoost(ed, boostInput.value); boostInput.value = ''; }));
-  boostSection.body.append(ed.boostChips, boostAddRow);
+  ed.boostBudget = document.createElement('p');
+  ed.boostBudget.className = 'glossary-budget muted small';
+  boostSection.body.append(ed.boostChips, boostAddRow, ed.boostBudget);
 
   // Suggestions area (filled by the miner).
   ed.suggestWrap = document.createElement('div');
@@ -153,6 +155,28 @@ function renderBoost(ed) {
   });
 }
 
+// Saved-state token budget of the launch prompt (the server ranks and caps it);
+// warns when launch would drop terms, since whisper honours only the prompt tail.
+const DROPPED_NAMES_SHOWN = 5;
+
+function renderBudget(ed, b) {
+  ed.boostBudget.replaceChildren();
+  ed.boostBudget.classList.remove('warn');
+  if (!b) return;
+  const dropped = b.dropped || [];
+  if (!dropped.length) {
+    ed.boostBudget.textContent = 'Launch prompt (saved): ~' + b.total_tokens + ' / ' + b.budget + ' tokens.';
+    return;
+  }
+  ed.boostBudget.classList.add('warn');
+  const names = dropped.slice(0, DROPPED_NAMES_SHOWN).join(', ')
+    + (dropped.length > DROPPED_NAMES_SHOWN ? ', …' : '');
+  ed.boostBudget.innerHTML = icon('triangle-alert');
+  ed.boostBudget.append(
+    'Over budget (saved): ~' + b.total_tokens + ' / ' + b.budget + ' tokens — '
+    + dropped.length + ' term(s) will be dropped at launch (lowest-ranked first): ' + names + '.');
+}
+
 function addBoost(ed, value) {
   const term = String(value || '').trim();
   if (!term) return;
@@ -177,7 +201,9 @@ function adopt(ed, glossary) {
 
 async function load(ed) {
   try {
-    adopt(ed, await jsonApi('/admin/api/glossary'));
+    const body = await jsonApi('/admin/api/glossary');
+    adopt(ed, body);
+    renderBudget(ed, body.boost_budget);
     ed.status.textContent = ed.model.replacements.length + ' replacement(s) · ' + ed.model.boost_terms.length + ' boost term(s)';
   } catch (exc) {
     ed.status.textContent = 'Failed to load dictionary: ' + String(exc.message || exc);
@@ -196,6 +222,7 @@ async function onSave(ed) {
       boost_terms: ed.model.boost_terms,
     });
     adopt(ed, body.glossary || {});
+    renderBudget(ed, body.boost_budget);
     toast(body.boost_terms_need_restart
       ? 'Saved · replacements live now, boost terms apply on next whisper start'
       : 'Dictionary saved', 'good');
