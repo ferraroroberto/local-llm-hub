@@ -364,7 +364,9 @@ def apply_rules(text: str, rules: Tuple[Rule, ...]) -> str:
     """Apply every rule, in order, to ``text``."""
     out = text
     for rule in rules:
-        out = rule.pattern.sub(rule.replacement, out)
+        # A callable keeps the replacement literal: a string is parsed as a
+        # template, so a backslash in a saved rule would raise "bad escape".
+        out = rule.pattern.sub(lambda _m, r=rule.replacement: r, out)
     return out
 
 

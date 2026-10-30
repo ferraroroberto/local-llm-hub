@@ -758,3 +758,24 @@ def test_messages_tool_params_win_over_inject_extra(monkeypatch, stream):
     assert extra["tool_choice"] == "required"
     assert extra["tools"][0]["function"]["name"] == "get_weather"
     assert extra["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+@pytest.mark.parametrize("model", ["claude_haiku", "gemini_pro"])
+@pytest.mark.parametrize("param,value", [
+    ("tools", [{"type": "function", "function": {"name": "get_weather", "parameters": {}}}]),
+    ("tool_choice", "required"),
+    ("response_format", {"type": "json_object"}),
+])
+def test_openai_shape_refuses_unservable_params_on_a_cli_backend(model, param, value):
+    # /v1/chat/completions must refuse what /v1/messages refuses (never a
+    # dropped parameter that yields a well-formed prose answer).
+    client = TestClient(server_mod.app)
+    response = client.post("/v1/chat/completions", json={
+        "model": model,
+        "messages": [{"role": "user", "content": "weather?"}],
+        param: value,
+    })
+    assert response.status_code == 400
+    message = response.json()["detail"]
+    assert repr(param) in message
+    assert "openai-backend" in message

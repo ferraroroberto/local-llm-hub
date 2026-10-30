@@ -90,6 +90,10 @@ def main() -> int:
             log.info("[skip] %s — audio backend, not a chat model", m.display_name)
             skipped.append(m.display_name)
             continue
+        if m.backend == "comfyui":
+            log.info("[skip] %s — image backend, not a chat model", m.display_name)
+            skipped.append(m.display_name)
+            continue
         if m.backend == "tts":
             if not lp.is_reachable(m):
                 log.info("[skip] %s — TTS backend on :%s not reachable", m.display_name, m.port)

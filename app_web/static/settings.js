@@ -129,7 +129,7 @@ function wireInstall() {
   if (els.installFixAllBtn) {
     els.installFixAllBtn.addEventListener('click', async function () {
       els.installFixAllBtn.disabled = true;
-      const original = els.installFixAllBtn.textContent;
+      const original = els.installFixAllBtn.innerHTML;
       els.installFixAllBtn.textContent = 'Running…';
       try {
         const body = await postJson('/admin/api/install/fix-all', {});
@@ -145,7 +145,7 @@ function wireInstall() {
         toast(String(exc.message || exc), 'error');
       } finally {
         els.installFixAllBtn.disabled = false;
-        els.installFixAllBtn.textContent = original;
+        els.installFixAllBtn.innerHTML = original;
       }
     });
   }
