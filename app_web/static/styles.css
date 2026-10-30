@@ -111,8 +111,10 @@
   --bottom-tabs-gap: 4px;
   --bottom-tabs-icon: 20px;
   --bottom-tabs-label: 11px;
-  --tabbar-bg: rgba(255, 255, 255, 0.85);
-  --tabbar-border: rgba(31, 35, 40, 0.12);
+  --tabbar-bg: rgba(255, 255, 255, 0.62);
+  --tabbar-border: rgba(0, 0, 0, 0.08);
+  --tabbar-pill: rgba(0, 0, 0, 0.07);
+  --tabbar-shadow: 0 8px 28px -6px rgba(20, 24, 40, 0.2), 0 1px 4px rgba(20, 24, 40, 0.06);
   /* Follow the html[data-theme] stamp, not the OS: `light dark` here let the
      UA paint native widgets (checkboxes, selects) by OS preference, so a
      dark-mode phone showed black checkboxes on the light theme. The
@@ -145,8 +147,10 @@
   --close-bg: transparent;
   /* Depth on a near-black canvas comes from surface lightness, not shadow. */
   --shadow: 0 8px 24px rgba(1, 4, 9, 0.6);
-  --tabbar-bg: rgba(22, 27, 34, 0.86);
-  --tabbar-border: rgba(255, 255, 255, 0.13);
+  --tabbar-bg: rgba(42, 45, 52, 0.55);
+  --tabbar-border: rgba(255, 255, 255, 0.14);
+  --tabbar-pill: rgba(255, 255, 255, 0.14);
+  --tabbar-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.6);
 }
 
 /* P3 wide-gamut twins — on a wide-gamut display the saturated tokens render
