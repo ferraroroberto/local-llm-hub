@@ -407,3 +407,13 @@ def test_delivery_failures_are_reported_with_a_reason(tmp_path):
 
 def test_the_committed_config_documents_the_resource_defaults():
     assert settings.load()["resource"] == settings.DEFAULTS["resource"]
+
+
+def test_a_young_history_says_how_long_it_has_watched():
+    series = _series([2] * 30)
+    cfg = settings.DEFAULTS["resource"]
+    minutes = rules.drive_summary("E:", series, cfg, now=series[-1]["ts"], interval_s=STEP, window_days=7)
+    assert "min watched so far" in minutes["line"]
+    hours = _series([2] * 180)
+    out = rules.drive_summary("E:", hours, cfg, now=hours[-1]["ts"], interval_s=STEP, window_days=7)
+    assert "h watched so far" in out["line"]

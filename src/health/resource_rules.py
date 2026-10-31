@@ -181,8 +181,12 @@ def drive_summary(label: str, series: List[Dict[str, Any]], cfg: Dict[str, Any],
     cover = _coverage(series, now, window_s, interval_s) if supported else {"percent": 0.0, "span_s": 0.0}
     coverage = cover["percent"]
     # A young history says how long it has actually watched, not "7 days".
-    watched = (f"the last {window_days:g} days" if cover["span_s"] >= window_s
-               else f"{cover['span_s'] / 3600.0:.1f} h watched so far")
+    if cover["span_s"] >= window_s:
+        watched = f"the last {window_days:g} days"
+    elif cover["span_s"] < 3600.0:
+        watched = f"{cover['span_s'] / 60.0:.0f} min watched so far"
+    else:
+        watched = f"{cover['span_s'] / 3600.0:.1f} h watched so far"
     total = round(sum(e["minutes"] for e in episodes), 1)
     worst = max((e["worst_ms"] for e in episodes), default=None)
     state = "ok"

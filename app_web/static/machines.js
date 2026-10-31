@@ -406,7 +406,7 @@ function resourcesSection(m) {
   const stalls = r.stalls || {};
   const lines = (stalls.drives && stalls.drives.length ? stalls.drives : [{ line: stalls.line || '' }]);
   return '<div class="sheet-section machine-resources">'
-    + '<div class="sheet-row">' + icon('gauge') + '<span class="sheet-row-label">Resources</span>'
+    + '<div class="sheet-row">' + icon('hard-drive') + '<span class="sheet-row-label">Resources</span>'
     + '<span class="sheet-row-value" data-machine-resources' + (tone ? ' data-tone="' + tone + '"' : '') + '>'
     + escapeHtml(RESOURCE_WORDS[r.state] || r.state) + '</span>'
     + infoButton('resource-watch', 'About the resource watch') + '</div>'
