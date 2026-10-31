@@ -82,11 +82,12 @@ A second, faster watch answers a plainer question: **is this machine out of RAM 
 
 - **RAM**: free RAM as a percent of the total.
 - **Free space** per fixed drive (`C:`, `D:`, `E:` on Windows; real mounts elsewhere), in GB.
-- **Latency** per drive, from the per-disk I/O counters (`psutil.disk_io_counters(perdisk=True)`). The average time one operation took in a window is `Δtime / Δcount` between two samples, taken separately for reads and writes, so a queue of requests stuck behind a 1.7 s read shows up as 1.7 s. A drive letter is mapped to its `PhysicalDriveN` once with a metadata-only `IOCTL_STORAGE_GET_DEVICE_NUMBER`. Off Windows latency is `unsupported`; RAM and free space work everywhere.
+- **Latency** per drive, from the Windows performance counters (`src/health/disk_counters.py`): `\PhysicalDisk(*)\Avg. Disk sec/Read` and `Avg. Disk sec/Write`, the same numbers `Get-Counter` and Resource Monitor show, with `Disk Reads/sec` and `Disk Writes/sec` for how many operations completed. One PDH query stays open and each sample closes one window, so the reading is the average time one operation took since the last sample, separately for reads and writes, and a queue of requests stuck behind a 1.7 s read shows up as 1.7 s. A drive letter is mapped to its `PhysicalDriveN` once with a metadata-only `IOCTL_STORAGE_GET_DEVICE_NUMBER`. psutil's per-disk `read_time` / `write_time` are not used: on Windows they arrive in whole seconds labelled as milliseconds, so every disk reads about 1000 times too fast and a busy NVMe reads 0. Off Windows latency is `unsupported`; RAM and free space work everywhere.
+- **Credibility check.** A window in which a disk completed 50 or more operations in one direction yet reports an average of exactly 0 is `unknown` ("source not credible"), never `0 ms`. Every trusted latency row is tagged `src: "pdh"`; a stored row without that tag counts as unmeasured, so it lowers the weekly coverage instead of reading as "no stalls".
 
 ### Why sampling is cheap and never loads the slow disk
 
-A sample is a handful of counter and metadata reads, about 0.1 ms for the I/O counters, and reads no file on any disk. The history is not written to the repo's drive: it lives in SQLite under the runtime-data root (`src/runtime_data.py`, `C:\sqlite\local-llm-hub\resource_watch.sqlite3` on Windows; override with `LLM_HUB_RESOURCE_WATCH_DB_PATH`), on the NVMe. One small row a minute is written there, never to `E:`.
+A sample is a handful of counter and metadata reads, about 0.3 ms for the performance-counter collection, and reads no file on any disk. The history is not written to the repo's drive: it lives in SQLite under the runtime-data root (`src/runtime_data.py`, `C:\sqlite\local-llm-hub\resource_watch.sqlite3` on Windows; override with `LLM_HUB_RESOURCE_WATCH_DB_PATH`), on the NVMe. One small row a minute is written there, never to `E:`.
 
 ### Alerts
 
@@ -106,7 +107,7 @@ Alerts go out through the fleet's one Telegram transport, `~/.claude/hooks/notif
 
 Every metric and the whole result is `ok`, `alert` or `unknown`.
 
-- `unknown` means the reading was not taken: a failed RAM or free-space read, an unmappable drive, a counter that went backwards, the first sample after boot with no baseline, or a last sample older than three intervals. It is never folded into `ok`.
+- `unknown` means the reading was not taken or cannot be trusted: a failed RAM or free-space read, an unmappable drive, a failed or unavailable performance-counter query, a window that fails the credibility check, the first sample after boot with no window yet, or a last sample older than three intervals. It is never folded into `ok`.
 - `unsupported` (latency off Windows) is listed but does not hold the result at `unknown`.
 - Alert outranks unknown, and unknown outranks ok.
 

@@ -17,7 +17,10 @@ overall result at ``unknown``, the same rule the process health watch uses.
 A *stall episode* is a run of consecutive samples past the latency limit at
 least ``sustain_samples`` long. The weekly summary counts them per disk, and
 says how much of the window was actually measured, so a quiet week with a
-hub that was down half of it is never read as a clean one.
+hub that was down half of it is never read as a clean one. A latency row
+counts as measured only when it carries ``LATENCY_SOURCE``: a stored row from
+any other source cannot be trusted, so it lowers coverage instead of reading
+as a quiet disk.
 """
 
 from __future__ import annotations
@@ -29,14 +32,23 @@ _RANK = {"ok": 0, "unknown": 1, "alert": 2}
 # A gap wider than this many intervals between samples ends an episode: the hub
 # was down or the probe failed, so the stall cannot be assumed to have continued.
 _GAP_INTERVALS = 1.5
+# The latency source every trusted row is tagged with (the Windows performance
+# counters). Untagged rows came from psutil's time fields, 1000 times too low.
+LATENCY_SOURCE = "pdh"
+
+
+def latency_ok(row: Dict[str, Any]) -> bool:
+    """True when ``row`` holds a latency reading from the trusted source."""
+    return row.get("lat") == "ok" and row.get("src") == LATENCY_SOURCE
 
 
 def stall_ms(row: Dict[str, Any], min_ios: int) -> Optional[float]:
     """The worst per-direction average latency of one drive row, or ``None``.
 
-    ``None`` means there is nothing to judge: the latency reading is not ``ok``,
-    or neither direction completed ``min_ios`` operations in the window."""
-    if row.get("lat") != "ok":
+    ``None`` means there is nothing to judge: the latency reading is not a
+    trusted ``ok``, or neither direction completed ``min_ios`` operations in
+    the window."""
+    if not latency_ok(row):
         return None
     values = [
         row[f"{kind}_ms"] for kind in ("read", "write")
@@ -100,7 +112,7 @@ def _drive_conditions(label: str, history: List[Dict[str, Any]], cfg: Dict[str, 
 
     def stall_of(s):
         row = s["drives"].get(label)
-        if row is None or row.get("lat") != "ok":
+        if row is None or not latency_ok(row):
             return None
         # Too few operations to judge counts as a quiet 0, not as unreadable.
         return stall_ms(row, min_ios) or 0.0
@@ -109,6 +121,8 @@ def _drive_conditions(label: str, history: List[Dict[str, Any]], cfg: Dict[str, 
     now_ms = stall_of(history[-1])
     if state == "unknown":
         reason = f"{label} latency could not be read"
+        if latest.get("why"):
+            reason += f" ({latest['why']})"
     else:
         reason = f"{label} average latency {now_ms:g} ms, limit {limit:g} ms"
         if state == "alert":
@@ -166,7 +180,7 @@ def stall_episodes(rows: List[Dict[str, Any]], cfg: Dict[str, Any], interval_s: 
 
 def _coverage(series: List[Dict[str, Any]], now: float, window_s: float, interval_s: float) -> Dict[str, float]:
     """``{percent, span_s}``: the watched span (the window, or less on a young history) and the share of it measured."""
-    measured = sum(1 for e in series if e["row"].get("lat") == "ok")
+    measured = sum(1 for e in series if latency_ok(e["row"]))
     span = min(window_s, now - series[0]["ts"] + interval_s) if series else 0.0
     percent = round(min(100.0, 100.0 * measured * interval_s / span), 1) if span > 0 else 0.0
     return {"percent": percent, "span_s": span}

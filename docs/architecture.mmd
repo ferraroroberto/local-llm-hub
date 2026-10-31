@@ -92,7 +92,7 @@ resident watch (asyncio task, sample in a thread
 every 10 min) · win_probe (one-call process table) ·
 classifier (ok/watch/act/unknown + restart-or-reboot fix) ·
 resource_watch (second task, sample every minute: RAM, free space,
-per-disk latency; history in runtime-data SQLite; Telegram alert by
+per-disk latency from the PDH disk counters; history in runtime-data SQLite; Telegram alert by
 running the fleet notify_send.py)"]
     PARAKEETSRV["parakeet_server.py\nOpenAI-shape ASR shim ->\nFluidAudio Parakeet CoreML worker"]
     FLEETREC["fleet/fleet_reconcile.py\nadditive convergence: wake offline can-ssh\nsatellite -> start desired-but-not-running models\n(desired state derived from the registry:\nmodel_registry.desired_placement)"]
