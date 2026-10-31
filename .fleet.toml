@@ -13,6 +13,16 @@ chips       = ["claude -p", "agy gemini", "qwen35-4b :8088", "gemma-26b :8087", 
 # tunnel's runtime config folder. docs/layout.md gives each one a line.
 shape       = "service"
 extra_roots = ["docker", "linux", "mac", "webapp"]
+# Contracts with the rest of the fleet (schema: fleet-config architecture/README.md).
+# whisper :8090 is voice-transcriber's server, shared as a lock with the automation repo.
+interfaces = [
+  { name = "messages", kind = "http", doc = "docs/api-usage.md" },
+  { name = "audio", kind = "http", doc = "docs/api-usage.md" },
+  { name = "models", kind = "http", doc = "docs/models-and-roles.md" },
+]
+owns       = ["LLM routing", "model backends and ports", "audio proxy", "hub telemetry"]
+not_owns   = ["whisper engine", "job scheduling", "agent config"]
+depends_on = ["voice-transcriber", "automation", "project-scaffolding"]
 
 # Extra gitignored path an agent worktree needs junctioned in alongside .venv
 # so this repo's own gate can pass there (fleet-config#620). Read by
