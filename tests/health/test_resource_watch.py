@@ -1,6 +1,6 @@
 """Resource watch: thresholds, debounce, unknown, stall episodes and delivery.
 
-The probe is driven with synthetic counters and a fake clock so the
+The probe is driven with synthetic counter windows and a fake clock so the
 conditions are exact; only the delivery test runs a real subprocess (a stub
 script standing in for the fleet's Telegram transport).
 """
@@ -8,6 +8,8 @@ script standing in for the fleet's Telegram transport).
 from __future__ import annotations
 
 import copy
+import sys
+import time
 from collections import namedtuple
 from pathlib import Path
 
@@ -15,14 +17,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src import server as server_mod
-from src.health import resource_alert, resource_probe, resource_rules as rules, settings
+from src.health import disk_counters, resource_alert, resource_probe, resource_rules as rules, settings
 from src.health import resource_watch
 from src.health.resource_alert import send_via_notify_script as real_send  # bound before conftest blocks the module name
 from src.health.resource_store import ResourceStore
 
 T0 = 1_800_000_000.0
 STEP = 60.0
-IO = namedtuple("IO", "read_count write_count read_bytes write_bytes read_time write_time")
 
 
 def _cfg(**over):
@@ -36,7 +37,7 @@ def _drive(free_gb=500.0, read_ms=2.0, read_ios=100, lat="ok", free="ok", disk="
     if free == "ok":
         row.update(free_gb=free_gb, total_gb=1000.0)
     if lat == "ok":
-        row.update(read_ms=read_ms, write_ms=1.0, read_ios=read_ios, write_ios=100)
+        row.update(src=rules.LATENCY_SOURCE, read_ms=read_ms, write_ms=1.0, read_ios=read_ios, write_ios=100)
     return row
 
 
@@ -175,36 +176,62 @@ def test_hub_downtime_inside_the_window_lowers_coverage():
 
 # ------------------------------------------------------------------------ probe
 
-def _probe_with(monkeypatch, snapshots, *, disk_number=lambda label: 1):
-    seq = iter(snapshots)
-    monkeypatch.setattr(resource_probe.psutil, "disk_io_counters", lambda perdisk=True: next(seq))
+class _FakeCounters:
+    """Stands in for the PDH query: hands back one prepared window per collect."""
+
+    def __init__(self, windows):
+        self._windows = iter(windows)
+
+    def collect(self):
+        window = next(self._windows)
+        if isinstance(window, Exception):
+            raise window
+        return window
+
+
+def _win(read_s=0.0, reads=0, write_s=0.0, writes=0, disk=1):
+    return {disk: {"read_s": read_s, "reads": reads, "write_s": write_s, "writes": writes}}
+
+
+def _probe_with(monkeypatch, windows, *, disk_number=lambda label: 1, counters=None):
     monkeypatch.setattr(resource_probe, "fixed_mounts", lambda: ["E:\\"])
     monkeypatch.setattr(resource_probe, "drive_label", lambda mount: mount[:2])
     monkeypatch.setattr(resource_probe.psutil, "disk_usage",
                         lambda mount: namedtuple("U", "total used free percent")(10 * 1024 ** 4, 0, 9 * 1024 ** 4, 10.0))
-    return resource_probe.ResourceProbe(disk_number=disk_number)
+    fake = _FakeCounters(windows)
+    return resource_probe.ResourceProbe(disk_number=disk_number, counters=counters or (lambda: fake))
 
 
 def test_latency_is_the_per_operation_average_over_the_window(monkeypatch):
-    a = {"PhysicalDrive1": IO(100, 50, 0, 0, 1000, 100)}
-    b = {"PhysicalDrive1": IO(120, 50, 0, 0, 1000 + 20 * 1700, 100)}
-    probe = _probe_with(monkeypatch, [a, b])
+    probe = _probe_with(monkeypatch, [None, _win(read_s=1.7, reads=20)])
     probe.prime()
     row = probe.sample()["drives"]["E:"]
-    assert row["lat"] == "ok" and row["read_ms"] == 1700.0 and row["read_ios"] == 20
+    assert row["lat"] == "ok" and row["src"] == rules.LATENCY_SOURCE
+    assert row["read_ms"] == 1700.0 and row["read_ios"] == 20 and row["disk"] == "PhysicalDrive1"
     assert row["write_ms"] is None and row["write_ios"] == 0
 
 
-def test_a_counter_reset_is_unknown_not_a_zero(monkeypatch):
-    a = {"PhysicalDrive1": IO(1000, 50, 0, 0, 5000, 100)}
-    b = {"PhysicalDrive1": IO(10, 5, 0, 0, 20, 1)}
-    probe = _probe_with(monkeypatch, [a, b])
+def test_a_fast_disk_keeps_its_sub_millisecond_latency():
+    assert resource_probe.direction(0.000024, 1197.4, "write") == {"ios": 1197, "ms": 0.024}
+
+
+def test_many_operations_with_zero_accumulated_time_is_unknown_not_zero_ms(monkeypatch):
+    probe = _probe_with(monkeypatch, [None, _win(read_s=0.0, reads=1672, write_s=0.0, writes=752)] * 3)
     probe.prime()
-    assert probe.sample()["drives"]["E:"]["lat"] == "unknown"
+    samples = [probe.sample() for _ in range(3)]
+    row = samples[-1]["drives"]["E:"]
+    assert row["lat"] == "unknown" and "not credible" in row["why"]
+    cond = {c["key"]: c for c in rules.evaluate(samples, settings.DEFAULTS["resource"])}["disk_latency:E:"]
+    assert cond["state"] == "unknown" and "not credible" in cond["reason"]
 
 
-def test_the_first_sample_without_a_baseline_is_unknown(monkeypatch):
-    probe = _probe_with(monkeypatch, [{"PhysicalDrive1": IO(1, 1, 0, 0, 1, 1)}])
+def test_a_quiet_disk_with_a_few_instant_operations_is_still_a_reading():
+    assert resource_probe.direction(0.0, 3, "read") == {"ios": 3, "ms": 0.0}
+    assert resource_probe.direction(0.0, 0, "read") == {"ios": 0, "ms": None}
+
+
+def test_the_first_sample_without_a_window_is_unknown(monkeypatch):
+    probe = _probe_with(monkeypatch, [None])
     assert probe.sample()["drives"]["E:"]["lat"] == "unknown"
 
 
@@ -212,19 +239,51 @@ def test_a_drive_that_cannot_be_mapped_to_a_disk_is_unknown(monkeypatch):
     def boom(label):
         raise OSError("no handle")
 
-    a = {"PhysicalDrive1": IO(1, 1, 0, 0, 1, 1)}
-    probe = _probe_with(monkeypatch, [a, a], disk_number=boom)
+    probe = _probe_with(monkeypatch, [None, _win(read_s=0.01, reads=10)], disk_number=boom)
     probe.prime()
     row = probe.sample()["drives"]["E:"]
     assert row["lat"] == "unknown" and row["free"] == "ok"
 
 
-def test_failed_io_counters_and_no_mapping_support_are_distinct_states(monkeypatch):
-    unsupported = _probe_with(monkeypatch, [None, None])
+def test_a_disk_missing_from_the_window_is_unknown(monkeypatch):
+    probe = _probe_with(monkeypatch, [None, _win(read_s=0.01, reads=10, disk=2)])
+    probe.prime()
+    assert probe.sample()["drives"]["E:"]["lat"] == "unknown"
+
+
+def test_failed_counters_unavailable_counters_and_no_mapping_support_are_distinct(monkeypatch):
+    unsupported = _probe_with(monkeypatch, [None])
     unsupported._disk_number = None
     assert unsupported.sample()["drives"]["E:"]["lat"] == "unsupported"
-    failed = _probe_with(monkeypatch, [None, None])
+    failed = _probe_with(monkeypatch, [None, OSError("PDH status 0xC0000BC6")])
+    failed.prime()
     assert failed.sample()["drives"]["E:"]["lat"] == "unknown"
+    unavailable = _probe_with(monkeypatch, [], counters=lambda: None)
+    assert unavailable.sample()["drives"]["E:"]["lat"] == "unknown"
+
+
+def test_stored_rows_from_an_untrusted_source_never_read_as_no_stalls():
+    old = [{"ts": T0 + i * STEP, "row": {**_drive(read_ms=0.0), "src": None}} for i in range(60)]
+    now = old[-1]["ts"]
+    out = rules.drive_summary("E:", old, settings.DEFAULTS["resource"], now=now, interval_s=STEP, window_days=7)
+    assert out["state"] == "unknown" and out["covered_percent"] == 0.0 and "not confirmed" in out["line"]
+    stale_hist = [{**_sample(i), "drives": {"E:": e["row"]}} for i, e in enumerate(old[-3:])]
+    assert _states(stale_hist)["disk_latency:E:"] == "unknown"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="PDH counters are Windows-only")
+def test_the_real_performance_counters_return_a_window_per_physical_disk():
+    counters = disk_counters.DiskCounters()
+    try:
+        assert counters.collect() is None
+        time.sleep(0.2)
+        window = counters.collect()
+    finally:
+        counters.close()
+    assert window and all(isinstance(n, int) for n in window)
+    for values in window.values():
+        assert set(values) == {"read_s", "write_s", "reads", "writes"}
+        assert all(v >= 0 for v in values.values())
 
 
 # ------------------------------------------------------------- store + debounce
