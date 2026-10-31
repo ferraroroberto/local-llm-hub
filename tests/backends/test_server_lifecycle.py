@@ -1,8 +1,8 @@
 """Unit tests for src/server_lifecycle.py's background-task lifecycle (#416).
 
-``wire_observatory_loop`` spawns 10 perpetual/one-shot tasks on the running
+``wire_observatory_loop`` spawns 11 perpetual/one-shot tasks on the running
 loop (6 pre-#422 + the on-demand idle watchdog + the #424 config drift
-loop + the #826 Code-summary prewarm + the machine health watch). Before this fix nothing cancelled them
+loop + the #826 Code-summary prewarm + the machine health watch + the resource watch). Before this fix nothing cancelled them
 on shutdown, so a torn-down
 ASGI lifespan (every ``with TestClient(app) as c:`` exit in the test suite)
 left them running against a dead loop -- ``_fleet_reconcile_loop`` /
@@ -37,7 +37,7 @@ def test_wire_observatory_loop_tracks_its_tasks(monkeypatch):
 
     async def _run():
         await sl.wire_observatory_loop()
-        assert len(sl._BACKGROUND_TASKS) == 10
+        assert len(sl._BACKGROUND_TASKS) == 11
         await sl.stop_background_tasks()
 
     asyncio.run(_run())

@@ -1,7 +1,7 @@
 """Telegram alerts for the resource watch: delivery and the per-condition debounce.
 
 The hub has no Telegram client of its own and must not grow one: the fleet's
-one transport is ``notify_send.py`` (``~/.claude/hooks``), which resolves the
+one transport is ``notify_send`` (in ``~/.claude/hooks``), which resolves the
 bot token and the destination chat from fleet config. The hub runs it as a
 subprocess with its own interpreter, so no new recipient, chat or credential
 exists in this repo. The message goes in on stdin, which the transport decodes
@@ -34,7 +34,7 @@ Sender = Callable[[str, Dict[str, Any]], Tuple[bool, Optional[str]]]
 
 
 def send_via_notify_script(text: str, cfg: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
-    """Deliver ``text`` through the fleet's ``notify_send.py``; ``(False, why)`` on any failure."""
+    """Deliver ``text`` through the fleet transport (``notify_send``); ``(False, why)`` on any failure."""
     script = Path(cfg["script"]) if cfg.get("script") else DEFAULT_SCRIPT
     if not script.is_file():
         return False, f"notify script not found: {script}"
