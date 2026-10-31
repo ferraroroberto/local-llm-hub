@@ -29,6 +29,10 @@ _STATUS_INFO_LENGTH_MISMATCH = 0xC0000004
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 _GR_GDIOBJECTS = 0
 _GR_USEROBJECTS = 1
+_IOCTL_STORAGE_GET_DEVICE_NUMBER = 0x002D1080
+_FILE_SHARE_READ_WRITE = 0x3
+_OPEN_EXISTING = 3
+_INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 
 # Field offsets in the 64-bit SYSTEM_PROCESS_INFORMATION record (winternl.h).
 _OFF_THREADS = 4
@@ -144,6 +148,51 @@ def gui_resources(pids: List[int]) -> Dict[int, Tuple[int, int]]:
         finally:
             kernel32.CloseHandle(handle)
     return out
+
+
+class _StorageDeviceNumber(ctypes.Structure):
+    _fields_ = [
+        ("DeviceType", wintypes.DWORD),
+        ("DeviceNumber", wintypes.DWORD),
+        ("PartitionNumber", wintypes.DWORD),
+    ]
+
+
+def volume_disk_number(letter: str) -> int:
+    """The physical disk number (``PhysicalDriveN``) that holds drive ``letter``.
+
+    One ``IOCTL_STORAGE_GET_DEVICE_NUMBER`` on a zero-access volume handle: a
+    metadata query answered by the storage stack, so it never reads the disk.
+    Raises ``OSError`` when the volume cannot be queried, or when it spans
+    several disks (a dynamic or striped volume has no single device number)."""
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.CreateFileW.argtypes = [
+        wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+        wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+    ]
+    kernel32.DeviceIoControl.argtypes = [
+        wintypes.HANDLE, wintypes.DWORD, wintypes.LPVOID, wintypes.DWORD,
+        wintypes.LPVOID, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD), wintypes.LPVOID,
+    ]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = kernel32.CreateFileW(
+        "\\\\.\\" + letter.rstrip(":\\/") + ":", 0, _FILE_SHARE_READ_WRITE, None, _OPEN_EXISTING, 0, None,
+    )
+    if handle in (None, _INVALID_HANDLE_VALUE):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        number = _StorageDeviceNumber()
+        returned = wintypes.DWORD(0)
+        ok = kernel32.DeviceIoControl(
+            handle, _IOCTL_STORAGE_GET_DEVICE_NUMBER, None, 0,
+            ctypes.byref(number), ctypes.sizeof(number), ctypes.byref(returned), None,
+        )
+        if not ok:
+            raise ctypes.WinError(ctypes.get_last_error())
+        return int(number.DeviceNumber)
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def dynamic_port_range() -> Optional[Tuple[int, int]]:

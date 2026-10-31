@@ -47,7 +47,7 @@ from starlette.responses import Response
 
 from src import config_write
 from src.fleet import machine_console, remote_bootstrap, ssh_terminal
-from src.health import watch as health_watch
+from src.health import resource_watch, watch as health_watch
 from src.host_profile import all_hosts, get_host, resolve
 from src.fleet.wake_on_lan import WakeOnLanError, send_wake
 
@@ -76,6 +76,14 @@ async def machines_health() -> Dict[str, Any]:
     reasons, suggested fix, top offenders and recent act/cleared alerts.
     In memory only, so it is cheap to poll."""
     return {"host_id": resolve().id, **health_watch.WATCH.current()}
+
+
+@router.get("/api/machines/resources")
+async def machines_resources() -> Dict[str, Any]:
+    """This machine's RAM, free-space and per-drive latency state, the alerts
+    sent, and the weekly stall summary per drive (`stalls`). In memory only,
+    so it is cheap to poll."""
+    return {"host_id": resolve().id, **resource_watch.WATCH.current()}
 
 
 @router.get("/api/machines/dormant")

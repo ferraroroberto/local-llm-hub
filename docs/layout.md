@@ -62,7 +62,7 @@ local-llm-hub/
 │   ├── diagnostics_apps.json         # process -> fleet-app attribution rules (committed)
 │   ├── diagnostics_rules.json        # health-verdict thresholds (committed)
 │   ├── diagnostics_settings.json     # retention + scheduled snapshot (gitignored)
-│   ├── health_watch.json             # health-watch thresholds + cadence (committed)
+│   ├── health_watch.json             # health-watch + resource-watch thresholds and cadence (committed)
 │   ├── startup_profile.example.json  # template + fresh-clone default for service autostart (services-only)
 │   ├── startup_profile.json          # live service-autostart profile, rewritten by the admin UI (gitignored)
 │   ├── fleet_maintenance.json        # live {host: {until, reason}} reconcile drain markers (gitignored)
@@ -187,7 +187,12 @@ local-llm-hub/
 │   │   ├── sampler.py            #   one sample: system counters + top processes per metric
 │   │   ├── classifier.py         #   pure ok/watch/act/unknown verdict + suggested fix
 │   │   ├── settings.py           #   config/health_watch.json loader + defaults
-│   │   └── watch.py              #   the loop, rolling history, act/cleared alerts
+│   │   ├── watch.py              #   the loop, rolling history, act/cleared alerts
+│   │   ├── resource_probe.py     #   one cheap sample: RAM, free GB per fixed drive, per-disk latency from I/O counter deltas
+│   │   ├── resource_rules.py     #   pure thresholds (sustained breach), stall episodes, weekly per-drive summary
+│   │   ├── resource_store.py     #   14-day sample history + alert debounce state (SQLite under the runtime-data root)
+│   │   ├── resource_alert.py     #   Telegram delivery via the fleet notify_send.py + one-per-6h debounce
+│   │   └── resource_watch.py     #   the one-minute loop that ties them together
 │   ├── install.py            # first-run checks + --fix
 │   ├── usage_log.py          # vendored usage-log router (admin UI view/tap log)
 │   ├── run_backend.py        # hub|qwen35_4b|gemma4_26b|whisper|… dispatcher

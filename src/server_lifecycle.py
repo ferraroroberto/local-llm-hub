@@ -151,6 +151,9 @@ async def wire_observatory_loop() -> None:
     # Machine health watch: one cheap sample every 10 min (handles, commit,
     # pools, ports) so a slow leak is flagged before it forces a reboot.
     _BACKGROUND_TASKS.append(loop.create_task(_health_watch_loop()))
+    # Resource watch: free RAM, free disk and per-disk latency every minute,
+    # with a Telegram alert on a sustained breach.
+    _BACKGROUND_TASKS.append(loop.create_task(_resource_watch_loop()))
     # On-demand idle watchdog: periodically unloads a
     # ``startup: on_demand`` model that has sat idle past its
     # ``idle_unload_minutes`` window. Cheap when no row opts in — the pass
@@ -232,6 +235,18 @@ async def _health_watch_loop() -> None:
         raise
     except Exception as exc:  # noqa: BLE001
         logger.warning("health watch stopped: %s", exc)
+
+
+async def _resource_watch_loop() -> None:
+    """Run the resource watch; a failure to start it must never keep the hub down."""
+    try:
+        from .health import resource_watch
+
+        await resource_watch.run_loop()
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("resource watch stopped: %s", exc)
 
 
 async def _autostart_services() -> None:
