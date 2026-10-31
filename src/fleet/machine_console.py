@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional
 
 from src.fleet import remote_stats, sync_diagnosis
 from src import system_stats
-from src.health import watch as health_watch
+from src.health import resource_watch, watch as health_watch
 from src.host_profile import HostProfile, all_hosts, resolve
 from src.process.server_process import lan_ip
 
@@ -183,6 +183,7 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
             network=None, flaky=None,
             # In memory, no probe: the watch samples on its own cadence.
             health=health_watch.WATCH.card_summary(),
+            resources=resource_watch.WATCH.card_summary(),
         )
         if not card["ip"]:
             card["ip"] = lan_ip()

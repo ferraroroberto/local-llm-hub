@@ -66,11 +66,11 @@ alongside `tower` and `mac-mini-m4`: **OpenClaw**, a Linux laptop, and
 
 **Layout.** Each row answers *is it up?* from its face: the avatar's
 corner badge (alive or down), the uptime, and an exception chip only when
-something is wrong (*hub down*, *out of sync*, *via tailnet*, *flaky link*, and on this machine the health watch's *needs action*, *health watch* or *health not confirmed*: [health-watch.md](health-watch.md)).
+something is wrong (*hub down*, *out of sync*, *via tailnet*, *flaky link*, and on this machine the health watch's *needs action*, *health watch*, *health not confirmed*, *resource alert* or *resources not confirmed*: [health-watch.md](health-watch.md)).
 A down machine with a MAC shows a **Wake** (power) icon-button on the row; a reachable machine whose
 own hub is down shows **Start hub**. Tapping a row opens the machine's sheet on
 a phone, or fills the detail pane beside the list on a wide window (1100px+,
-mouse): the gauges, this machine's **Health** (verdict, findings, suggested fix), **Terminal** and **Remote**, the **Connection** row, the
+mouse): the gauges, this machine's **Health** (verdict, findings, suggested fix) and **Resources** (RAM, free space, and the weekly stall count per drive), **Terminal** and **Remote**, the **Connection** row, the
 machine's own **Hub** (state, both builds and the reason when they differ,
 **Sync** only when it can close the gap, or **Start hub**), then **Reboot** and **Shut down** last, behind a confirm. The
 header line names *N offline* or the stale age, else the machine count, and

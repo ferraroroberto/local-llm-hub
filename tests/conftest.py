@@ -129,6 +129,21 @@ def _isolate_diagnostics_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(store, "DEFAULT_DB_PATH", tmp_path / "diagnostics.db")
 
 
+@pytest.fixture(autouse=True)
+def _isolate_resource_watch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the resource watch off the real history and off Telegram in every test.
+
+    The watch's loop starts with the app, so a test that builds the app could
+    otherwise write into the developer's runtime-data store or page the owner.
+    A test that wants delivery injects its own sender.
+    """
+    from src.health import resource_alert, resource_store
+
+    monkeypatch.setattr(resource_store, "DEFAULT_DB_PATH", tmp_path / "resource_watch.sqlite3")
+    monkeypatch.setattr(resource_alert, "send_via_notify_script",
+                        lambda text, cfg: (False, "Telegram is blocked in tests"))
+
+
 def pytest_collection_modifyitems(items: list) -> None:
     """Run ``tests/e2e`` last in a combined run (issue #493).
 

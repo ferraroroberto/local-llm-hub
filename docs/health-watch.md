@@ -74,16 +74,70 @@ The sampler runs in a worker thread every `interval_s` (600 s), never on the eve
 
 `config/health_watch.json` (committed) holds every threshold and the cadence. It is re-read on every sample, so a retune needs no hub restart, and it is merged over the built-in defaults, so a partial file only overrides what it names. `"enabled": false` stops the watch; the Machines tab then shows nothing for it. `null` disables any single limit.
 
+## Resource watch: RAM, free space and disk latency
+
+A second, faster watch answers a plainer question: **is this machine out of RAM or disk space, or is a disk stalling?** It samples every minute, keeps 14 days of history, sends a Telegram line when a condition is sustained, and counts stall episodes per drive for a weekly summary. The slow disk is the reason it exists: the tower's `E:` is an SMR hard disk holding the whole fleet, and a stall of about 1.7 s per read with a deep queue hangs jobs while the NVMe sits idle. The weekly count of those stalls is the measurement behind the decision to move the fleet's working tree onto the NVMe.
+
+### What it reads
+
+- **RAM**: free RAM as a percent of the total.
+- **Free space** per fixed drive (`C:`, `D:`, `E:` on Windows; real mounts elsewhere), in GB.
+- **Latency** per drive, from the per-disk I/O counters (`psutil.disk_io_counters(perdisk=True)`). The average time one operation took in a window is `Δtime / Δcount` between two samples, taken separately for reads and writes, so a queue of requests stuck behind a 1.7 s read shows up as 1.7 s. A drive letter is mapped to its `PhysicalDriveN` once with a metadata-only `IOCTL_STORAGE_GET_DEVICE_NUMBER`. Off Windows latency is `unsupported`; RAM and free space work everywhere.
+
+### Why sampling is cheap and never loads the slow disk
+
+A sample is a handful of counter and metadata reads, about 0.1 ms for the I/O counters, and reads no file on any disk. The history is not written to the repo's drive: it lives in SQLite under the runtime-data root (`src/runtime_data.py`, `C:\sqlite\local-llm-hub\resource_watch.sqlite3` on Windows; override with `LLM_HUB_RESOURCE_WATCH_DB_PATH`), on the NVMe. One small row a minute is written there, never to `E:`.
+
+### Alerts
+
+Each condition must hold for several samples in a row. One odd sample never alerts.
+
+| Condition | Default limit | Sustained for | Why this value |
+| --- | --- | --- | --- |
+| RAM free below | 10 % | 3 min | Below 10 % Windows is already trimming working sets, and the model servers hold tens of GB, so a dip is real pressure; the process watch uses the same `watch` line |
+| A drive's free space below | 10 GB | 3 min | Enough room left to act (stop a download, free a cache) before writes fail; a percentage would read a 4 TB drive as fine at 40 GB |
+| A disk's average latency above | 500 ms | 2 min | A healthy disk under load stays far below it; the stall that hung jobs ran at about 1,700 ms. Two minutes keeps a single long operation (a big copy finishing) from paging |
+
+Latency is judged only from windows in which a direction completed at least `min_ios` (5) operations: one slow read on an otherwise idle disk says nothing about a queue.
+
+Alerts go out through the fleet's one Telegram transport, `~/.claude/hooks/notify_send.py` (set `alert.script` to use another path), run as a subprocess with the hub's interpreter and the message on stdin. The destination is the transport's `attention` chat, resolved from fleet config; the hub holds no token and adds no recipient. Each condition (`ram`, `disk_free:E:`, `disk_latency:E:`) sends **at most once per 6 hours**, counted from the last successful send and stored in the history database, so a hub restart does not repeat an alert still inside its window. A failed delivery is logged and recorded as `failed`, does not start the window, and is retried after 10 minutes. `alert.enabled: false` keeps the state and the summary but sends nothing.
+
+### States
+
+Every metric and the whole result is `ok`, `alert` or `unknown`.
+
+- `unknown` means the reading was not taken: a failed RAM or free-space read, an unmappable drive, a counter that went backwards, the first sample after boot with no baseline, or a last sample older than three intervals. It is never folded into `ok`.
+- `unsupported` (latency off Windows) is listed but does not hold the result at `unknown`.
+- Alert outranks unknown, and unknown outranks ok.
+
+### Weekly stall summary
+
+A **stall episode** is a run of consecutive minutes, at least `disk_latency.sustain_samples` long, whose latency is above the limit. A minute that could not be read, or a gap while the hub was down, ends the run instead of bridging it. For each drive the summary reports the episode count, total minutes and worst latency over `summary_days` (7), and how much of the window was actually measured. A drive with no episodes and less than `min_coverage_percent` (50) of the window measured is `unknown` ("not confirmed"), not "no stalls": a quiet week only counts if the disk was watched. A young history says how many hours it has watched so far rather than claiming a week. A line looks like `E: 3 stalls, 41 min total, worst 1720 ms, the last 7 days (96% measured)`.
+
+### Where it shows
+
+- **`GET /admin/api/machines/resources`**: `state`, `reason`, the latest RAM and per-drive readings, every `conditions` entry, the `alerts` sent (each `sent` or `failed`), and `stalls` (`line` plus one entry per drive with `episodes`, `total_minutes`, `worst_ms`, `covered_percent`, `recent`). `store` is `failed` when the history could not be written, which makes the stall summary `unknown`. In memory, cheap to poll; it is what a fleet health check reads.
+- **Machines tab**: this machine's sheet has a **Resources** section with the state and one stall line per drive, and a *resource alert* or *resources not confirmed* chip on the row when it is not fine.
+
+### Configuration
+
+The `resource` section of `config/health_watch.json`, re-read every sample like the rest. Every limit above, `interval_s` (60), `history_days` (14), `summary_days` (7) and the `alert` block are keys there; `"resource": {"enabled": false}` stops it. To prove the path end to end, raise a limit past the current reading (for example `ram_free_percent.alert_below: 101`) and watch one line arrive, then no second one inside the window.
+
 ## Layout
 
 | Module | Role |
 | --- | --- |
-| `src/health/win_probe.py` | Native Windows reads: process table, performance info, GUI objects, dynamic port range |
+| `src/health/win_probe.py` | Native Windows reads: process table, performance info, GUI objects, dynamic port range, drive-letter to physical-disk number |
 | `src/health/sampler.py` | One sample: system counters, the top processes per metric, each probe's state |
 | `src/health/classifier.py` | The verdict: a pure function of the history and the config |
 | `src/health/settings.py` | Config loading and defaults |
 | `src/health/watch.py` | The loop, the rolling history and the act/cleared alerts |
+| `src/health/resource_probe.py` | One resource sample: RAM, free space per drive, latency from counter deltas |
+| `src/health/resource_rules.py` | Sustained-breach conditions, stall episodes, the weekly summary (pure) |
+| `src/health/resource_store.py` | Rolling sample history and alert debounce state in SQLite |
+| `src/health/resource_alert.py` | Telegram delivery through the fleet transport, and the per-condition debounce |
+| `src/health/resource_watch.py` | The one-minute loop and the cached verdict |
 
 ## Scope
 
-Each hub watches the machine it runs on. Peer verdicts on the Machines tab, and a push alert channel beyond the hub log, are not part of it yet.
+Each hub watches the machine it runs on. Peer verdicts on the Machines tab are not part of it yet. The process watch alerts to the hub log only; the resource watch alone pushes to Telegram.

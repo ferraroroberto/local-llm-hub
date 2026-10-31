@@ -90,7 +90,10 @@ unchanged, no retries, opt-in only"]
     HEALTH["health/
 resident watch (asyncio task, sample in a thread
 every 10 min) · win_probe (one-call process table) ·
-classifier (ok/watch/act/unknown + restart-or-reboot fix)"]
+classifier (ok/watch/act/unknown + restart-or-reboot fix) ·
+resource_watch (second task, sample every minute: RAM, free space,
+per-disk latency; history in runtime-data SQLite; Telegram alert by
+running the fleet notify_send.py)"]
     PARAKEETSRV["parakeet_server.py\nOpenAI-shape ASR shim ->\nFluidAudio Parakeet CoreML worker"]
     FLEETREC["fleet/fleet_reconcile.py\nadditive convergence: wake offline can-ssh\nsatellite -> start desired-but-not-running models\n(desired state derived from the registry:\nmodel_registry.desired_placement)"]
     WOL["fleet/wake_on_lan.py\nmagic-packet builder + UDP broadcast\n(true power-on beneath the SSH bootstrap)"]
@@ -128,7 +131,7 @@ classifier (ok/watch/act/unknown + restart-or-reboot fix)"]
   DIAG -.reads.-> DIAGCFG
   LIFECYCLE -->|start health watch loop| HEALTH
   MACHINECON -->|host card health| HEALTH
-  WROUT -->|GET machines/health| HEALTH
+  WROUT -->|GET machines/health, machines/resources| HEALTH
   HEALTH -.reads.-> HEALTHCFG
   DIAG -.writes.-> DIAGDB
   PORTCAP["scripts/portable_capture.py\nstandalone psutil sampler, SSH-delivered,\nno src/ imports"]

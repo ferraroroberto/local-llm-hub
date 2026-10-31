@@ -36,6 +36,13 @@ defineInfo('peer-hub', 'Its own hub',
   + 'line under the state says what to do instead. Start hub brings a stopped hub back up. Both run '
   + 'over a restricted remote command.</p>');
 
+defineInfo('resource-watch', 'Resources',
+  '<p>Every minute the hub reads free RAM, free space on each fixed drive and, on Windows, how long each '
+  + 'disk takes per read and write. A sustained breach sends one Telegram line per condition every six hours.</p>'
+  + '<p>The stall lines count the stretches where a disk averaged over half a second per operation for two '
+  + 'minutes or more. Not confirmed means a reading could not be taken or too little of the week was measured, '
+  + 'so it is never counted as fine.</p>');
+
 defineInfo('health-watch', 'Health watch',
   '<p>The hub samples this machine every few minutes: per-process handles, memory, GDI/USER objects and '
   + 'threads, plus commit charge, kernel pools, system handles, ports and disk. A process that keeps '
@@ -142,6 +149,12 @@ function syncHelps(h) { return h.sync ? !!h.sync.sync_helps : h.git_sha_match ==
 
 /* The health watch reports on this machine only; a disabled watch says nothing. */
 function healthOf(m) { return m.health && m.health.enabled ? m.health : null; }
+/* The resource watch (RAM, free space, disk latency); a disabled watch says nothing. */
+function resourcesOf(m) { return m.resources && m.resources.enabled ? m.resources : null; }
+const RESOURCE_CHIPS = {
+  alert: { text: 'resource alert', tone: 'danger' },
+  unknown: { text: 'resources not confirmed', tone: '' },
+};
 const HEALTH_CHIPS = {
   act: { text: 'needs action', tone: 'danger' },
   watch: { text: 'health watch', tone: 'attention' },
@@ -153,6 +166,8 @@ function exceptionChips(m) {
   const out = [];
   const health = healthOf(m);
   if (health && HEALTH_CHIPS[health.verdict]) out.push(HEALTH_CHIPS[health.verdict]);
+  const resources = resourcesOf(m);
+  if (resources && RESOURCE_CHIPS[resources.state]) out.push(RESOURCE_CHIPS[resources.state]);
   if (m.state === 'up' && hubDown(m)) out.push({ text: 'hub down', tone: 'danger' });
   if (hubOutOfSync(m)) out.push({ text: 'out of sync', tone: 'attention' });
   if (m.via_tailscale) out.push({ text: 'via tailnet', tone: 'attention' });
@@ -380,6 +395,29 @@ function healthSection(m) {
     + '</div>';
 }
 
+const RESOURCE_WORDS = { ok: 'Fine', alert: 'Alert', unknown: 'Not confirmed' };
+
+/* The resource watch's state, what is firing, and the weekly per-drive stall
+ * summary (the measurement behind moving the fleet off the slow disk). */
+function resourcesSection(m) {
+  const r = resourcesOf(m);
+  if (!r) return '';
+  const tone = r.state === 'alert' ? 'danger' : '';
+  const stalls = r.stalls || {};
+  const lines = (stalls.drives && stalls.drives.length ? stalls.drives : [{ line: stalls.line || '' }]);
+  return '<div class="sheet-section machine-resources">'
+    + '<div class="sheet-row">' + icon('hard-drive') + '<span class="sheet-row-label">Resources</span>'
+    + '<span class="sheet-row-value" data-machine-resources' + (tone ? ' data-tone="' + tone + '"' : '') + '>'
+    + escapeHtml(RESOURCE_WORDS[r.state] || r.state) + '</span>'
+    + infoButton('resource-watch', 'About the resource watch') + '</div>'
+    + (r.state !== 'ok' && r.reason ? '<p class="sheet-meta">' + escapeHtml(r.reason) + '</p>' : '')
+    + lines.map(function (d) {
+      return '<p class="sheet-meta" data-machine-stall' + (d.state === 'unknown' ? ' data-tone="attention"' : '') + '>'
+        + escapeHtml(d.line) + '</p>';
+    }).join('')
+    + '</div>';
+}
+
 /* Reboot and Shut down: last, in danger-text, each behind the confirm dialog.
  * Freshness-sensitive (design.md "stale"): never fired against data already
  * known to be out of date, nor while one is in flight or being rechecked. An
@@ -418,6 +456,7 @@ function machineBody(m, isStale, wide, connOpen) {
     + '</div>'
     + statsSection(m)
     + healthSection(m)
+    + resourcesSection(m)
     + toolsSection(m, wide)
     + connectionSection(m, connOpen)
     + hubSection(m)

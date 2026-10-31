@@ -52,6 +52,15 @@ FAKE_STATUS = {
                            {"level": "watch", "kind": "system", "reason": "System handles 2.4 M, mostly leaky.exe",
                             "fix": "Restart leaky.exe"},
                        ]},
+            # The resource watch is fine; the weekly stall summary carries one
+            # drive with stalls and one it could not confirm (invented numbers).
+            "resources": {"enabled": True, "state": "ok", "sampled_at": 0, "reason": "all clear",
+                          "stalls": {"state": "unknown", "line": "", "drives": [
+                              {"drive": "E:", "state": "ok",
+                               "line": "E: 3 stalls, 41 min total, worst 1720 ms, the last 7 days (96% measured)"},
+                              {"drive": "C:", "state": "unknown",
+                               "line": "C: not confirmed, latency measured for only 12% of the last 7 days"},
+                          ]}},
         },
         {
             # A reachable peer that advertises wake capability but is UP — the
@@ -208,6 +217,12 @@ def test_no_wake_button_on_up_or_self_machines(phone_page, admin_url, browser):
     assert sheet.locator("[data-machine-health]").inner_text() == "Act"
     assert "System handles 2.4 M" in sheet.locator(".machine-health").inner_text()
     assert sheet.locator("[data-machine-health-fix]").inner_text() == "Suggested: Restart leaky.exe"
+    # The Resources section: a fine state (no extra chip) and one stall line per drive.
+    assert sheet.locator("[data-machine-resources]").inner_text() == "Fine"
+    stalls = sheet.locator("[data-machine-stall]")
+    assert stalls.count() == 2
+    assert "3 stalls" in stalls.nth(0).inner_text() and "worst 1720 ms" in stalls.nth(0).inner_text()
+    assert stalls.nth(1).get_attribute("data-tone") == "attention"
     page.click("#machineSheetCloseBtn")
 
     # The down hub peer's sheet offers Start hub (bootstrap) instead of Sync.

@@ -4,7 +4,8 @@
     "Process rules: a value past watch_value/act_value, or steady growth past watch_rate_per_hour/act_rate_per_hour once the value is at least rate_min_value. null disables a limit.",
     "memory_mb has no absolute limit: a model server legitimately holds tens of GB; only steady growth is judged.",
     "System rules: watch/act limits; below=true means a low value is the bad one.",
-    "Handles are file descriptors on macOS/Linux; commit and pool counters exist only on Windows."
+    "Handles are file descriptors on macOS/Linux; commit and pool counters exist only on Windows.",
+    "resource: the one-minute RAM / free-disk / per-disk latency watch with Telegram alerts (docs/health-watch.md). A sample is one minute, so sustain_samples is minutes. alert_below / alert_above_ms are the limits; min_ios is the fewest operations a window must complete to be judged for latency. alert.script null = ~/.claude/hooks/notify_send.py."
   ],
   "enabled": true,
   "interval_s": 600,
@@ -67,6 +68,36 @@
       "watch_rate_per_hour": 100,
       "act_rate_per_hour": 500,
       "rate_min_value": 300
+    }
+  },
+  "resource": {
+    "enabled": true,
+    "interval_s": 60,
+    "boot_delay_s": 20,
+    "stale_after_intervals": 3,
+    "history_days": 14,
+    "summary_days": 7,
+    "min_coverage_percent": 50,
+    "ram_free_percent": {
+      "alert_below": 10,
+      "sustain_samples": 3
+    },
+    "disk_free_gb": {
+      "alert_below": 10,
+      "sustain_samples": 3
+    },
+    "disk_latency": {
+      "alert_above_ms": 500,
+      "sustain_samples": 2,
+      "min_ios": 5
+    },
+    "alert": {
+      "enabled": true,
+      "cooldown_hours": 6,
+      "retry_after_s": 600,
+      "category": "attention",
+      "script": null,
+      "timeout_s": 30
     }
   },
   "system": {
