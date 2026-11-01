@@ -1,5 +1,6 @@
 {
   "version": 1,
-  "band": {"files": 4, "functions": 7},
+  "band": {"files": 4, "functions": 6},
+  "root_extras": ["docker", "linux", "mac", "webapp"],
   "entries": []
 }
