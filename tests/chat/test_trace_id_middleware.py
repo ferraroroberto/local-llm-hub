@@ -82,3 +82,50 @@ def test_empty_x_trace_id_no_synth():
     out = TraceIdHeaderMiddleware._maybe_synthesize_traceparent(scope)
     names = [n for n, _ in out["headers"]]
     assert b"traceparent" not in names
+
+
+def _span_trace_ids_for(headers: dict, monkeypatch) -> tuple[str, list[str]]:
+    """Drive one request through a FastAPI app wired like ``src.server`` and
+    return ``(response X-Trace-Id, trace ids of the exported spans)``."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    from src.trace_id_middleware import install_outermost
+
+    # tests/conftest.py disables the SDK; a live span needs it back on.
+    monkeypatch.delenv("OTEL_SDK_DISABLED", raising=False)
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    app = FastAPI()
+
+    @app.get("/ping")
+    def ping() -> dict:
+        return {}
+
+    FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
+    install_outermost(app)
+    try:
+        resp = TestClient(app).get("/ping", headers=headers)
+    finally:
+        FastAPIInstrumentor.uninstrument_app(app)
+    spans = [format(s.context.trace_id, "032x") for s in exporter.get_finished_spans()]
+    return resp.headers.get("x-trace-id", ""), spans
+
+
+def test_x_trace_id_alone_chooses_the_server_trace(monkeypatch):
+    # The OTel FastAPI instrumentation wraps the whole stack, so the mapping
+    # only counts when it runs outside that layer.
+    from src.observability import derive_trace_id_from_uuid
+
+    want = format(derive_trace_id_from_uuid("session-42"), "032x")
+    echoed, spans = _span_trace_ids_for({"X-Trace-Id": "session-42"}, monkeypatch)
+    assert spans, "no span was exported"
+    assert set(spans) == {want}
+    assert echoed == want

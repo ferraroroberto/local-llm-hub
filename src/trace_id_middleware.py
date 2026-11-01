@@ -33,14 +33,17 @@ including the 401s and 4xx envelopes raised before any route runs:
 openClaw, ad-hoc scripts) read it and must keep seeing exactly what they
 saw before.
 
-Sits OUTERMOST in the middleware stack — added after
-``instrument_fastapi_app(app)`` so it wraps the OTel layer.
+Sits OUTSIDE the OTel layer via :func:`install_outermost`: the FastAPI
+instrumentation wraps the whole built stack, so ``add_middleware`` order
+cannot put this layer ahead of it, and a ``traceparent`` synthesized any
+later would arrive after the server span already chose its trace ID.
 """
 
 from __future__ import annotations
 
 import logging
 import secrets
+import types
 from typing import Any, Awaitable, Callable
 
 from .routes.anthropic_errors import is_anthropic_shape_path
@@ -178,3 +181,18 @@ class TraceIdHeaderMiddleware:
         new_scope = dict(scope)
         new_scope["headers"] = new_headers
         return new_scope
+
+
+def install_outermost(app: Any) -> None:
+    """Make :class:`TraceIdHeaderMiddleware` the outermost layer of ``app``.
+
+    Call after ``instrument_fastapi_app(app)``: the instrumentation replaces
+    ``build_middleware_stack`` to put its span outside every user middleware,
+    so wrapping the stack it builds is the only way to see the request first.
+    """
+    build_inner = app.build_middleware_stack
+
+    def build_middleware_stack(self: Any) -> Any:
+        return TraceIdHeaderMiddleware(build_inner())
+
+    app.build_middleware_stack = types.MethodType(build_middleware_stack, app)

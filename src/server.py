@@ -80,7 +80,7 @@ from .audio import server_audio_tts as _server_audio_tts  # noqa: F401 — regis
 from .images.server_images import router as _images_router
 from .routes.server_otel_receiver import router as _otel_receiver_router
 from .routes.server_systemone import router as _systemone_router
-from .trace_id_middleware import TraceIdHeaderMiddleware
+from .trace_id_middleware import install_outermost as install_trace_id_layer
 from .webapp_config import WebappConfig
 
 logging.basicConfig(
@@ -144,15 +144,14 @@ app.add_middleware(ParentBearerTokenMiddleware, get_token=_hub_get_token)
 # telemetry layer is the OTel + Langfuse stack bootstrapped by init_otel().
 app.add_middleware(ObservatoryMiddleware)
 
-# OTel ASGI instrumentation — added before the X-Trace-Id outer middleware
-# so the OTel layer creates spans first; the X-Trace-Id wrapper then sees
-# a live span context and can echo its trace ID to the client.
+# OTel ASGI instrumentation. It wraps the whole built stack, so it ends up
+# outside every add_middleware layer.
 instrument_fastapi_app(app)
 
 # X-Trace-Id contract — accept client-supplied UUID4 / hex in, always
-# emit the current span's trace ID out. Pure-ASGI middleware; added last
-# so it sits OUTERMOST.
-app.add_middleware(TraceIdHeaderMiddleware)
+# emit the current span's trace ID out. Installed outside the OTel layer so
+# the synthesized traceparent exists before the server span starts.
+install_trace_id_layer(app)
 
 
 # Expose the same WebappConfig to the parent app so the middleware can
