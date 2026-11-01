@@ -34,10 +34,35 @@ from typing import Any, Dict, Iterator, List, Optional
 import httpx
 
 from .http_client import DEFAULT_UPSTREAM_TIMEOUT_S, get_sync_client
+from .hub_observability import (
+    ERROR_BACKEND_DOWN,
+    ERROR_TIMEOUT,
+    ERROR_UPSTREAM,
+    ClassifiedError,
+)
 
 
-class UpstreamError(RuntimeError):
-    pass
+class UpstreamError(ClassifiedError):
+    """A llama-server (or peer hub) call failed; ``error_class`` says how."""
+
+
+def _transport_error(url: str, exc: httpx.HTTPError) -> UpstreamError:
+    """Name a transport failure by its condition: down, timed out, or other.
+
+    A refused or never-accepted connection means nothing is serving the port;
+    a read that ran past the deadline means it is serving but too slowly.
+    """
+    if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
+        return UpstreamError(
+            f"upstream {url} unreachable (backend down): {exc}",
+            error_class=ERROR_BACKEND_DOWN,
+        )
+    if isinstance(exc, httpx.TimeoutException):
+        return UpstreamError(
+            f"upstream {url} timed out ({type(exc).__name__}): {exc}",
+            error_class=ERROR_TIMEOUT,
+        )
+    return UpstreamError(f"upstream {url} request failed: {exc}", error_class=ERROR_UPSTREAM)
 
 
 def _block_get(block: Any, key: str) -> Any:
@@ -227,7 +252,7 @@ def call_openai_chat(
     try:
         r = get_sync_client().post(url, json=payload, headers=headers, timeout=timeout)
     except httpx.HTTPError as e:
-        raise UpstreamError(f"upstream {url} unreachable: {e}") from e
+        raise _transport_error(url, e) from e
     if r.status_code >= 400:
         raise UpstreamError(f"upstream {url} HTTP {r.status_code}: {r.text[:500]}")
     try:
@@ -278,7 +303,7 @@ def call_openai_chat_stream(
             for line in r.iter_lines():
                 yield line
     except httpx.HTTPError as e:
-        raise UpstreamError(f"upstream {url} unreachable: {e}") from e
+        raise _transport_error(url, e) from e
 
 
 # -----------------------------------------------------------------------

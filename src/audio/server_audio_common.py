@@ -12,6 +12,14 @@ import re
 
 from fastapi import HTTPException
 
+from ..hub_observability import (
+    ERROR_BACKEND_DOWN,
+    ERROR_TIMEOUT,
+    ERROR_UPSTREAM,
+    error_class_for_status,
+    tag_error,
+)
+
 logger = logging.getLogger(__name__)
 
 # Response headers naming the model/host pair behind an audio request.
@@ -40,6 +48,18 @@ def _header_safe(value: str) -> str:
     return _NON_PRINTABLE_ASCII.sub("", value or "")[:_HEADER_VALUE_MAX]
 
 
+def stamp_backend_status(ctx, backend_id: str, status: int) -> None:
+    """Class an error status the audio backend itself answered with.
+
+    The proxy passes a backend's own 4xx/5xx through unchanged, so without
+    this the ring would read a backend's 500 as the hub's internal error.
+    """
+    if ctx is None or status < 400 or getattr(ctx, "error_class", ""):
+        return
+    ctx.error_class = ERROR_UPSTREAM if status >= 500 else error_class_for_status(status)
+    ctx.error_detail = f"audio backend {backend_id} answered HTTP {status}"
+
+
 def _audio_upstream_error(exc: Exception, *, backend: str, port: int) -> HTTPException:
     """Map an httpx upstream failure to a *distinct* HTTPException.
 
@@ -50,7 +70,8 @@ def _audio_upstream_error(exc: Exception, *, backend: str, port: int) -> HTTPExc
     message names the port and says the backend isn't running, instead of the
     opaque ``502 "whisper upstream error: All connection attempts failed"`` that
     gave downstream consumers no way to tell "down" from "in flight past
-    timeout" (issue #147). Every other upstream error stays a ``502``.
+    timeout" (issue #147). A read that ran past the deadline is a ``502``
+    that says it timed out; every other upstream error is a plain ``502``.
     """
     import httpx as _httpx
 
@@ -59,11 +80,19 @@ def _audio_upstream_error(exc: Exception, *, backend: str, port: int) -> HTTPExc
             "⚠️ %s not reachable on :%s — backend not running (connection refused)",
             backend, port,
         )
-        return HTTPException(
+        return tag_error(HTTPException(
             status_code=503,
             detail=(
                 f"{backend} not running on :{port} — start the backend "
                 f"(admin Models tab or its launcher) and retry"
             ),
-        )
-    return HTTPException(status_code=502, detail=f"{backend} upstream error: {exc}")
+        ), ERROR_BACKEND_DOWN)
+    if isinstance(exc, _httpx.TimeoutException):
+        return tag_error(HTTPException(
+            status_code=502,
+            detail=f"{backend} on :{port} timed out ({type(exc).__name__})",
+        ), ERROR_TIMEOUT)
+    return tag_error(
+        HTTPException(status_code=502, detail=f"{backend} upstream error: {exc}"),
+        ERROR_UPSTREAM,
+    )

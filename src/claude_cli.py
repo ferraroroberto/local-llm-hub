@@ -25,6 +25,7 @@ from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from .http_client import DEFAULT_UPSTREAM_TIMEOUT_S
 from .no_window import NO_WINDOW
+from .hub_observability import ERROR_BACKEND_DOWN, ERROR_TIMEOUT, ClassifiedError
 from .server_common import set_span_attrs, start_span
 
 logger = logging.getLogger(__name__)
@@ -53,8 +54,8 @@ def _argv_hash(args: List[str]) -> str:
     ).hexdigest()
 
 
-class ClaudeCLIError(RuntimeError):
-    pass
+class ClaudeCLIError(ClassifiedError):
+    """A ``claude -p`` call failed; ``error_class`` says how."""
 
 
 def _build_invocation(
@@ -145,11 +146,13 @@ def call_claude(
             )
         except FileNotFoundError as e:
             raise ClaudeCLIError(
-                "`claude` CLI not found on PATH. Install Claude Code first."
+                "`claude` CLI not found on PATH. Install Claude Code first.",
+                error_class=ERROR_BACKEND_DOWN,
             ) from e
         except subprocess.TimeoutExpired as e:
             raise ClaudeCLIError(
-                f"claude -p timed out after {timeout:g}s"
+                f"claude -p timed out after {timeout:g}s",
+                error_class=ERROR_TIMEOUT,
             ) from e
 
         set_span_attrs(span, "claude_cli.invoke", {
@@ -212,7 +215,8 @@ def _spawn_claude_stream(
             )
         except FileNotFoundError as exc:
             raise ClaudeCLIError(
-                "`claude` CLI not found on PATH. Install Claude Code first."
+                "`claude` CLI not found on PATH. Install Claude Code first.",
+                error_class=ERROR_BACKEND_DOWN,
             ) from exc
     return proc
 
@@ -309,7 +313,10 @@ def call_claude_stream(
         stderr_thread.join(timeout=1.0)
         stderr = "".join(stderr_parts)
         if timed_out.is_set():
-            raise ClaudeCLIError(f"claude -p stream timed out after {timeout:g}s")
+            raise ClaudeCLIError(
+                f"claude -p stream timed out after {timeout:g}s",
+                error_class=ERROR_TIMEOUT,
+            )
         if return_code != 0:
             raise ClaudeCLIError(
                 f"claude -p stream exited {return_code}: {stderr[:500]}"

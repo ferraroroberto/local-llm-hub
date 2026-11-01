@@ -278,6 +278,39 @@ Root span: POST /v1/messages                                1620 ms
         events: [model_switch]
 ```
 
+### Failed calls
+
+Every request to a model-call route (`/v1/messages`, `/v1/chat/completions`,
+`/v1/audio/*`, `/v1/images/*`, `/v1/systemone`) leaves exactly one admin
+request-ring entry and one trace, whatever the outcome: a rejected caller
+(401), a bad body (400/422), a backend that is down, slow or failing, and a
+stream that broke after its 200 was sent. `ObservatoryMiddleware` in
+`src/hub_observability.py` is the single writer of both, so no failure path
+can skip one. The ring entry carries the trace id from the start, so the
+Activity row links to Langfuse even when the route never ran.
+
+A failure carries an **error class**, on the ring entry (`error_class`) and
+on the root span (`hub.error.class`, `error.type`), so the conditions read
+apart:
+
+| Class | Condition |
+|---|---|
+| `bad_request` | the hub refused the request (unknown model, bad body, unservable field) |
+| `unauthorized` | the bearer gate refused a non-loopback caller |
+| `backend_not_loaded` | an on-demand backend failed to come up, or none is enabled |
+| `backend_down` | nothing accepts connections on the backend's port, or the CLI is not installed |
+| `timeout` | the backend or CLI ran past its deadline |
+| `upstream_error` | the backend answered with an error, a CLI exited non-zero, or the reply was malformed |
+| `client_disconnect` | the caller went away mid-stream |
+| `internal_error` | an unhandled exception in the hub |
+
+A failed span also gets `langfuse.observation.level = ERROR`, the error text
+as `langfuse.observation.status_message`, and an `ERROR` span status. The
+error text follows the prompt rule below: with `OTEL_HASH_PROMPTS=true` raw
+exception text (which can echo the prompt, a vendor error body or a CLI's
+stderr) is dropped and the ring and span show only the class label and the
+status, e.g. `backend timed out (HTTP 502)`.
+
 Metrics (exported every 15 s):
 
 | Name | Type | Labels |

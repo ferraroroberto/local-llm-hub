@@ -36,6 +36,13 @@ from ..chat_translation import (
 )
 from ..claude_cli import ClaudeCLIError, call_claude_stream
 from ..gemini_cli import GeminiCLIError
+from ..hub_observability import (
+    ERROR_CLIENT_DISCONNECT,
+    ERROR_INTERNAL,
+    error_class_for_status,
+    error_class_of,
+    stamp_ctx_failure,
+)
 from ..model_registry import Model
 from ..observability import set_genai_payload, set_genai_request_attrs, set_genai_response_attrs
 from ..openai_upstream import UpstreamError, call_openai_chat_stream, iter_cleaned_sse
@@ -156,8 +163,6 @@ def _finish_anthropic_stream(
         ctx.cache_read_tok = state.cache_read_tokens
         ctx.cache_write_tok = state.cache_write_tokens
         ctx.stop_reason = state.stop_reason
-        if error_type:
-            ctx.error_detail = error_type
     set_genai_response_attrs(
         span,
         input_tokens=state.input_tokens,
@@ -241,13 +246,24 @@ def _stream_anthropic_response(
                         yield event
 
             _record_last_token(span, start_ns, first_token_ns, state.output_tokens)
+        except GeneratorExit:
+            # The response closes this generator when the client goes away;
+            # an exhausted one is never closed this way.
+            stamp_ctx_failure(ctx, ERROR_CLIENT_DISCONNECT, "client disconnected mid-stream")
+            raise
         except HTTPException as exc:
             error_type = f"http_{exc.status_code}"
             logger.error("Anthropic stream error: %s", exc.detail)
+            stamp_ctx_failure(
+                ctx,
+                error_class_of(exc, error_class_for_status(exc.status_code) or ERROR_INTERNAL),
+                str(exc.detail),
+            )
             yield anthropic_stream_error(Exception(str(exc.detail)))
         except (ClaudeCLIError, GeminiCLIError, UpstreamError) as exc:
             error_type = "upstream_error"
             logger.error("Anthropic stream error: %s", exc)
+            stamp_ctx_failure(ctx, error_class_of(exc), str(exc))
             yield anthropic_stream_error(exc)
         finally:
             if track is not None:
@@ -334,6 +350,7 @@ def messages(req: MessagesRequest, request: Request) -> Response:
     ctx = getattr(request.state, "obs_ctx", None)
     if ctx is not None:
         ctx.backend = model.backend
+        ctx.served_model = model.id
     logger.info("/v1/messages model=%s backend=%s", req.model, model.backend)
 
     client_id = _client_id_from(request)

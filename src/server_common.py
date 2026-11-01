@@ -52,7 +52,9 @@ def ensure_backend_ready_or_503(model: Model) -> None:
     try:
         on_demand.ensure_ready(model)
     except on_demand.OnDemandNotReady as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+        from .hub_observability import ERROR_BACKEND_NOT_LOADED, tag_error
+
+        raise tag_error(HTTPException(status_code=503, detail=str(exc)), ERROR_BACKEND_NOT_LOADED)
 
 
 def client_id_from(request: Request) -> str:

@@ -45,13 +45,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .http_client import DEFAULT_UPSTREAM_TIMEOUT_S
+from .hub_observability import ERROR_BACKEND_DOWN, ERROR_TIMEOUT, ClassifiedError
 from .server_common import safe_span, set_span_attrs, start_span
 
 logger = logging.getLogger(__name__)
 
 
-class GeminiCLIError(RuntimeError):
-    pass
+class GeminiCLIError(ClassifiedError):
+    """An ``agy`` call failed; ``error_class`` says how."""
 
 
 # `agy` selects its model from global persisted state, not a CLI flag.
@@ -152,7 +153,8 @@ def _resolve_agy() -> str:
         raise GeminiCLIError(
             "`agy` (Antigravity CLI) not found on PATH. Install it from "
             "https://antigravity.google and sign in once with your Google "
-            "account (the CLI replaces the deprecated `gemini` CLI)."
+            "account (the CLI replaces the deprecated `gemini` CLI).",
+            error_class=ERROR_BACKEND_DOWN,
         )
     return exe
 
@@ -429,7 +431,9 @@ def _print_call(exe: str, prompt: str, cwd: Optional[str],
     pty = _Pty(args, cwd=cwd)
     if not pty.wait_exit(timeout + 30):
         pty.kill()
-        raise GeminiCLIError(f"agy -p did not finish within {timeout:.0f}s")
+        raise GeminiCLIError(
+            f"agy -p did not finish within {timeout:.0f}s", error_class=ERROR_TIMEOUT
+        )
     reply = _strip_ansi(pty.text()).strip()
     if not reply:
         raise GeminiCLIError(

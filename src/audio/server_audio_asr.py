@@ -28,6 +28,7 @@ from fastapi.responses import Response
 from .. import on_demand as _on_demand
 from .audio_proxy import build_whisper_upstream_request, default_language_from_args
 from ..http_client import get_async_client
+from ..hub_observability import ERROR_UPSTREAM, tag_error
 from ..model_registry import Model
 from ..fleet.remote_proxy import remote_auth_headers, remote_base_url
 from .server_audio_common import (
@@ -36,7 +37,7 @@ from .server_audio_common import (
     HEADER_SERVED_MODEL,
     _audio_upstream_error,
     _header_safe,
-
+    stamp_backend_status,
 )
 from ..server_common import (
     current_otel_span,
@@ -575,10 +576,12 @@ async def _forward_to_candidate(
         except _httpx.HTTPError as exc:
             raise _BackendUnavailable(_audio_upstream_error(exc, backend="whisper-server", port=port))
     if upstream.status_code in (502, 503, 504):
-        raise _BackendUnavailable(HTTPException(
+        # The backend answered, so it is up but refusing work: an upstream
+        # error, not the "down" a refused socket means.
+        raise _BackendUnavailable(tag_error(HTTPException(
             status_code=upstream.status_code,
             detail=f"whisper backend {target.id} unavailable ({upstream.status_code})",
-        ))
+        ), ERROR_UPSTREAM))
 
     # A model has now genuinely answered — only here is it honest to say who
     # served. Before this point every candidate may still fail over.
@@ -586,6 +589,7 @@ async def _forward_to_candidate(
     if ctx is not None:
         ctx.served_model = served_model
         ctx.served_host = served_host
+    stamp_backend_status(ctx, served_model, upstream.status_code)
     set_span_attrs(span, "whisper_served", {
         "gen_ai.response.model": served_model,
         "hub.served_host": served_host,
