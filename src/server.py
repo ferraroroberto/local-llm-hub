@@ -108,11 +108,6 @@ app = FastAPI(title="Local LLM Hub", version="0.3.0")
 # retry logic behave against the hub as they do against the real API.
 # Path-scoped: /v1/chat/completions keeps its existing shape.
 install_anthropic_error_handlers(app)
-# Observability middleware records every /v1/messages + /v1/chat/completions
-# call into an in-memory ring read by the admin webapp's Hub tab. Volatile
-# by design; the durable telemetry layer is the OTel + Langfuse stack
-# bootstrapped by init_otel() above.
-app.add_middleware(ObservatoryMiddleware)
 
 
 # Bearer-token gate on the parent app. Loopback callers bypass; non-
@@ -141,6 +136,13 @@ def _hub_get_token() -> Optional[str]:
 from app_web.middleware import ParentBearerTokenMiddleware  # noqa: E402
 
 app.add_middleware(ParentBearerTokenMiddleware, get_token=_hub_get_token)
+
+# Observability middleware records every model call (chat, audio, images)
+# into an in-memory ring read by the admin webapp's Hub tab and finalises its
+# OTel span. Added after the bearer gate so it sits outside it: a rejected
+# caller is a failed call and is recorded too. Volatile by design; the durable
+# telemetry layer is the OTel + Langfuse stack bootstrapped by init_otel().
+app.add_middleware(ObservatoryMiddleware)
 
 # OTel ASGI instrumentation — added before the X-Trace-Id outer middleware
 # so the OTel layer creates spans first; the X-Trace-Id wrapper then sees

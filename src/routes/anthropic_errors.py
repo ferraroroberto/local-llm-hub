@@ -15,9 +15,10 @@ OpenAI envelope, not this one, so the handlers below delegate to FastAPI's
 defaults for every path that is not Anthropic-shaped. A blanket app-level
 rewrite would be a regression on the OpenAI route.
 
-Statuses are never rewritten — only the body. The observability ring and
-the ``record_genai_metrics`` call in :func:`src.routes.anthropic_messages.messages` both run
-before/around the handler and are unaffected.
+Statuses are never rewritten — only the body. Both handlers are app-wide,
+so they are also where every rejected request's reason and error class reach
+the observability ring (:func:`src.hub_observability.stamp_failure`), on
+every path, before the body is shaped.
 """
 
 from __future__ import annotations
@@ -32,6 +33,13 @@ from fastapi.exception_handlers import (
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from ..hub_observability import (
+    ERROR_BAD_REQUEST,
+    error_class_for_status,
+    error_class_of,
+    stamp_failure,
+)
 
 # Paths speaking the Anthropic wire shape. Prefix-matched so a future
 # sibling (e.g. /v1/messages/count_tokens) is covered without an edit here.
@@ -108,6 +116,12 @@ async def anthropic_http_exception_handler(
     request: Request, exc: StarletteHTTPException
 ) -> Response:
     """Serialise HTTPExceptions from Anthropic-shape routes as the envelope."""
+    if exc.status_code >= 400:
+        stamp_failure(
+            request,
+            error_class_of(exc, error_class_for_status(exc.status_code)),
+            _detail_to_message(exc.detail),
+        )
     if exc.status_code < 400 or not is_anthropic_shape_path(request.url.path):
         return await _default_http_exception_handler(request, exc)
     headers: Optional[Dict[str, str]] = getattr(exc, "headers", None)
@@ -122,6 +136,9 @@ async def anthropic_validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> Response:
     """Serialise 422 body-validation failures as the Anthropic envelope."""
+    # Field locations and messages only: pydantic's ``input`` would echo the
+    # caller's prompt into the ring.
+    stamp_failure(request, ERROR_BAD_REQUEST, _validation_to_message(exc))
     if not is_anthropic_shape_path(request.url.path):
         return await _default_validation_exception_handler(request, exc)
     return JSONResponse(

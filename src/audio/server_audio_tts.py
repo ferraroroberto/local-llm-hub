@@ -21,7 +21,7 @@ from ..http_client import get_async_client
 from ..model_registry import Model
 from ..fleet.remote_proxy import remote_auth_headers, remote_base_url
 from .server_audio_asr import router
-from .server_audio_common import _audio_upstream_error
+from .server_audio_common import _audio_upstream_error, stamp_backend_status
 from ..server_common import current_otel_span, ensure_backend_ready_or_503, set_span_attrs, stash_trace_id_on_ctx
 
 logger = logging.getLogger(__name__)
@@ -71,6 +71,13 @@ def _speech_request_fields(body: bytes) -> Tuple[str, str]:
     return model_name, stream_format
 
 
+def _note_served(ctx: Any, target: Model, status: int) -> None:
+    """Stamp the model that answered, and class an error status it returned."""
+    if ctx is not None:
+        ctx.served_model = target.id
+    stamp_backend_status(ctx, target.id, status)
+
+
 def _passthrough_headers(upstream: Any) -> dict:
     """Upstream response headers minus the hop-by-hop framing ones."""
     return {
@@ -81,6 +88,7 @@ def _passthrough_headers(upstream: Any) -> dict:
 
 async def _stream_speech(
     upstream_url: str, body: bytes, headers: dict, track: Any, port: int,
+    ctx: Any, target: Model,
 ) -> StreamingResponse:
     """Forward a streaming synth's bytes as they arrive; the response owns ``track``."""
     import httpx as _httpx
@@ -92,6 +100,7 @@ async def _stream_speech(
     except _httpx.HTTPError as exc:
         raise _audio_upstream_error(exc, backend="tts-server", port=port)
     track.detach()
+    _note_served(ctx, target, upstream.status_code)
 
     async def _forward():
         try:
@@ -175,13 +184,14 @@ async def audio_speech(request: Request) -> Response:
         # as they arrive, so time-to-first-audio stays low. The obs middleware
         # still records this entry on response, exactly like the chat-stream path.
         if stream_format == "audio":
-            return await _stream_speech(upstream_url, body, headers, track, port)
+            return await _stream_speech(upstream_url, body, headers, track, port, ctx, target)
 
         try:
             client = get_async_client()
             upstream = await client.post(upstream_url, content=body, headers=headers)
         except _httpx.HTTPError as exc:
             raise _audio_upstream_error(exc, backend="tts-server", port=port)
+        _note_served(ctx, target, upstream.status_code)
 
         return Response(
             content=upstream.content,

@@ -14,11 +14,19 @@ Holds:
   * per-backend counters since hub start (req, err, latencies, tokens)
   * a 5-minute ring of system resource samples for sparklines
   * an asyncio fan-out for SSE subscribers
+
+Every observed call leaves one ring entry and finalises its server span the
+same way, whatever the outcome: :class:`ObservatoryMiddleware` is the single
+writer of both, so a failure path cannot skip one of them. A failure carries an
+*error class* (``backend_down``, ``timeout``, ``upstream_error``, ...) decided
+where the failure is raised (:func:`tag_error`) and, failing that, from the
+HTTP status.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import threading
 import time
@@ -27,6 +35,7 @@ from dataclasses import dataclass, field
 from typing import Any, Deque, Dict, List, Optional
 
 from .async_fanout import AsyncFanout
+from .observability import hash_prompts_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -34,17 +43,105 @@ REQUEST_RING_MAX = 200
 ERROR_RING_MAX = 50
 STATS_RING_MAX = 150  # 150 samples × 2s tick = 5 min
 
+# Error classes: one per condition an operator has to tell apart. The label is
+# the message shown when the raw error text may not be kept (hashing on, or no
+# text at all).
+ERROR_BAD_REQUEST = "bad_request"
+ERROR_UNAUTHORIZED = "unauthorized"
+ERROR_BACKEND_NOT_LOADED = "backend_not_loaded"
+ERROR_BACKEND_DOWN = "backend_down"
+ERROR_TIMEOUT = "timeout"
+ERROR_UPSTREAM = "upstream_error"
+ERROR_CLIENT_DISCONNECT = "client_disconnect"
+ERROR_INTERNAL = "internal_error"
+
+_ERROR_LABELS = {
+    ERROR_BAD_REQUEST: "bad request",
+    ERROR_UNAUTHORIZED: "unauthorized",
+    ERROR_BACKEND_NOT_LOADED: "backend not loaded",
+    ERROR_BACKEND_DOWN: "backend down",
+    ERROR_TIMEOUT: "backend timed out",
+    ERROR_UPSTREAM: "upstream error",
+    ERROR_CLIENT_DISCONNECT: "client disconnected",
+    ERROR_INTERNAL: "internal error",
+}
+
+# Raw error text kept in the ring and on the span; long enough for a vendor
+# error line, short enough that a CLI's stderr dump stays readable.
+ERROR_DETAIL_MAX = 500
+
+
+class ClassifiedError(RuntimeError):
+    """A backend failure that knows its error class.
+
+    Base of the CLI and llama-server wrappers' errors, so the place that sees
+    the cause (a ``TimeoutExpired``, a refused socket) names the class once and
+    every route that converts the error inherits it.
+    """
+
+    def __init__(self, message: str = "", *, error_class: str = ERROR_UPSTREAM) -> None:
+        super().__init__(message)
+        self.error_class = error_class
+
+
+def tag_error(exc: BaseException, error_class: str) -> BaseException:
+    """Attach ``error_class`` to ``exc`` (usually an ``HTTPException``) and return it."""
+    exc.error_class = error_class  # type: ignore[attr-defined]
+    return exc
+
+
+def error_class_of(exc: BaseException, default: str = "") -> str:
+    """The class :func:`tag_error` or :class:`ClassifiedError` gave ``exc``."""
+    return str(getattr(exc, "error_class", "") or default)
+
+
+def error_class_for_status(status: int) -> str:
+    """The class of an untagged failure, read from its HTTP status."""
+    if status in (401, 403):
+        return ERROR_UNAUTHORIZED
+    if 400 <= status < 500:
+        return ERROR_BAD_REQUEST
+    if status == 503:
+        return ERROR_BACKEND_NOT_LOADED
+    if status == 504:
+        return ERROR_TIMEOUT
+    if status == 502:
+        return ERROR_UPSTREAM
+    return ERROR_INTERNAL if status >= 500 else ""
+
+
+def error_label(error_class: str, status: int) -> str:
+    """The message a failure shows when no error text was kept."""
+    return f"{_ERROR_LABELS.get(error_class, error_class or 'error')} (HTTP {status})"
+
+
+def stamp_ctx_failure(ctx: Any, error_class: str, detail: str) -> None:
+    """Record why a call failed on its ring context; the first stamp wins.
+
+    ``detail`` is raw exception text, which can echo the prompt or a vendor
+    body (a llama-server error page, a CLI's stderr). With
+    ``OTEL_HASH_PROMPTS`` on it is dropped, the same rule the prompt payload
+    follows, and the ring shows the class label instead. A route that writes
+    its own already-safe text onto the context keeps it.
+    """
+    if ctx is None:
+        return
+    if not ctx.error_class:
+        ctx.error_class = error_class
+    if not ctx.error_detail and not hash_prompts_enabled():
+        ctx.error_detail = (detail or "")[:ERROR_DETAIL_MAX]
+
 
 @dataclass
 class RequestRecord:
     ts: float                 # wall-clock epoch seconds
     path: str                 # e.g. "/v1/messages"
     model: str = ""           # request model alias the client sent (what was *asked* for)
-    # Model id that actually served the request, when the hub resolved the
-    # requested name to something else — a role alias (``audio_transcribe``)
-    # landing on a chain member, or a chain fallback taking over. Empty when
-    # nothing resolved it (the ordinary chat paths) — never guess: a consumer
-    # reads "requested=X served=Y" only when this is set.
+    # Registry id of the model that served the request. On the chat routes it
+    # is the resolved row (there is no failover chain, so that row answers or
+    # fails); on the audio routes it is written only once a chain member has
+    # answered, so a role alias (``audio_transcribe``) shows which member
+    # served. Empty when nothing resolved it, never a guess.
     served_model: str = ""
     # Host id that actually served the request — the missing dimension behind
     # the earlier false pass: a `model=whisper` answered 200 by a host with no
@@ -64,7 +161,8 @@ class RequestRecord:
     cache_write_tok: int = 0
     stop_reason: str = ""
     client: str = ""          # client IP (best-effort)
-    error_detail: str = ""    # filled when status >= 400
+    error_detail: str = ""    # filled on failure (status >= 400, or a stream that broke)
+    error_class: str = ""     # ERROR_* class, empty on success
     trace_id: str = ""        # Langfuse trace id (set per routed request)
     # Free-form, route-specific one-liner for a dimension no other field
     # carries — e.g. "3 questions" on /v1/systemone. Never payload
@@ -110,6 +208,7 @@ class ObservabilityCtx:
         "cache_write_tok",
         "stop_reason",
         "error_detail",
+        "error_class",
         "trace_id",
         "detail",
     )
@@ -126,6 +225,7 @@ class ObservabilityCtx:
         self.cache_write_tok: int = 0
         self.stop_reason: str = ""
         self.error_detail: str = ""
+        self.error_class: str = ""
         self.trace_id: str = ""
         self.detail: str = ""
 
@@ -146,7 +246,8 @@ class Observatory:
     def record_request(self, rec: RequestRecord) -> None:
         with self._lock:
             self._requests.append(rec)
-            if rec.status >= 400 or rec.error_detail:
+            failed = rec.status >= 400 or bool(rec.error_class or rec.error_detail)
+            if failed:
                 self._errors.append(rec)
             # Count against the model that *served*: a role-addressed audio
             # request would otherwise pile every call onto the alias
@@ -159,7 +260,7 @@ class Observatory:
             key = rec.served_model or rec.model or rec.backend or "unknown"
             c = self._counters.setdefault(key, BackendCounters())
             c.requests += 1
-            if rec.status >= 400:
+            if failed:
                 c.errors += 1
             c.in_tok += rec.in_tok
             c.out_tok += rec.out_tok
@@ -273,6 +374,7 @@ def _rec_to_dict(r: RequestRecord) -> Dict[str, Any]:
         "stop_reason": r.stop_reason,
         "client": r.client,
         "error_detail": r.error_detail,
+        "error_class": r.error_class,
         "trace_id": r.trace_id,
         "detail": r.detail,
     }
@@ -288,6 +390,13 @@ OBS = Observatory()
 from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
 from starlette.requests import Request  # noqa: E402
 
+from .server_common import (  # noqa: E402
+    current_otel_span,
+    safe_span,
+    set_span_attrs,
+    stash_trace_id_on_ctx,
+)
+
 OBSERVABLE_PATHS = (
     "/v1/messages",
     "/v1/chat/completions",
@@ -295,15 +404,77 @@ OBSERVABLE_PATHS = (
     "/v1/images/edits",
     "/v1/audio/transcriptions",
     "/v1/audio/translations",
+    "/v1/audio/speech",
     "/v1/systemone",
 )
+
+
+def stamp_failure(request: Request, error_class: str, detail: str) -> None:
+    """:func:`stamp_ctx_failure` on the request's context.
+
+    Called by the app's exception handlers, the one place every
+    ``HTTPException`` and body-validation error becomes a response, so the
+    ring keeps the reason as well as the status. A no-op off the observed
+    paths, which carry no context.
+    """
+    stamp_ctx_failure(getattr(request.state, "obs_ctx", None), error_class, detail)
+
+
+async def _peek_model(request: Request) -> str:
+    """The JSON body's ``model``, read without consuming the request.
+
+    Starlette caches the bytes on first read; a multipart body never parses
+    and the audio route stamps its own model instead.
+    """
+    try:
+        body_bytes = await request.body()
+        if body_bytes:
+            doc = json.loads(body_bytes)
+            if isinstance(doc, dict):
+                return str(doc.get("model") or "")
+    except Exception:  # noqa: BLE001 - best-effort peek
+        pass
+    return ""
+
+
+def _finalise_span(span: Any, ctx: ObservabilityCtx, status: int) -> None:
+    """Write the call's outcome onto its server span (the Langfuse trace).
+
+    Success and failure take the same path, so a failure that never reached a
+    route still names its model, and one that did carries its error class in
+    the attributes Langfuse reads for level and status message.
+    """
+    attrs: Dict[str, Any] = {
+        "gen_ai.request.model": ctx.model or None,
+        "hub.backend": ctx.backend or None,
+    }
+    if not ctx.error_class:
+        attrs["gen_ai.response.model"] = ctx.served_model or None
+        set_span_attrs(span, "request_outcome", attrs)
+        return
+    attrs.update({
+        "hub.error.class": ctx.error_class,
+        "error.type": ctx.error_class,
+        "hub.error.message": ctx.error_detail,
+        "hub.response.status": status,
+        "langfuse.observation.level": "ERROR",
+        "langfuse.observation.status_message": ctx.error_detail,
+    })
+    set_span_attrs(span, "request_outcome", attrs)
+    if span is not None and hasattr(span, "set_status"):
+        with safe_span("request_status"):
+            from opentelemetry.trace import Status, StatusCode
+
+            span.set_status(Status(StatusCode.ERROR, ctx.error_detail))
 
 
 class ObservatoryMiddleware(BaseHTTPMiddleware):
     """Stash an :class:`ObservabilityCtx` for routed requests, record on response.
 
-    Only acts on the chat/messages routes — model listing and the admin
-    sub-app are noise in the request ring.
+    Only acts on the model-call routes; model listing and the admin sub-app
+    are noise in the request ring. Sits outside the bearer gate so a rejected
+    caller is recorded too, and inside the OTel server span, which it
+    finalises alongside the ring entry.
     """
 
     async def dispatch(self, request: Request, call_next):
@@ -314,25 +485,22 @@ class ObservatoryMiddleware(BaseHTTPMiddleware):
         ctx = ObservabilityCtx()
         request.state.obs_ctx = ctx
         client = request.client.host if request.client else ""
-
-        # Pull the model name out of the JSON body without consuming the
-        # request — starlette caches the bytes on first read.
-        try:
-            body_bytes = await request.body()
-            if body_bytes:
-                import json
-                doc = json.loads(body_bytes)
-                if isinstance(doc, dict):
-                    ctx.model = str(doc.get("model") or "")
-        except Exception:  # noqa: BLE001 — best-effort peek
-            pass
+        # Linked before anything can fail, so a request rejected ahead of its
+        # route still carries the trace id the Activity row deep-links to.
+        span = current_otel_span()
+        stash_trace_id_on_ctx(ctx, span)
+        ctx.model = await _peek_model(request)
 
         status = 500
-        error_detail = ""
         deferred_record = False
 
         def _record() -> None:
-            latency_ms = (time.monotonic_ns() - ctx.start_ns) / 1e6
+            if status >= 400 and not ctx.error_class:
+                ctx.error_class = error_class_for_status(status)
+            if ctx.error_class and not ctx.error_detail:
+                ctx.error_detail = error_label(ctx.error_class, status)
+            ctx.error_detail = ctx.error_detail[:ERROR_DETAIL_MAX]
+            _finalise_span(span, ctx, status)
             OBS.record_request(
                 RequestRecord(
                     ts=time.time(),
@@ -342,14 +510,15 @@ class ObservatoryMiddleware(BaseHTTPMiddleware):
                     served_host=ctx.served_host,
                     backend=ctx.backend,
                     status=status,
-                    latency_ms=latency_ms,
+                    latency_ms=(time.monotonic_ns() - ctx.start_ns) / 1e6,
                     in_tok=ctx.in_tok,
                     out_tok=ctx.out_tok,
                     cache_read_tok=ctx.cache_read_tok,
                     cache_write_tok=ctx.cache_write_tok,
                     stop_reason=ctx.stop_reason,
                     client=client,
-                    error_detail=ctx.error_detail or error_detail,
+                    error_detail=ctx.error_detail,
+                    error_class=ctx.error_class,
                     trace_id=ctx.trace_id,
                     detail=ctx.detail,
                 )
@@ -364,21 +533,35 @@ class ObservatoryMiddleware(BaseHTTPMiddleware):
                 # before its body iterator has run. Defer the ring write until
                 # that iterator closes so stream-populated usage, stop reason,
                 # latency, and errors are not permanently recorded as zero.
-                original_body = response.body_iterator
-
-                async def _observed_body():
-                    try:
-                        async for chunk in original_body:
-                            yield chunk
-                    finally:
-                        _record()
-
-                response.body_iterator = _observed_body()
+                response.body_iterator = _observed_body(
+                    response.body_iterator, ctx, _record
+                )
                 deferred_record = True
             return response
-        except Exception as exc:  # noqa: BLE001 — log + re-raise
-            error_detail = f"{type(exc).__name__}: {exc}"
+        except Exception as exc:  # noqa: BLE001 - record, then re-raise
+            stamp_failure(request, error_class_of(exc, ERROR_INTERNAL),
+                          f"{type(exc).__name__}: {exc}")
             raise
         finally:
             if not deferred_record:
                 _record()
+
+
+async def _observed_body(body: Any, ctx: ObservabilityCtx, record: Any):
+    """Relay a stream's chunks, then record it, however the stream ended.
+
+    The status line is already sent, so a break shows as an error class on a
+    200: a client that went away, or an exception the route did not turn into
+    an in-band error event.
+    """
+    try:
+        async for chunk in body:
+            yield chunk
+    except (asyncio.CancelledError, GeneratorExit):
+        stamp_ctx_failure(ctx, ERROR_CLIENT_DISCONNECT, "client disconnected mid-stream")
+        raise
+    except Exception as exc:  # noqa: BLE001 - record, then re-raise
+        stamp_ctx_failure(ctx, error_class_of(exc, ERROR_INTERNAL), f"{type(exc).__name__}: {exc}")
+        raise
+    finally:
+        record()

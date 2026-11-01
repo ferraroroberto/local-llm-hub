@@ -28,6 +28,12 @@ from ..chat_translation import (
 )
 from ..claude_cli import ClaudeCLIError, call_claude
 from ..gemini_cli import GeminiCLIError, call_gemini
+from ..hub_observability import (
+    ERROR_CLIENT_DISCONNECT,
+    error_class_of,
+    stamp_ctx_failure,
+    tag_error,
+)
 from ..model_registry import Model
 from ..observability import set_genai_payload, set_genai_request_attrs, set_genai_response_attrs
 from ..openai_upstream import UpstreamError, call_openai_chat_stream, clean_openai_response, iter_cleaned_sse
@@ -189,6 +195,7 @@ def _stream_openai_passthrough(
     model: Model,
     req: ChatCompletionRequest,
     *,
+    ctx: Any = None,
     span=None,
     client_id: str = "",
     start_ns: Optional[int] = None,
@@ -242,9 +249,15 @@ def _stream_openai_passthrough(
             set_genai_response_attrs(
                 span, input_tokens=usage.usage_in, output_tokens=usage.usage_out,
             )
+        except GeneratorExit:
+            # The response closes this generator when the client goes away;
+            # an exhausted one is never closed this way.
+            stamp_ctx_failure(ctx, ERROR_CLIENT_DISCONNECT, "client disconnected mid-stream")
+            raise
         except UpstreamError as e:
             error_type = "upstream_http_error"
             logger.error("upstream stream error: %s", e)
+            stamp_ctx_failure(ctx, error_class_of(e), str(e))
             err = {
                 "error": {
                     "message": str(e),
@@ -304,7 +317,7 @@ def _complete_via_cli(
         raise
     except (ClaudeCLIError, GeminiCLIError) as e:
         label.value = "upstream_cli_error"
-        raise HTTPException(status_code=502, detail=str(e))
+        raise tag_error(HTTPException(status_code=502, detail=str(e)), error_class_of(e))
     text = env.get("result", "")
     usage = env.get("usage") or {}
     in_t = int(usage.get("input_tokens", 0) or 0)
@@ -387,6 +400,7 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
     ctx = getattr(request.state, "obs_ctx", None)
     if ctx is not None:
         ctx.backend = model.backend
+        ctx.served_model = model.id
     logger.info(
         "/v1/chat/completions model=%s backend=%s stream=%s",
         req.model, model.backend, req.stream,
@@ -418,6 +432,7 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
         # inside the wrapped generator (see _stream_openai_passthrough).
         return _stream_openai_passthrough(
             model, req,
+            ctx=ctx,
             span=span,
             client_id=client_id,
             start_ns=start_ns,

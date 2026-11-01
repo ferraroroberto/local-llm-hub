@@ -36,6 +36,7 @@ from pydantic import BaseModel
 
 from .claude_cli import ClaudeCLIError, call_claude
 from .gemini_cli import GeminiCLIError, call_gemini
+from .hub_observability import error_class_of, tag_error
 from .model_registry import Model
 from .openai_upstream import (
     UpstreamError,
@@ -552,7 +553,7 @@ def _run_cli_backend(
                 attachments=attachments or None,
             )
         except error_cls as e:
-            raise HTTPException(status_code=502, detail=str(e))
+            raise tag_error(HTTPException(status_code=502, detail=str(e)), error_class_of(e))
 
 
 # Thin wrappers rather than ``partial`` bindings: the CLI function is looked
@@ -633,7 +634,7 @@ def call_openai_upstream(
                 headers=upstream.headers,
             )
     except UpstreamError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+        raise tag_error(HTTPException(status_code=502, detail=str(e)), error_class_of(e))
 
 
 def prepare_openai_messages_call(
@@ -690,4 +691,4 @@ def _run_openai_backend(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     except UpstreamError as e:
         # A malformed tool call is an upstream fault, same as the 502 that
         # call_openai_upstream applies to the request itself.
-        raise HTTPException(status_code=502, detail=str(e))
+        raise tag_error(HTTPException(status_code=502, detail=str(e)), error_class_of(e))
