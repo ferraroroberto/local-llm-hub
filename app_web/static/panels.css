@@ -396,7 +396,9 @@ summary.opt-group-title {
 .maxtokens-row {
   display: flex;
   gap: 8px;
-  align-items: stretch;
+  /* Centre, never stretch: the vendored track keeps its own height and the
+     number input is sized to match it. */
+  align-items: center;
 }
 .maxtokens-row .segmented { flex: 1; }
 .maxtokens-row input[type="number"] {
@@ -408,7 +410,8 @@ summary.opt-group-title {
   padding: 8px 10px;
   font: inherit;
   font-size: var(--font-label);
-  min-height: var(--hit-min);
+  height: var(--control-h);
+  box-sizing: border-box;
 }
 .playground-send-row {
   display: flex;
