@@ -158,6 +158,12 @@ def _flatten_openai_prompt(messages: List[Dict[str, Any]]) -> str:
         return ""
 
 
+def _stamp_ctx_tokens(ctx: Any, in_tok: int, out_tok: int) -> None:
+    """Hand the call's token counts to the Activity ring entry."""
+    if ctx is not None:
+        ctx.in_tok, ctx.out_tok = in_tok, out_tok
+
+
 class _StreamUsage:
     """Usage and first-token bookkeeping over one proxied SSE stream."""
 
@@ -187,6 +193,16 @@ class _StreamUsage:
             u = obj.get("usage") or {}
             self.usage_in = max(self.usage_in, int(u.get("prompt_tokens", 0) or 0))
             self.usage_out = max(self.usage_out, int(u.get("completion_tokens", 0) or 0))
+            # llama-server sends no usage block unless the caller asked for
+            # one, but its final chunk always carries ``timings`` with the
+            # same counts; ``prompt_n`` excludes prompt-cache hits, so add
+            # ``cache_n`` back to match the non-streamed prompt_tokens.
+            t = obj.get("timings") or {}
+            self.usage_in = max(
+                self.usage_in,
+                int(t.get("prompt_n", 0) or 0) + int(t.get("cache_n", 0) or 0),
+            )
+            self.usage_out = max(self.usage_out, int(t.get("predicted_n", 0) or 0))
         except Exception:  # noqa: BLE001
             pass
 
@@ -268,6 +284,9 @@ def _stream_openai_passthrough(
             yield from _upstream_error_frames(e)
         finally:
             track.finish()
+            # In `finally` so a stream that breaks mid-way still reports the
+            # tokens it spent.
+            _stamp_ctx_tokens(ctx, usage.usage_in, usage.usage_out)
             record_route_metrics(
                 start_ns,
                 model=req.model, backend=model.backend,
@@ -345,6 +364,7 @@ def _complete_via_openai(
     span: Any,
     client_id: str,
     start_ns: int,
+    ctx: Any = None,
 ) -> JSONResponse:
     """Pass a buffered llama-server completion through, think-scrubbed."""
     try:
@@ -373,6 +393,7 @@ def _complete_via_openai(
     usage = cleaned.get("usage") or {}
     in_t = int(usage.get("prompt_tokens", 0) or 0)
     out_t = int(usage.get("completion_tokens", 0) or 0)
+    _stamp_ctx_tokens(ctx, in_t, out_t)
     set_genai_response_attrs(span, input_tokens=in_t, output_tokens=out_t)
     try:
         completion_text = (cleaned.get("choices") or [{}])[0].get(
@@ -461,7 +482,7 @@ def chat_completions(req: ChatCompletionRequest, request: Request) -> Response:
             raise reject
 
         if model.backend == "openai":
-            return _complete_via_openai(model, req, label, **telemetry)
+            return _complete_via_openai(model, req, label, ctx=ctx, **telemetry)
 
         label.value = "unknown_backend"
         raise HTTPException(status_code=500, detail=f"unknown backend {model.backend!r}")
