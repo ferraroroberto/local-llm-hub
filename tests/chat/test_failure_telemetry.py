@@ -502,6 +502,36 @@ def test_success_matrix_has_a_trace_and_served_model(hub, monkeypatch, model, pa
     assert "hub.error.class" not in attrs
 
 
+_LLAMA_TIMINGS = {"cache_n": 2, "prompt_n": 10, "predicted_n": 8}
+_LLAMA_USAGE = {"prompt_tokens": 12, "completion_tokens": 8, "total_tokens": 20}
+
+
+@pytest.mark.parametrize("final_chunk,expected", [
+    # llama-server's default: no usage block, only timings on the last chunk.
+    ({"choices": [{"delta": {}, "finish_reason": "length"}], "timings": _LLAMA_TIMINGS}, (12, 8)),
+    # an upstream that does send the usage chunk.
+    ({"choices": [], "usage": _LLAMA_USAGE}, (12, 8)),
+])
+def test_llama_stream_records_token_counts(hub, monkeypatch, final_chunk, expected):
+    monkeypatch.setattr(openai_upstream, "get_sync_client", lambda: _SyncClient(
+        stream_lines=[
+            'data: {"choices":[{"delta":{"content":"hi"}}]}',
+            "data: " + json.dumps(final_chunk),
+            "data: [DONE]",
+        ],
+    ))
+    _, row, _ = _call(hub, "POST", "/v1/chat/completions",
+                      json=_chat_body("llama", stream=True))
+    assert (row["in_tok"], row["out_tok"]) == expected, row
+
+
+def test_llama_buffered_call_records_token_counts(hub, monkeypatch):
+    monkeypatch.setattr(openai_upstream, "get_sync_client",
+                        lambda: _SyncClient(body=_ok_llama()))
+    _, row, _ = _call(hub, "POST", "/v1/chat/completions", json=_chat_body("llama"))
+    assert (row["in_tok"], row["out_tok"]) == (3, 1), row
+
+
 # --------------------------------------------------------------------------- #
 # OTEL_HASH_PROMPTS: no prompt or vendor body in error telemetry
 # --------------------------------------------------------------------------- #
