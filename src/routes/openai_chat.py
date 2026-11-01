@@ -191,6 +191,13 @@ class _StreamUsage:
             pass
 
 
+def _upstream_error_frames(exc: Exception) -> List[str]:
+    """The in-band SSE error event plus terminator for a stream that broke
+    after its 200 was sent."""
+    err = {"error": {"message": str(exc), "type": "upstream_error", "code": "upstream_error"}}
+    return ["data: " + json.dumps(err) + "\n\n", "data: [DONE]\n\n"]
+
+
 def _stream_openai_passthrough(
     model: Model,
     req: ChatCompletionRequest,
@@ -258,15 +265,7 @@ def _stream_openai_passthrough(
             error_type = "upstream_http_error"
             logger.error("upstream stream error: %s", e)
             stamp_ctx_failure(ctx, error_class_of(e), str(e))
-            err = {
-                "error": {
-                    "message": str(e),
-                    "type": "upstream_error",
-                    "code": "upstream_error",
-                }
-            }
-            yield "data: " + json.dumps(err) + "\n\n"
-            yield "data: [DONE]\n\n"
+            yield from _upstream_error_frames(e)
         finally:
             track.finish()
             record_route_metrics(
