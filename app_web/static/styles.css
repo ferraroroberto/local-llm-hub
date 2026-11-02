@@ -256,8 +256,8 @@ h2 { display: flex; align-items: center; gap: 8px; }
   /* Centered phone-first measure — the spec's 772px desktop cap. */
   max-width: 772px;
   margin: 0 auto;
-  /* Bottom padding equals the side gutter, so the build footer sits as
-   * close to the bottom edge as the cards do to the sides. */
+  /* Bottom padding equals the side gutter; the phone nav overrides it with its
+   * own reserve, which also clears the build footer. */
   padding: env(safe-area-inset-top, 0) var(--gap) calc(env(safe-area-inset-bottom, 0) + var(--gap));
   display: flex;
   flex-direction: column;

@@ -7,6 +7,7 @@ import { state, els, TAB_KEY, STATUS_POLL_MS, COUNTERS_POLL_MS, MODELS_POLL_MS }
 import { jsonApi, tokenFromUrl, writeToken, wireLoginForm, toast } from './api.js';
 import { wireTabs, onTabChange, setTab } from './tabs.js';
 import { wireUsageLog } from './usage.js';
+import { buildReadoutText, fmtBuildTime } from './_vendored/page-foot/page-foot.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchServicesStatus, renderSparklines } from './hub.js';
 import { wireModels, fetchModels, fetchRoles } from './models.js';
 import { wireStartupProfile, fetchStartupProfile } from './startup.js';
@@ -55,10 +56,8 @@ async function fetchVersion() {
     const body = await jsonApi('/admin/api/version');
     state.version = body;
     const sha = body.git_sha || 'unknown';
-    const ts = (body.built_at || '').replace('T', ' ').slice(0, 16);
-    if (els.buildReadout) {
-      els.buildReadout.textContent = ts ? ('Build: ' + sha + ' · ' + ts) : ('Build: ' + sha);
-    }
+    const ts = fmtBuildTime(body.built_at || '');
+    if (els.buildReadout) els.buildReadout.textContent = buildReadoutText(sha, body.built_at || '');
     if (els.aboutBuild) els.aboutBuild.textContent = ts ? sha + ' · ' + ts : sha;
   } catch (_) { /* ignore */ }
 }

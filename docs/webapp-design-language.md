@@ -162,7 +162,7 @@ The four-disclosure diagnostics layout and the Compact/Expanded density
 toggle it replaced are gone; so is the separate Telemetry tab — Health &
 install and the Langfuse/OTel health now live in the Settings dialog and
 the Services sheet. The build-identity footer is
-home-automation's `.page-foot`: one centered muted line, no links.
+the vendored `page-foot`: one centered muted line, no links.
 
 ## Live status indicator
 

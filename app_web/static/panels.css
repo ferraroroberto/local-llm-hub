@@ -678,17 +678,6 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
  * The canonical zero-items block is the vendored component
  * (_vendored/empty-state) — no app-side .empty style anymore. */
 
-/* ---------- footer ----------
- * Build-identity line only (which build the PWA is running) — home-automation's
- * .page-foot: one centered muted caption, no links, no separator. */
-.page-foot {
-  /* No bottom margin — .app's bottom padding (one --gap) is the whole gap
-   * below the build line. */
-  margin: var(--space-xs) var(--space-xs) 0;
-  text-align: center;
-}
-.page-foot p { margin: 2px 0; }
-
 /* ---------- toast ---------- */
 /* The fleet's neutral frosted toast (design.md `toast`): the floating nav's
  * glass, centred, one line whenever the message fits. Only a real error tints;
