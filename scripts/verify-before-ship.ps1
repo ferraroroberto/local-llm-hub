@@ -43,7 +43,13 @@
 #      .md files, so a hand-authored diagram is otherwise a blind spot for the
 #      same "history belongs in git/issues, not docs" convention. Zero-tolerance,
 #      no baseline; exit 3 (a file could not be read) fails.
-#   11. `pytest -q` (unit tests, no GPU / no real CLIs)
+#   10b. runtime write ratchet: no file's count of write targets resolving under a
+#      code folder (src, app_web, tray, scripts) rises beyond
+#      .runtime-write-ratchet-baseline.json. Whole tree, never routed; exit 3 (a
+#      new target it cannot resolve) fails.
+#   11. `pytest -q` (unit tests, no GPU / no real CLIs); stages 11-12 run inside
+#      the runtime write probe (--snapshot before, --probe after), which fails on
+#      any untracked or ignored file they leave under a code folder.
 #   12. e2e, routed by the diff (scripts/e2e_route.py wraps classify_e2e.py and
 #      the .fleet.toml [e2e] rules): nothing for a docs/backend-only diff, a
 #      smoke target or one surface's slice for a narrow one, otherwise
@@ -131,6 +137,13 @@ Step "conventions ratchet" {
     & $Python scripts/conventions_ratchet.py
 }
 
+Step "runtime write ratchet" {
+    # Same as the conventions ratchet: Step fails on any non-zero exit, so exit 3
+    # (a new write target it cannot resolve) is a failure here, never a pass or
+    # a skip.
+    & $Python scripts/runtime_write_ratchet.py
+}
+
 Step "mmd history check" {
     # Repo-specific, not vendored: docs_ratchet.py (vendored) only scans .md
     # files by its own suffix check, so a hand-authored .mmd diagram never
@@ -138,6 +151,13 @@ Step "mmd history check" {
     # semantics as the ratchets above: exit 3 (a file could not be read) is a
     # failure here, never a pass or a skip.
     & $Python scripts/mmd_history_check.py
+}
+
+# Runtime write probe, first half: what already sits untracked or ignored under
+# the code folders, so the probe after the test runs names only what they wrote.
+$runtimeSnapshot = Join-Path ([IO.Path]::GetTempPath()) "runtime-write-snapshot-$PID.json"
+Step "runtime write probe (snapshot)" {
+    & $Python scripts/runtime_write_ratchet.py --snapshot $runtimeSnapshot
 }
 
 Step "pytest (unit)" {
@@ -182,6 +202,11 @@ if ($tier -eq "skip") {
         # ([e2e] junit_xml in .fleet.toml). Git-ignored, overwritten each run.
         & $Python -m pytest @e2eArgs -q --junitxml=data/e2e-junit.xml
     }
+}
+
+Step "runtime write probe" {
+    # Second half: any file the unit and e2e runs left under a code folder.
+    & $Python scripts/runtime_write_ratchet.py --probe $runtimeSnapshot
 }
 
 Write-Host ""
