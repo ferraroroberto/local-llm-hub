@@ -90,6 +90,19 @@ persisted to `config/webapp_config.json`. Loopback callers bypass it;
 anyone reaching the hub over the tunnel must present
 `Authorization: Bearer <token>` or `?token=…` on the URL.
 
+The password route is rate-limited per client address by the vendored
+`src/login_lockout.py`: the first five wrong passwords are free, each further
+one makes that client wait 2 s, doubling to a 300 s cap, and a locked client
+gets `429` with `Retry-After`. The PC itself (a direct loopback connection with
+no proxy header and no foreign `Origin`) is never limited. Behind a tunnel
+every public request arrives over loopback, so a request is keyed on
+`cf-connecting-ip` (else the first `X-Forwarded-For` hop), believed only when
+the socket is loopback. Three wrong passwords in a row from one client send one
+message to the fleet's `attention` Telegram chat through `notify_send`, the
+same transport as the resource watch, so this repo holds no bot token or chat
+id. The message names the app, the address and the count, never a password or
+token. State is in memory and a restart clears it.
+
 A missing `config/webapp_config.json` means "nothing configured yet"
 (defaults). An **unreadable or malformed** one is a different state and
 is never treated as defaults: the hub and `/admin` admit loopback

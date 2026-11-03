@@ -144,6 +144,7 @@ def create_app() -> FastAPI:
     )
 
     app.state.webapp_config = webapp_cfg
+    app.state.login_lockout = auth.build_lockout()
 
     asset_hashes = compute_asset_hashes(STATIC_DIR)
     app.state.asset_hashes = asset_hashes

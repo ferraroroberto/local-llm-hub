@@ -131,6 +131,21 @@ def _is_foreign_origin_request(headers, method: Optional[str]) -> bool:
     return (headers.get("sec-fetch-site", "") or "").strip().lower() == "cross-site"
 
 
+def is_pc_itself(client_host: str, headers, method: Optional[str]) -> bool:
+    """True for a caller that is the PC itself: a direct loopback connection.
+
+    A proxied request is not (a tunnel delivers every public request over
+    loopback and names the real client in a header), and neither is a request a
+    browser made for an off-box page. The same two exclusions
+    :func:`_caller_is_trusted` applies before its loopback rule.
+    """
+    return (
+        client_host in LOOPBACK_HOSTS
+        and not _is_proxied(headers)
+        and not _is_foreign_origin_request(headers, method)
+    )
+
+
 def _presented_credential(headers, query_params) -> str:
     """The credential this request carries, from any of the accepted places."""
     auth_header = headers.get("authorization", "")
