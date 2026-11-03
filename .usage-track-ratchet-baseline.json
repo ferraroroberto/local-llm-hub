@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "entries": [
+    {"key": "app_web/static/diagnostics.js", "counts": {"untracked-control": 14}},
+    {"key": "app_web/static/glossary.js", "counts": {"untracked-control": 6}},
+    {"key": "app_web/static/hub.js", "counts": {"untracked-control": 3}},
+    {"key": "app_web/static/index.html", "counts": {"untracked-control": 48, "untracked-sheet": 7}},
+    {"key": "app_web/static/machines.js", "counts": {"untracked-control": 1}},
+    {"key": "app_web/static/models.js", "counts": {"untracked-control": 9}},
+    {"key": "app_web/static/settings.js", "counts": {"untracked-control": 1}},
+    {"key": "app_web/static/sheets.html", "counts": {"untracked-control": 18, "untracked-sheet": 9}}
+  ]
+}

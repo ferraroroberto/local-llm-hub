@@ -9,6 +9,7 @@
 /app_web/static/_vendored/icons
 /app_web/static/_vendored/modal
 /app_web/static/_vendored/nav
+/app_web/static/_vendored/page-foot
 /app_web/static/_vendored/row-menu
 /app_web/static/_vendored/segmented
 /app_web/static/_vendored/select-native
@@ -28,6 +29,8 @@
 /scripts/structure_band.py
 /scripts/structure_layout.py
 /scripts/structure_ratchet.py
+/scripts/usage_track_ratchet.py
+/scripts/usage_track_scan.py
 /src/build_info.py
 /src/compression.py
 /src/runtime_data.py

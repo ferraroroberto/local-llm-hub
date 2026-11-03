@@ -47,6 +47,10 @@
 #      code folder (src, app_web, tray, scripts) rises beyond
 #      .runtime-write-ratchet-baseline.json. Whole tree, never routed; exit 3 (a
 #      new target it cannot resolve) fails.
+#   10c. usage track ratchet: no file's count of untracked controls, untracked
+#      sheets or built ids in app_web/static rises beyond
+#      .usage-track-ratchet-baseline.json, and the usage log is wired. Whole tree,
+#      never routed; exit 3 (a file that cannot be read or closed) fails.
 #   11. `pytest -q` (unit tests, no GPU / no real CLIs); stages 11-12 run inside
 #      the runtime write probe (--snapshot before, --probe after), which fails on
 #      any untracked or ignored file they leave under a code folder.
@@ -142,6 +146,13 @@ Step "runtime write ratchet" {
     # (a new write target it cannot resolve) is a failure here, never a pass or
     # a skip.
     & $Python scripts/runtime_write_ratchet.py
+}
+
+Step "usage track ratchet" {
+    # Same as the runtime write ratchet: Step fails on any non-zero exit, so exit 3
+    # (a file that cannot be read, or JS that never closes) is a failure here, never
+    # a pass or a skip.
+    & $Python scripts/usage_track_ratchet.py
 }
 
 Step "mmd history check" {
