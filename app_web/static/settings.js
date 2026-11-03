@@ -104,6 +104,7 @@ function renderInstall(body) {
     if (c.fix_id && (c.status === 'missing' || c.status === 'error')) {
       const btn = document.createElement('button');
       btn.type = 'button';
+      btn.dataset.track = 'install-fix';
       btn.className = 'ghost-btn';
       btn.innerHTML = icon('wrench') + escapeHtml(c.fix_label || 'Fix');
       btn.addEventListener('click', async function () {

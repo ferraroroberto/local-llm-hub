@@ -114,28 +114,28 @@ function renderCapture(status) {
       + escapeHtml(remaining) + '</span></p>'
       + '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct.toFixed(0) + '%"></div></div>'
       + '<div class="diag-capture-actions">'
-      + '<button type="button" class="ghost-btn danger" data-diag-action="stop">'
+      + '<button type="button" class="ghost-btn danger" data-track="diag-stop" data-diag-action="stop">'
       + icon('square') + '<span>Stop capture</span></button>'
       + '</div></div>';
   }
   return '<div class="diag-capture">'
     + '<label class="diag-field"><span>Capture window</span>'
-    + '<select id="diagDuration" class="select-native">'
+    + '<select data-track="diag-duration" id="diagDuration" class="select-native">'
     + '<option value="900">15 minutes</option>'
     + '<option value="3600" selected>1 hour</option>'
     + '<option value="7200">2 hours</option>'
     + '<option value="28800">8 hours</option>'
     + '</select></label>'
     + '<label class="diag-field"><span>Sample every</span>'
-    + '<select id="diagInterval" class="select-native">'
+    + '<select data-track="diag-interval" id="diagInterval" class="select-native">'
     + '<option value="5">5 seconds</option>'
     + '<option value="15" selected>15 seconds</option>'
     + '<option value="60">1 minute</option>'
     + '</select></label>'
     + '<div class="diag-capture-actions">'
-    + '<button type="button" class="button-primary" data-diag-action="start">'
+    + '<button type="button" class="button-primary" data-track="diag-start" data-diag-action="start">'
     + icon('play') + '<span>Start capture</span></button>'
-    + '<button type="button" class="ghost-btn" data-diag-action="snapshot">'
+    + '<button type="button" class="ghost-btn" data-track="diag-snapshot" data-diag-action="snapshot">'
     + icon('flask-conical') + '<span>One-shot snapshot</span></button>'
     + '</div></div>';
 }
@@ -307,13 +307,13 @@ function renderSummary(summary, drift) {
   parts.push(driftSection(drift));
 
   parts.push('<div class="diag-run-actions">'
-    + '<button type="button" class="ghost-btn" data-diag-action="baseline">'
+    + '<button type="button" class="ghost-btn" data-track="diag-baseline" data-diag-action="baseline">'
     + icon('tag') + '<span>' + (run.is_baseline ? 'Baseline' : 'Mark as baseline') + '</span></button>'
-    + '<button type="button" class="ghost-btn" data-diag-action="report">'
+    + '<button type="button" class="ghost-btn" data-track="diag-report" data-diag-action="report">'
     + icon('scroll-text') + '<span>Health report</span></button>'
-    + '<button type="button" class="ghost-btn" data-diag-action="export">'
+    + '<button type="button" class="ghost-btn" data-track="diag-export" data-diag-action="export">'
     + icon('download') + '<span>Export JSON</span></button>'
-    + '<button type="button" class="ghost-btn danger" data-diag-action="delete">'
+    + '<button type="button" class="ghost-btn danger" data-track="diag-delete" data-diag-action="delete">'
     + icon('circle-x') + '<span>Delete</span></button>'
     + '</div>');
 
@@ -333,14 +333,14 @@ function renderSettings(status) {
     + (s.scheduled_enabled ? '1' : '0') + '" aria-label="Daily diagnostics snapshot"></button>'
     + '</label>'
     + '<label class="diag-field"><span>Snapshot every</span>'
-    + '<select id="diagScheduleHours" class="select-native">'
+    + '<select data-track="diag-schedule-hours" id="diagScheduleHours" class="select-native">'
     + [6, 12, 24, 48].map(function (h) {
       return '<option value="' + h + '"' + (Number(hours) === h ? ' selected' : '') + '>'
         + (h === 24 ? 'day' : h + ' hours') + '</option>';
     }).join('')
     + '</select></label>'
     + '<label class="diag-field"><span>Keep raw samples</span>'
-    + '<select id="diagRetention" class="select-native">'
+    + '<select data-track="diag-retention" id="diagRetention" class="select-native">'
     + [30, 90, 180, 365].map(function (d) {
       return '<option value="' + d + '"' + (Number(s.retention_days) === d ? ' selected' : '') + '>'
         + d + ' days</option>';
@@ -349,7 +349,7 @@ function renderSettings(status) {
     + '<p class="muted small">Database ' + escapeHtml(fmtMb((s.db_size_bytes || 0) / (1024 * 1024)))
     + ' · run metadata and verdicts are kept indefinitely.</p>'
     + '<div class="diag-capture-actions">'
-    + '<button type="button" class="ghost-btn" data-diag-action="save-settings">'
+    + '<button type="button" class="ghost-btn" data-track="diag-save-settings" data-diag-action="save-settings">'
     + icon('save') + '<span>Save settings</span></button></div>'
     + '</div>';
 }
@@ -400,7 +400,7 @@ function renderDiagnostics() {
     els.diagBody.innerHTML = '<div class="empty-state">'
       + '<svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>'
       + '<p class="empty-state-message">Could not read diagnostics status.</p>'
-      + '<button type="button" class="empty-state-action" data-diag-action="retry">Retry</button></div>';
+      + '<button type="button" class="empty-state-action" data-track="diag-retry" data-diag-action="retry">Retry</button></div>';
     return;
   }
 
@@ -422,7 +422,7 @@ function renderDiagnostics() {
             : renderSummary(state.diagSummary, state.diagDrift)))
         + '</section>'
       : '')
-    + '<details class="diag-section diag-settings-block"><summary class="diag-h3">'
+    + '<details class="diag-section diag-settings-block"><summary data-track="diag-settings" class="diag-h3">'
     + icon('wrench') + 'Settings</summary>' + renderSettings(status) + '</details>';
 
   // A poll tick that changed nothing leaves the DOM alone, so an open select
