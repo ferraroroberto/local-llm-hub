@@ -41,7 +41,7 @@ export function mountGlossaryEditor(container) {
   const addReplBtn = ghostBtn('+ add rule', function () {
     ed.model.replacements.push({ from: '', to: '' });
     renderRepl(ed);
-  });
+  }, { track: 'glossary-add-rule' });
   replSection.body.append(ed.replList, addReplBtn);
 
   const boostSection = section('Boost terms',
@@ -57,7 +57,7 @@ export function mountGlossaryEditor(container) {
   boostInput.addEventListener('keydown', function (ev) {
     if (ev.key === 'Enter') { ev.preventDefault(); addBoost(ed, boostInput.value); boostInput.value = ''; }
   });
-  boostAddRow.append(boostInput, ghostBtn('+ add', function () { addBoost(ed, boostInput.value); boostInput.value = ''; }));
+  boostAddRow.append(boostInput, ghostBtn('+ add', function () { addBoost(ed, boostInput.value); boostInput.value = ''; }, { track: 'glossary-add-boost' }));
   ed.boostBudget = document.createElement('p');
   ed.boostBudget.className = 'glossary-budget muted small';
   boostSection.body.append(ed.boostChips, boostAddRow, ed.boostBudget);
@@ -71,11 +71,13 @@ export function mountGlossaryEditor(container) {
   actions.className = 'glossary-actions';
   ed.mineBtn = document.createElement('button');
   ed.mineBtn.type = 'button';
+  ed.mineBtn.dataset.track = 'glossary-mine';
   ed.mineBtn.className = 'ghost-btn';
   ed.mineBtn.innerHTML = icon('sparkles') + 'Suggest from transcripts';
   ed.mineBtn.addEventListener('click', function () { onMine(ed); });
   ed.saveBtn = document.createElement('button');
   ed.saveBtn.type = 'button';
+  ed.saveBtn.dataset.track = 'glossary-save';
   ed.saveBtn.className = 'ghost-btn primary';
   ed.saveBtn.innerHTML = icon('save') + 'Save';
   ed.saveBtn.addEventListener('click', function () { onSave(ed); });
@@ -108,13 +110,13 @@ function renderRepl(ed) {
     to.setAttribute('aria-label', 'Replace to');
     to.addEventListener('input', function () { rule.to = to.value; });
 
-    const up = iconBtn(icon('chevron-up'), 'Move up', function () { move(ed, idx, -1); });
-    const down = iconBtn(icon('chevron-down'), 'Move down', function () { move(ed, idx, 1); });
+    const up = iconBtn(icon('chevron-up'), 'Move up', function () { move(ed, idx, -1); }, { track: 'glossary-rule-up' });
+    const down = iconBtn(icon('chevron-down'), 'Move down', function () { move(ed, idx, 1); }, { track: 'glossary-rule-down' });
     up.disabled = idx === 0;
     down.disabled = idx === rules.length - 1;
     const del = iconBtn(icon('x'), 'Delete rule', function () {
       rules.splice(idx, 1); renderRepl(ed);
-    });
+    }, { track: 'glossary-rule-delete' });
     del.classList.add('danger');
 
     row.append(from, arrow, to, up, down, del);
@@ -147,7 +149,7 @@ function renderBoost(ed) {
     chip.className = 'glossary-chip';
     chip.append(document.createTextNode(term));
     const x = document.createElement('button');
-    x.type = 'button'; x.className = 'icon-button glossary-chip-x'; x.innerHTML = icon('x');
+    x.type = 'button'; x.dataset.track = 'glossary-boost-remove'; x.className = 'icon-button glossary-chip-x'; x.innerHTML = icon('x');
     x.setAttribute('aria-label', 'Remove ' + term);
     x.addEventListener('click', function () { terms.splice(idx, 1); renderBoost(ed); });
     chip.appendChild(x);
@@ -301,7 +303,7 @@ function suggestionChips(items, labelOf, accept) {
   items.forEach(function (item) {
     const chip = suggestionChip(labelOf(item), function () {
       accept(item); chip.remove();
-    });
+    }, { track: 'glossary-suggestion-accept' });
     wrap.appendChild(chip);
   });
   return wrap;
@@ -322,18 +324,20 @@ function section(title, hint) {
   return { root: root, body: body };
 }
 
-function ghostBtn(label, onClick) {
+function ghostBtn(label, onClick, opts) {
   const b = document.createElement('button');
   b.type = 'button';
+  if (opts && opts.track) b.dataset.track = opts.track;
   b.className = 'ghost-btn';
   b.textContent = label;
   b.addEventListener('click', onClick);
   return b;
 }
 
-function iconBtn(glyph, label, onClick) {
+function iconBtn(glyph, label, onClick, opts) {
   const b = document.createElement('button');
   b.type = 'button';
+  if (opts && opts.track) b.dataset.track = opts.track;
   b.className = 'icon-button';
   b.innerHTML = glyph;  // glyph is an icon() SVG string (no user input)
   b.title = label;
@@ -342,9 +346,10 @@ function iconBtn(glyph, label, onClick) {
   return b;
 }
 
-function suggestionChip(label, onAccept) {
+function suggestionChip(label, onAccept, opts) {
   const chip = document.createElement('button');
   chip.type = 'button';
+  if (opts && opts.track) chip.dataset.track = opts.track;
   chip.className = 'glossary-chip glossary-chip-suggest';
   chip.innerHTML = icon('plus');     // static SVG; label appended as text below
   chip.append(' ' + label);

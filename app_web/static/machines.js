@@ -316,7 +316,7 @@ function connectionSection(m, connOpen) {
     : (net ? net.split(' · ')[0] : (m.ip || ''));
   const summaryTone = m.via_tailscale || m.flaky || weak ? ' data-tone="attention"' : '';
   return '<div class="sheet-section"><details class="sheet-disclosure"' + (connOpen ? ' open' : '') + '>'
-    + '<summary class="sheet-row">' + icon('signal')
+    + '<summary data-track="machine-connection" class="sheet-row">' + icon('signal')
     + '<span class="sheet-row-label">Connection</span>'
     + '<span class="sheet-row-value"' + summaryTone + '>'
     + (summaryValue === m.ip ? codeHtml(summaryValue) : escapeHtml(summaryValue)) + '</span>'

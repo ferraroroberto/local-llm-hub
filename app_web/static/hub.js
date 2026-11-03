@@ -236,8 +236,8 @@ function openTrace(r) {
     + '</div>'
     + '<div class="sheet-section"><div class="trace-detail"><span class="muted">Loading…</span></div></div>'
     + '<div class="sheet-section trace-actions"><span class="icon-button-group">'
-    + '<button type="button" class="icon-button trace-thumb" data-thumbs="1" aria-label="Thumbs up" title="Thumbs up">' + icon('thumbs-up') + '</button>'
-    + '<button type="button" class="icon-button trace-thumb" data-thumbs="-1" aria-label="Thumbs down" title="Thumbs down">' + icon('thumbs-down') + '</button>'
+    + '<button type="button" class="icon-button trace-thumb" data-track="trace-thumb-up" data-thumbs="1" aria-label="Thumbs up" title="Thumbs up">' + icon('thumbs-up') + '</button>'
+    + '<button type="button" class="icon-button trace-thumb" data-track="trace-thumb-down" data-thumbs="-1" aria-label="Thumbs down" title="Thumbs down">' + icon('thumbs-down') + '</button>'
     + '</span>'
     + '<a class="button-tint trace-link" target="_blank" rel="noopener" href="' + escapeHtml(langfuseTraceUrl(r.trace_id)) + '">'
     + icon('external-link') + '<span>Open in Langfuse</span></a>'
@@ -382,7 +382,7 @@ const DETAIL_INLINE_MAX = 40;
 
 function longDetailHtml(text) {
   const safe = escapeHtml(text);
-  return '<details class="services-detail"><summary title="Show the full detail">'
+  return '<details class="services-detail"><summary data-track="services-detail" title="Show the full detail">'
     + '<span class="services-detail-text">' + safe + '</span>'
     + icon('chevron-down') + '</summary>'
     + '<p class="services-detail-body">' + safe + '</p></details>';

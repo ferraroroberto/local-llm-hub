@@ -319,6 +319,7 @@ enabled  = true
 baseline = ".usage-track-ratchet-baseline.json"
 rules    = ["untracked-control", "untracked-sheet", "dynamic-id", "usage-log-wired"]
 paths    = ["app_web/static/**", "app_web/templates/**"]
+builders = ["app_web/static/glossary.js:ghostBtn", "app_web/static/glossary.js:iconBtn", "app_web/static/glossary.js:suggestionChip"]
 
 # Views that span the width right of the rail on a wide window (design.md
 # layout.wide): Hub's glance + services | Activity columns (#738) and Code's

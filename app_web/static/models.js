@@ -427,7 +427,7 @@ function modelInfoHtml(m) {
     return actionButton(it.act, it.glyph, it.label, { disabled: it.disabled, cls: it.cls });
   }).join('');
   const force = m.ownership === 'external'
-    ? '<div class="sheet-section sheet-danger"><button type="button" class="sheet-danger-row" data-act="force-stop">'
+    ? '<div class="sheet-section sheet-danger"><button type="button" class="sheet-danger-row" data-track="model-force-stop" data-act="force-stop">'
       + icon('skull') + '<span>Force stop</span></button></div>'
     : '';
   return '<div class="sheet-section">'
@@ -682,12 +682,14 @@ function renderPlacementEditor(ed) {
   actions.className = 'pe-actions';
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
+  saveBtn.dataset.track = 'placement-save';
   saveBtn.className = 'ghost-btn primary pe-save';
   saveBtn.innerHTML = icon('save') + (ed.saving ? 'Saving…' : 'Save & commit');
   saveBtn.disabled = ed.saving;
   saveBtn.addEventListener('click', function () { savePlacement(ed); });
   const cancelBtn = document.createElement('button');
   cancelBtn.type = 'button';
+  cancelBtn.dataset.track = 'placement-cancel';
   cancelBtn.className = 'ghost-btn pe-cancel';
   cancelBtn.textContent = 'Cancel';
   cancelBtn.addEventListener('click', closeEditors);
@@ -711,6 +713,7 @@ function placementHostRow(ed, entry, i) {
   cpuLabel.className = 'pe-cpu-label muted small';
   const cpu = document.createElement('input');
   cpu.type = 'checkbox';
+  cpu.dataset.track = 'placement-cpu-tier';
   cpu.className = 'pe-cpu';
   cpu.checked = entry.cpu;
   cpu.addEventListener('change', function () { entry.cpu = cpu.checked; });
@@ -720,13 +723,15 @@ function placementHostRow(ed, entry, i) {
   hostRow.appendChild(cpuLabel);
 
   const controls = [
-    { cls: 'pe-up', glyph: 'chevron-up', label: 'Move up', disabled: i === 0, fn: function () { movePlacementHost(ed, i, -1); } },
-    { cls: 'pe-down', glyph: 'chevron-down', label: 'Move down', disabled: i === chain.length - 1, fn: function () { movePlacementHost(ed, i, 1); } },
-    { cls: 'pe-remove', glyph: 'x', label: 'Remove host', danger: true, fn: function () { chain.splice(i, 1); renderPlacementEditor(ed); } },
+    { track: 'placement-host-up', cls: 'pe-up', glyph: 'chevron-up', label: 'Move up', disabled: i === 0, fn: function () { movePlacementHost(ed, i, -1); } },
+    { track: 'placement-host-down', cls: 'pe-down', glyph: 'chevron-down', label: 'Move down', disabled: i === chain.length - 1, fn: function () { movePlacementHost(ed, i, 1); } },
+    { track: 'placement-host-remove', cls: 'pe-remove', glyph: 'x', label: 'Remove host', danger: true, fn: function () { chain.splice(i, 1); renderPlacementEditor(ed); } },
   ];
   controls.forEach(function (c) {
     const b = document.createElement('button');
     b.type = 'button';
+    // dynamic-id-exempt: ids come from the fixed `controls` table of literals above
+    b.dataset.track = c.track;
     b.className = 'icon-button ' + c.cls + (c.danger ? ' danger' : '');
     b.title = c.label;
     b.setAttribute('aria-label', c.label);
@@ -748,6 +753,7 @@ function placementAddRow(ed) {
   addRow.className = 'pe-add-row';
   const sel = document.createElement('select');
   sel.className = 'pe-add-select';
+  sel.dataset.track = 'placement-add-host-select';
   sel.setAttribute('aria-label', 'Host to add to the chain');
   addable.forEach(function (h) {
     const opt = document.createElement('option');
@@ -757,6 +763,7 @@ function placementAddRow(ed) {
   });
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
+  addBtn.dataset.track = 'placement-add-host';
   addBtn.className = 'ghost-btn pe-add-btn';
   addBtn.innerHTML = icon('plus') + 'Add host';
   addBtn.addEventListener('click', function () {
@@ -779,6 +786,7 @@ function placementPolicy(ed) {
   startupLabel.appendChild(document.createTextNode('Startup'));
   const startupSel = document.createElement('select');
   startupSel.className = 'pe-startup';
+  startupSel.dataset.track = 'placement-startup';
   [
     { v: 'eager', t: 'always on — load at startup' },
     { v: 'on_demand', t: 'on demand — load on first request' },
@@ -827,7 +835,7 @@ async function showLog(m) {
   box.hidden = false;
   box.innerHTML = '<div class="sheet-row"><span class="sheet-row-label">Log</span>'
     + '<span class="sheet-row-value"></span>'
-    + '<button type="button" class="button-tint" data-act="log">' + icon('refresh-cw') + '<span>Refresh</span></button></div>'
+    + '<button type="button" class="button-tint" data-track="model-log-refresh" data-act="log">' + icon('refresh-cw') + '<span>Refresh</span></button></div>'
     + '<pre class="model-log-tail">Reading…</pre>';
   const pre = box.querySelector('pre');
   try {

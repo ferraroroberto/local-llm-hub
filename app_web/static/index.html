@@ -110,7 +110,7 @@
             <!-- Drawn at first paint with dashes (hub.js drawSparklines replaces them), so the
                  card never grows when the first reading lands (LAYOUT-10). -->
             <div class="sparklines" id="hubSparklines"><div class="sparkline"><div class="sparkline-label"><span>CPU</span><span>—</span></div><svg viewBox="0 0 140 64" preserveAspectRatio="none" aria-hidden="true"></svg></div></div>
-            <div class="segmented hub-series" id="hubSeries" role="group" aria-label="Load history to show"><button type="button" class="segmented-item" data-series="cpu" aria-pressed="true">CPU —</button><button type="button" class="segmented-item" data-series="gpu" aria-pressed="false">GPU —</button><button type="button" class="segmented-item" data-series="ram" aria-pressed="false">RAM —</button><button type="button" class="segmented-item" data-series="vram" aria-pressed="false">VRAM —</button></div>
+            <div class="segmented hub-series" id="hubSeries" role="group" aria-label="Load history to show"><button data-track="hub-series-cpu" type="button" class="segmented-item" data-series="cpu" aria-pressed="true">CPU —</button><button data-track="hub-series-gpu" type="button" class="segmented-item" data-series="gpu" aria-pressed="false">GPU —</button><button data-track="hub-series-ram" type="button" class="segmented-item" data-series="ram" aria-pressed="false">RAM —</button><button data-track="hub-series-vram" type="button" class="segmented-item" data-series="vram" aria-pressed="false">VRAM —</button></div>
             <p class="hub-proc muted">Up <span id="hubUptime">—</span></p>
           </section>
 
@@ -129,7 +129,7 @@
           <section class="card action-list" id="activityCard" aria-labelledby="activityTitle">
             <div class="glance-head">
               <h2 id="activityTitle"><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Activity</h2>
-              <button type="button" class="icon-button info-button" data-info="hub-activity" aria-haspopup="dialog" aria-label="About activity" title="About activity"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></button>
+              <button data-track="info-hub-activity" type="button" class="icon-button info-button" data-info="hub-activity" aria-haspopup="dialog" aria-label="About activity" title="About activity"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></button>
             </div>
             <div class="activity-tools">
               <div class="segmented" id="activityScope" role="group" aria-label="Which activity to list">
@@ -139,9 +139,9 @@
               <input id="liveRequestsFilter" type="search" class="list-filter" placeholder="Filter requests" aria-label="Filter activity" autocomplete="off">
             </div>
             <ul id="liveRequestsList" class="action-rows activity-list" aria-label="Live requests"></ul>
-          <div id="liveRequestsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No requests yet — the ring fills as clients call the hub.</p><button type="button" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
+          <div id="liveRequestsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No requests yet — the ring fills as clients call the hub.</p><button type="button" data-track="hub-live-empty-playground" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
             <ul id="recentErrorsList" class="action-rows activity-list" aria-label="Recent errors" hidden></ul>
-          <div id="recentErrorsEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-circle-check"></use></svg><p class="empty-state-message">No failed requests yet — a failure shows here the moment a client gets a non-2xx answer.</p><button type="button" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
+          <div id="recentErrorsEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-circle-check"></use></svg><p class="empty-state-message">No failed requests yet — a failure shows here the moment a client gets a non-2xx answer.</p><button type="button" data-track="hub-errors-empty-playground" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
             <ul class="action-rows activity-links">
               <li class="action-row"><button type="button" class="action-row-main" id="byModelOpenBtn" data-track="hub-by-model" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-column"></use></svg></span><span class="action-row-text"><span class="action-row-title">By model</span><span class="action-row-meta" id="byModelMeta">Requests, errors and latency per backend</span></span></button></li>
               <li class="action-row"><button type="button" class="action-row-main" id="logOpenBtn" data-track="hub-log" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-scroll-text"></use></svg></span><span class="action-row-text"><span class="action-row-title">Server log</span><span class="action-row-meta">The hub's own log, live</span></span></button></li>
@@ -169,7 +169,7 @@
       <section class="card action-list glance-card" id="modelsMemoryCard" aria-labelledby="modelsMemoryTitle">
         <div class="glance-head">
           <h2 id="modelsMemoryTitle"><svg class="icon" aria-hidden="true"><use href="#i-cpu"></use></svg>Memory</h2>
-          <button type="button" class="icon-button info-button" data-info="models-about" aria-haspopup="dialog" aria-label="About models and memory" title="About models and memory"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></button>
+          <button data-track="info-models-about" type="button" class="icon-button info-button" data-info="models-about" aria-haspopup="dialog" aria-label="About models and memory" title="About models and memory"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></button>
         </div>
         <ul id="modelsMemoryList" class="action-rows" aria-label="Memory per machine"></ul>
         <p id="fleetPlacementStaleNote" class="glance-note muted" role="status" aria-live="polite" hidden></p>
@@ -223,7 +223,7 @@
             <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>Chat</h2></div>
             <div class="opt-stack">
               <label for="playgroundModel">Model</label>
-              <select id="playgroundModel" aria-label="Model"></select>
+              <select data-track="playground-model" id="playgroundModel" aria-label="Model"></select>
             </div>
 
             <div class="opt-stack">
@@ -232,7 +232,7 @@
             </div>
 
             <details class="opt-stack" id="playgroundMore">
-              <summary class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
+              <summary data-track="play-more-options" class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
 
               <div class="opt-stack">
                 <label for="playgroundSystem">System</label>
@@ -242,7 +242,7 @@
               <div class="opt-stack">
                 <label for="playgroundAttachment">Attachment <span class="muted small">(image / PDF / text — claude &amp; gemini only)</span></label>
                 <div class="file-row">
-                  <button id="playgroundAttachmentBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
+                  <button data-track="playground-attachment" id="playgroundAttachmentBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
                   <span id="playgroundAttachmentName" class="file-name muted small">No file selected</span>
                   <input id="playgroundAttachment" type="file" hidden aria-label="Attach a file — image, PDF, or any text/data file (claude/gemini only)">
                 </div>
@@ -264,7 +264,7 @@
 
             <div class="playground-send-row">
               <button id="playgroundSendBtn" data-track="play-send" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Send</button>
-              <button id="playgroundClearBtn" type="button" class="ghost-btn">Clear</button>
+              <button data-track="playground-clear" id="playgroundClearBtn" type="button" class="ghost-btn">Clear</button>
             </div>
           </section>
           <section class="card play-composer" id="imageCard" data-mode="image" aria-label="Image" hidden>
@@ -272,7 +272,7 @@
             <div id="imageNone" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-image"></use></svg><p class="empty-state-message">No image model is configured on this hub.</p></div>
             <div class="opt-stack">
               <label for="imageModel">Model</label>
-              <select id="imageModel" aria-label="Image model"></select>
+              <select data-track="image-model" id="imageModel" aria-label="Image model"></select>
               <p id="imageModelNote" class="muted small" style="margin: 4px 0 0;"></p>
             </div>
 
@@ -283,24 +283,24 @@
 
             <div class="opt-stack">
               <label for="imageSize">Size</label>
-              <select id="imageSize" aria-label="Image size"></select>
+              <select data-track="image-size" id="imageSize" aria-label="Image size"></select>
               <p id="imageSizeNote" class="muted small" style="margin: 4px 0 0;"></p>
             </div>
 
             <details class="opt-stack" id="imageMore">
-              <summary class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
+              <summary data-track="image-more-options" class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
 
               <div class="opt-stack" id="imageRefineRow" hidden>
                 <div class="opt-switch-row">
                   <span>Refine after upscaling <span class="muted small">(second low-detail pass adds real detail instead of interpolated pixels — roughly doubles the time)</span></span>
-                  <button type="button" id="imageRefine" class="toggle" role="switch" aria-checked="false" aria-label="Refine after upscaling"><span class="knob"></span><span class="toggle-label">OFF</span></button>
+                  <button data-track="image-refine" type="button" id="imageRefine" class="toggle" role="switch" aria-checked="false" aria-label="Refine after upscaling"><span class="knob"></span><span class="toggle-label">OFF</span></button>
                 </div>
               </div>
 
               <div class="opt-stack">
                 <label for="imageAttachment">Reference image <span class="muted small">(optional — edits the upload instead of generating; slow &amp; experimental, can take minutes)</span></label>
                 <div class="file-row">
-                  <button id="imageAttachmentBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
+                  <button data-track="image-attachment" id="imageAttachmentBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
                   <span id="imageAttachmentName" class="file-name muted small">No file selected</span>
                   <input id="imageAttachment" type="file" accept="image/*" hidden aria-label="Reference image to edit (optional)">
                 </div>
@@ -311,7 +311,7 @@
 
             <div class="playground-send-row">
               <button id="imageGenBtn" data-track="play-generate" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Generate</button>
-              <button id="imageClearBtn" type="button" class="ghost-btn">Clear</button>
+              <button data-track="image-clear" id="imageClearBtn" type="button" class="ghost-btn">Clear</button>
             </div>
           </section>
           <section class="card play-composer" id="ttsCard" data-mode="speech" aria-label="Speech" hidden>
@@ -319,7 +319,7 @@
             <div id="ttsNone" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-volume-2"></use></svg><p class="empty-state-message">No voice model is configured on this hub.</p></div>
             <div class="opt-stack">
               <label for="ttsModel">Voice model</label>
-              <select id="ttsModel" aria-label="TTS model"></select>
+              <select data-track="tts-model" id="ttsModel" aria-label="TTS model"></select>
               <p id="ttsAvailability" class="muted small" role="status" aria-live="polite"></p>
             </div>
 
@@ -330,27 +330,27 @@
 
             <div class="opt-stack">
               <label for="ttsLanguage">Language</label>
-              <select id="ttsLanguage" aria-label="Language"></select>
+              <select data-track="tts-language" id="ttsLanguage" aria-label="Language"></select>
             </div>
 
             <div class="opt-stack">
               <label for="ttsVoice">Voice</label>
-              <select id="ttsVoice" aria-label="Voice"></select>
+              <select data-track="tts-voice" id="ttsVoice" aria-label="Voice"></select>
             </div>
 
             <div class="opt-stack" id="ttsStreamGroup">
               <div class="opt-switch-row">
                 <span>Stream <span class="muted small">(play as it synthesizes when supported; off = buffered clip with a player)</span></span>
-                <button type="button" id="ttsStream" class="toggle on" role="switch" aria-checked="true" aria-label="Stream audio"><span class="knob"></span><span class="toggle-label">ON</span></button>
+                <button data-track="tts-stream" type="button" id="ttsStream" class="toggle on" role="switch" aria-checked="true" aria-label="Stream audio"><span class="knob"></span><span class="toggle-label">ON</span></button>
               </div>
             </div>
 
             <details class="opt-stack" id="ttsMore">
-              <summary class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
+              <summary data-track="tts-more-options" class="opt-group-title" style="cursor: pointer; list-style: revert;">More options</summary>
 
               <div class="opt-stack">
                 <label for="ttsFormat">Format</label>
-                <select id="ttsFormat" aria-label="Response format">
+                <select data-track="tts-format" id="ttsFormat" aria-label="Response format">
                   <option value="wav" selected>wav</option>
                   <option value="mp3">mp3</option>
                   <option value="flac">flac</option>
@@ -387,7 +387,7 @@
 
             <div class="opt-stack">
               <label for="jevModel">Model</label>
-              <select id="jevModel" aria-label="Decision model"></select>
+              <select data-track="jev-model" id="jevModel" aria-label="Decision model"></select>
             </div>
 
             <div class="opt-stack">
@@ -404,7 +404,7 @@
 
             <div class="playground-send-row">
               <button id="jevEvalBtn" data-track="play-evaluate" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Evaluate</button>
-              <button id="jevResetBtn" type="button" class="ghost-btn">Reset sample</button>
+              <button data-track="jev-reset" id="jevResetBtn" type="button" class="ghost-btn">Reset sample</button>
             </div>
           </section>
         </div>
@@ -424,7 +424,7 @@
 
             <img id="imagePreview" alt="Generated image" style="max-width: 100%; margin-top: 10px; border-radius: 8px;" hidden>
             <div class="playground-send-row" id="imageDownloadRow" hidden style="margin-top: 10px;">
-              <a id="imageDownload" class="ghost-btn primary" download="generated.png" role="button"><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Download</a>
+              <a data-track="image-download" id="imageDownload" class="ghost-btn primary" download="generated.png" role="button"><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Download</a>
             </div>
           </section>
           <section class="card play-result" id="ttsResult" data-mode="speech" aria-label="Speech result" aria-live="polite" hidden>
@@ -471,7 +471,7 @@
               <h2><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Usage</h2>
               <span class="card-header-actions">
                 <span id="cldFreshness" class="muted small"></span>
-                <button type="button" class="icon-button info-button" data-info="code-usage" aria-haspopup="dialog" aria-label="About these figures" title="About these figures"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></button>
+                <button data-track="info-code-usage" type="button" class="icon-button info-button" data-info="code-usage" aria-haspopup="dialog" aria-label="About these figures" title="About these figures"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></button>
               </span>
             </div>
             <div class="cld-tools">
@@ -499,25 +499,25 @@
               </div>
               <!-- The four counters; a tap picks the trend chart's metric. -->
               <div id="cldCounterGrid" class="cld-counter-grid" role="group" aria-label="Usage counters — choose the trend metric">
-          <button type="button" class="cld-counter" data-metric="requests" aria-pressed="false">
+          <button data-track="cld-metric-requests" type="button" class="cld-counter" data-metric="requests" aria-pressed="false">
             <div class="cld-counter-value" id="cldRequests">—</div>
             <div class="cld-counter-cost"></div>
             <div class="cld-counter-label">requests</div>
             <span class="cld-delta" id="cldDeltaRequests" hidden></span>
           </button>
-          <button type="button" class="cld-counter" data-metric="input_tokens" aria-pressed="true">
+          <button data-track="cld-metric-input-tokens" type="button" class="cld-counter" data-metric="input_tokens" aria-pressed="true">
             <div class="cld-counter-value" id="cldInputTok">—</div>
             <div class="cld-counter-cost" id="cldInputCost" title="Equivalent metered API cost"></div>
             <div class="cld-counter-label">input tokens</div>
             <span class="cld-delta" id="cldDeltaInputTok" hidden></span>
           </button>
-          <button type="button" class="cld-counter" data-metric="output_tokens" aria-pressed="false">
+          <button data-track="cld-metric-output-tokens" type="button" class="cld-counter" data-metric="output_tokens" aria-pressed="false">
             <div class="cld-counter-value" id="cldOutputTok">—</div>
             <div class="cld-counter-cost" id="cldOutputCost" title="Equivalent metered API cost"></div>
             <div class="cld-counter-label">output tokens</div>
             <span class="cld-delta" id="cldDeltaOutputTok" hidden></span>
           </button>
-          <button type="button" class="cld-counter" data-metric="cache_read_tokens" aria-pressed="false">
+          <button data-track="cld-metric-cache-read-tokens" type="button" class="cld-counter" data-metric="cache_read_tokens" aria-pressed="false">
             <div class="cld-counter-value" id="cldCacheRead">—</div>
             <div class="cld-counter-cost" id="cldCacheCost" title="Equivalent metered API cost"></div>
             <div class="cld-counter-label">cache reads</div>
@@ -647,7 +647,7 @@
       <div id="machinesError" class="empty-state" hidden>
         <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>
         <p class="empty-state-message" id="machinesErrorMsg">Could not read machine status.</p>
-        <button id="machinesRetryBtn" type="button" class="empty-state-action">Retry</button>
+        <button data-track="machines-retry" id="machinesRetryBtn" type="button" class="empty-state-action">Retry</button>
       </div>
       <div id="machinesList" class="card action-list" hidden></div>
       <!-- Diagnostics: its own row under the list, only for the machine being
@@ -676,7 +676,7 @@
       <h2><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>Sign in</h2>
       <p class="muted small">This hub is locked. Enter the configured password to receive a bearer token.</p>
       <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" required>
-      <button type="submit" class="button-primary launch-btn">Sign in</button>
+      <button type="submit" data-track="login-submit" class="button-primary launch-btn">Sign in</button>
       <p id="loginError" class="error" hidden></p>
     </form>
   </div>
@@ -686,17 +686,17 @@
        the vendored editor-modal shell (_vendored/modal) — a native <dialog>,
        so the fleet nav auto-hides itself while either is open
        (body:has(dialog[open])). -->
-  <dialog class="detail-dialog" id="confirmDialog">
+  <dialog data-track-view="confirm-dialog" class="detail-dialog" id="confirmDialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="confirmDialogTitle">Confirm</h2>
-        <button type="button" class="icon-button detail-close" id="confirmDialogCloseBtn" aria-label="Close">
+        <button data-track="confirm-dialog-close" type="button" class="icon-button detail-close" id="confirmDialogCloseBtn" aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
       <p id="confirmDialogBody" class="confirm-dialog-body"></p>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn button-tint danger" id="confirmDialogBtn">Confirm</button>
+        <button data-track="confirm-dialog" type="button" class="detail-save-btn button-tint danger" id="confirmDialogBtn">Confirm</button>
       </div>
     </div>
   </dialog>
@@ -706,11 +706,11 @@
   <!-- One model's (or one machine's memory) sheet on the phone: placement,
        roles, details, the placement editor or dictionary, the log tail. The wide
        window renders the same body in #modelsDetail instead. -->
-  <dialog class="detail-dialog model-sheet" id="modelSheet" aria-labelledby="modelSheetTitle">
+  <dialog data-track-view="model-sheet" class="detail-dialog model-sheet" id="modelSheet" aria-labelledby="modelSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="modelSheetTitle">Model</h2>
-        <button type="button" class="icon-button detail-close" id="modelSheetCloseBtn" aria-label="Close">
+        <button data-track="model-sheet-close" type="button" class="icon-button detail-close" id="modelSheetCloseBtn" aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
@@ -721,11 +721,11 @@
   <!-- One machine's sheet on the phone: gauges, Terminal and Remote,
        connection, its own hub, then Reboot / Shut down last. The wide window
        renders the same body in #machinesDetail instead. -->
-  <dialog class="detail-dialog machine-sheet" id="machineSheet" aria-labelledby="machineSheetTitle">
+  <dialog data-track-view="machine-sheet" class="detail-dialog machine-sheet" id="machineSheet" aria-labelledby="machineSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="machineSheetTitle">Machine</h2>
-        <button type="button" class="icon-button detail-close" id="machineSheetCloseBtn" aria-label="Close">
+        <button data-track="machine-sheet-close" type="button" class="icon-button detail-close" id="machineSheetCloseBtn" aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
@@ -735,11 +735,11 @@
 
   <!-- The ⓘ info sheet (rows.js): explanations that used to be permanent
        footnote paragraphs. -->
-  <dialog class="detail-dialog" id="infoSheet" aria-labelledby="infoSheetTitle">
+  <dialog data-track-view="info-sheet" class="detail-dialog" id="infoSheet" aria-labelledby="infoSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="infoSheetTitle">About</h2>
-        <button type="button" class="icon-button detail-close" id="infoSheetCloseBtn" aria-label="Close">
+        <button data-track="info-sheet-close" type="button" class="icon-button detail-close" id="infoSheetCloseBtn" aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
@@ -750,11 +750,11 @@
   <!-- Diagnostics drill-in: capture · runs · settings. Same
        vendored dialog shell; read-heavy rather than an editor, so the body
        scrolls and the footer primary is replaced by per-section actions. -->
-  <dialog class="detail-dialog machines-diag-dialog" id="diagDialog">
+  <dialog data-track-view="diag-dialog" class="detail-dialog machines-diag-dialog" id="diagDialog">
     <div class="detail-card machines-diag-card">
       <div class="detail-header">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-stethoscope"></use></svg><span>Diagnostics</span></h2>
-        <button type="button" class="icon-button detail-close" id="diagCloseBtn" aria-label="Close diagnostics">
+        <button data-track="diag-close" type="button" class="icon-button detail-close" id="diagCloseBtn" aria-label="Close diagnostics">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
@@ -762,11 +762,11 @@
     </div>
   </dialog>
 
-  <dialog class="detail-dialog machines-terminal-dialog" id="machinesTerminalDialog">
+  <dialog data-track-view="machines-terminal-dialog" class="detail-dialog machines-terminal-dialog" id="machinesTerminalDialog">
     <div class="detail-card machines-terminal-card">
       <div class="detail-header">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-terminal"></use></svg><span id="machinesTerminalTitle">Terminal</span></h2>
-        <button type="button" class="icon-button detail-close" id="machinesTerminalCloseBtn" aria-label="Close terminal">
+        <button data-track="machines-terminal-close" type="button" class="icon-button detail-close" id="machinesTerminalCloseBtn" aria-label="Close terminal">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
@@ -783,11 +783,11 @@
        and the design system's settings groups (Display, Startup, Health,
        About). A row with a body opens it in place on a phone (with a back
        row) and beside the list on a wide window (list : detail). -->
-  <dialog class="detail-dialog settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
+  <dialog data-track-view="settings-dialog" class="detail-dialog settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="settingsTitle"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg><span>Settings</span></h2>
-        <button type="button" class="icon-button detail-close" id="settingsCloseBtn" aria-label="Close settings">
+        <button data-track="settings-close" type="button" class="icon-button detail-close" id="settingsCloseBtn" aria-label="Close settings">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
@@ -819,30 +819,30 @@
             <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-tag"></use></svg></span><span class="settings-row-label">Build</span><span class="settings-row-value"><span id="aboutBuild">—</span></span></li>
             <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-layers"></use></svg></span><span class="settings-row-label">Config version</span><span class="settings-row-value"><span id="modelsConfigSha">—</span></span></li>
             <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-cpu"></use></svg></span><span class="settings-row-label">Process</span><span class="settings-row-value"><code id="aboutPid">—</code></span></li>
-            <li class="action-row"><a class="action-row-main" id="aboutLangfuse" href="#" target="_blank" rel="noopener"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-external-link"></use></svg></span><span class="action-row-text"><span class="action-row-title">Open Langfuse UI</span><span class="action-row-meta">Traces and long-window analytics</span></span></a></li>
+            <li class="action-row"><a data-track="about-langfuse" class="action-row-main" id="aboutLangfuse" href="#" target="_blank" rel="noopener"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-external-link"></use></svg></span><span class="action-row-text"><span class="action-row-title">Open Langfuse UI</span><span class="action-row-meta">Traces and long-window analytics</span></span></a></li>
             <li class="action-row"><a class="action-row-main" id="aboutFrontier" href="/admin/frontier" target="_blank" rel="noopener"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-line"></use></svg></span><span class="action-row-text"><span class="action-row-title">Frontier report</span><span class="action-row-meta">The latest model comparison run</span></span></a></li>
           </ul>
         </div>
         <div class="settings-detail">
           <section class="settings-page" id="settingsPage-startup" data-page="startup" hidden aria-labelledby="settingsStartupTitle">
-          <button type="button" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
+          <button type="button" data-track="settings-back-startup" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
           <h3 id="settingsStartupTitle">Service startup</h3>
           <p class="settings-note muted">Services that come up automatically every time the hub launches; each switch saves at once to <code>config/startup_profile.json</code>. Model autostart is set per model (<code>startup: eager|on_demand</code>) in its placement editor on Models.</p>
           <ul id="startupList" class="startup-list"></ul>
           </section>
           <section class="settings-page" id="settingsPage-machines" data-page="machines" hidden aria-labelledby="settingsMachinesTitle">
-          <button type="button" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
+          <button type="button" data-track="settings-back-machines" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
           <h3 id="settingsMachinesTitle">Dormant machines</h3>
           <p class="settings-note muted">Switch on a machine that is off on purpose. It stays listed as a neutral row, raises no offline alert, and the hub never contacts it for failover, placement or sync. Each switch saves at once to <code>config/machines.local.yaml</code>, on this machine only.</p>
           <ul id="dormantList" class="startup-list"></ul>
           </section>
           <section class="settings-page" id="settingsPage-health" data-page="health" hidden aria-labelledby="settingsHealthTitle">
-          <button type="button" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
+          <button type="button" data-track="settings-back-health" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
           <h3 id="settingsHealthTitle">Health &amp; install</h3>
           <div id="installRows"><p class="settings-note muted">Checking…</p></div>
           <div class="card-actions">
-            <button id="installFixAllBtn" type="button" class="button-primary launch-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-wrench"></use></svg>Fix all</button>
-            <button id="installRefreshBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>Re-check</button>
+            <button data-track="install-fix-all" id="installFixAllBtn" type="button" class="button-primary launch-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-wrench"></use></svg>Fix all</button>
+            <button data-track="install-refresh" id="installRefreshBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>Re-check</button>
           </div>
           </section>
         </div>

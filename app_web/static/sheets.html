@@ -2,11 +2,11 @@
        Launch primary and the hint. Langfuse: the OTel health the OTel pane shows.
        Trace: one request's preview, thumbs score and Langfuse link. By model:
        the per-backend counters. Server log: the live tail. -->
-  <dialog class="detail-dialog" id="servicesSheet" aria-labelledby="servicesSheetTitle">
+  <dialog data-track-view="services-sheet" class="detail-dialog" id="servicesSheet" aria-labelledby="servicesSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="servicesSheetTitle">Services</h2>
-        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+        <button data-track="services-sheet-close" type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
@@ -18,8 +18,8 @@
             </span>
             <span id="dockerDetail" class="muted small services-detail"></span>
             <span class="services-actions">
-              <button id="dockerStartBtn" type="button" class="ghost-btn" hidden title="Start" aria-label="Start Docker Desktop"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
-              <button id="dockerStopBtn" type="button" class="ghost-btn" hidden title="Stop" aria-label="Stop Docker Desktop"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
+              <button data-track="docker-start" id="dockerStartBtn" type="button" class="ghost-btn" hidden title="Start" aria-label="Start Docker Desktop"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
+              <button data-track="docker-stop" id="dockerStopBtn" type="button" class="ghost-btn" hidden title="Stop" aria-label="Stop Docker Desktop"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
             </span>
           </div>
           <div class="services-row">
@@ -29,8 +29,8 @@
             </span>
             <span id="langfuseDetail" class="muted small services-detail"></span>
             <span class="services-actions">
-              <button id="langfuseStartBtn" type="button" class="ghost-btn" hidden title="Start" aria-label="Start Langfuse"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
-              <button id="langfuseStopBtn" type="button" class="ghost-btn" hidden title="Stop" aria-label="Stop Langfuse"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
+              <button data-track="langfuse-start" id="langfuseStartBtn" type="button" class="ghost-btn" hidden title="Start" aria-label="Start Langfuse"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
+              <button data-track="langfuse-stop" id="langfuseStopBtn" type="button" class="ghost-btn" hidden title="Stop" aria-label="Stop Langfuse"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
             </span>
           </div>
           <div class="services-row">
@@ -40,8 +40,8 @@
             </span>
             <span id="agentsviewDetail" class="muted small services-detail"></span>
             <span class="services-actions">
-              <button id="agentsviewStartBtn" type="button" class="ghost-btn" hidden title="Start" aria-label="Start AgentsView"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
-              <button id="agentsviewStopBtn" type="button" class="ghost-btn" hidden title="Stop" aria-label="Stop AgentsView"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
+              <button data-track="agentsview-start" id="agentsviewStartBtn" type="button" class="ghost-btn" hidden title="Start" aria-label="Start AgentsView"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Start</button>
+              <button data-track="agentsview-stop" id="agentsviewStopBtn" type="button" class="ghost-btn" hidden title="Stop" aria-label="Stop AgentsView"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
             </span>
           </div>
         </div>
@@ -49,7 +49,7 @@
         <svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>
         <span class="sheet-row-label">Langfuse and telemetry</span>
         <span class="sheet-row-value" id="langfuseHealthValue">—</span>
-        <button type="button" class="button-tint" id="langfuseSheetOpenBtn" aria-haspopup="dialog">Details</button>
+        <button data-track="langfuse-sheet-open" type="button" class="button-tint" id="langfuseSheetOpenBtn" aria-haspopup="dialog">Details</button>
       </div>
       <p id="servicesHint" class="muted sheet-meta" hidden></p>
       <div class="detail-actions" id="servicesActions" hidden>
@@ -58,11 +58,11 @@
     </div>
   </dialog>
 
-  <dialog class="detail-dialog" id="langfuseSheet" aria-labelledby="langfuseSheetTitle">
+  <dialog data-track-view="langfuse-sheet" class="detail-dialog" id="langfuseSheet" aria-labelledby="langfuseSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="langfuseSheetTitle">Langfuse</h2>
-        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+        <button data-track="langfuse-sheet-close" type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
@@ -82,16 +82,16 @@
         create a project, copy the keys into <code>.env</code>, then restart the hub.
       </p>
       <div class="detail-actions">
-        <a id="hubOpenLangfuse" class="button-tint launch-btn" href="#" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg>Open Langfuse UI</a>
+        <a data-track="hub-open-langfuse" id="hubOpenLangfuse" class="button-tint launch-btn" href="#" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#i-external-link"></use></svg>Open Langfuse UI</a>
       </div>
     </div>
   </dialog>
 
-  <dialog class="detail-dialog" id="traceSheet" aria-labelledby="traceSheetTitle">
+  <dialog data-track-view="trace-sheet" class="detail-dialog" id="traceSheet" aria-labelledby="traceSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="traceSheetTitle">Request</h2>
-        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+        <button data-track="trace-sheet-close" type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
@@ -99,11 +99,11 @@
     </div>
   </dialog>
 
-  <dialog class="detail-dialog wide-dialog" id="byModelSheet" aria-labelledby="byModelSheetTitle">
+  <dialog data-track-view="by-model-sheet" class="detail-dialog wide-dialog" id="byModelSheet" aria-labelledby="byModelSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="byModelSheetTitle">By model</h2>
-        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+        <button data-track="by-model-sheet-close" type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
@@ -119,16 +119,16 @@
     </div>
   </dialog>
 
-  <dialog class="detail-dialog wide-dialog" id="logSheet" aria-labelledby="logSheetTitle">
+  <dialog data-track-view="log-sheet" class="detail-dialog wide-dialog" id="logSheet" aria-labelledby="logSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="logSheetTitle">Server log</h2>
-        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+        <button data-track="log-sheet-close" type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
       <div class="logpane-actions">
-        <button id="hubLogPauseBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-pause"></use></svg>Pause</button>
+        <button data-track="hub-log-pause" id="hubLogPauseBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-pause"></use></svg>Pause</button>
       </div>
       <pre id="hubLog" class="logpane" aria-label="Hub server log"></pre>
     </div>
@@ -136,11 +136,11 @@
 
   <!-- Code sheets. Agent: every agent and the Sub-agents (OTel) source.
        By model, every project and the recent sessions: the breakdowns. -->
-  <dialog class="detail-dialog" id="cldAgentSheet" aria-labelledby="cldAgentSheetTitle">
+  <dialog data-track-view="cld-agent-sheet" class="detail-dialog" id="cldAgentSheet" aria-labelledby="cldAgentSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="cldAgentSheetTitle">Agent</h2>
-        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+        <button data-track="cld-agent-sheet-close" type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
@@ -148,11 +148,11 @@
     </div>
   </dialog>
 
-  <dialog class="detail-dialog wide-dialog" id="cldModelSheet" aria-labelledby="cldModelSheetTitle">
+  <dialog data-track-view="cld-model-sheet" class="detail-dialog wide-dialog" id="cldModelSheet" aria-labelledby="cldModelSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="cldModelSheetTitle">By model</h2>
-        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+        <button data-track="cld-model-sheet-close" type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
@@ -171,11 +171,11 @@
     </div>
   </dialog>
 
-  <dialog class="detail-dialog wide-dialog" id="cldProjectSheet" aria-labelledby="cldProjectSheetTitle">
+  <dialog data-track-view="cld-project-sheet" class="detail-dialog wide-dialog" id="cldProjectSheet" aria-labelledby="cldProjectSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="cldProjectSheetTitle">Every project</h2>
-        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+        <button data-track="cld-project-sheet-close" type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
@@ -193,11 +193,11 @@
     </div>
   </dialog>
 
-  <dialog class="detail-dialog wide-dialog" id="cldSessionsSheet" aria-labelledby="cldSessionsSheetTitle">
+  <dialog data-track-view="cld-sessions-sheet" class="detail-dialog wide-dialog" id="cldSessionsSheet" aria-labelledby="cldSessionsSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="cldSessionsSheetTitle">Recent sessions</h2>
-        <button type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+        <button data-track="cld-sessions-sheet-close" type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
