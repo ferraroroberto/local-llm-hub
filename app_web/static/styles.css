@@ -40,7 +40,6 @@
   --input-bg: var(--card-off);
   --code-bg: var(--card-off);  /* the Machines terminal mount (a terminal stays a dark hole; listings use --card, COMP-17) */
   --close-bg: transparent; /* header toggles + modal ×: glyph on nothing at rest */
-  --scrim: rgba(0, 0, 0, 0.5); /* login-overlay dim — theme-invariant by design */
   /* status-alpha composites — derived, so they re-theme for free */
   --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
   --accent-border-soft: color-mix(in srgb, var(--accent) 24%, transparent);

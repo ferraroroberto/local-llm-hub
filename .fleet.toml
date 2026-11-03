@@ -154,6 +154,7 @@ home-head     = { src = "app/webapp/static/_vendored/home-head", sha = "5d460bd1
 icons         = { src = "app/webapp/static/_vendored/icons", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app_web/static/_vendored/icons" }
 page-foot     = { src = "app/webapp/static/_vendored/page-foot", sha = "35c1f11348e100fa6b5da487411424c6d6ced43c", dest = "app_web/static/_vendored/page-foot" }
 modal         = { src = "app/webapp/static/_vendored/modal", sha = "713b1d1e36989440679ec4e415ff149b14d96c81", dest = "app_web/static/_vendored/modal" }
+sign-in       = { src = "app/webapp/static/_vendored/sign-in", sha = "f05859a2bada56296d7f134e471953867c253571", dest = "app_web/static/_vendored/sign-in" }
 nav           = { src = "app/webapp/static/_vendored/nav", sha = "3b708fd3c54ab7b93b08d489406c405762c83c41", dest = "app_web/static/_vendored/nav" }
 row-menu      = { src = "app/webapp/static/_vendored/row-menu", sha = "00311a74ed7a858193e5b83ade533bf94468eb81", dest = "app_web/static/_vendored/row-menu" }
 select-native = { src = "app/webapp/static/_vendored/select-native", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app_web/static/_vendored/select-native" }
@@ -178,7 +179,7 @@ structure_band = { src = "scripts/structure_band.py", sha = "3b708fd3c54ab7b93b0
 instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/instruction_ratchet.py" }
 doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/doc_refs_ratchet.py" }
 dead_code_ratchet = { src = "scripts/dead_code_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/dead_code_ratchet.py" }
-conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/conventions_ratchet.py" }
+conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "f05859a2bada56296d7f134e471953867c253571", dest = "scripts/conventions_ratchet.py" }
 runtime_write_ratchet = { src = "scripts/runtime_write_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/runtime_write_ratchet.py" }
 runtime_write_resolve = { src = "scripts/runtime_write_resolve.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/runtime_write_resolve.py" }
 single_instance = { src = "app/tray/single_instance.py", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "tray/single_instance.py" }
@@ -285,13 +286,14 @@ baseline = ".dead-code-ratchet-baseline.json"
 # see the whole tree. Exit 3 (git unusable, a file that does not parse) fails the
 # gate. Rules: no-window (the hub runs windowless under pythonw on Windows),
 # logging-not-print (the hub, app_web and tray are library code), no-drive-path
-# (a drive-letter literal breaks the Linux and macOS satellites). secret-compare and
+# (a drive-letter literal breaks the Linux and macOS satellites), password-input-vendored
+# (a password input outside _vendored/sign-in/ is a bespoke sign-in). secret-compare and
 # git-wrapper stay off: the hub has no shared constant-time-compare or git-run helper.
 # Procedure + limits: project-scaffolding docs/conventions-ratchet.md.
 [conventions_ratchet]
 enabled     = true
 baseline    = ".conventions-ratchet-baseline.json"
-rules       = ["no-window", "logging-not-print", "no-drive-path"]
+rules       = ["no-window", "logging-not-print", "no-drive-path", "password-input-vendored"]
 exclude     = ["vendor/**", "data/**", "models/**"]
 print_paths = ["src/", "app_web/", "tray/"]
 

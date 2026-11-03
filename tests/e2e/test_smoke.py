@@ -452,8 +452,9 @@ def test_auth_error_is_a_typed_contract(page, admin_url):
     )
     assert got == [True, False]
 
-    # The overlay a 401 raises: api() calls showLogin() before it throws.
+    # The sheet a 401 raises: api() calls showLogin() before it throws.
     page.evaluate("() => import('/admin/static/api.js').then(m => m.showLogin())")
-    page.wait_for_selector("#loginOverlay", state="visible", timeout=3000)
-    assert page.locator("#loginPassword").is_visible()
+    sheet = page.locator("dialog.sign-in")
+    sheet.wait_for(state="visible", timeout=3000)
+    assert sheet.locator("input[type=password]").is_visible()
     surface(page, "login.overlay")

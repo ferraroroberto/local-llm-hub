@@ -218,7 +218,7 @@ ul.cld-sessions > li > .cld-sess-meta code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* Load-failure banner. Danger tone, matching .login-card .error —
+/* Load-failure banner. Danger tone, matching the sign-in sheet's error line —
  * "could not load" must read as a fault, never as a quiet zero-usage day. The
  * tokens are theme-derived (--danger-soft/--danger-border are color-mix over
  * --danger), so light and dark both follow the palette with no second rule. */
