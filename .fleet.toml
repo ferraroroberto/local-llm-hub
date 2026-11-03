@@ -24,6 +24,13 @@ owns       = ["LLM routing", "model backends and ports", "audio proxy", "hub tel
 not_owns   = ["whisper engine", "job scheduling", "agent config"]
 depends_on = ["voice-transcriber", "automation", "project-scaffolding"]
 
+# Reviewed false positive: the only oracle-to-gcp mention is a docstring example of a
+# VS Code workspace URI being decoded; no code reads that repo.
+[contracts]
+ignore_refs = [
+  { path = "src/usage/copilot_usage.py", repo = "oracle-to-gcp", why = "docstring example of a VS Code .code-workspace URI, not a dependency" },
+]
+
 # Extra gitignored path an agent worktree needs junctioned in alongside .venv
 # so this repo's own gate can pass there (fleet-config#620). Read by
 # worktree_junction_targets() in fleet-config/skills/_lib/worktree_claim.py.
