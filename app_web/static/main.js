@@ -4,7 +4,7 @@
  */
 
 import { state, els, TAB_KEY, STATUS_POLL_MS, COUNTERS_POLL_MS, MODELS_POLL_MS } from './state.js';
-import { jsonApi, tokenFromUrl, writeToken, wireLoginForm, toast } from './api.js';
+import { jsonApi, tokenFromUrl, writeToken, setSignInHandler, toast } from './api.js';
 import { wireTabs, onTabChange, setTab } from './tabs.js';
 import { wireUsageLog } from './usage.js';
 import { buildReadoutText, fmtBuildTime } from './_vendored/page-foot/page-foot.js';
@@ -89,7 +89,7 @@ async function boot() {
   const fromUrl = tokenFromUrl();
   if (fromUrl) writeToken(fromUrl);
 
-  wireLoginForm(function () { return resumeAfterLogin(); });
+  setSignInHandler(function () { return resumeAfterLogin(); });
   wireTheme();
   wireHub();
   wireModels();

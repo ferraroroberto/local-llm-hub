@@ -43,7 +43,7 @@ session-id chip. Inline `<code>` and the dense card lists render in the app
 font.
 
 Derived hub tokens (mapped onto the roles above, re-theme for free):
-`--input-bg`, `--code-bg` (the Machines terminal mount), `--font-code` (13px, the `code-listing` size; `.logpane` sits on `--card` with a hairline), `--scrim`, and the
+`--input-bg`, `--code-bg` (the Machines terminal mount), `--font-code` (13px, the `code-listing` size; `.logpane` sits on `--card` with a hairline), and the
 `--accent-soft`/`--danger-border`-style `color-mix()` status composites.
 
 **Theme selection:** a pre-paint boot script in `index.html` stamps
@@ -83,7 +83,7 @@ Beyond `icons/` and `nav/`, the hub adopts the fleet's vendored components (byte
 
 ## Navigation
 
-Primary nav is the **vendored fleet component** at `app_web/static/_vendored/nav/` (copied byte-for-byte from `project-scaffolding`; never edited per-app). Desktop renders a sticky top segmented control; coarse pointers get the floating bottom-tab pill, with the standalone-PWA fixed-inset `.app` scroller shell (as in home-automation). `tabs.js` is a thin adapter bridging `initNavTabs` to the app's `onTabChange`/`setTab` API; the active tab persists under `llmhub.tab`. The login overlay hides the bar via `body.nav-hidden` (the non-`<dialog>` hook).
+Primary nav is the **vendored fleet component** at `app_web/static/_vendored/nav/` (copied byte-for-byte from `project-scaffolding`; never edited per-app). Desktop renders a sticky top segmented control; coarse pointers get the floating bottom-tab pill, with the standalone-PWA fixed-inset `.app` scroller shell (as in home-automation). `tabs.js` is a thin adapter bridging `initNavTabs` to the app's `onTabChange`/`setTab` API; the active tab persists under `llmhub.tab`. The sign-in sheet is a native `<dialog>` (vendored `_vendored/sign-in/` on the `modal` shell), so the bar hides while it is open through `body:has(dialog[open])`.
 
 ## Buttons
 
@@ -94,7 +94,7 @@ Primary nav is the **vendored fleet component** at `app_web/static/_vendored/nav
   `:disabled` recipe. `.launch-btn` is the local layout helper (full-width
   flex, icon+label gap, padding, font-size) — the photo-ocr
   `class="button-primary extract-btn"` pattern. Exactly one per view: the
-  Services card, the Health & install disclosure, and the login overlay
+  Services card, the Health & install disclosure, and the sign-in sheet
   each hold their own. Use for: Launch Docker + Langfuse, Fix all, Sign in.
 - **`.ghost-btn`** — secondary text-style button, `min-height: 36 px`,
   border + transparent background. Use for: Re-check, Clear, Pause
@@ -178,7 +178,7 @@ signal state only, never decoration.
 
 An inline `--danger` banner (soft fill, danger border, caption type, leading
 `triangle-alert` glyph) that a view shows when the data behind it **could not
-be fetched**. Same tone as `.login-card .error`; the tokens are `color-mix`
+be fetched**. Same tone as the sign-in sheet's error line; the tokens are `color-mix`
 derivations of `--danger`, so light and dark follow the palette with no
 second rule.
 

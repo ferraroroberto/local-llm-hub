@@ -27,6 +27,7 @@
   <link rel="stylesheet" href="/admin/static/code_usage.css">
   <link rel="stylesheet" href="/admin/static/_vendored/select-native/select-native.css">
   <link rel="stylesheet" href="/admin/static/_vendored/modal/modal.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/sign-in/sign-in.css">
   <link rel="stylesheet" href="/admin/static/_vendored/row-menu/row-menu.css">
   <link rel="stylesheet" href="/admin/static/_vendored/text-size/text-size.css">
   <link rel="stylesheet" href="/admin/static/_vendored/xterm/xterm.css">
@@ -670,16 +671,6 @@
        standalone-PWA shell makes .app a fixed-inset element scroller —
        fixed descendants of a scroller are an iOS capture hazard). -->
   <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
-
-  <div id="loginOverlay" class="overlay" hidden role="dialog" aria-modal="true" aria-label="Login">
-    <form id="loginForm" class="login-card">
-      <h2><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>Sign in</h2>
-      <p class="muted small">This hub is locked. Enter the configured password to receive a bearer token.</p>
-      <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" required>
-      <button type="submit" data-track="login-submit" class="button-primary launch-btn">Sign in</button>
-      <p id="loginError" class="error" hidden></p>
-    </form>
-  </div>
 
   <!-- Destructive-action confirm (confirm_dialog.js, shared by Models,
        Machines and Diagnostics) + the Machines SSH terminal overlay. Both use
