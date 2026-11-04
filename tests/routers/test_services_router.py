@@ -13,12 +13,22 @@ from __future__ import annotations
 import asyncio
 import sys
 
+import pytest
 from fastapi.testclient import TestClient
 
+from app_web.routers import services as services_router
 from src.fleet import remote_stats
 from src import server as server_mod
 from src import services as svc
 from tests._worker_loop import run_on_worker_thread as _run
+
+
+@pytest.fixture(autouse=True)
+def _fresh_status_snapshot():
+    """The status snapshot is module state; no test may see another's build."""
+    services_router._status_snapshot.reset()
+    yield
+    services_router._status_snapshot.reset()
 
 
 def _client() -> TestClient:
@@ -119,9 +129,10 @@ def test_services_status_endpoint_shape():
     assert isinstance(body["launchable"], bool)
 
 
-def _count_docker_probes(monkeypatch) -> list:
-    """Stub the blocking ``docker info`` half and count its spawns."""
+def _count_docker_probes(monkeypatch):
+    """Stub the blocking ``docker info`` half; return its spawn log and a fake clock."""
     calls: list = []
+    now = [1000.0]
 
     def _info(timeout_s: float):
         calls.append(timeout_s)
@@ -129,34 +140,36 @@ def _count_docker_probes(monkeypatch) -> list:
 
     monkeypatch.setattr(svc, "_docker_info_sync", _info)
     monkeypatch.setattr(svc.shutil, "which", lambda _name: "docker")
-    svc.forget_docker_status()
-    return calls
+    monkeypatch.setattr(services_router._status_snapshot, "_clock", lambda: now[0])
+    services_router._status_snapshot.reset()
+    return calls, now
 
 
-def test_services_status_reuses_docker_probe_within_ttl(monkeypatch):
+def test_services_status_reuses_snapshot_while_fresh(monkeypatch):
     """The ~250 ms `docker info` spawn must not run on every poll."""
-    calls = _count_docker_probes(monkeypatch)
+    calls, now = _count_docker_probes(monkeypatch)
     for _ in range(3):
         r = _client().get("/admin/api/services/status")
         assert r.status_code == 200, r.text
         assert r.json()["docker"]["running"] is True
+        now[0] += 0.5
     assert len(calls) == 1
+    assert "snapshot_age_s" in r.json()
 
 
-def test_services_status_reprobes_docker_after_ttl(monkeypatch):
-    """A cached engine state is never served past its staleness bound."""
-    calls = _count_docker_probes(monkeypatch)
-    now = [1000.0]
-    monkeypatch.setattr(svc.time, "monotonic", lambda: now[0])
+def test_services_status_rebuilds_inline_past_the_staleness_bound(monkeypatch):
+    """A snapshot is never served as current past its staleness bound."""
+    calls, now = _count_docker_probes(monkeypatch)
     _client().get("/admin/api/services/status")
-    now[0] += svc.DOCKER_STATUS_TTL_S + 0.1
-    _client().get("/admin/api/services/status")
+    now[0] += 60.0
+    r = _client().get("/admin/api/services/status")
     assert len(calls) == 2
+    assert r.json()["snapshot_age_s"] == 0.0
 
 
-def test_services_action_drops_cached_docker_state(monkeypatch):
+def test_services_action_drops_the_snapshot(monkeypatch):
     """After a start/stop the next status read shows the new engine state."""
-    calls = _count_docker_probes(monkeypatch)
+    calls, _now = _count_docker_probes(monkeypatch)
 
     async def _stop_ok():
         return {"ok": True, "steps": []}

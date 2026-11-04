@@ -22,12 +22,14 @@ exempts loopback) so the SPA can call them without an admin token on
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
 from typing import Any, Awaitable, Dict
 
 from fastapi import APIRouter
 
+from src.health.snapshot import Snapshot
 from src.usage import agentsview_service
 from src import services as svc
 
@@ -47,9 +49,9 @@ async def _service_action(
     icon = "🛑" if verb == "stop" else "🚀"
     logger.info("%s /admin/api/services/%s", icon, path)
     result = await coro
-    # Any action may have started or stopped the engine; the next status
+    # Any action may have started or stopped a service; the next status
     # poll must not serve the pre-action probe.
-    svc.forget_docker_status()
+    _status_snapshot.mark_dirty()
     if result["ok"]:
         logger.info("✅ %s %s: %s", label, verb, result["steps"])
     else:
@@ -57,17 +59,13 @@ async def _service_action(
     return result
 
 
-@router.get("/api/services/status")
-async def services_status() -> Dict[str, Any]:
-    """Combined Docker + Langfuse + AgentsView probe.
-
-    All probes have a short timeout so the worst case is a few seconds
-    when everything is down; in steady state each returns in <100 ms.
-    Per-peer hub health lives on the Machines tab, not here.
-    """
-    docker = await svc.docker_status_cached()
-    langfuse = await svc.langfuse_health()
-    agentsview = await agentsview_service.agentsview_health()
+async def _build_status() -> Dict[str, Any]:
+    # The probes are independent, so a down service costs one timeout, not three.
+    docker, langfuse, agentsview = await asyncio.gather(
+        svc.docker_status(),
+        svc.langfuse_health(),
+        agentsview_service.agentsview_health(),
+    )
 
     # The "launch" button is only meaningful on platforms where we know
     # how to spawn Docker Desktop. Surface that to the SPA so the card
@@ -84,6 +82,23 @@ async def services_status() -> Dict[str, Any]:
         "launchable": launchable,
         "platform": sys.platform,
     }
+
+
+# The SPA polls every 5 s: a build is served for up to 2 s without a rebuild
+# and refreshed behind the request after that; one older than 20 s (a hub tab
+# that was not being watched) is rebuilt before it is answered.
+_status_snapshot = Snapshot(_build_status, fresh_s=2.0, max_age_s=20.0)
+
+
+@router.get("/api/services/status")
+async def services_status() -> Dict[str, Any]:
+    """Combined Docker + Langfuse + AgentsView probe, served from a snapshot.
+
+    The answer never waits on a slow probe once a build exists; its
+    ``snapshot_age_s`` says how old the probes are. Per-peer hub health
+    lives on the Machines tab, not here.
+    """
+    return await _status_snapshot.get()
 
 
 @router.post("/api/services/agentsview/launch")
