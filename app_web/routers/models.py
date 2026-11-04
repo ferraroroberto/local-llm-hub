@@ -118,13 +118,13 @@ def _add_placement_fields(
     }
 
 
-def _config_block() -> Dict[str, Any]:
+async def _config_block() -> Dict[str, Any]:
     """Config-as-code context for the Models tab (#424): the models.yaml
     HEAD sha (the drift-visible config version), whether *this* hub may
     write (single-writer contract — tower only), and the full fleet host
     list the chain editor offers (with ceilings for context)."""
     return {
-        "sha": config_write.config_sha(),
+        "sha": await config_write.config_sha_async(),
         "write_enabled": config_write.is_write_host(),
         "write_host": config_write.write_host_id(),
         "fleet_hosts": [{"id": h.id, "vram_mb": h.vram_mb} for h in all_hosts()],
@@ -324,7 +324,7 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
     ]
 
     if local_only:
-        return {"models": rows, "config": _config_block()}
+        return {"models": rows, "config": await _config_block()}
 
     rows.extend(await _remote_owned_rows(remote_owned, owner_by_id, cpu_map))
 
@@ -333,7 +333,7 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
     # each hub reports only its own key state.
     rows.append(server_systemone.admin_model_row(active.id))
 
-    return {"models": rows, "config": _config_block()}
+    return {"models": rows, "config": await _config_block()}
 
 
 # --------------------------------------------------------------------- #

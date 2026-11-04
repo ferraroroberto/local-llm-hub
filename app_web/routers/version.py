@@ -11,7 +11,7 @@ from typing import Dict
 
 from fastapi import APIRouter, Request
 
-from src.config_write import config_sha
+from src.config_write import config_sha_async
 from src.process.process_identity import IDENTITY
 from src.static_versioning import asset_hash_for
 
@@ -28,5 +28,5 @@ async def version(request: Request) -> Dict[str, str]:
         # models.yaml HEAD sha — read live (unlike git_sha's
         # process-identity memoization): the config converges by git pull
         # without a restart, and the drift loop compares this across hubs.
-        "config_sha": config_sha(),
+        "config_sha": await config_sha_async(),
     }
