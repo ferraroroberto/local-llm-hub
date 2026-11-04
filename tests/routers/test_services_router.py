@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import threading
 
 import pytest
 from fastapi.testclient import TestClient
@@ -55,6 +56,24 @@ def test_docker_status_missing_binary(monkeypatch):
     result = _run(svc.docker_status())
     assert result["running"] is False
     assert "PATH" in result["error"]
+
+
+def test_docker_status_looks_up_the_binary_off_the_event_loop(monkeypatch):
+    """`shutil.which` scans PATH with blocking stats; it must not run on the loop thread."""
+    seen: dict = {}
+
+    def fake_which(_name):
+        seen["thread"] = threading.get_ident()
+        return None
+
+    async def scenario():
+        seen["loop_thread"] = threading.get_ident()
+        return await svc.docker_status()
+
+    monkeypatch.setattr(svc.shutil, "which", fake_which)
+    result = _run(scenario())
+    assert result["running"] is False
+    assert seen["thread"] != seen["loop_thread"]
 
 
 def _run_on_selector_loop(coro):

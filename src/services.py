@@ -138,7 +138,9 @@ async def docker_status(timeout_s: float = DOCKER_PROBE_TIMEOUT_S) -> Dict[str, 
     binary missing" and "daemon pipe missing" as ``running=False`` —
     the SPA card only needs the binary state.
     """
-    if shutil.which("docker") is None:
+    # `which` stats every PATH entry for every PATHEXT suffix, which takes
+    # seconds on a long PATH under antivirus; on the loop it froze every request.
+    if await asyncio.to_thread(shutil.which, "docker") is None:
         return {"running": False, "error": "docker CLI not on PATH"}
     return await asyncio.to_thread(_docker_info_sync, timeout_s)
 
