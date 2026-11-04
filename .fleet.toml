@@ -339,6 +339,14 @@ rule   = "TYPE-02"
 reason = "the Playground's JSON editor (textarea.jev-json) is set in a monospace font on purpose so the JSON lines up; it is not a UA-font fallback. Rule-wide for this repo, so re-check TYPE-02's flagged controls if it ever names anything else"
 record = "https://github.com/ferraroroberto/fleet-config/issues/1211"
 
+# /perf-review (fleet-config skills/perf-review): "ready" is the Services row on the Hub
+# tab, which is only rendered once the first status probe has answered; first contentful
+# paint goes green on the painted shell before any card has data. The build id is read
+# from the auth-exempt version endpoint.
+[perf.review]
+ready_selector   = "#servicesList .services-summary"
+api_version_path = "/admin/api/version"
+
 # The /design-review walk's extra reach (#736; schema: fleet-config
 # skills/_lib/design_review/plan.py). Read-only by construction: steps only
 # open a details or click a selector, and every click inside a `no_go`

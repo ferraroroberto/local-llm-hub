@@ -185,6 +185,7 @@ local-llm-hub/
 │   │   ├── ingest.py             #   ingest a portable foreign capture as a run
 │   │   └── settings.py           #   retention + scheduled-snapshot settings
 │   ├── health/               # machine health watch — slow resident sampler, leak/pressure verdict
+│   │   ├── snapshot.py           #   stale-while-revalidate cache for a polled read (services status)
 │   │   ├── win_probe.py          #   native Windows reads (one-call process table, perf info)
 │   │   ├── sampler.py            #   one sample: system counters + top processes per metric
 │   │   ├── classifier.py         #   pure ok/watch/act/unknown verdict + suggested fix
