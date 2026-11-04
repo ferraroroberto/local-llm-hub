@@ -267,6 +267,18 @@ def _isolate_code_usage_history(tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_token_history_cache(tmp_path):
+    """Point the per-day token-history cache at a per-test temp file and keep
+    a cold read from spawning a background rebuild over the dev machine's real
+    logs. Tests drive a recalculation through ``_refresh_body()`` directly."""
+    from src.usage import token_history
+
+    token_history._reset_for_tests(tmp_path / "code_token_history.json")
+    yield
+    token_history._reset_for_tests(None)
+
+
+@pytest.fixture(autouse=True)
 def _isolate_claude_code_otel_store(tmp_path, monkeypatch):
     """Point the OTel usage store at a per-test temp file (#280 follow-up).
 

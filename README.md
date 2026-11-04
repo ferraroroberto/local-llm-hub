@@ -28,7 +28,7 @@ mechanisms.
 - **Health watch** — per-machine leak and pressure verdict with a restart-or-reboot fix, plus a one-minute RAM, free-space and per-disk latency watch with Telegram alerts and a weekly stall summary: [docs/health-watch.md](docs/health-watch.md).
 - **Running** — launchers, tray, Cloudflare tunnel, server adoption, LAN access: [docs/running.md](docs/running.md).
 - **API usage** — Python/curl examples, token counting, audio and image calls, headers, CORS, the TypeSafe passthrough: [docs/api-usage.md](docs/api-usage.md).
-- **Coding-agent usage** — the Code tab's usage accounting: [docs/coding-agent-usage.md](docs/coding-agent-usage.md).
+- **Coding-agent usage** — the Code tab's usage accounting and the cached per-day, per-agent `GET /admin/api/code/usage/history`: [docs/coding-agent-usage.md](docs/coding-agent-usage.md).
 - **Telemetry** — Langfuse stack and client trace contract: [docs/telemetry-langfuse.md](docs/telemetry-langfuse.md), [docs/clients-telemetry-contract.md](docs/clients-telemetry-contract.md).
 - **Speech and images** — [docs/whisper-asr.md](docs/whisper-asr.md), [docs/add-tts.md](docs/add-tts.md), [docs/image-generation.md](docs/image-generation.md).
 - **Search** — self-hosted SearXNG: [docs/searxng.md](docs/searxng.md).
