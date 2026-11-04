@@ -1,4 +1,9 @@
 {
   "version": 1,
-  "entries": []
+  "entries": [
+    {"key": "config/machines.local.example.yaml", "count": 5},
+    {"key": "config/models.yaml", "count": 110},
+    {"key": "docker/langfuse/docker-compose.yml", "count": 1},
+    {"key": "docker/searxng/docker-compose.yml", "count": 2}
+  ]
 }

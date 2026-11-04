@@ -13,6 +13,7 @@
 /app_web/static/_vendored/row-menu
 /app_web/static/_vendored/segmented
 /app_web/static/_vendored/select-native
+/app_web/static/_vendored/sign-in
 /app_web/static/_vendored/switch
 /app_web/static/_vendored/text-size
 /app_web/static/_vendored/usage-log
@@ -33,6 +34,7 @@
 /scripts/usage_track_scan.py
 /src/build_info.py
 /src/compression.py
+/src/login_lockout.py
 /src/runtime_data.py
 /src/usage_log.py
 /tests/e2e/_surface.py
