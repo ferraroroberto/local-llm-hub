@@ -18,6 +18,7 @@ import asyncio
 import logging
 import time
 
+from .health import loop_watch
 from .hub_log import HUB_LOG
 from .hub_observability import OBS
 
@@ -41,6 +42,7 @@ async def stop_background_tasks() -> None:
     peer-transport hooks) that ``test_fleet_reconcile.py`` /
     ``test_model_failover.py`` monkeypatch and assert on from the main thread
     -- the order-dependent full-suite pollution in issue #416."""
+    loop_watch.WATCH.stop()
     tasks, _BACKGROUND_TASKS[:] = list(_BACKGROUND_TASKS), []
     if not tasks:
         return
@@ -113,6 +115,9 @@ async def wire_observatory_loop() -> None:
     loop = asyncio.get_running_loop()
     OBS.attach_loop(loop)
     HUB_LOG.attach_loop(loop)
+    # Names the call that blocks the loop, so a latency spike on any endpoint
+    # leaves the culprit's stack in the log instead of just a slow request.
+    loop_watch.WATCH.start()
     # Start the resource sampler. 2s tick × 150 samples = 5 min ring.
     _BACKGROUND_TASKS.append(loop.create_task(_resource_sampler()))
 
