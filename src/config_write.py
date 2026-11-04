@@ -226,15 +226,38 @@ _sha_cache: Tuple[float, str] = (0.0, "")
 _sha_lock = threading.Lock()
 
 
-def config_sha(fresh: bool = False) -> str:
-    """Short HEAD sha of ``config/models.yaml`` — same value on every hub
-    that has converged, so comparing chips across /admin pages shows drift."""
-    global _sha_cache
-    now = time.monotonic()
+def _cached_config_sha() -> Optional[str]:
+    """The cached sha while it is still inside its TTL, else ``None``."""
     with _sha_lock:
         ts, sha = _sha_cache
-        if not fresh and sha and now - ts < _SHA_TTL_S:
+        if sha and time.monotonic() - ts < _SHA_TTL_S:
             return sha
+    return None
+
+
+async def config_sha_async() -> str:
+    """:func:`config_sha` for handlers on the event loop.
+
+    The cache expires between a peer's 30 s polls, so every poll would pay a
+    ``git log`` spawn (a few hundred ms on Windows) on the loop and stall every
+    other request behind it. A cache hit answers inline; a miss runs the spawn
+    in a worker thread."""
+    cached = _cached_config_sha()
+    if cached is not None:
+        return cached
+    return await asyncio.to_thread(config_sha)
+
+
+def config_sha(fresh: bool = False) -> str:
+    """Short HEAD sha of ``config/models.yaml`` — same value on every hub
+    that has converged, so comparing chips across /admin pages shows drift.
+    Blocking on a cache miss: async callers use :func:`config_sha_async`."""
+    global _sha_cache
+    now = time.monotonic()
+    if not fresh:
+        cached = _cached_config_sha()
+        if cached is not None:
+            return cached
     result = _git("log", "-n", "1", "--format=%h", "--", CONFIG_RELPATH)
     value = (result.stdout or "").strip() if result.returncode == 0 else ""
     value = value or "unknown"
@@ -774,6 +797,7 @@ __all__ = [
     "commit_and_push",
     "config_drift_sync_loop",
     "config_sha",
+    "config_sha_async",
     "edit_models_yaml",
     "git_preflight",
     "is_write_host",

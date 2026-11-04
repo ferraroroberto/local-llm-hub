@@ -24,10 +24,12 @@ from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
-# 0.25 s keeps the wake-ups negligible; 0.5 s is long enough that ordinary
-# handler work never trips it, short enough to catch a stall a phone feels.
-DEFAULT_INTERVAL_S = 0.25
-DEFAULT_THRESHOLD_S = 0.5
+# A 10 Hz heartbeat keeps the wake-ups negligible. The 0.25 s threshold sits
+# under the 0.3-0.6 s periodic stalls (a blocking subprocess spawn per peer poll)
+# that a 0.5 s threshold never reported yet pushed the admin p95 over budget;
+# ordinary handler work still stays well below it.
+DEFAULT_INTERVAL_S = 0.1
+DEFAULT_THRESHOLD_S = 0.25
 _STACK_DEPTH = 12
 
 
