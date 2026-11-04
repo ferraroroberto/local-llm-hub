@@ -33,6 +33,10 @@ subprocesses, no wrapper around any binary, no impact on the running CLIs:
   fine-grained PAT (`.env`, "Plan: read-only" permission) or the card shows
   "not configured" rather than erroring (`src/usage/copilot_billing.py`,
   `GET /admin/api/code/copilot/billing`).
+- **Pi** (`vendor="pi"`, `src/usage/pi_usage.py`) — the session logs at
+  `~/.pi/agent/sessions/<encoded-cwd>/*.jsonl`, one record per assistant turn from
+  `message.usage` (`input`, `output`, `cacheRead`, `cacheWrite`). Read by the
+  token-history endpoint below; not shown in the Code tab.
 - **AGY / Antigravity** (`vendor="agy"`, `src/usage/agentsview_usage.py`) — sourced
   from the optional external
   [AgentsView](https://github.com/kenn-io/agentsview) service, which indexes
@@ -128,6 +132,37 @@ last 15 sessions across every project on this host.
 > ingests traces (not metrics/logs), Claude Code traces are still a beta
 > signal, and the per-signal exporter config is fiddly. Revisit if Anthropic
 > stabilises tracing or Langfuse adds metrics ingestion.
+
+## Token history endpoint
+
+`GET /admin/api/code/usage/history?from=YYYY-MM-DD&to=YYYY-MM-DD[&refresh=true]`
+returns one entry per UTC day in the range (default: the last 30 days, at most
+400), each holding one cell per agent: `claude`, `codex`, `copilot`, `pi`,
+`agy`, `claude_bridged` (the claude.ai/code OTel source, kept apart from
+`claude` as the Code tab keeps it) and `grok`. A measured cell carries
+`requests`, `input_tokens`, `cache_creation_tokens`, `cache_read_tokens`,
+`output_tokens`, `tokens_in` and per-model and per-project rows.
+
+- **Tokens in** is input excluding cache reads: `input_tokens` is fresh input
+  (for Codex the cached subset is subtracted), `tokens_in` adds
+  `cache_creation_tokens`, and `cache_read_tokens` is its own field.
+- **Cached first.** The answer is the last computed result, however old, with
+  `cache.computed_at`, `cache.age_seconds` and `cache.state` (`empty`, `ok` or
+  `stale`). A read never waits for a rebuild. `refresh=true` starts one in the
+  background (poll the endpoint; `cache.refreshing` is true meanwhile) and
+  replaces the cache when it finishes. A cache that was never computed starts
+  one rebuild by itself, once. The cache persists in `data/code_token_history.json`,
+  so a restarted hub answers at once.
+- **A failed rebuild keeps the old result** and flips `cache.state` to `stale`
+  with `cache.last_error`; the next success clears it.
+- **Unknown is not zero.** A day before an agent's first recorded day, a day
+  after the last rebuild, or any day while the cache is `empty`, is
+  `{"state": "unknown"}`. Between an agent's first day and the last rebuild a
+  day with no usage is a measured cell of zeros. `grok` has no token counts and
+  is always `{"state": "not_measured"}`.
+- **History** starts at the hub's first snapshot: days older than that and
+  already pruned from an agent's logs cannot be recovered. Days a source has
+  since pruned keep their earlier, larger cell.
 
 See [telemetry-langfuse.md](telemetry-langfuse.md) for the
 full architecture, what's captured, the X-Trace-Id contract, and

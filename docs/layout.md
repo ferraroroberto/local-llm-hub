@@ -137,6 +137,8 @@ local-llm-hub/
 │   │   ├── code_usage_history.py     #   durable daily rollups of Code-tab usage (outlives transcript pruning)
 │   │   ├── claude_code_otel.py       #   Claude Code OTel token/cost metrics receiver — data layer
 │   │   ├── codex_usage.py            #   host-side Codex (OpenAI) usage parser (~/.codex/sessions/*.jsonl)
+│   │   ├── pi_usage.py               #   host-side Pi usage parser (~/.pi/agent/sessions/*/*.jsonl)
+│   │   ├── token_history.py          #   cached per-day per-agent token history behind GET /admin/api/code/usage/history
 │   │   ├── copilot_usage.py          #   host-side GitHub Copilot usage parser
 │   │   ├── copilot_billing.py        #   GitHub Copilot billing-API daily credits poller
 │   │   └── agentsview_usage.py       #   usage records from the optional external AgentsView service

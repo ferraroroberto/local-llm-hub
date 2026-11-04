@@ -76,6 +76,33 @@ async def code_usage_summary(
         )
 
 
+@router.get("/usage/history", response_model=None)
+async def code_usage_history(
+    from_: str | None = Query(
+        None, alias="from", description="first UTC day, YYYY-MM-DD (default: 30 days back)"
+    ),
+    to: str | None = Query(None, description="last UTC day, YYYY-MM-DD (default: today)"),
+    refresh: bool = Query(
+        False, description="start a background recalculation; the answer is still the cache"
+    ),
+) -> dict | JSONResponse:
+    """Per-day, per-agent token history from the last computed result.
+
+    Never waits on a recalculation: the cache answers at once with its age,
+    ``refresh=true`` starts a rebuild that replaces it when done, and a failed
+    rebuild leaves the old result flagged ``stale``. A day with no
+    measurement is ``unknown`` and an agent without token counts (Grok) is
+    ``not_measured`` — never zero. See ``src/usage/token_history.py``.
+    """
+    from src.usage import token_history
+
+    try:
+        # Off the loop: the first read lazily loads the cache file.
+        return await asyncio.to_thread(token_history.get_history, from_, to, refresh)
+    except ValueError as exc:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+
 @router.get("/copilot/billing")
 async def copilot_billing_summary() -> dict:
     """Return official per-day x per-model AI Credit spend from the GitHub

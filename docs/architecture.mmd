@@ -232,6 +232,7 @@ the hub's only internet egress"]
     STARTUPCFG[("config/startup_profile.json (gitignored; .example committed)\ndocker/langfuse/agentsview — each host's own service autostart\n(models list retired)")]
     MODELSDIR["models/ (gitignored)\nGGUF + whisper weights +\ncomfyui/checkpoints FLUX fp8"]
     USAGEHIST[("data/code_usage_history.json\ndaily usage rollups — outlive\ntranscript pruning")]
+    USAGETOK[("data/code_token_history.json\nlast computed per-day per-agent\ntoken history (served as-is, rebuilt on demand)")]
     DIAGCFG[("config/diagnostics_apps.json + _rules.json (committed)\nprocess->app attribution + health thresholds;\nconfig/diagnostics_settings.json (gitignored)\nretention + scheduled snapshot")]
     HEALTHCFG[("config/health_watch.json (committed)
 health-watch thresholds + cadence")]
@@ -245,6 +246,7 @@ health-watch thresholds + cadence")]
   LIFECYCLE -.reads.-> STARTUPCFG
   WROUT -.reads/writes.-> STARTUPCFG
   WROUT -.reads/writes.-> USAGEHIST
+  WROUT -.reads/writes.-> USAGETOK
 
   subgraph tests["tests/ + scripts/"]
     UNITTESTS["tests/*.py\npytest, TestClient + monkeypatched CLIs"]

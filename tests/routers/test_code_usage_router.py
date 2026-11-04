@@ -199,3 +199,38 @@ def test_discovered_vendor_accepted(monkeypatch):
     assert body["agentsview"]["vendors"] == ["gemini"]
 
     av._reset_for_tests()
+
+
+def test_history_endpoint_serves_the_cache_and_never_zeroes_unknown(monkeypatch):
+    """The history endpoint answers from the cache: an uncomputed cache is
+    ``empty`` with ``unknown`` cells and a Grok ``not_measured``, never 0."""
+    r = _client().get(
+        "/admin/api/code/usage/history", params={"from": "2026-06-08", "to": "2026-06-09"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["cache"]["state"] == "empty"
+    assert [d["date"] for d in body["days"]] == ["2026-06-08", "2026-06-09"]
+    cells = body["days"][0]["vendors"]
+    assert cells["claude"] == {"state": "unknown"}
+    assert cells["grok"] == {"state": "not_measured"}
+
+
+def test_history_refresh_param_starts_a_recalculation_without_waiting(monkeypatch):
+    from src.usage import token_history
+
+    calls = []
+    monkeypatch.setattr(token_history, "request_refresh", lambda: calls.append(1) or True)
+
+    r = _client().get("/admin/api/code/usage/history?refresh=true")
+
+    assert r.status_code == 200, r.text
+    assert calls  # started; the answer is still the (empty) cache
+    assert r.json()["cache"]["state"] == "empty"
+
+
+@pytest.mark.parametrize("query", ["from=2026-06-10&to=2026-06-01", "from=garbage"])
+def test_history_rejects_a_bad_range(query):
+    r = _client().get(f"/admin/api/code/usage/history?{query}")
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"]
