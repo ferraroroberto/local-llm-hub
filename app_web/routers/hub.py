@@ -47,6 +47,10 @@ from src.process.server_process import lan_ip
 from ._helpers import sse_stream
 
 logger = logging.getLogger(__name__)
+
+# launchd answers a kickstart in well under a second; 30 s means it is wedged, and this
+# call runs inside an async request handler.
+_LAUNCHCTL_TIMEOUT_S = 30
 router = APIRouter()
 
 
@@ -125,10 +129,14 @@ async def hub_restart() -> Dict[str, Any]:
         from src.install import LAUNCHAGENT_LABEL
 
         logger.info("🔄 /admin/api/hub/restart — launchctl kickstart")
-        subprocess.run(
-            ["launchctl", "kickstart", "-k", f"gui/{os.getuid()}/{LAUNCHAGENT_LABEL}"],
-            capture_output=True,
-        )
+        try:
+            subprocess.run(
+                ["launchctl", "kickstart", "-k", f"gui/{os.getuid()}/{LAUNCHAGENT_LABEL}"],
+                capture_output=True, timeout=_LAUNCHCTL_TIMEOUT_S,
+            )
+        except subprocess.TimeoutExpired:
+            logger.error("❌ launchctl kickstart did not return within %ss", _LAUNCHCTL_TIMEOUT_S)
+            return {"ok": False, "detail": f"launchctl kickstart timed out after {_LAUNCHCTL_TIMEOUT_S}s"}
         return {"ok": True, "detail": "hub will restart shortly via launchd"}
 
     if _under_systemd():

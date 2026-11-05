@@ -30,10 +30,13 @@ from typing import List, Optional
 
 
 def is_alive(pid: int) -> bool:
+    """True while ``pid`` runs. ``tasklist`` answers in well under a second, so 15 s means
+    it is wedged, and that reads as alive: relaunching over a hub that may still hold the
+    port is worse than waiting longer."""
     try:
         if sys.platform == "win32":
             r = subprocess.run(
-                ["tasklist", "/FI", f"PID eq {pid}"], capture_output=True,
+                ["tasklist", "/FI", f"PID eq {pid}"], capture_output=True, timeout=15,
                 # tasklist emits the OEM code page, not UTF-8 — pin decoding
                 # explicitly rather than inheriting text=True's ambient locale
                 # (global CLAUDE.md, "Windows Python: UTF-8 stdout under capture").
@@ -45,6 +48,8 @@ def is_alive(pid: int) -> bool:
             )
             return str(pid) in r.stdout
         os.kill(pid, 0)
+        return True
+    except subprocess.TimeoutExpired:
         return True
     except OSError:
         return False

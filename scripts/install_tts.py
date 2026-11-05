@@ -35,6 +35,11 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
+# A pip install resolves and downloads wheels; 30 min bounds a stuck pip, not a slow link.
+_PIP_TIMEOUT_S = 1800
+# The CUDA torch + torchaudio wheels are several GB; 1 h bounds a stalled download.
+_PIP_TORCH_TIMEOUT_S = 3600
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -116,12 +121,13 @@ def _pip_install_requirements() -> None:
     req = PROJECT_ROOT / "requirements-tts.txt"
     log.info("pip install -r %s", req)
     subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(req)],
-                   check=True, creationflags=no_window_flags())
+                   check=True, creationflags=no_window_flags(), timeout=_PIP_TIMEOUT_S)
     log.info("pip install --no-deps %s", _CHATTERBOX_PIN)
     subprocess.run(
         [sys.executable, "-m", "pip", "install", "--no-deps", _CHATTERBOX_PIN],
         check=True,
         creationflags=no_window_flags(),
+        timeout=_PIP_TIMEOUT_S,
     )
 
 
@@ -142,8 +148,13 @@ def _install_cuda_torch() -> None:
              "--index-url", _CUDA_TORCH_INDEX, *_CUDA_TORCH_SPEC],
             check=True,
             creationflags=no_window_flags(),
+            timeout=_PIP_TORCH_TIMEOUT_S,
         )
         log.info("  CUDA torch installed")
+    except subprocess.TimeoutExpired:
+        log.warning(
+            "CUDA torch install timed out after %ss — falling back to CPU torch.", _PIP_TORCH_TIMEOUT_S
+        )
     except subprocess.CalledProcessError as exc:
         log.warning(
             "CUDA torch install failed (%s) — falling back to CPU torch. "
@@ -162,8 +173,11 @@ def _install_cuda_onnxruntime() -> None:
             [sys.executable, "-m", "pip", "install", "--upgrade", _CUDA_ORT_SPEC],
             check=True,
             creationflags=no_window_flags(),
+            timeout=_PIP_TIMEOUT_S,
         )
         log.info("  ONNX Runtime GPU installed")
+    except subprocess.TimeoutExpired:
+        log.warning("ONNX Runtime GPU install timed out after %ss — Kokoro will use CPU.", _PIP_TIMEOUT_S)
     except subprocess.CalledProcessError as exc:
         log.warning(
             "ONNX Runtime GPU install failed (%s) — Kokoro will use CPU. "

@@ -27,6 +27,17 @@ def test_is_alive_false_for_a_pid_that_does_not_exist():
     assert watchdog.is_alive(999_999) is False
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="tasklist is the win32 liveness probe")
+def test_is_alive_reads_a_wedged_tasklist_as_alive(monkeypatch):
+    # Relaunching over a hub that may still hold the port is worse than waiting longer.
+    def _hang(cmd, **kwargs):
+        assert kwargs["timeout"] == 15
+        raise watchdog.subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+
+    monkeypatch.setattr(watchdog.subprocess, "run", _hang)
+    assert watchdog.is_alive(4242) is True
+
+
 def test_port_is_free_reports_free_port():
     # Bind to port 0 to get an OS-assigned free port, then release it.
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

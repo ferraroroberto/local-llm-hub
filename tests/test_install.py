@@ -78,6 +78,21 @@ def test_check_systemd_unit_warns_when_present_but_inactive(monkeypatch, tmp_pat
     assert "is-active=inactive" in c.detail
 
 
+def test_check_systemd_unit_reports_unknown_when_systemctl_times_out(monkeypatch, tmp_path):
+    unit = tmp_path / "local-llm-hub.service"
+    unit.write_text("unit", encoding="utf-8")
+    monkeypatch.setattr(install_mod, "_systemd_unit_path", lambda: unit)
+
+    def _hang(cmd, **kwargs):
+        assert kwargs["timeout"] == install_mod._SERVICE_QUERY_TIMEOUT_S
+        raise install_mod.subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+
+    monkeypatch.setattr(install_mod.subprocess, "run", _hang)
+    c = install_mod._check_systemd_unit()
+    assert c.status == "warn", "a wedged systemctl is unknown, never ok"
+    assert "state unknown" in c.detail
+
+
 def test_check_systemd_unit_ok_when_active(monkeypatch, tmp_path):
     unit = tmp_path / "local-llm-hub.service"
     unit.write_text("unit", encoding="utf-8")

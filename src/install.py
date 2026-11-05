@@ -39,6 +39,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 STATUS_ORDER = {"ok": 0, "warn": 1, "missing": 2, "error": 3}
 
+# A launchctl/systemctl/sudo query answers in well under a second; 30 s means it is wedged.
+_SERVICE_QUERY_TIMEOUT_S = 30
+# `systemctl daemon-reload` and `enable --now` start the unit; 2 min bounds a hung manager.
+_SYSTEMCTL_FIX_TIMEOUT_S = 120
+# A requirements install or a Swift release build downloads and compiles; 1 h bounds a stuck child.
+_BUILD_TIMEOUT_S = 3600
+
 
 @dataclass
 class Check:
@@ -334,10 +341,16 @@ def _check_launchagent() -> Check:
             fix_id="launchagent",
             fix_label="writes the plist + `launchctl bootstrap` (boot autostart + crash respawn)",
         )
-    loaded = subprocess.run(
-        ["launchctl", "print", f"gui/{os.getuid()}/{LAUNCHAGENT_LABEL}"],
-        capture_output=True, text=True, creationflags=NO_WINDOW,
-    ).returncode == 0
+    try:
+        loaded = subprocess.run(
+            ["launchctl", "print", f"gui/{os.getuid()}/{LAUNCHAGENT_LABEL}"],
+            capture_output=True, text=True, creationflags=NO_WINDOW, timeout=_SERVICE_QUERY_TIMEOUT_S,
+        ).returncode == 0
+    except subprocess.TimeoutExpired:
+        return Check(
+            "launchagent", "Boot-time LaunchAgent installed", "warn",
+            f"state unknown: `launchctl print` did not answer within {_SERVICE_QUERY_TIMEOUT_S}s",
+        )
     if not loaded:
         return Check(
             "launchagent", "Boot-time LaunchAgent installed", "warn",
@@ -372,14 +385,20 @@ def _check_systemd_unit() -> Check:
             fix_id="systemd_unit",
             fix_label="renders linux/systemd/local-llm-hub.service + `systemctl enable --now` (boot autostart + crash respawn)",
         )
-    active = subprocess.run(
-        ["systemctl", "is-active", SYSTEMD_UNIT_NAME],
-        capture_output=True, text=True, creationflags=NO_WINDOW,
-    ).stdout.strip()
-    enabled = subprocess.run(
-        ["systemctl", "is-enabled", SYSTEMD_UNIT_NAME],
-        capture_output=True, text=True, creationflags=NO_WINDOW,
-    ).stdout.strip()
+    try:
+        active = subprocess.run(
+            ["systemctl", "is-active", SYSTEMD_UNIT_NAME],
+            capture_output=True, text=True, creationflags=NO_WINDOW, timeout=_SERVICE_QUERY_TIMEOUT_S,
+        ).stdout.strip()
+        enabled = subprocess.run(
+            ["systemctl", "is-enabled", SYSTEMD_UNIT_NAME],
+            capture_output=True, text=True, creationflags=NO_WINDOW, timeout=_SERVICE_QUERY_TIMEOUT_S,
+        ).stdout.strip()
+    except subprocess.TimeoutExpired:
+        return Check(
+            "systemd_unit", "Boot-time systemd unit installed", "warn",
+            f"state unknown: `systemctl` did not answer within {_SERVICE_QUERY_TIMEOUT_S}s",
+        )
     if active != "active":
         return Check(
             "systemd_unit", "Boot-time systemd unit installed", "warn",
@@ -573,6 +592,7 @@ def _fix_deps() -> None:
         [sys.executable, "-m", "pip", "install", "-r", str(PROJECT_ROOT / "requirements.txt")],
         check=True,
         creationflags=NO_WINDOW,
+        timeout=_BUILD_TIMEOUT_S,
     )
 
 
@@ -608,6 +628,7 @@ def _fix_parakeet_worker() -> None:
         cwd=str(PROJECT_ROOT / "mac" / "parakeet-worker"),
         check=True,
         creationflags=NO_WINDOW,
+        timeout=_BUILD_TIMEOUT_S,
     )
 
 
@@ -632,13 +653,13 @@ def _fix_launchagent() -> None:
     # can transiently fail with "Input/output error" (confirmed live) —
     # so retry a few times with a short pause rather than a single attempt.
     subprocess.run(["launchctl", "bootout", f"gui/{uid}/{LAUNCHAGENT_LABEL}"],
-                   capture_output=True, creationflags=NO_WINDOW)
+                   capture_output=True, creationflags=NO_WINDOW, timeout=_SERVICE_QUERY_TIMEOUT_S)
     result = None
     for _ in range(5):
         time.sleep(1)
         result = subprocess.run(
             ["launchctl", "bootstrap", f"gui/{uid}", str(plist_path)],
-            capture_output=True, text=True, creationflags=NO_WINDOW,
+            capture_output=True, text=True, creationflags=NO_WINDOW, timeout=_SERVICE_QUERY_TIMEOUT_S,
         )
         if result.returncode == 0:
             break
@@ -669,6 +690,7 @@ def _fix_systemd_unit() -> None:
     tee = subprocess.run(
         ["sudo", "-n", "tee", str(unit_path)],
         input=rendered, capture_output=True, text=True, creationflags=NO_WINDOW,
+        timeout=_SERVICE_QUERY_TIMEOUT_S,
     )
     if tee.returncode != 0:
         raise RuntimeError(
@@ -677,7 +699,8 @@ def _fix_systemd_unit() -> None:
         )
     for args in (["daemon-reload"], ["enable", "--now", SYSTEMD_UNIT_NAME]):
         p = subprocess.run(["sudo", "-n", "systemctl", *args],
-                           capture_output=True, text=True, creationflags=NO_WINDOW)
+                           capture_output=True, text=True, creationflags=NO_WINDOW,
+                           timeout=_SYSTEMCTL_FIX_TIMEOUT_S)
         if p.returncode != 0:
             raise RuntimeError(
                 f"`sudo -n systemctl {' '.join(args)}` failed: "
