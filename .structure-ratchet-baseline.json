@@ -2,5 +2,12 @@
   "version": 1,
   "band": {"files": 4, "functions": 6},
   "root_extras": ["docker", "linux", "mac", "webapp"],
+  "shape_contract": {
+    "root_files": ["start_langfuse.bat", "start_langfuse.sh", "start_searxng.bat", "stop_langfuse.bat", "stop_langfuse.sh", "stop_searxng.bat"],
+    "redundant": [],
+    "folder_types": {
+      "scripts": 1
+    }
+  },
   "entries": []
 }
