@@ -35,7 +35,7 @@
 #      (deleting the last caller strands a definition elsewhere); exit 3 (git
 #      unusable, a file that does not parse) fails.
 #   9. conventions ratchet: no file's hit count for an enabled rule (no-window,
-#      logging-not-print, no-drive-path) rises beyond .conventions-ratchet-baseline.json.
+#      logging-not-print, no-drive-path, subprocess-timeout) rises beyond .conventions-ratchet-baseline.json.
 #      Whole tree, never routed; exit 3 (git unusable, a file that does not parse)
 #      fails.
 #   10. mmd history check (repo-specific, not vendored): no docs/**/*.mmd diagram

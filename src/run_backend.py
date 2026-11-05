@@ -130,6 +130,7 @@ def _run_backend(model_id: str) -> int:
     log.info("-> %s", " ".join(cmd))
     # Foreground execution so Ctrl+C works.
     # no-window-exempt: the backend runs attached to this console on purpose; hiding it would break Ctrl+C
+    # subprocess-timeout-exempt: foreground runner; the backend serves until the user stops it with Ctrl+C
     return subprocess.call(cmd, env=env, cwd=str(PROJECT_ROOT))
 
 

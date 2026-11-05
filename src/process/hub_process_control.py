@@ -31,6 +31,11 @@ from src.process.server_process import WIN_NEW_GROUP
 
 logger = logging.getLogger(__name__)
 
+# launchctl bootout returns once launchd drops the job; 30 s means launchd is wedged.
+_LAUNCHCTL_TIMEOUT_S = 30
+# `systemctl stop|restart` waits for the unit's stop sequence; 2 min bounds a hung unit.
+_SYSTEMCTL_TIMEOUT_S = 120
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -71,11 +76,14 @@ def _delayed_darwin_bootout(label: str, delay: float = 0.4) -> None:
 
     def _runner() -> None:
         time.sleep(delay)
-        # no-window-exempt: launchctl exists only on macOS, where there is no console window to hide
-        subprocess.run(
-            ["launchctl", "bootout", f"gui/{os.getuid()}/{label}"],
-            capture_output=True,
-        )
+        try:
+            # no-window-exempt: launchctl exists only on macOS, where there is no console window to hide
+            subprocess.run(
+                ["launchctl", "bootout", f"gui/{os.getuid()}/{label}"],
+                capture_output=True, timeout=_LAUNCHCTL_TIMEOUT_S,
+            )
+        except subprocess.TimeoutExpired:
+            logger.error("❌ `launchctl bootout %s` did not return within %ss", label, _LAUNCHCTL_TIMEOUT_S)
 
     threading.Thread(target=_runner, daemon=True).start()
 
@@ -106,11 +114,16 @@ def _delayed_systemctl(verb: str, delay: float = 0.4) -> None:
 
     def _runner() -> None:
         time.sleep(delay)
-        # no-window-exempt: sudo/systemctl exist only on Linux, where there is no console window to hide
-        r = subprocess.run(
-            ["sudo", "-n", "systemctl", verb, SYSTEMD_UNIT_NAME],
-            capture_output=True, text=True,
-        )
+        try:
+            # no-window-exempt: sudo/systemctl exist only on Linux, where there is no console window to hide
+            r = subprocess.run(
+                ["sudo", "-n", "systemctl", verb, SYSTEMD_UNIT_NAME],
+                capture_output=True, text=True, timeout=_SYSTEMCTL_TIMEOUT_S,
+            )
+        except subprocess.TimeoutExpired:
+            logger.error("❌ `sudo -n systemctl %s %s` did not return within %ss",
+                         verb, SYSTEMD_UNIT_NAME, _SYSTEMCTL_TIMEOUT_S)
+            return
         if r.returncode != 0:
             logger.error("⚠️ `sudo -n systemctl %s %s` failed: %s",
                          verb, SYSTEMD_UNIT_NAME, (r.stderr or "").strip())

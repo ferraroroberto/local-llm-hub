@@ -145,11 +145,16 @@ def _upload_path(tmpdir: str, client_filename: Optional[str]) -> Path:
     return Path(tmpdir) / f"upload{suffix}"
 
 
+# afconvert turns one uploaded clip into 16 kHz WAV in seconds; 5 min bounds a wedged
+# converter while the request holds the transcription lock.
+_CONVERT_TIMEOUT_S = 300
+
+
 def _to_wav16k_mono(src: Path) -> Path:
     dst = src.with_suffix(".norm.wav")
     subprocess.run(
         ["afconvert", "-f", "WAVE", "-d", "LEI16@16000", "-c", "1", str(src), str(dst)],
-        check=True, capture_output=True, creationflags=NO_WINDOW,
+        check=True, capture_output=True, creationflags=NO_WINDOW, timeout=_CONVERT_TIMEOUT_S,
     )
     return dst
 
@@ -191,6 +196,8 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
                 raw_path.write_bytes(await file.read())
                 try:
                     wav_path = await asyncio.to_thread(_to_wav16k_mono, raw_path)
+                except subprocess.TimeoutExpired:
+                    raise HTTPException(504, f"audio conversion timed out after {_CONVERT_TIMEOUT_S}s")
                 except subprocess.CalledProcessError as exc:
                     raise HTTPException(
                         400, f"audio conversion failed: {exc.stderr.decode(errors='replace')}"
