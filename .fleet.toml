@@ -299,6 +299,13 @@ rules       = ["no-window", "logging-not-print", "no-drive-path", "password-inpu
 exclude     = ["vendor/**", "data/**", "models/**"]
 print_paths = ["src/", "app_web/", "tray/"]
 
+# A raw replace skips the tmp-file swap. No sqlite3.connect entry: the two stores
+# each own their connection, and two call sites do not justify a shared helper.
+[[conventions_ratchet.must_use]]
+call   = "os.replace"
+helper = ["src/atomic_write.py"]
+why    = "src/atomic_write.py is the one atomic-write helper (write-tmp + replace)"
+
 # [runtime_write_ratchet] -- scripts/runtime_write_ratchet.py fails when a tracked
 # Python file gains a write target (open for writing, Path.write_*, mkdir, a log
 # FileHandler, sqlite3.connect, a copy destination) whose path resolves under a code
