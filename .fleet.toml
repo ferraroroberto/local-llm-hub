@@ -269,6 +269,10 @@ allow_refs = [
   ":162",
   "src/python/llm/**", "src/model-client.js", "src/hub_gemini_backend.py", "src/voice_command.py",
 ]
+# Names of removed modules: a doc that names one sends the next reader to code that is gone.
+retired = [
+  { term = "webauthn_gate", why = "the parked WebAuthn gate was removed; password sign-in uses the vendored sign-in sheet" },
+]
 
 # [dead_code_ratchet] -- the scaffold's baseline-and-ratchet for a Python function,
 # class or method that nothing in the repo refers to. The gate
