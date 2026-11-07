@@ -194,6 +194,23 @@ boxes):
   (satisfies the `>=2.9` pin; verified 2026-07-23 — GPU SNAC took the orpheus
   hub-e2e median from 4469 ms to 3753 ms).
 
+## GitHub Actions runner
+
+`mac-mini-m4` hosts the fleet's self-hosted GitHub Actions runner (the nightly WebKit and iOS Simulator pass). Its machine sheet carries a **Runner** section, shown for any machine whose overlay row has an `actions_runner:` block. The block names a repo and a registered runner, so like the addressing it lives only in `config/machines.local.yaml`; `config/machines.local.example.yaml` shows the shape. Every key is optional:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `dir` | `~/actions-runner` | the runner folder on the machine (a plain path; anything else is reported, not run) |
+| `repo` | read from the folder's `.runner` file | `owner/repo` the runner is registered on |
+| `name` | read from the folder's `.runner` file | the registered runner name |
+| `workflow` | none | a workflow file whose latest run the section shows; without it there is no Last run row |
+
+**Two readings, shown separately.** The hub reads the *service* with `./svc.sh status` over the hub user's own SSH (`src/fleet/ssh_exec.py`, the same channel as the stats), and *GitHub's view* with `gh api` on the hub machine: the runner online or offline, busy or idle, and the latest result of the workflow. The two are never merged into one guess. A disagreement (service running, GitHub offline) is its own state, and a reading that could not be taken (SSH down, `gh` missing or logged out, an unreadable folder) reads **Not confirmed** and never counts as fine. The Runner state is read when the sheet opens and every 20 s while it stays open; GitHub answers are cached for 15 s.
+
+**Verbs.** `GET /admin/api/machines/{id}/runner` returns the readings, the verbs the state allows and why the others are off. `POST /admin/api/machines/{id}/runner/{start|stop|install}` runs `./svc.sh` over SSH, then re-reads both sources every 3 s for up to 40 s until they match the verb, and answers with the outcome of that re-read (`ok` is true only when the service and GitHub both match; `outcome` is `done`, `service_only` when GitHub lags, or `failed`). The sheet's toast repeats it. Install runs `svc.sh install` then `start`, and is offered only when the service is not installed. **Stop is refused** (409, nothing sent) while GitHub reports a job running, and while GitHub's view cannot be read, because idle cannot then be confirmed. Start is refused on a service that is already running. The runner on the hub's own machine is never managed from here.
+
+**Boot persistence.** The runner is installed with `svc.sh install`, a **LaunchAgent**, and it comes back after a reboot because the Mac auto-logs-in the runner user. A LaunchDaemon would not depend on a login, but it runs outside the user's GUI session and the iOS Simulator needs that session, so the nightly smoke would fail; the LaunchAgent plus auto-login stays. The same SSH read reports the three facts that make that work: auto-login set for the runner user, FileVault off (it blocks auto-login), and sleep disabled (`autorestart` is shown too). When one is missing the **Boot** row reads *Needs a step at the Mac* and the section names it. Turning auto-login on needs the user's password, so it is an owner step at the Mac (System Settings › Users & Groups), never done from the hub. Full runner setup and the remote install: project-scaffolding's `docs/mac-runner.md`.
+
 ## Tailscale identities
 
 Every host has a Tailscale magic-DNS name. The names themselves are **not

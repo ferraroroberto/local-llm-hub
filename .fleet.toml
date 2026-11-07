@@ -268,6 +268,7 @@ allow_refs = [
   ":8093", ":8094", ":8095", ":8096", ":8098", ":8188", ":8190", ":18093",
   ":162",
   "src/python/llm/**", "src/model-client.js", "src/hub_gemini_backend.py", "src/voice_command.py",
+  "docs/mac-runner.md",
 ]
 # Names of removed modules: a doc that names one sends the next reader to code that is gone.
 retired = [

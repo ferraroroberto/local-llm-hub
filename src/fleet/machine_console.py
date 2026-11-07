@@ -109,6 +109,10 @@ def _card_base(
         # down/dormant/unreachable peer, unlike the live-probed `network`
         # block below (which needs a successful SSH round-trip).
         "mac": host.mac,
+        # The machine hosts a GitHub Actions runner: the sheet shows a Runner
+        # section, read on demand from /api/machines/{id}/runner (SSH and
+        # GitHub per read, too heavy for this tab's poll).
+        "runner": host.actions_runner is not None and not is_host,
         # LAN address — same static config value used to dial this
         # peer, so it shows even when the peer is down/dormant. `None` here
         # on the active host's own row; `_probe_machine`'s `is_host` branch
