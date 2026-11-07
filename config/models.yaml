@@ -699,6 +699,7 @@ models:
     # whisper-server via `python -m src.install --fix`.
     hosts: [gaming, mac-mini-m4, {id: tower, cpu: true}]
     startup: on_demand
+    idle_unload_minutes: 10
     engine: whisper-server
     port: 8090
     # large-v3-turbo fp16 ≈ 2000 MB VRAM (docs/whisper-turbo-vs-large-v3.md §VRAM).
