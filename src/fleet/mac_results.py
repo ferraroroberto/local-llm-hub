@@ -40,6 +40,8 @@ from .ssh_exec import SshResult, run_ssh
 
 RESULTS_KEY_ENV = "LOCAL_LLM_HUB_RESULTS_SSH_KEY"
 STAGING_ENV = "MAC_RESULTS_STAGING"
+HOST_ENV = "MAC_RESULTS_HOST"
+STATUS_ENV = "MAC_RESULTS_STATUS_FILE"
 
 # The Mac prunes at 14 days; a window well inside that means a run is never
 # being deleted while it is pulled.
@@ -377,15 +379,37 @@ def _print_report(report: PassReport) -> None:
     if report.list_state != "ok":
         print(f"❌ Mac results not read ({report.list_state}): {report.list_detail}")
         return
+    if not report.outcomes:
+        print("ℹ️ nothing new to deliver")
     icons = {DELIVERED: "✅", EMPTY: "ℹ️", PENDING: "ℹ️", WOULD_DELIVER: "ℹ️", REFUSED: "❌", NOT_CONFIRMED: "⚠️"}
     for o in report.outcomes:
         print(f"{icons[o.state]} {o.repo} run {o.run_id}: {o.state} - {o.detail}")
     print(f"ℹ️ already delivered: {report.already_delivered}; outside the pull window: {report.out_of_window}")
 
 
+def _write_status(code: int) -> None:
+    """Record the exit code where a wrapping job can read it: a headless agent
+    session exits 0 whatever its pass reported, so the job reads this instead."""
+    target = os.environ.get(STATUS_ENV, "").strip()
+    if not target:
+        return
+    try:
+        Path(target).parent.mkdir(parents=True, exist_ok=True)
+        Path(target).write_text(f"{code}\n", encoding="ascii")
+    except OSError as exc:
+        # No file means the job reports "not confirmed", never a pass.
+        print(f"⚠️ could not write the status file ({exc.__class__.__name__})")
+
+
 def main(argv: Optional[List[str]] = None) -> int:
+    code = _main(argv)
+    _write_status(code)
+    return code
+
+
+def _main(argv: Optional[List[str]]) -> int:
     parser = argparse.ArgumentParser(description="Pull the nightly Mac screenshots and deliver them to the owner's chat.")
-    parser.add_argument("--host", required=True, help="machine id of the Mac runner host (config/machines.local.yaml)")
+    parser.add_argument("--host", default=None, help=f"machine id of the Mac runner host (config/machines.local.yaml); default: ${HOST_ENV} from .env")
     parser.add_argument("--window-days", type=int, default=DEFAULT_WINDOW_DAYS)
     parser.add_argument("--dry-run", action="store_true", help="list only: no copy, no send, nothing recorded")
     parser.add_argument("--send-file", default=None, help="path to send_file.py (default: the fleet-config checkout beside this repo)")
@@ -396,7 +420,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
     except ImportError:
         pass
-    ssh, problem = _ssh_for(args.host)
+    host_id = (args.host or os.environ.get(HOST_ENV, "")).strip()
+    if not host_id:
+        print(f"❌ no host: pass --host or set {HOST_ENV} in .env")
+        return 2
+    ssh, problem = _ssh_for(host_id)
     if ssh is None:
         print(f"❌ {problem}")
         return 2

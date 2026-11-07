@@ -69,6 +69,27 @@ The machine id given to `--host` is a row of `config/machines.local.yaml` with a
 
 Check the restriction from the hub: `whoami`, `list; id` and a `get` with `..` in the file name must each answer `rejected command` or `bad file name`.
 
-## Scheduling and the delivery session
+## The scheduled job
 
-`send_file.py` posts into the chat of a **live launcher session** (it needs `APP_LAUNCHER_SESSION_ID`, which the launcher sets for the agent sessions it hosts) and only accepts files under that session's folder or `%TEMP%/claude`, which is where the pass stages each image and removes it afterwards. The hub process itself has no such session, and job scheduling is not the hub's, so the pass is a command for a launcher-run job: run it once after the nightly window (the workflow's cron is 02:00 UTC and the Mac is busy until about 05:00 local) and again later as the retry. A pass run without a launcher session reports `UNAVAILABLE=no-launcher-session` per image and delivers nothing.
+`send_file.py` posts into the chat of a **live launcher session** (it needs `APP_LAUNCHER_SESSION_ID`, which the launcher sets for the agent sessions it hosts) and only accepts files under that session's folder or `%TEMP%/claude`, which is where the pass stages each image and removes it afterwards. The hub process has no such session, and job scheduling is not the hub's, so the pass runs as a **headless agent job** like the frontier refresh: [`.claude/skills/mac-results/run-nightly.bat`](../.claude/skills/mac-results/run-nightly.bat) starts `claude -p "/mac-results"`, and the [skill](../.claude/skills/mac-results/SKILL.md) runs one foreground pass and relays the CLI's per-run lines. A pass run without a launcher session reports `UNAVAILABLE=no-launcher-session` per image and delivers nothing.
+
+Configuration, all in the gitignored `.env`: `MAC_RESULTS_HOST` (the machine id the pass uses when `--host` is not given, so no host name lives in a committed file) and `LOCAL_LLM_HUB_RESULTS_SSH_KEY`.
+
+**Exit code.** A headless `claude -p` exits 0 whatever its pass reported, so the CLI also writes its own exit code to the file named by `MAC_RESULTS_STATUS_FILE` (the `.bat` sets it and deletes any stale copy first) and the `.bat` exits with that code: 0 delivered, waiting or nothing new; 1 Mac unreadable, a run refused or not confirmed; 2 host, key or `send_file.py` not configured. A missing or non-numeric status file is exit 3, "not confirmed", never a pass; if `claude` itself fails, its code is returned. The Jobs tab therefore shows a failed pass as failed, with the CLI's reason in the job log.
+
+**Schedule.** The nightly workflow's cron is 02:00 UTC and the Mac is busy until about 05:00 local, so the job runs once after that window and once more later as the retry (a retry resends only what never landed, and prints `nothing new to deliver` when there is nothing). The entry belongs in the owner's `jobs.json`, in the shape of app-launcher's `jobs.sample.json`; the repo does not edit that file:
+
+```json
+{
+  "id": "mac-results",
+  "name": "Mac results (nightly pull)",
+  "script_path": "<repo checkout>\.claude\skills\mac-results\run-nightly.bat",
+  "args": "",
+  "schedule": { "type": "daily", "at": "06:00" },
+  "visible": true,
+  "alert_on_failure": true,
+  "cooldown_seconds": 3600
+}
+```
+
+The retry is a second entry with its own `id` and `"at": "12:00"`. Both jobs need the hub's `.env` to be the checkout's own, so `script_path` points at the primary checkout.
