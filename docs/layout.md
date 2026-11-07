@@ -257,6 +257,7 @@ local-llm-hub/
 │   ├── gen_icons.py          # thin caller onto project-scaffolding's shared brand_gen.py (hub master)
 │   ├── bench_orpheus.py      # measure Orpheus llama-server throughput (tok/s, e2e)
 │   ├── bench_voice.py        # STT+TTS bench on any hub (RTFx/WER/latency) — placement decisions
+│   ├── canary_preflight.py   # ES→EN translate comparison on public FLEURS clips: Canary vs whisper_translate vs two-stage
 │   ├── download_models.py    # huggingface_hub → models/
 │   ├── detect_machine_specs.py   # populate config/machine_specs.yaml
 │   ├── install_llama_cpp.py      # CUDA-Windows / Metal-macOS release
@@ -304,7 +305,7 @@ local-llm-hub/
 │   ├── launchagent/           #   LaunchAgent template: boot-time start + keep-alive (#323)
 │   ├── bin/hub-remote-ctl.sh  #   forced-command SSH dispatcher for the remote-ctl key (#181)
 │   ├── bin/hub-results-pull.sh #  read-only forced-command dispatcher for the results-puller key
-│   └── parakeet-worker/       #   Swift package: FluidAudio Parakeet CoreML ASR worker
+│   └── parakeet-worker/       #   Swift package: FluidAudio Parakeet CoreML ASR worker (+ CanaryWorker, a pre-flight-only sibling)
 ├── linux/                     # Linux-satellite process supervision
 │   ├── systemd/                #   systemd unit: boot-time start + keep-alive (#323)
 │   └── bin/hub-remote-ctl.sh   #   forced-command SSH dispatcher, systemd counterpart (#181, #368)
