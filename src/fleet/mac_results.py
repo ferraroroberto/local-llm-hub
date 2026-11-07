@@ -4,8 +4,10 @@ The Mac runner writes ``~/mac-nightly-results/<repo>/<run id>/`` (a ``READY``
 file marks a complete run). One pass of this module lists those runs over the
 read-only forced-command SSH key (``mac/bin/hub-results-pull.sh``), copies the
 ``*.png`` files of each new run, hands them to fleet-config's send-file script and records the
-run as delivered only after every send is confirmed. Nothing is written back to
-the Mac. Setup and the forced-command key: ``docs/mac-results.md``.
+run as delivered only after every send is confirmed. A run whose ``READY`` says
+``audit=miss`` also has its ``audit.json`` copied and handed to project-scaffolding's
+``routing_audit.py file``, which owns the adopter issue (the Mac holds no ``gh``).
+Nothing is written back to the Mac. Setup and the forced-command key: ``docs/mac-results.md``.
 
 The run folder is data produced by adopter code, so every value that crosses
 SSH is re-validated here: names and ids against strict patterns before a
@@ -22,6 +24,7 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import json
 import os
 import re
 import shutil
@@ -52,17 +55,28 @@ MAX_RUNS_PER_PASS = 10
 MAX_FILES_PER_RUN = 20
 MAX_FILE_BYTES = 8 * 1024 * 1024
 MAX_RUN_BYTES = 40 * 1024 * 1024
+# Mirrors MAX_AUDIT_BYTES in the Mac script; routing_audit.py's own cap (1 MB) is looser.
+MAX_AUDIT_BYTES = 256 * 1024
 
 _SSH_LIST_TIMEOUT_S = 30
 _SSH_GET_TIMEOUT_S = 90
 _SEND_TIMEOUT_S = 60
+# routing_audit.py file makes up to four gh calls of 60 s each.
+_FILE_TIMEOUT_S = 300
 
 _REPO_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 _RUN_RE = re.compile(r"^[0-9]{1,20}$")
 _REL_RE = re.compile(r"^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+){0,3}\.png$")
 _OUTCOME_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+_FILE_LINE_RE = re.compile(r"^FILE=(none|created|commented|unchanged|unknown)\b(.*)$")
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 _REGULAR = "Regular File"
+
+# What READY records for the routing audit. Anything but clean or miss (the
+# "unknown" word, a missing line, "not run") is the audit not having measured the night.
+AUDIT_CLEAN = "clean"
+AUDIT_MISS = "miss"
+AUDIT_UNKNOWN = "unknown"
 
 # Outcome states (one per run, per pass).
 DELIVERED = "delivered"
@@ -71,6 +85,9 @@ REFUSED = "refused"  # a gate failed; says why
 NOT_CONFIRMED = "not_confirmed"  # a copy or a send could not be confirmed
 EMPTY = "empty"  # READY, and the Mac confirms there is no image to send
 WOULD_DELIVER = "would_deliver"  # --dry-run only
+AUDIT_FILED = "audit_filed"  # the filing tool confirmed an outcome (FILE=created|commented|unchanged)
+AUDIT_NOT_MEASURED = "audit_unknown"  # the audit was not measured, or the filing was not confirmed
+WOULD_FILE = "would_file"  # --dry-run only
 
 
 @dataclass(frozen=True)
@@ -81,6 +98,7 @@ class RunEntry:
     age_s: int
     e2e: str
     smoke: str
+    audit: str = AUDIT_UNKNOWN
 
 
 @dataclass(frozen=True)
@@ -108,7 +126,8 @@ class PassReport:
         1 = at least one thing is unknown or refused (the next pass retries)."""
         if self.list_state != "ok":
             return 1
-        return 1 if any(o.state in (REFUSED, NOT_CONFIRMED) for o in self.outcomes) else 0
+        bad = (REFUSED, NOT_CONFIRMED, AUDIT_NOT_MEASURED)
+        return 1 if any(o.state in bad for o in self.outcomes) else 0
 
 
 @dataclass(frozen=True)
@@ -117,8 +136,15 @@ class SendOutcome:
     detail: str = ""
 
 
+@dataclass(frozen=True)
+class FileOutcome:
+    state: str  # the FILE= word: none | created | commented | unchanged | unknown
+    detail: str = ""
+
+
 Ssh = Callable[[str, int], SshResult]
 Sender = Callable[[Path, str], SendOutcome]
+Filer = Callable[[Path], FileOutcome]
 
 
 # ------------------------------------------------------------------ listing
@@ -144,8 +170,9 @@ def parse_listing(text: str) -> Tuple[List[RunEntry], List[str]]:
         parts = line.split(" ")
         if len(parts) == 2 and parts[0] == "NOW" and parts[1].isdigit():
             now = int(parts[1])
-        elif len(parts) == 7 and parts[0] == "RUN" and now is not None:
-            _, repo, run_id, kind, stamp, e2e, smoke = parts
+        elif len(parts) in (7, 8) and parts[0] == "RUN" and now is not None:
+            # A dispatcher that predates the audit field sends 7 parts: its audit is unknown.
+            _, repo, run_id, kind, stamp, e2e, smoke, *audit = parts
             if not (_REPO_RE.match(repo) and _RUN_RE.match(run_id) and kind in ("ready", "pending") and stamp.isdigit()):
                 malformed.append("RUN line failed validation")
                 continue
@@ -153,6 +180,7 @@ def parse_listing(text: str) -> Tuple[List[RunEntry], List[str]]:
                 repo, run_id, kind == "ready", max(0, now - int(stamp)),
                 e2e if _OUTCOME_RE.match(e2e) else "unknown",
                 smoke if _OUTCOME_RE.match(smoke) else "unknown",
+                audit[0] if audit and audit[0] in (AUDIT_CLEAN, AUDIT_MISS) else AUDIT_UNKNOWN,
             ))
         elif line.strip():
             malformed.append("unparseable listing line")
@@ -212,6 +240,26 @@ def decode_image(output: str, expected_size: int) -> bytes:
     return data
 
 
+def decode_audit(output: str, repo: str) -> bytes:
+    """The run's ``audit.json`` bytes from the script's base64, or :class:`Refusal`.
+    Adopter code wrote it, so it must fit the cap, parse as an object and name
+    the repo whose folder it came from: the filing tool derives the target repo
+    from that field, and a file in one adopter's folder must not file in another's."""
+    try:
+        data = base64.b64decode("".join(output.split()), validate=True)
+    except (binascii.Error, ValueError):
+        raise Refusal("a copied audit.json was not valid base64") from None
+    if len(data) > MAX_AUDIT_BYTES:
+        raise Refusal(f"audit.json is over the {MAX_AUDIT_BYTES // 1024} KiB cap")
+    try:
+        parsed = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        raise Refusal("audit.json is not valid JSON") from None
+    if not isinstance(parsed, dict) or parsed.get("repo") != repo:
+        raise Refusal("audit.json does not name the repo of its run folder")
+    return data
+
+
 # ----------------------------------------------------------------- delivery
 
 
@@ -245,6 +293,34 @@ def parse_send_result(stdout: str) -> SendOutcome:
         if line.startswith("UNAVAILABLE="):
             return SendOutcome("unavailable", line[:200])
     return SendOutcome("unavailable", "send_file.py printed no result line")
+
+
+def make_routing_audit_filer(script: Path) -> Filer:
+    """A :data:`Filer` that runs project-scaffolding's ``routing_audit.py file``
+    and reads its ``FILE=`` line. No line, or a failure to run, is ``unknown``."""
+
+    def file_it(audit_path: Path) -> FileOutcome:
+        try:
+            result = subprocess.run(
+                [sys.executable, str(script), "file", "--audit", str(audit_path)],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                stdin=subprocess.DEVNULL, timeout=_FILE_TIMEOUT_S, creationflags=NO_WINDOW,
+            )
+        except subprocess.TimeoutExpired:
+            return FileOutcome("unknown", f"routing_audit.py gave no answer in {_FILE_TIMEOUT_S}s")
+        except OSError as exc:
+            return FileOutcome("unknown", f"routing_audit.py could not run ({type(exc).__name__})")
+        return parse_file_result(result.stdout)
+
+    return file_it
+
+
+def parse_file_result(stdout: str) -> FileOutcome:
+    for line in reversed([ln.strip() for ln in stdout.splitlines() if ln.strip()]):
+        found = _FILE_LINE_RE.match(line)
+        if found:
+            return FileOutcome(found.group(1), re.sub(r"[^\x20-\x7e]", "", found.group(2)).strip()[:120])
+    return FileOutcome("unknown", "routing_audit.py printed no FILE= line")
 
 
 def caption_for(entry: RunEntry, rel: str, index: int, total: int) -> str:
@@ -312,8 +388,38 @@ def _copy_and_send(entry: RunEntry, images: List[RemoteImage], ssh: Ssh, send: S
     return RunOutcome(repo, run_id, DELIVERED, f"{sent_now} sent now, {len(images)} in the run")
 
 
+def file_audit(entry: RunEntry, ssh: Ssh, filer: Optional[Filer], conn, staging_root: Path) -> RunOutcome:
+    """Copy a ``miss`` run's audit.json and have the filing tool file or update the
+    adopter's one issue. Recorded only when the tool confirmed an outcome."""
+    repo, run_id = entry.repo, entry.run_id
+    if filer is None:
+        return RunOutcome(repo, run_id, AUDIT_NOT_MEASURED, "routing_audit.py not found; pass --routing-audit")
+    got = ssh(f"audit {repo} {run_id}", _SSH_GET_TIMEOUT_S)
+    if not got.ok:
+        return RunOutcome(repo, run_id, AUDIT_NOT_MEASURED, f"copying audit.json failed: {_ssh_failure(got)}")
+    try:
+        data = decode_audit(got.stdout, repo)
+    except Refusal as exc:
+        return RunOutcome(repo, run_id, REFUSED, str(exc))
+    staging = staging_root / f"{repo}-{run_id}-audit"
+    shutil.rmtree(staging, ignore_errors=True)
+    # runtime-write-exempt: the staged audit.json beside the image staging folders, removed after the run
+    staging.mkdir(parents=True, exist_ok=True)
+    try:
+        path = staging / "audit.json"
+        path.write_bytes(data)  # runtime-write-exempt: the same staging folder
+        filed = filer(path)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    if filed.state in ("created", "commented", "unchanged"):
+        store.mark_audit_filed(conn, repo, run_id, filed.state)
+        return RunOutcome(repo, run_id, AUDIT_FILED, f"FILE={filed.state} {filed.detail}".strip())
+    # none: the file contradicts READY's audit=miss, so neither is trusted; unknown: gh could not confirm.
+    return RunOutcome(repo, run_id, AUDIT_NOT_MEASURED, f"FILE={filed.state} {filed.detail}".strip())
+
+
 def run_pass(ssh: Ssh, send: Sender, conn, staging_root: Path, *, window_days: int = DEFAULT_WINDOW_DAYS,
-             dry_run: bool = False) -> PassReport:
+             dry_run: bool = False, filer: Optional[Filer] = None) -> PassReport:
     """One pull-and-deliver pass over the Mac's results folder."""
     report = PassReport()
     listed = ssh("list", _SSH_LIST_TIMEOUT_S)
@@ -328,17 +434,30 @@ def run_pass(ssh: Ssh, send: Sender, conn, staging_root: Path, *, window_days: i
     for entry in sorted(runs, key=lambda r: r.age_s):
         if entry.age_s > window_s:
             report.out_of_window += 1
-        elif store.run_delivered(conn, entry.repo, entry.run_id):
-            report.already_delivered += 1
-        elif not entry.ready:
+            continue
+        if not entry.ready:
             report.outcomes.append(RunOutcome(entry.repo, entry.run_id, PENDING, "no READY yet"))
+            continue
+        need_images = not store.run_delivered(conn, entry.repo, entry.run_id)
+        need_audit = entry.audit == AUDIT_MISS and not store.audit_filed(conn, entry.repo, entry.run_id)
+        if entry.audit == AUDIT_UNKNOWN:
+            # Never folded into clean: the night was not measured. Not recorded, so every pass says so.
+            report.outcomes.append(RunOutcome(entry.repo, entry.run_id, AUDIT_NOT_MEASURED, "READY records no measured routing audit"))
+        if not (need_images or need_audit):
+            report.already_delivered += 1
         elif dry_run:
-            report.outcomes.append(RunOutcome(entry.repo, entry.run_id, WOULD_DELIVER, "READY, not yet delivered"))
+            if need_images:
+                report.outcomes.append(RunOutcome(entry.repo, entry.run_id, WOULD_DELIVER, "READY, not yet delivered"))
+            if need_audit:
+                report.outcomes.append(RunOutcome(entry.repo, entry.run_id, WOULD_FILE, "audit=miss, not yet filed"))
         elif attempted >= MAX_RUNS_PER_PASS:
             report.outcomes.append(RunOutcome(entry.repo, entry.run_id, PENDING, "left for the next pass (per-pass cap)"))
         else:
             attempted += 1
-            report.outcomes.append(deliver_run(entry, ssh, send, conn, staging_root))
+            if need_images:
+                report.outcomes.append(deliver_run(entry, ssh, send, conn, staging_root))
+            if need_audit:
+                report.outcomes.append(file_audit(entry, ssh, filer, conn, staging_root))
     return report
 
 
@@ -348,6 +467,11 @@ def run_pass(ssh: Ssh, send: Sender, conn, staging_root: Path, *, window_days: i
 def _default_send_file() -> Path:
     # fleet-config is a sibling checkout of this repo (or of its -wt worktree).
     return Path(__file__).resolve().parents[3] / "fleet-config" / "skills" / "_lib" / "send_file.py"
+
+
+def _default_routing_audit() -> Path:
+    # project-scaffolding is a sibling checkout, like fleet-config.
+    return Path(__file__).resolve().parents[3] / "project-scaffolding" / "scripts" / "routing_audit.py"
 
 
 def _staging_root() -> Path:
@@ -381,7 +505,8 @@ def _print_report(report: PassReport) -> None:
         return
     if not report.outcomes:
         print("ℹ️ nothing new to deliver")
-    icons = {DELIVERED: "✅", EMPTY: "ℹ️", PENDING: "ℹ️", WOULD_DELIVER: "ℹ️", REFUSED: "❌", NOT_CONFIRMED: "⚠️"}
+    icons = {DELIVERED: "✅", EMPTY: "ℹ️", PENDING: "ℹ️", WOULD_DELIVER: "ℹ️", REFUSED: "❌", NOT_CONFIRMED: "⚠️",
+             AUDIT_FILED: "✅", AUDIT_NOT_MEASURED: "⚠️", WOULD_FILE: "ℹ️"}
     for o in report.outcomes:
         print(f"{icons[o.state]} {o.repo} run {o.run_id}: {o.state} - {o.detail}")
     print(f"ℹ️ already delivered: {report.already_delivered}; outside the pull window: {report.out_of_window}")
@@ -414,6 +539,7 @@ def _main(argv: Optional[List[str]]) -> int:
     parser.add_argument("--window-days", type=int, default=DEFAULT_WINDOW_DAYS)
     parser.add_argument("--dry-run", action="store_true", help="list only: no copy, no send, nothing recorded")
     parser.add_argument("--send-file", default=None, help="path to send_file.py (default: the fleet-config checkout beside this repo)")
+    parser.add_argument("--routing-audit", default=None, help="path to routing_audit.py (default: the project-scaffolding checkout beside this repo)")
     args = parser.parse_args(argv)
 
     try:
@@ -433,10 +559,13 @@ def _main(argv: Optional[List[str]]) -> int:
     if not send_file.is_file():
         print("❌ send_file.py not found; pass --send-file")
         return 2
+    # A missing filing script does not stop the screenshots: a miss run then reports audit_unknown.
+    routing_audit = Path(args.routing_audit) if args.routing_audit else _default_routing_audit()
+    filer = make_routing_audit_filer(routing_audit) if routing_audit.is_file() else None
     conn = store.connect()
     try:
         report = run_pass(ssh, make_send_file_sender(send_file), conn, _staging_root(),
-                          window_days=args.window_days, dry_run=args.dry_run)
+                          window_days=args.window_days, dry_run=args.dry_run, filer=filer)
     finally:
         conn.close()
     _print_report(report)

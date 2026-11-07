@@ -91,7 +91,8 @@ start/stop/install, then a re-read"]
     MACRESULTS["fleet/mac_results.py
 one CLI pass: list the Mac runner's result runs over a
 read-only forced-command key (mac/bin/hub-results-pull.sh),
-copy new *.png, send_file.py to the chat, record in SQLite"]
+copy new *.png, send_file.py to the chat, file the routing
+audit for a miss run, record in SQLite"]
     SSHTERM["fleet/ssh_terminal.py\nin-browser SSH terminal: drives\napp-launcher's session-host over loopback"]
     SSHEXEC["fleet/ssh_exec.py\nthe one `ssh <user>@<host> <cmd>` builder:\nBatchMode + ConnectTimeout + accept-new,\nNO_WINDOW spawn; callers adapt the result shape"]
     DIAG["diagnostics/\nsampler (in-hub asyncio task, no resident proc) ·\nattribution (process -> fleet app + ports, per-OS) ·\nrules (health verdict) · coverage (measured vs blind) ·\nreport (summary/drift/md) · store (SQLite) ·\ningest (foreign portable capture)"]
