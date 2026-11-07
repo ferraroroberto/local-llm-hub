@@ -116,6 +116,8 @@ local-llm-hub/
 │   │   ├── ssh_terminal.py           #   in-browser SSH terminal, reusing app-launcher's session-host PTY
 │   │   ├── ssh_exec.py               #   the one `ssh <user>@<host> <cmd>` builder (remote_stats + remote_bootstrap + actions_runner)
 │   │   ├── actions_runner.py         #   a machine's GitHub Actions runner: service + GitHub readings, start/stop/install
+│   │   ├── mac_results.py            #   one pass: pull the Mac runner's new screenshots over the read-only key, send them to the owner's chat
+│   │   ├── mac_results_store.py      #   the pull's own SQLite record of what it delivered (runtime-data path)
 │   │   ├── wake_on_lan.py            #   Wake-on-LAN magic-packet builder/sender
 │   │   ├── sync_diagnosis.py         #   why a peer hub is out of sync with this one + whether Sync can fix it
 │   │   ├── fleet_reconcile.py        #   additive reconcile loop: wake + start registry-desired models
@@ -298,6 +300,7 @@ local-llm-hub/
 ├── mac/                       # macOS-host process supervision + ASR worker
 │   ├── launchagent/           #   LaunchAgent template: boot-time start + keep-alive (#323)
 │   ├── bin/hub-remote-ctl.sh  #   forced-command SSH dispatcher for the remote-ctl key (#181)
+│   ├── bin/hub-results-pull.sh #  read-only forced-command dispatcher for the results-puller key
 │   └── parakeet-worker/       #   Swift package: FluidAudio Parakeet CoreML ASR worker
 ├── linux/                     # Linux-satellite process supervision
 │   ├── systemd/                #   systemd unit: boot-time start + keep-alive (#323)
