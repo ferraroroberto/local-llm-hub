@@ -93,6 +93,8 @@ export const state = {
   machinesBusyIds: {},      // machine id -> true while a reboot/shutdown POST is in flight
   machinesRecheckIds: {},   // machine id -> true while a fresh status re-check is pending
   machinesHubBusyIds: {},   // machine id -> true while a peer-hub bootstrap/sync POST is in flight
+  machinesRunner: {},       // machine id -> { data, at, error }: the Actions runner read (machines_runner.js)
+  machinesRunnerBusy: {},   // machine id -> the runner verb in flight (start | stop | install)
   machinesSelectedId: null, // machine whose sheet / wide detail pane is open
 
   // Diagnostics drill-in

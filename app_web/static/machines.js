@@ -11,7 +11,7 @@
  * is down). Tapping a row opens the machine's sheet on a phone, or fills the
  * detail pane beside the list on a wide window; both render machineBody():
  * gauges, the health watch (this machine), Terminal and Remote, connection, the machine's own hub (Sync, the
- * out-of-sync state, Start hub), then Reboot and Shut down last, behind the
+ * out-of-sync state, Start hub), its Actions runner (machines_runner.js), then Reboot and Shut down last, behind the
  * confirm dialog. The pane header line names "N offline" or the stale age,
  * else the machine count (plus how many are dormant). A dormant machine
  * (intentionally off, switched in Settings › Machines) is a neutral row
@@ -24,6 +24,7 @@ import { icon } from './_vendored/icons/icons.js';
 import { confirmDialog } from './confirm_dialog.js';
 import { row, chip, setHeadLine, infoButton, defineInfo, isWide, onWideChange } from './rows.js';
 import { openMachinesTerminal, wireMachinesTerminal } from './machines_terminal.js';
+import { initRunner, runnerSection, runnerVerb, refreshRunnerIfDue } from './machines_runner.js';
 import { openDiagnostics, wireDiagnostics, refreshDiagnosticsChip } from './diagnostics.js';
 
 let pollHandle = null;
@@ -460,6 +461,7 @@ function machineBody(m, isStale, wide, connOpen) {
     + toolsSection(m, wide)
     + connectionSection(m, connOpen)
     + hubSection(m)
+    + runnerSection(m)
     + dangerSection(m, isStale)
     + '</div>';
 }
@@ -576,6 +578,13 @@ function renderMachines() {
   renderDiagCard(machines);
   renderDetail(isStale);
   renderSheet(isStale);
+  refreshOpenRunner();
+}
+
+/* The runner is read only for the machine whose sheet or detail pane is showing. */
+function refreshOpenRunner() {
+  const open = isWide() || (els.machineSheet && els.machineSheet.open);
+  if (open && state.machinesSelectedId) refreshRunnerIfDue(findMachine(state.machinesSelectedId));
 }
 
 // --------------------------------------------------------- open a machine
@@ -728,10 +737,12 @@ function onMachinesClick(ev) {
   else if (action === 'rdp') downloadRdp(id, displayName);
   else if (action === 'wake') wakeMachine(id, displayName);
   else if (action === 'bootstrap' || action === 'sync') peerHubAction(id, displayName, action);
+  else if (action.indexOf('runner-') === 0) runnerVerb(id, displayName, action.slice('runner-'.length));
   else if (action === 'reboot' || action === 'shutdown') confirmPowerAction(id, displayName, action);
 }
 
 export function wireMachines() {
+  initRunner(function () { if (state.machinesStatus) renderMachines(); });
   if (els.machinesRetryBtn) {
     els.machinesRetryBtn.addEventListener('click', function () {
       state.machinesDataState = 'loading';

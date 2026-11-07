@@ -145,6 +145,7 @@ addressing lives in a gitignored sibling:
 | `mac` | wired-NIC MAC for Wake-on-LAN |
 | `ssh_user` | login for the remote-bootstrap/sync endpoints |
 | `rdp` | `{address, user}` for the Remote-Desktop launch action |
+| `actions_runner` | `{dir, repo, name, workflow}` (all optional) for a machine hosting a GitHub Actions runner; adds the Runner section to its sheet ([machines.md](machines.md#github-actions-runner)) |
 
 `src/host_profile.py` merges these onto the matching `hosts:` rows at load time.
 To set it up, copy the committed template and fill in your own values:

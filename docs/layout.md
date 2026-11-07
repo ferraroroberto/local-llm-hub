@@ -114,7 +114,8 @@ local-llm-hub/
 │   │   │                             #   + the cross-host peer-probe pair: remote_models/peer_health
 │   │   ├── machine_console.py        #   Machines-tab data layer: per-machine CPU/RAM/GPU/disk/uptime
 │   │   ├── ssh_terminal.py           #   in-browser SSH terminal, reusing app-launcher's session-host PTY
-│   │   ├── ssh_exec.py               #   the one `ssh <user>@<host> <cmd>` builder (remote_stats + remote_bootstrap)
+│   │   ├── ssh_exec.py               #   the one `ssh <user>@<host> <cmd>` builder (remote_stats + remote_bootstrap + actions_runner)
+│   │   ├── actions_runner.py         #   a machine's GitHub Actions runner: service + GitHub readings, start/stop/install
 │   │   ├── wake_on_lan.py            #   Wake-on-LAN magic-packet builder/sender
 │   │   ├── sync_diagnosis.py         #   why a peer hub is out of sync with this one + whether Sync can fix it
 │   │   ├── fleet_reconcile.py        #   additive reconcile loop: wake + start registry-desired models

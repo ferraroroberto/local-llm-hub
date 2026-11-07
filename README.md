@@ -24,7 +24,7 @@ mechanisms.
 - **Architecture** — request flow at a glance: [docs/architecture-overview.md](docs/architecture-overview.md); component map: [docs/architecture.mmd](docs/architecture.mmd); per-backend request lifecycles: [docs/project-structure.md](docs/project-structure.md).
 - **Multi-host fleet** — cross-host proxying, the Mac Mini, registry-derived placement, ordered failover chains: [docs/multi-host.md](docs/multi-host.md).
 - **Model lifecycle** — on-demand load/idle-unload and the Linux systemd satellite: [docs/model-lifecycle.md](docs/model-lifecycle.md).
-- **Admin console** — Hub, Settings, Machines, machine identity, diagnostics: [docs/admin-console.md](docs/admin-console.md).
+- **Admin console** — Hub, Settings, Machines (including a hosted Actions runner), machine identity, diagnostics: [docs/admin-console.md](docs/admin-console.md).
 - **Health watch** — per-machine leak and pressure verdict with a restart-or-reboot fix, plus a one-minute RAM, free-space and per-disk latency watch with Telegram alerts and a weekly stall summary: [docs/health-watch.md](docs/health-watch.md).
 - **Running** — launchers, tray, Cloudflare tunnel, server adoption, LAN access: [docs/running.md](docs/running.md).
 - **API usage** — Python/curl examples, token counting, audio and image calls, headers, CORS, the TypeSafe passthrough: [docs/api-usage.md](docs/api-usage.md).

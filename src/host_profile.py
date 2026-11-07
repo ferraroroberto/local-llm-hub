@@ -11,7 +11,8 @@ rather than keeping its own parallel cache of the same file.
 
 Machine *identity* is deliberately NOT in that committed file (#525): this
 repo is public, and the per-host addressing (`address`, `tailscale`, `mac`,
-`ssh_user`, `rdp`) is a map of a private network. Those five fields live in
+`ssh_user`, `rdp`) is a map of a private network, as is the `actions_runner`
+block that names a hosted CI runner. Those six fields live in
 a gitignored sibling, ``config/machines.local.yaml``, which ``_load_config()``
 merges onto the ``hosts:`` rows -- same committed-sample pattern this repo
 already uses for ``config/machine_specs.yaml`` and ``config/webapp_config.json``.
@@ -79,6 +80,12 @@ class HostProfile:
     # WiFi WOL is unsupported — unset on hosts with no wired NIC (e.g. a
     # laptop) or that nothing ever wakes remotely.
     mac: Optional[str] = None
+    # A GitHub Actions self-hosted runner this machine hosts: {dir, repo, name,
+    # workflow}, every key optional (``fleet/actions_runner.py`` reads the repo
+    # and name from the runner folder). An empty mapping enables the Runner
+    # section with defaults; ``None`` means the machine hosts no runner. It
+    # names a repo and a registered runner, so it is overlay-only.
+    actions_runner: Optional[Dict[str, Any]] = None
     # Discrete-GPU VRAM ceiling in MB, promoted from docs/machines.md's
     # prose hardware facts. The fleet placement grid sums a host's placed
     # models' ``est_vram_mb`` and warns (advisory only, never blocks) when the
@@ -112,7 +119,7 @@ _CONFIG_CACHE: Dict[str, Dict[str, Any]] = {}
 # Per-host identity fields the public config never carries -- supplied by the
 # gitignored overlay instead. Kept as one tuple so the merge, the
 # example file and the docs can't drift apart silently.
-IDENTITY_FIELDS = ("address", "tailscale", "mac", "ssh_user", "rdp")
+IDENTITY_FIELDS = ("address", "tailscale", "mac", "ssh_user", "rdp", "actions_runner")
 
 # Everything the overlay may set: identity plus the operator's dormant flag.
 # `dormant: false` is a real value (it overrides a committed `true`),
@@ -191,6 +198,7 @@ def _row_to_profile(host_id: str, row: Dict[str, Any], *, source: str) -> HostPr
         tailscale=row.get("tailscale"),
         rdp=row.get("rdp"),
         mac=row.get("mac"),
+        actions_runner=row.get("actions_runner"),
         vram_mb=int(row["vram_mb"]) if row.get("vram_mb") is not None else None,
         ram_mb=int(row["ram_mb"]) if row.get("ram_mb") is not None else None,
     )

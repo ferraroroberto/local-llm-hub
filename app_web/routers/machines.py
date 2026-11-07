@@ -19,6 +19,10 @@ Machines tab.
     (#356) for a machine with a configured ``mac``. Unlike reboot/shutdown
     this legitimately targets a powered-down box, so it is not gated on
     reachability — only on having a MAC and not being the hub's own host.
+  * ``GET  /admin/api/machines/{id}/runner`` and ``POST .../runner/{verb}`` —
+    the GitHub Actions runner a machine hosts: the service and GitHub's view
+    side by side, and start / stop / install over the hub user's own SSH. The
+    verbs answer with the outcome of a re-read, not of the request.
   * ``GET  /admin/api/machines/{id}/rdp`` — download a generated ``.rdp``
     launcher for the machine's Remote-Desktop action.
   * ``GET  /admin/api/machines/terminal/status`` — is the in-browser SSH
@@ -46,7 +50,7 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from starlette.responses import Response
 
 from src import config_write
-from src.fleet import machine_console, remote_bootstrap, ssh_terminal
+from src.fleet import actions_runner, machine_console, remote_bootstrap, ssh_terminal
 from src.health import resource_watch, watch as health_watch
 from src.host_profile import all_hosts, get_host, resolve
 from src.fleet.wake_on_lan import WakeOnLanError, send_wake
@@ -171,6 +175,31 @@ async def machine_wake(host_id: str) -> Dict[str, Any]:
     except WakeOnLanError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"ok": True, "sent": True}
+
+
+@router.get("/api/machines/{host_id}/runner")
+async def machine_runner(host_id: str, fresh: bool = False) -> Dict[str, Any]:
+    """The machine's Actions runner: service state, GitHub online/busy, the
+    latest workflow result and the boot facts. A source that cannot be read
+    comes back ``unknown`` inside a 200; only an unconfigured machine is an
+    error. ``fresh`` skips the short GitHub cache."""
+    try:
+        return await actions_runner.status(host_id, fresh=fresh)
+    except actions_runner.RunnerRefused as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+
+
+@router.post("/api/machines/{host_id}/runner/{verb}")
+async def machine_runner_verb(host_id: str, verb: str) -> Dict[str, Any]:
+    """Start, stop or install the runner service, then re-read both sources.
+    ``ok`` is true only when the service and GitHub both match the verb;
+    ``outcome`` says which half lagged. A verb the current state forbids (stop
+    while a job runs, start on a running service) is a 409 with the reason."""
+    logger.info("🏃 /admin/api/machines/%s/runner/%s", host_id, verb)
+    try:
+        return await actions_runner.run_verb(host_id, verb)
+    except actions_runner.RunnerRefused as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
 
 
 @router.get("/api/machines/{host_id}/rdp")
