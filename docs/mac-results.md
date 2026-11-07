@@ -6,14 +6,15 @@ The nightly Mac platform pass (the `nightly-mac` workflow in `project-scaffoldin
 
 `python -m src.fleet.mac_results --host <machine id>` runs one pass and exits:
 
-1. `list` over the read-only key: every run folder under `~/mac-nightly-results/<repo>/<run id>/` with its age and whether `READY` exists. `READY` is the Mac's complete-run marker (four `key=value` lines: `run`, `repo`, `e2e`, `smoke`).
+1. `list` over the read-only key: every run folder under `~/mac-nightly-results/<repo>/<run id>/` with its age and whether `READY` exists. `READY` is the Mac's complete-run marker (five `key=value` lines: `run`, `repo`, `e2e`, `smoke`, `audit`).
 2. Runs older than the pull window (`--window-days`, default 4, well under the Mac's 14-day prune), runs already recorded as delivered and runs without `READY` are set aside. A run without `READY` is reported as `pending`, never delivered.
 3. For each remaining run: `files` lists its `*.png` entries, each is gated (below), copied with `get` and sent with fleet-config's `send_file.py`, one caption per image: `<repo> · run <id> · <leg> <outcome> · <n>/<total>`.
 4. Each confirmed send is recorded as it lands; the run is recorded as delivered once every image of it is confirmed. A retry resends only the images that never landed.
+5. A run whose `READY` says `audit=miss` and that is not yet recorded as filed also has its `audit.json` copied with `audit` and handed to project-scaffolding's `scripts/routing_audit.py file --audit <audit.json>` (a sibling checkout; `--routing-audit` overrides the path). That tool keeps exactly one open routing issue in the adopter, comments only when the failing-node set changed, and ends on `FILE=none|created|commented|unchanged` or `FILE=unknown`. Filing is independent of the images: neither waits on the other. A `clean` run files nothing.
 
 The delivered record is the hub's own SQLite file (`mac_results.sqlite3`, in the fleet runtime-data directory for `local-llm-hub`; `MAC_RESULTS_DB_PATH` overrides the file). Nothing is written to the Mac.
 
-`--dry-run` lists and reports what would be delivered, copying, sending and recording nothing. The exit code is 0 when every run met is delivered or legitimately waiting, 1 when the Mac could not be read or a run is `refused` or `not_confirmed`, and 2 when the host, key or `send_file.py` is not configured.
+`--dry-run` lists and reports what would be delivered, copying, sending and recording nothing. The exit code is 0 when every run met is delivered or legitimately waiting, 1 when the Mac could not be read or a run is `refused`, `not_confirmed` or `audit_unknown`, and 2 when the host, key or `send_file.py` is not configured.
 
 ## States
 
@@ -26,9 +27,11 @@ Each condition is reported on its own line and never folded into "nothing to del
 | `pending` | no `READY` yet, or left for the next pass by the per-pass run cap | no, retried |
 | `refused` | a gate failed (reason shown) | no, retried; fails again until it ages out |
 | `not_confirmed` | the copy failed, or the send printed `REFUSED=` or `UNAVAILABLE=` | no, retried |
+| `audit_filed` | the filing tool confirmed `FILE=created`, `commented` or `unchanged`; recorded, so a repeat pass changes nothing | yes |
+| `audit_unknown` | `READY` records `audit=unknown` (or no audit line, or `not run`), or the filing was not confirmed (`FILE=unknown`, `FILE=none` against a `miss`, a failed copy, no `routing_audit.py`) | no, retried; never read as clean |
 | `unreachable` (pass level) | the Mac's listing could not be read | no |
 
-Only a `SENT=` line counts as sent. A timeout is `UNAVAILABLE`: the launcher may have stored the file, so a retry can rarely duplicate an image, but it is never lost.
+An `audit=unknown` run is reported on every pass until it leaves the pull window, because the night was never measured (the first run of a repo only records a baseline, a skipped e2e leg is unmeasured too). A `READY` from a dispatcher or workflow that predates the audit field reads the same way. Only a `SENT=` line counts as sent. A timeout is `UNAVAILABLE`: the launcher may have stored the file, so a retry can rarely duplicate an image, but it is never lost.
 
 ## The run folder is untrusted
 
@@ -37,13 +40,14 @@ Adopter code produced it. The hub:
 - validates `<repo>` (plain name), `<run id>` (digits) and every image path (up to four plain components ending `.png`) before building any remote command, and the script validates them again;
 - refuses the **whole run**, with the reason, when a `*.png` entry is a link or other non-regular file, has a name outside the pattern, is over 8 MiB, when the run has more than 20 images or more than 40 MiB of them;
 - checks each copied file against its listed size and the PNG signature, so a partial or swapped copy is refused;
+- takes `audit.json` only as a regular file under a 256 KiB cap that parses as a JSON object naming the same repo as its run folder (the filing tool derives the target repo from that field), and ignores a link or any other entry of that name; the filing tool itself re-checks the shape and strips control characters and backticks before anything reaches an issue;
 - never executes or interprets content, ignores every non-`.png` name (traces included), and never puts the Mac's stderr (which can carry an address or login) into a report.
 
 The runner user's own code can edit that user's `~/.ssh` and the dispatcher, so the forced command does not protect the Mac from itself: it bounds what the hub's key can do if the key leaks, and the hub-side validation bounds what a tampered Mac can make the hub do.
 
 ## Forced-command key setup
 
-The key is dedicated and read-only. Its dispatcher, [`mac/bin/hub-results-pull.sh`](../mac/bin/hub-results-pull.sh), allows exactly three verbs (`list`, `files <repo> <run id>`, `get <repo> <run id> <file>`), reads only under `~/mac-nightly-results`, writes nothing and refuses a link anywhere on a path.
+The key is dedicated and read-only. Its dispatcher, [`mac/bin/hub-results-pull.sh`](../mac/bin/hub-results-pull.sh), allows exactly four verbs (`list`, `files <repo> <run id>`, `get <repo> <run id> <file>`, `audit <repo> <run id>`), reads only under `~/mac-nightly-results`, writes nothing and refuses a link anywhere on a path.
 
 On the hub box, generate a passphrase-less key outside the repo:
 

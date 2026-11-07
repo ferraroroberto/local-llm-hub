@@ -4,10 +4,12 @@ The Mac keeps nothing about delivery (it prunes its run folders on a plain
 14-day clock), so the puller's only memory is this SQLite file, resolved
 through the fleet runtime-data convention rather than a repo-relative path.
 
-Two tables, because a run can fail half-way: ``sent_files`` is written one
+Three tables, because a run can fail half-way: ``sent_files`` is written one
 image at a time as each send is confirmed, so a retry resends only what never
 landed, and ``delivered_runs`` is written once every image of the run is
 confirmed. A run is never recorded as delivered on anything short of that.
+``filed_audits`` follows the same rule for the routing audit: written only once
+the filing tool confirmed an outcome, so an unconfirmed filing is retried.
 """
 
 from __future__ import annotations
@@ -34,6 +36,13 @@ CREATE TABLE IF NOT EXISTS delivered_runs (
     run_id TEXT NOT NULL,
     files INTEGER NOT NULL,
     delivered_at REAL NOT NULL,
+    PRIMARY KEY (repo, run_id)
+);
+CREATE TABLE IF NOT EXISTS filed_audits (
+    repo TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    state TEXT NOT NULL,
+    filed_at REAL NOT NULL,
     PRIMARY KEY (repo, run_id)
 );
 """
@@ -76,4 +85,19 @@ def mark_run_delivered(conn: sqlite3.Connection, repo: str, run_id: str, files: 
         conn.execute(
             "INSERT OR IGNORE INTO delivered_runs (repo, run_id, files, delivered_at) VALUES (?, ?, ?, ?)",
             (repo, run_id, files, time.time()),
+        )
+
+
+def audit_filed(conn: sqlite3.Connection, repo: str, run_id: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM filed_audits WHERE repo = ? AND run_id = ?", (repo, run_id)
+    ).fetchone()
+    return row is not None
+
+
+def mark_audit_filed(conn: sqlite3.Connection, repo: str, run_id: str, state: str) -> None:
+    with conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO filed_audits (repo, run_id, state, filed_at) VALUES (?, ?, ?, ?)",
+            (repo, run_id, state, time.time()),
         )

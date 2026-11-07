@@ -4,6 +4,7 @@ every not-confirmed state, with SSH and ``send_file.py`` faked."""
 from __future__ import annotations
 
 import base64
+import json
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -40,9 +41,13 @@ class FakeMac:
             lines = [f"NOW {NOW}"]
             for run_id, run in self.runs.items():
                 kind = "ready" if run.get("ready", True) else "pending"
-                lines.append(f"RUN home-automation {run_id} {kind} {NOW - run.get('age', 60)} {run.get('e2e', 'success')} {run.get('smoke', 'success')}")
+                lines.append(f"RUN home-automation {run_id} {kind} {NOW - run.get('age', 60)} {run.get('e2e', 'success')} {run.get('smoke', 'success')} {run.get('audit', 'clean')}")
             return _ok("\n".join(lines) + "\n")
         run = self.runs[args[1]]
+        if verb == "audit":
+            if "audit_result" in run:
+                return run["audit_result"]
+            return _ok(base64.encodebytes(run["audit_json"]).decode())
         if verb == "files":
             return _ok("".join(
                 f"{run.get('kind', {}).get(rel, mr._REGULAR)}|{len(data)}|{rel}\n" for rel, data in run["files"].items()
@@ -73,6 +78,26 @@ def conn(tmp_path):
     c = store.connect(tmp_path / "mac_results.sqlite3")
     yield c
     c.close()
+
+
+class FakeFiler:
+    """Stands in for ``routing_audit.py file``; never reaches gh. Records what it was handed."""
+
+    def __init__(self, *outcomes: mr.FileOutcome) -> None:
+        self.outcomes = list(outcomes)
+        self.seen: List[bytes] = []
+
+    def __call__(self, audit_path: Path) -> mr.FileOutcome:
+        self.seen.append(audit_path.read_bytes())
+        return self.outcomes.pop(0) if self.outcomes else mr.FileOutcome("created", "#7")
+
+
+def _audit_json(repo: str = "home-automation", **extra) -> bytes:
+    return json.dumps({"repo": repo, "outcome": "miss", "miss_nodes": ["t::a"], "tiers": {"skip": 1}, **extra}).encode()
+
+
+def _miss_run(**extra) -> Dict:
+    return _run(audit="miss", audit_json=_audit_json(), **extra)
 
 
 def _run(files=None, **extra) -> Dict:
@@ -298,6 +323,161 @@ def test_staging_is_removed_after_each_run(conn, tmp_path):
 ])
 def test_only_a_sent_line_counts_as_sent(stdout, kind):
     assert mr.parse_send_result(stdout).kind == kind
+
+
+# ------------------------------------------------------------- routing audit
+
+
+def test_miss_run_files_once_and_a_repeat_pass_does_nothing(conn, tmp_path):
+    mac = FakeMac({"100": _miss_run()})
+    filer = FakeFiler(mr.FileOutcome("created", "#7"))
+    first = _pass(mac, FakeSender(), conn, tmp_path, filer=filer)
+    assert [(o.state, o.detail) for o in first.outcomes] == [(mr.DELIVERED, "2 sent now, 2 in the run"), (mr.AUDIT_FILED, "FILE=created #7")]
+    assert filer.seen == [_audit_json()]
+    assert store.audit_filed(conn, "home-automation", "100")
+
+    mac.commands.clear()
+    second = _pass(mac, FakeSender(), conn, tmp_path, filer=filer)
+    assert second.outcomes == [] and second.already_delivered == 1
+    assert mac.commands == ["list"] and len(filer.seen) == 1  # no audit copy, no second filing
+    assert first.exit_code == second.exit_code == 0
+
+
+def test_clean_run_files_nothing(conn, tmp_path):
+    mac = FakeMac({"100": _run(audit="clean")})
+    filer = FakeFiler()
+    report = _pass(mac, FakeSender(), conn, tmp_path, filer=filer)
+    assert [o.state for o in report.outcomes] == [mr.DELIVERED]
+    assert filer.seen == [] and not any(c.startswith("audit") for c in mac.commands)
+
+
+@pytest.mark.parametrize("audit", ["unknown", "not_run", "-", "$(rm)"])
+def test_unmeasured_audit_is_reported_unknown_and_retried_never_clean(conn, tmp_path, audit):
+    mac = FakeMac({"100": _run(audit=audit)})
+    filer = FakeFiler()
+    first = _pass(mac, FakeSender(), conn, tmp_path, filer=filer)
+    assert [o.state for o in first.outcomes] == [mr.AUDIT_NOT_MEASURED, mr.DELIVERED]
+    assert first.exit_code == 1
+    second = _pass(mac, FakeSender(), conn, tmp_path, filer=filer)  # images are done; the audit is still unknown
+    assert [o.state for o in second.outcomes] == [mr.AUDIT_NOT_MEASURED] and second.exit_code == 1
+    assert filer.seen == []
+
+
+def test_dispatcher_without_the_audit_field_reads_as_unknown():
+    runs, malformed = mr.parse_listing(f"NOW {NOW}\nRUN home-automation 100 ready {NOW} success success\n")
+    assert malformed == [] and runs[0].audit == mr.AUDIT_UNKNOWN
+
+
+@pytest.mark.parametrize("outcome", [mr.FileOutcome("unknown", "gh could not list issues"), mr.FileOutcome("none", "outcome=clean")])
+def test_unconfirmed_filing_is_not_recorded_and_retried(conn, tmp_path, outcome):
+    mac = FakeMac({"100": _miss_run()})
+    filer = FakeFiler(outcome, mr.FileOutcome("commented", "#7"))
+    first = _pass(mac, FakeSender(), conn, tmp_path, filer=filer)
+    assert [o.state for o in first.outcomes] == [mr.DELIVERED, mr.AUDIT_NOT_MEASURED] and first.exit_code == 1
+    assert not store.audit_filed(conn, "home-automation", "100")
+    second = _pass(mac, FakeSender(), conn, tmp_path, filer=filer)
+    assert [o.state for o in second.outcomes] == [mr.AUDIT_FILED] and second.exit_code == 0  # images were not resent
+
+
+def test_audit_filing_does_not_wait_on_the_images(conn, tmp_path):
+    filer = FakeFiler()
+    report = _pass(FakeMac({"100": _miss_run(files={})}), FakeSender(), conn, tmp_path, filer=filer)
+    assert [o.state for o in report.outcomes] == [mr.EMPTY, mr.AUDIT_FILED]
+
+
+def test_audit_still_files_when_an_image_send_failed(conn, tmp_path):
+    sender = FakeSender(mr.SendOutcome("unavailable", "UNAVAILABLE=x"))
+    report = _pass(FakeMac({"100": _miss_run()}), sender, conn, tmp_path, filer=FakeFiler())
+    assert [o.state for o in report.outcomes] == [mr.NOT_CONFIRMED, mr.AUDIT_FILED]
+
+
+def test_failed_audit_copy_is_unknown_not_filed(conn, tmp_path):
+    mac = FakeMac({"100": _miss_run(audit_result=SshResult(returncode=3, stdout="", stderr="x"))})
+    filer = FakeFiler()
+    report = _pass(mac, FakeSender(), conn, tmp_path, filer=filer)
+    assert report.outcomes[-1].state == mr.AUDIT_NOT_MEASURED and "copying audit.json failed" in report.outcomes[-1].detail
+    assert filer.seen == [] and report.exit_code == 1
+
+
+def test_missing_filing_script_is_unknown_and_screenshots_still_deliver(conn, tmp_path):
+    report = _pass(FakeMac({"100": _miss_run()}), FakeSender(), conn, tmp_path, filer=None)
+    assert [o.state for o in report.outcomes] == [mr.DELIVERED, mr.AUDIT_NOT_MEASURED]
+
+
+@pytest.mark.parametrize("payload, reason", [
+    (b"not json", "not valid JSON"),
+    (b"[1, 2]", "does not name the repo"),
+    (_audit_json("another-repo"), "does not name the repo"),
+    (b"x" * (mr.MAX_AUDIT_BYTES + 1), "cap"),
+], ids=["not-json", "not-an-object", "other-repo", "over-cap"])
+def test_hostile_audit_json_is_refused_before_the_filing_tool_runs(conn, tmp_path, payload, reason):
+    mac = FakeMac({"100": _run(audit="miss", audit_json=payload)})
+    filer = FakeFiler()
+    report = _pass(mac, FakeSender(), conn, tmp_path, filer=filer)
+    assert report.outcomes[-1].state == mr.REFUSED and reason in report.outcomes[-1].detail
+    assert filer.seen == [] and report.exit_code == 1
+    assert not store.audit_filed(conn, "home-automation", "100")
+
+
+def test_invalid_base64_audit_is_refused():
+    with pytest.raises(mr.Refusal, match="base64"):
+        mr.decode_audit("!!!not base64!!!", "home-automation")
+
+
+def test_dry_run_reports_the_filing_without_copying_or_filing(conn, tmp_path):
+    mac = FakeMac({"100": _miss_run()})
+    filer = FakeFiler()
+    report = _pass(mac, FakeSender(), conn, tmp_path, dry_run=True, filer=filer)
+    assert [o.state for o in report.outcomes] == [mr.WOULD_DELIVER, mr.WOULD_FILE]
+    assert mac.commands == ["list"] and filer.seen == [] and not store.audit_filed(conn, "home-automation", "100")
+
+
+def test_run_delivered_before_the_audit_field_existed_still_gets_filed(conn, tmp_path):
+    store.mark_run_delivered(conn, "home-automation", "100", 2)
+    filer = FakeFiler()
+    report = _pass(FakeMac({"100": _miss_run()}), FakeSender(), conn, tmp_path, filer=filer)
+    assert [o.state for o in report.outcomes] == [mr.AUDIT_FILED] and len(filer.seen) == 1
+
+
+def test_audit_staging_is_removed(conn, tmp_path):
+    _pass(FakeMac({"100": _miss_run()}), FakeSender(), conn, tmp_path, filer=FakeFiler())
+    assert list((tmp_path / "staging").iterdir()) == []
+
+
+@pytest.mark.parametrize("stdout, state", [
+    ("FILE=created https://example.invalid/issues/7\n", "created"),
+    ("FILE=commented #7\n", "commented"),
+    ("FILE=unchanged #7\n", "unchanged"),
+    ("FILE=none outcome=clean\n", "none"),
+    ("FILE=unknown gh could not list issues\n", "unknown"),
+    ("some body\nFILE=created #7\n", "created"),
+    ("", "unknown"),
+    ("FILE=filed\n", "unknown"),
+    ("created\n", "unknown"),
+])
+def test_only_a_file_line_counts_as_a_filing_outcome(stdout, state):
+    assert mr.parse_file_result(stdout).state == state
+
+
+def test_the_filer_runs_the_tool_with_the_file_subcommand_and_reads_its_line(monkeypatch, tmp_path):
+    calls = []
+
+    class Done:
+        stdout = "FILE=unchanged #7\n"
+
+    monkeypatch.setattr(mr.subprocess, "run", lambda cmd, **kw: calls.append((cmd, kw)) or Done())
+    outcome = mr.make_routing_audit_filer(tmp_path / "routing_audit.py")(tmp_path / "audit.json")
+    assert outcome.state == "unchanged"
+    cmd, kw = calls[0]
+    assert cmd[2:] == ["file", "--audit", str(tmp_path / "audit.json")] and kw["timeout"] == mr._FILE_TIMEOUT_S
+
+
+def test_the_filer_reports_a_timeout_as_unknown(monkeypatch, tmp_path):
+    def boom(cmd, **kw):
+        raise mr.subprocess.TimeoutExpired(cmd, 1)
+
+    monkeypatch.setattr(mr.subprocess, "run", boom)
+    assert mr.make_routing_audit_filer(tmp_path / "x.py")(tmp_path / "a.json").state == "unknown"
 
 
 # ------------------------------------------------------- CLI: host and status file
