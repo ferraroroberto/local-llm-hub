@@ -394,8 +394,9 @@ def _write_status(code: int) -> None:
     if not target:
         return
     try:
+        # runtime-write-exempt: the wrapping job names this file (under %TEMP%), outside the tree and the runtime root
         Path(target).parent.mkdir(parents=True, exist_ok=True)
-        Path(target).write_text(f"{code}\n", encoding="ascii")
+        Path(target).write_text(f"{code}\n", encoding="ascii")  # runtime-write-exempt: the same job-named file
     except OSError as exc:
         # No file means the job reports "not confirmed", never a pass.
         print(f"⚠️ could not write the status file ({exc.__class__.__name__})")
