@@ -35,10 +35,13 @@ local-llm-hub/
 │   │   ├── swap-model.md         # interactive role swap (yaml + launcher + download)
 │   │   └── system-specs.md       # collect Windows hardware specs
 │   └── skills/
-│       └── frontier-refresh/     # bi-weekly frontier research skill
-│           ├── SKILL.md          #   brief + output contract + ledger (single owner)
-│           ├── run-weekly.bat    #   headless runner (app-launcher job, self-skips alternate weeks)
-│           └── week_parity.ps1   #   on/off-week gate, answered as an exit code
+│       ├── frontier-refresh/     # bi-weekly frontier research skill
+│       │   ├── SKILL.md          #   brief + output contract + ledger (single owner)
+│       │   ├── run-weekly.bat    #   headless runner (app-launcher job, self-skips alternate weeks)
+│       │   └── week_parity.ps1   #   on/off-week gate, answered as an exit code
+│       └── mac-results/          # nightly Mac screenshot delivery (agent job: send_file needs a launcher session)
+│           ├── SKILL.md          #   one foreground pass of src.fleet.mac_results, per-run lines relayed
+│           └── run-nightly.bat   #   headless runner (app-launcher job), exits with the pass's own code
 ├── requirements.txt
 ├── requirements-dev.txt      # e2e deps (Playwright, pytest-playwright)
 ├── requirements-tts.txt      # TTS deps (chatterbox-tts, snac, kokoro-onnx, soundfile — torch); Piper is a downloaded binary

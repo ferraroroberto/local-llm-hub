@@ -298,3 +298,51 @@ def test_staging_is_removed_after_each_run(conn, tmp_path):
 ])
 def test_only_a_sent_line_counts_as_sent(stdout, kind):
     assert mr.parse_send_result(stdout).kind == kind
+
+
+# ------------------------------------------------------- CLI: host and status file
+
+
+@pytest.fixture
+def cli_env(monkeypatch, tmp_path):
+    monkeypatch.delenv(mr.HOST_ENV, raising=False)
+    monkeypatch.setenv(mr.STATUS_ENV, str(tmp_path / "out" / "status.txt"))
+    monkeypatch.setenv(mr.STAGING_ENV, str(tmp_path / "staging"))
+    monkeypatch.setenv("MAC_RESULTS_DB_PATH", str(tmp_path / "mac_results.sqlite3"))
+    return tmp_path / "out" / "status.txt"
+
+
+def test_host_comes_from_the_env_when_not_passed(cli_env, monkeypatch, tmp_path, capsys):
+    seen = []
+    monkeypatch.setenv(mr.HOST_ENV, "the-mac")
+    monkeypatch.setattr(mr, "_ssh_for", lambda host: seen.append(host) or (FakeMac({}), ""))
+    sender = tmp_path / "send_file.py"
+    sender.write_text("", encoding="utf-8")
+    assert mr.main(["--send-file", str(sender)]) == 0
+    assert seen == ["the-mac"]
+    assert "nothing new to deliver" in capsys.readouterr().out
+    assert cli_env.read_text() == "0\n"
+
+
+def test_no_host_is_not_configured_and_the_status_file_says_so(cli_env, capsys):
+    assert mr.main([]) == 2
+    assert mr.HOST_ENV in capsys.readouterr().out
+    assert cli_env.read_text() == "2\n"
+
+
+def test_unconfigured_key_exits_two_with_its_reason(cli_env, monkeypatch, capsys):
+    monkeypatch.setattr(mr, "_ssh_for", lambda host: (None, "KEY is not set in .env"))
+    assert mr.main(["--host", "x"]) == 2
+    assert "KEY is not set in .env" in capsys.readouterr().out
+    assert cli_env.read_text() == "2\n"
+
+
+def test_unreadable_mac_exits_one_and_records_it(cli_env, monkeypatch, tmp_path, capsys):
+    mac = FakeMac({})
+    mac.down = SshResult(returncode=255, stdout="", stderr="")
+    monkeypatch.setattr(mr, "_ssh_for", lambda host: (mac, ""))
+    sender = tmp_path / "send_file.py"
+    sender.write_text("", encoding="utf-8")
+    assert mr.main(["--host", "x", "--send-file", str(sender)]) == 1
+    assert "not read" in capsys.readouterr().out
+    assert cli_env.read_text() == "1\n"
