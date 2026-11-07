@@ -39,7 +39,7 @@ local-llm-hub/
 │       │   ├── SKILL.md          #   brief + output contract + ledger (single owner)
 │       │   ├── run-weekly.bat    #   headless runner (app-launcher job, self-skips alternate weeks)
 │       │   └── week_parity.ps1   #   on/off-week gate, answered as an exit code
-│       └── mac-results/          # nightly Mac screenshot delivery (agent job: send_file needs a launcher session)
+│       └── mac-results/          # nightly Mac screenshot delivery (agent job; under a Job, unsent images go to its artifacts)
 │           ├── SKILL.md          #   one foreground pass of src.fleet.mac_results, per-run lines relayed
 │           └── run-nightly.bat   #   headless runner (app-launcher job), exits with the pass's own code
 ├── requirements.txt

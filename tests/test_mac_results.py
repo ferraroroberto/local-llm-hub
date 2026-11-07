@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 import json
+from contextlib import closing
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -485,6 +486,8 @@ def test_the_filer_reports_a_timeout_as_unknown(monkeypatch, tmp_path):
 
 @pytest.fixture
 def cli_env(monkeypatch, tmp_path):
+    # main() loads the repo's .env; this box's real one must not leak a host into the test.
+    monkeypatch.setattr("dotenv.load_dotenv", lambda *a, **k: False)
     monkeypatch.delenv(mr.HOST_ENV, raising=False)
     monkeypatch.setenv(mr.STATUS_ENV, str(tmp_path / "out" / "status.txt"))
     monkeypatch.setenv(mr.STAGING_ENV, str(tmp_path / "staging"))
@@ -526,3 +529,74 @@ def test_unreadable_mac_exits_one_and_records_it(cli_env, monkeypatch, tmp_path,
     assert mr.main(["--host", "x", "--send-file", str(sender)]) == 1
     assert "not read" in capsys.readouterr().out
     assert cli_env.read_text() == "1\n"
+
+
+# ------------------------------------------------------- CLI: delivery from a launcher Job
+
+
+class FakeSendFile:
+    """Stands in for the send_file.py subprocess: answers from the session id
+    the child actually receives, the way the launcher's outbox route would."""
+
+    def __init__(self) -> None:
+        self.sessions_seen: List[Optional[str]] = []
+
+    def __call__(self, argv, **kwargs):
+        env = kwargs.get("env")
+        sid = (env if env is not None else mr.os.environ).get(mr.SESSION_ENV)
+        self.sessions_seen.append(sid)
+        if not sid:
+            line = "UNAVAILABLE=no-launcher-session (APP_LAUNCHER_SESSION_ID is not set)"
+        else:
+            line = "SENT=entry-1"
+        return mr.subprocess.CompletedProcess(argv, 0, stdout=line + "\n", stderr="")
+
+
+@pytest.fixture
+def job_cli(cli_env, monkeypatch, tmp_path):
+    mac = FakeMac({"100": _run()})
+    monkeypatch.setattr(mr, "_ssh_for", lambda host: (mac, ""))
+    fake = FakeSendFile()
+    monkeypatch.setattr(mr.subprocess, "run", fake)
+    script = tmp_path / "send_file.py"
+    script.write_text("", encoding="utf-8")
+    return fake, script
+
+
+def test_job_never_sends_through_an_inherited_session_id(job_cli, monkeypatch, tmp_path, capsys):
+    fake, script = job_cli
+    monkeypatch.setenv(mr.SESSION_ENV, "someone-elses-live-session")
+    monkeypatch.setenv(mr.JOB_ARTIFACT_ENV, str(tmp_path / "artifacts"))
+    assert mr.main(["--host", "x", "--send-file", str(script)]) == 1
+    assert fake.sessions_seen == [None, None]  # the child never saw the inherited id
+    out = capsys.readouterr().out
+    assert "inherited session id ignored" in out
+    with closing(store.connect(tmp_path / "mac_results.sqlite3")) as conn:
+        assert not store.run_delivered(conn, "home-automation", "100")
+
+
+def test_job_without_a_session_keeps_images_in_its_artifacts_and_says_so_once(job_cli, monkeypatch, tmp_path, capsys):
+    fake, script = job_cli
+    monkeypatch.delenv(mr.SESSION_ENV, raising=False)
+    artifacts = tmp_path / "artifacts"
+    monkeypatch.setenv(mr.JOB_ARTIFACT_ENV, str(artifacts))
+    assert mr.main(["--host", "x", "--send-file", str(script)]) == 1
+    kept = sorted(p.name for p in artifacts.iterdir())
+    assert len(kept) == 2 and all(n.startswith("home-automation-100-") and n.endswith(".png") for n in kept)
+    assert all((artifacts / n).read_bytes() == PNG for n in kept)
+    lines = capsys.readouterr().out.splitlines()
+    assert sum("not_confirmed: a launcher Job has no launcher session" in ln for ln in lines) == 1
+    assert any("run 100: not_confirmed - 2 not delivered" in ln and "no-launcher-session" in ln for ln in lines)
+    with closing(store.connect(tmp_path / "mac_results.sqlite3")) as conn:
+        assert not store.run_delivered(conn, "home-automation", "100")
+        assert not store.file_sent(conn, "home-automation", "100", "ios/home.png")  # retried by the next pass
+
+
+def test_hosted_session_outside_a_job_still_sends_with_its_own_id(job_cli, monkeypatch, tmp_path, capsys):
+    fake, script = job_cli
+    monkeypatch.setenv(mr.SESSION_ENV, "this-session")
+    monkeypatch.delenv(mr.JOB_ARTIFACT_ENV, raising=False)
+    assert mr.main(["--host", "x", "--send-file", str(script)]) == 0
+    assert fake.sessions_seen == ["this-session", "this-session"]
+    out = capsys.readouterr().out
+    assert "run 100: delivered" in out and "launcher Job" not in out

@@ -26,7 +26,7 @@ Each condition is reported on its own line and never folded into "nothing to del
 | `empty` | `READY` and the Mac lists no png | yes (nothing to send) |
 | `pending` | no `READY` yet, or left for the next pass by the per-pass run cap | no, retried |
 | `refused` | a gate failed (reason shown) | no, retried; fails again until it ages out |
-| `not_confirmed` | the copy failed, or the send printed `REFUSED=` or `UNAVAILABLE=` | no, retried |
+| `not_confirmed` | the copy failed, the send printed `REFUSED=` or `UNAVAILABLE=`, or a launcher Job kept the images in its artifacts | no, retried |
 | `audit_filed` | the filing tool confirmed `FILE=created`, `commented` or `unchanged`; recorded, so a repeat pass changes nothing | yes |
 | `audit_unknown` | `READY` records `audit=unknown` (or no audit line, or `not run`), or the filing was not confirmed (`FILE=unknown`, `FILE=none` against a `miss`, a failed copy, no `routing_audit.py`) | no, retried; never read as clean |
 | `unreachable` (pass level) | the Mac's listing could not be read | no |
@@ -75,7 +75,15 @@ Check the restriction from the hub: `whoami`, `list; id` and a `get` with `..` i
 
 ## The scheduled job
 
-`send_file.py` posts into the chat of a **live launcher session** (it needs `APP_LAUNCHER_SESSION_ID`, which the launcher sets for the agent sessions it hosts) and only accepts files under that session's folder or `%TEMP%/claude`, which is where the pass stages each image and removes it afterwards. The hub process has no such session, and job scheduling is not the hub's, so the pass runs as a **headless agent job** like the frontier refresh: [`.claude/skills/mac-results/run-nightly.bat`](../.claude/skills/mac-results/run-nightly.bat) starts `claude -p "/mac-results"`, and the [skill](../.claude/skills/mac-results/SKILL.md) runs one foreground pass and relays the CLI's per-run lines. A pass run without a launcher session reports `UNAVAILABLE=no-launcher-session` per image and delivers nothing.
+`send_file.py` posts into the chat of a **live launcher session** (it needs `APP_LAUNCHER_SESSION_ID`, which the launcher sets for the agent sessions it hosts) and only accepts files under that session's folder or `%TEMP%/claude`, which is where the pass stages each image and removes it afterwards. The hub process has no such session, and job scheduling is not the hub's, so the pass runs as a **headless agent job** like the frontier refresh: [`.claude/skills/mac-results/run-nightly.bat`](../.claude/skills/mac-results/run-nightly.bat) starts `claude -p "/mac-results"`, and the [skill](../.claude/skills/mac-results/SKILL.md) runs one foreground pass and relays the CLI's per-run lines. A pass run by hand without a launcher session reports `UNAVAILABLE=no-launcher-session` per image and delivers nothing.
+
+**A Job is not a launcher session.** The launcher sets `APP_LAUNCHER_SESSION_ID` only for the agent sessions it hosts. A Job copies the launcher's own environment, so it can carry an id inherited from whatever started the launcher. That id is stale at best (`REFUSED=session_not_found`); at worst it names an unrelated live session, and the screenshots would land in that chat. So when `JOB_ARTIFACT_DIR` is set (the launcher sets it for every Job run), the CLI:
+
+- runs `send_file.py` with `APP_LAUNCHER_SESSION_ID` removed, so a Job delivers only through a route made for Jobs, never through an inherited id;
+- copies each image that was not sent into the Job run's artifact folder (`<repo>-<run id>-<nn>-<name>.png`), where the Jobs tab shows it;
+- reports the run `not_confirmed` (nothing recorded as sent, so the next pass retries it) and prints one pass-level line: `not_confirmed: a launcher Job has no launcher session (inherited session id ignored | no session id); <n> image(s) copied to this Job run's artifacts instead of the chat`. The job exits 1.
+
+Until the launcher offers Jobs a delivery route of their own, the scheduled path keeps the screenshots in the Jobs tab, not the chat. When `send_file.py` gains that route it answers `SENT=` from a Job too, and the pass records the run as delivered with no change here.
 
 Configuration, all in the gitignored `.env`: `MAC_RESULTS_HOST` (the machine id the pass uses when `--host` is not given, so no host name lives in a committed file) and `LOCAL_LLM_HUB_RESULTS_SSH_KEY`.
 
