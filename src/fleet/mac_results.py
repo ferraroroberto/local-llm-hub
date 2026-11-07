@@ -3,7 +3,7 @@
 The Mac runner writes ``~/mac-nightly-results/<repo>/<run id>/`` (a ``READY``
 file marks a complete run). One pass of this module lists those runs over the
 read-only forced-command SSH key (``mac/bin/hub-results-pull.sh``), copies the
-``*.png`` files of each new run, hands them to ``send_file.py`` and records the
+``*.png`` files of each new run, hands them to fleet-config's send-file script and records the
 run as delivered only after every send is confirmed. Nothing is written back to
 the Mac. Setup and the forced-command key: ``docs/mac-results.md``.
 
@@ -214,7 +214,7 @@ def decode_image(output: str, expected_size: int) -> bytes:
 
 
 def make_send_file_sender(script: Path) -> Sender:
-    """A :data:`Sender` that runs fleet-config's ``send_file.py`` and reads its
+    """A :data:`Sender` that runs fleet-config's send-file script and reads its
     one result line (``SENT=`` / ``REFUSED=`` / ``UNAVAILABLE=``)."""
 
     def send(path: Path, caption: str) -> SendOutcome:
