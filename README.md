@@ -32,6 +32,7 @@ mechanisms.
 - **Coding-agent usage** — the Code tab's usage accounting and the cached per-day, per-agent `GET /admin/api/code/usage/history`: [docs/coding-agent-usage.md](docs/coding-agent-usage.md).
 - **Telemetry** — Langfuse stack and client trace contract: [docs/telemetry-langfuse.md](docs/telemetry-langfuse.md), [docs/clients-telemetry-contract.md](docs/clients-telemetry-contract.md).
 - **Speech and images** — [docs/whisper-asr.md](docs/whisper-asr.md), [docs/add-tts.md](docs/add-tts.md), [docs/image-generation.md](docs/image-generation.md).
+- **Translate pre-flight** — Canary-1b-v2 on the Mac ANE vs `whisper_translate` vs the two-stage default, on public Spanish clips: [docs/canary-translate-preflight.md](docs/canary-translate-preflight.md).
 - **Search** — self-hosted SearXNG: [docs/searxng.md](docs/searxng.md).
 - **Limitations** — what the hub intentionally does not do: [docs/limitations.md](docs/limitations.md).
 - **Repository layout** — annotated file tree: [docs/layout.md](docs/layout.md).
