@@ -33,7 +33,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from ..host_profile import get_host
 from ..no_window import NO_WINDOW
@@ -45,6 +45,11 @@ RESULTS_KEY_ENV = "LOCAL_LLM_HUB_RESULTS_SSH_KEY"
 STAGING_ENV = "MAC_RESULTS_STAGING"
 HOST_ENV = "MAC_RESULTS_HOST"
 STATUS_ENV = "MAC_RESULTS_STATUS_FILE"
+# The launcher sets JOB_ARTIFACT_DIR for every Job run; a Job is not a hosted
+# session, so any APP_LAUNCHER_SESSION_ID it carries was inherited from whatever
+# started the launcher and may name an unrelated live chat.
+JOB_ARTIFACT_ENV = "JOB_ARTIFACT_DIR"
+SESSION_ENV = "APP_LAUNCHER_SESSION_ID"
 
 # The Mac prunes at 14 days; a window well inside that means a run is never
 # being deleted while it is pulled.
@@ -132,7 +137,9 @@ class PassReport:
 
 @dataclass(frozen=True)
 class SendOutcome:
-    kind: str  # "sent" | "refused" | "unavailable"
+    # "kept": not delivered, but the image is kept where the owner can see it,
+    # so the rest of the run is still processed.
+    kind: str  # "sent" | "refused" | "unavailable" | "kept"
     detail: str = ""
 
 
@@ -263,15 +270,16 @@ def decode_audit(output: str, repo: str) -> bytes:
 # ----------------------------------------------------------------- delivery
 
 
-def make_send_file_sender(script: Path) -> Sender:
+def make_send_file_sender(script: Path, env: Optional[Dict[str, str]] = None) -> Sender:
     """A :data:`Sender` that runs fleet-config's send-file script and reads its
-    one result line (``SENT=`` / ``REFUSED=`` / ``UNAVAILABLE=``)."""
+    one result line (``SENT=`` / ``REFUSED=`` / ``UNAVAILABLE=``). ``env`` is
+    the script's whole environment; None inherits this process's."""
 
     def send(path: Path, caption: str) -> SendOutcome:
         try:
             result = subprocess.run(
                 [sys.executable, str(script), str(path), "--caption", caption],
-                capture_output=True, text=True, timeout=_SEND_TIMEOUT_S, creationflags=NO_WINDOW,
+                capture_output=True, text=True, timeout=_SEND_TIMEOUT_S, creationflags=NO_WINDOW, env=env,
             )
         except subprocess.TimeoutExpired:
             return SendOutcome("unavailable", f"send_file.py gave no answer in {_SEND_TIMEOUT_S}s")
@@ -280,6 +288,44 @@ def make_send_file_sender(script: Path) -> Sender:
         return parse_send_result(result.stdout)
 
     return send
+
+
+class JobSender:
+    """The :data:`Sender` for a pass run by a launcher Job.
+
+    send_file.py runs without the inherited session id, so a Job can only ever
+    deliver through a route meant for Jobs, never into whichever session's chat
+    that id happens to name. An image that is not sent is copied into the Job
+    run's artifact folder (shown in the Jobs tab) and reported ``kept``: the
+    run stays undelivered and the next pass retries it."""
+
+    def __init__(self, script: Path, artifact_dir: Path, env: Dict[str, str]) -> None:
+        self.artifact_dir = artifact_dir
+        self.inherited_session = bool(env.get(SESSION_ENV, "").strip())
+        self._send = make_send_file_sender(script, {k: v for k, v in env.items() if k != SESSION_ENV})
+        self.kept = 0
+
+    def __call__(self, path: Path, caption: str) -> SendOutcome:
+        outcome = self._send(path, caption)
+        if outcome.kind == "sent":
+            return outcome
+        # The artifact route lists direct children only, so the run's staging folder name prefixes the file.
+        target = self.artifact_dir / f"{path.parent.name}-{path.name}"
+        try:
+            self.artifact_dir.mkdir(parents=True, exist_ok=True)  # runtime-write-exempt: the Job's own artifact folder, named by the launcher
+            shutil.copyfile(path, target)  # runtime-write-exempt: the same launcher-named Job artifact folder
+        except OSError as exc:
+            return SendOutcome(outcome.kind, f"{outcome.detail}; copying to the Job's artifacts failed ({type(exc).__name__})")
+        self.kept += 1
+        return SendOutcome("kept", f"{outcome.detail}; copied to the Job's artifacts")
+
+    def pass_note(self) -> Optional[str]:
+        """The one pass-level line saying why images were kept, or None when none were."""
+        if not self.kept:
+            return None
+        ignored = "inherited session id ignored" if self.inherited_session else "no session id"
+        return (f"⚠️ not_confirmed: a launcher Job has no launcher session ({ignored}); "
+                f"{self.kept} image(s) copied to this Job run's artifacts instead of the chat")
 
 
 def parse_send_result(stdout: str) -> SendOutcome:
@@ -365,7 +411,8 @@ def deliver_run(entry: RunEntry, ssh: Ssh, send: Sender, conn, staging_root: Pat
 
 def _copy_and_send(entry: RunEntry, images: List[RemoteImage], ssh: Ssh, send: Sender, conn, staging: Path) -> RunOutcome:
     repo, run_id = entry.repo, entry.run_id
-    sent_now = 0
+    sent_now = kept = 0
+    last_kept = ""
     for index, image in enumerate(images, start=1):
         if store.file_sent(conn, repo, run_id, image.rel):
             continue
@@ -380,10 +427,16 @@ def _copy_and_send(entry: RunEntry, images: List[RemoteImage], ssh: Ssh, send: S
         # runtime-write-exempt: the staged copy of one image, inside the staging folder above, removed after the run
         path.write_bytes(data)
         outcome = send(path, caption_for(entry, image.rel, index, len(images)))
+        if outcome.kind == "kept":
+            kept += 1
+            last_kept = outcome.detail
+            continue
         if outcome.kind != "sent":
             return RunOutcome(repo, run_id, NOT_CONFIRMED, f"send {outcome.kind}: {outcome.detail}")
         store.mark_file_sent(conn, repo, run_id, image.rel)
         sent_now += 1
+    if kept:
+        return RunOutcome(repo, run_id, NOT_CONFIRMED, f"{kept} not delivered, {sent_now} sent now: {last_kept}")
     store.mark_run_delivered(conn, repo, run_id, len(images))
     return RunOutcome(repo, run_id, DELIVERED, f"{sent_now} sent now, {len(images)} in the run")
 
@@ -562,13 +615,21 @@ def _main(argv: Optional[List[str]]) -> int:
     # A missing filing script does not stop the screenshots: a miss run then reports audit_unknown.
     routing_audit = Path(args.routing_audit) if args.routing_audit else _default_routing_audit()
     filer = make_routing_audit_filer(routing_audit) if routing_audit.is_file() else None
+    artifact_dir = os.environ.get(JOB_ARTIFACT_ENV, "").strip()
+    job_sender: Optional[JobSender] = None
+    if artifact_dir:
+        job_sender = JobSender(send_file, Path(artifact_dir), dict(os.environ))
+    sender: Sender = job_sender if job_sender is not None else make_send_file_sender(send_file)
     conn = store.connect()
     try:
-        report = run_pass(ssh, make_send_file_sender(send_file), conn, _staging_root(),
+        report = run_pass(ssh, sender, conn, _staging_root(),
                           window_days=args.window_days, dry_run=args.dry_run, filer=filer)
     finally:
         conn.close()
     _print_report(report)
+    note = job_sender.pass_note() if job_sender is not None else None
+    if note:
+        print(note)
     return report.exit_code
 
 

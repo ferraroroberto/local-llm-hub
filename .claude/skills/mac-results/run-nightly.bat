@@ -1,8 +1,9 @@
 @echo off
 REM Nightly Mac-results wrapper, fired by an app-launcher Job (daily, plus a
 REM later retry; schedule in docs/mac-results.md). Runs the /mac-results skill
-REM headless on the local Claude subscription inside a launcher session, which
-REM is what lets send_file.py deliver. bypassPermissions because a scheduled
+REM headless on the local Claude subscription. A Job is not a launcher-hosted
+REM session: the CLI ignores an inherited APP_LAUNCHER_SESSION_ID and keeps
+REM unsent images in the Job's artifacts (docs/mac-results.md). bypassPermissions because a scheduled
 REM run has no human to answer prompts; the skill runs one foreground pass
 REM (fleet-config#314).
 REM
