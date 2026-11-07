@@ -313,7 +313,7 @@ class JobSender:
         target = self.artifact_dir / f"{path.parent.name}-{path.name}"
         try:
             self.artifact_dir.mkdir(parents=True, exist_ok=True)  # runtime-write-exempt: the Job's own artifact folder, named by the launcher
-            shutil.copyfile(path, target)
+            shutil.copyfile(path, target)  # runtime-write-exempt: the same launcher-named Job artifact folder
         except OSError as exc:
             return SendOutcome(outcome.kind, f"{outcome.detail}; copying to the Job's artifacts failed ({type(exc).__name__})")
         self.kept += 1
