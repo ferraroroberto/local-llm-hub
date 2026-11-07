@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS delivered_runs (
 def connect(path: Optional[Path] = None) -> sqlite3.Connection:
     """Open (creating on first use) the delivery store."""
     db = path or runtime_db_path("local-llm-hub", "mac_results.sqlite3", env_var=DB_ENV, create=True)
+    # runtime-write-exempt: db is runtime_db_path() or a caller-supplied path (tests), both outside the tree
     conn = sqlite3.connect(str(db))
     conn.executescript(_SCHEMA)
     return conn

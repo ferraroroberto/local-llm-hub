@@ -277,6 +277,7 @@ def deliver_run(entry: RunEntry, ssh: Ssh, send: Sender, conn, staging_root: Pat
 
     staging = staging_root / f"{repo}-{run_id}"
     shutil.rmtree(staging, ignore_errors=True)
+    # runtime-write-exempt: send_file.py only takes a file under %TEMP%/claude, so the staging folder cannot live in the runtime root
     staging.mkdir(parents=True, exist_ok=True)
     try:
         return _copy_and_send(entry, images, ssh, send, conn, staging)
@@ -298,6 +299,7 @@ def _copy_and_send(entry: RunEntry, images: List[RemoteImage], ssh: Ssh, send: S
         except Refusal as exc:
             return RunOutcome(repo, run_id, REFUSED, str(exc))
         path = staging / _staged_name(index, image.rel)
+        # runtime-write-exempt: the staged copy of one image, inside the staging folder above, removed after the run
         path.write_bytes(data)
         outcome = send(path, caption_for(entry, image.rel, index, len(images)))
         if outcome.kind != "sent":
