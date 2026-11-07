@@ -144,6 +144,8 @@ path = ".usage-track-ratchet-baseline.json"
 # `/propagate-vendored <key>`; never edit a copy here — fix it in the scaffold
 # and propagate. `sha` is the scaffold commit the current bytes came from.
 [vendored]
+instruction_frontmatter = { src = "scripts/instruction_frontmatter.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_frontmatter.py" }
+instruction_repeats = { src = "scripts/instruction_repeats.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_repeats.py" }
 runtime_data  = { src = "src/runtime_data.py", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "src/runtime_data.py" }
 classify_e2e  = { src = "scripts/classify_e2e.py", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "scripts/classify_e2e.py" }
 button        = { src = "app/webapp/static/_vendored/button", sha = "6c8ae06472edc4c7448a767656060cd2b79cefe9", dest = "app_web/static/_vendored/button" }
@@ -170,13 +172,13 @@ usage_track_ratchet = { src = "scripts/usage_track_ratchet.py", sha = "ea11037a4
 usage_track_scan = { src = "scripts/usage_track_scan.py", sha = "ea11037a42f9f99ea8e728f574c6bb89480f3aa2", dest = "scripts/usage_track_scan.py" }
 build_info  = { src = "src/build_info.py", sha = "c9e54e917fd3cbc96011d6c09f9d363af460b205", dest = "src/build_info.py" }
 surface_capture = { src = "tests/e2e/_surface.py", sha = "5c4d3a7947dae8b3b4a028bf636c0f052ea3b1f7", dest = "tests/e2e/_surface.py" }
-static_ratchet = { src = "scripts/static_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/static_ratchet.py" }
+static_ratchet = { src = "scripts/static_ratchet.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/static_ratchet.py" }
 docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/docs_ratchet.py" }
-comment_ratchet = { src = "scripts/comment_ratchet.py", sha = "41ca8abd5a2755a06bd8a620a72967211161d58e", dest = "scripts/comment_ratchet.py" }
+comment_ratchet = { src = "scripts/comment_ratchet.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/comment_ratchet.py" }
 structure_ratchet = { src = "scripts/structure_ratchet.py", sha = "bf11a867c5678c6a4869a6265bf6cecf1d12d1a2", dest = "scripts/structure_ratchet.py" }
 structure_layout = { src = "scripts/structure_layout.py", sha = "bf11a867c5678c6a4869a6265bf6cecf1d12d1a2", dest = "scripts/structure_layout.py" }
 structure_band = { src = "scripts/structure_band.py", sha = "3b708fd3c54ab7b93b08d489406c405762c83c41", dest = "scripts/structure_band.py" }
-instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/instruction_ratchet.py" }
+instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_ratchet.py" }
 doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "dedb86e0f212d66f247f4aacb6c15d13b1154651", dest = "scripts/doc_refs_ratchet.py" }
 dead_code_ratchet = { src = "scripts/dead_code_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/dead_code_ratchet.py" }
 conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "39ae7582b35fe8ef05441bb5cba65c38b0dfad3f", dest = "scripts/conventions_ratchet.py" }
