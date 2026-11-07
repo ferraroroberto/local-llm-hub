@@ -88,6 +88,10 @@ unchanged, no retries, opt-in only"]
 GitHub Actions runner on a peer: svc.sh status +
 boot facts over SSH, gh api for online/busy + last run;
 start/stop/install, then a re-read"]
+    MACRESULTS["fleet/mac_results.py
+one CLI pass: list the Mac runner's result runs over a
+read-only forced-command key (mac/bin/hub-results-pull.sh),
+copy new *.png, send_file.py to the chat, record in SQLite"]
     SSHTERM["fleet/ssh_terminal.py\nin-browser SSH terminal: drives\napp-launcher's session-host over loopback"]
     SSHEXEC["fleet/ssh_exec.py\nthe one `ssh <user>@<host> <cmd>` builder:\nBatchMode + ConnectTimeout + accept-new,\nNO_WINDOW spawn; callers adapt the result shape"]
     DIAG["diagnostics/\nsampler (in-hub asyncio task, no resident proc) ·\nattribution (process -> fleet app + ports, per-OS) ·\nrules (health verdict) · coverage (measured vs blind) ·\nreport (summary/drift/md) · store (SQLite) ·\ningest (foreign portable capture)"]
@@ -130,6 +134,7 @@ running the fleet notify_send.py)"]
   WROUT -->|machines: runner state + start/stop/install| RUNNER
   RUNNER -->|one-shot ssh| SSHEXEC
   REMOTEBOOT -->|one-shot ssh| SSHEXEC
+  MACRESULTS -->|one-shot ssh, results key| SSHEXEC
   REMOTESTATS -->|one-shot ssh| SSHEXEC
   WROUT -->|machines: diagnostics modal| DIAG
   WROUT -->|POST diagnostics/ingest| DIAG
@@ -197,6 +202,7 @@ the hub's only internet egress"]
   REMOTEPROXY -->|forwards verbatim to owning :8000| MACMINI
   REMOTEPROXY -->|all whisper.cpp STT to owning :8000| GAMING
   REMOTEBOOT -->|SSH forced-command bootstrap/sync| MACMINI
+  MACRESULTS -->|SSH read-only forced command: list + png reads| MACMINI
   REMOTEBOOT -->|SSH forced-command bootstrap/sync (systemctl)| GAMING
   PARAKEETSRV -.spawns.-> PARAKEETWORKER
 
