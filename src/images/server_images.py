@@ -37,18 +37,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .. import on_demand
-from .comfyui_client import (
-    ComfyUIBackendWedged,
-    ComfyUIError,
-    ModelSpec,
-    checkpoint_name_for,
-    generate_image,
-)
+from ..fleet.remote_proxy import remote_base_url
 from ..gemini_cli import GeminiCLIError, call_gemini_image
-from .image_sizes import DEFAULT_SIZE, ImageSizeError, parse_size
 from ..model_registry import Model
 from ..observability import set_genai_request_attrs
-from ..fleet.remote_proxy import remote_base_url
 from ..server_common import (
     client_id_from,
     current_otel_span,
@@ -56,6 +48,14 @@ from ..server_common import (
     resolve_model_or_400,
     stash_trace_id_on_ctx,
 )
+from .comfyui_client import (
+    ComfyUIBackendWedged,
+    ComfyUIError,
+    ModelSpec,
+    checkpoint_name_for,
+    generate_image,
+)
+from .image_sizes import DEFAULT_SIZE, ImageSizeError, parse_size
 
 logger = logging.getLogger(__name__)
 

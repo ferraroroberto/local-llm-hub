@@ -44,19 +44,40 @@ from ..hub_observability import (
     stamp_ctx_failure,
 )
 from ..model_registry import Model
-from ..observability import set_genai_payload, set_genai_request_attrs, set_genai_response_attrs
+from ..observability import (
+    set_genai_payload,
+    set_genai_request_attrs,
+    set_genai_response_attrs,
+)
 from ..openai_upstream import UpstreamError, call_openai_chat_stream, iter_cleaned_sse
 from ..server_common import (
     client_id_from as _client_id_from,
+)
+from ..server_common import (
     current_otel_span as _current_otel_span,
+)
+from ..server_common import (
     record_first_token as _record_first_token,
+)
+from ..server_common import (
     record_last_token as _record_last_token,
+)
+from ..server_common import (
     record_route_metrics,
+)
+from ..server_common import (
     resolve_model_or_400 as _resolve,
+)
+from ..server_common import (
     stash_trace_id_on_ctx as _stash_trace_id_on_ctx,
 )
+from .sse_response import (
+    SSE_HEADERS,
+    ClosingStreamingResponse,
+    close_if_supported,
+    reject_non_chat_backend,
+)
 from .token_counting import count_tokens as _count_tokens
-from .sse_response import SSE_HEADERS, ClosingStreamingResponse, close_if_supported, reject_non_chat_backend
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

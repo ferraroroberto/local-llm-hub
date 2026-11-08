@@ -18,7 +18,8 @@ from typing import Any, Iterator, Mapping, Optional
 
 from fastapi import HTTPException, Request
 
-from .model_registry import Model, enabled_models, resolve as resolve_model
+from .model_registry import Model, enabled_models
+from .model_registry import resolve as resolve_model
 from .observability import record_genai_metrics
 
 logger = logging.getLogger(__name__)

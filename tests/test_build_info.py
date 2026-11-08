@@ -6,8 +6,8 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from src import build_info
-from src.process import process_identity
 from src import server as server_mod
+from src.process import process_identity
 
 
 def test_build_identity_shape() -> None:

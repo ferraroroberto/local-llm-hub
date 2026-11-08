@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.process import backend_process as bp
 from src.model_registry import SPAWNABLE_BACKENDS, enabled_models
+from src.process import backend_process as bp
 
 
 @pytest.fixture

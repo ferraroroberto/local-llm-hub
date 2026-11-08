@@ -34,9 +34,9 @@ import os
 import time
 from typing import Any, Dict, Optional
 
-from . import remote_stats
 from ..host_profile import get_host, hub_port
 from ..http_client import get_async_client
+from . import remote_stats
 from .ssh_exec import run_ssh
 
 logger = logging.getLogger(__name__)

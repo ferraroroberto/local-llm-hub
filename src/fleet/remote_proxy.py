@@ -14,10 +14,10 @@ from __future__ import annotations
 import os
 from typing import Dict, Optional, Union
 
-from . import remote_stats
 from ..host_profile import get_host, hub_port
 from ..host_profile import resolve as resolve_host
 from ..model_registry import Model
+from . import remote_stats
 
 
 def remote_base_url_for_host(host_id: Optional[str]) -> Optional[str]:

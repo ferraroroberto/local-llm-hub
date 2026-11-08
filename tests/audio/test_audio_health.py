@@ -134,7 +134,7 @@ def test_audio_health_reports_idle_on_demand_row_as_ok_not_degraded(monkeypatch)
     """Regression (#618): an idle `startup: on_demand` row is unloaded by
     design, not down — the first real request would load it. It must get its
     own state and drop out of the ok/degraded verdict, not read as an outage."""
-    from src.model_registry import Model, STARTUP_ON_DEMAND
+    from src.model_registry import STARTUP_ON_DEMAND, Model
 
     idle_row = Model(
         id="tts_idle", display_name="tts_idle", backend="tts",
@@ -157,7 +157,7 @@ def test_audio_health_reports_idle_on_demand_row_as_ok_not_degraded(monkeypatch)
 
 def test_audio_health_stays_degraded_when_an_eager_row_is_down(monkeypatch):
     """An idle on-demand row never masks a genuinely down eager backend."""
-    from src.model_registry import Model, STARTUP_EAGER, STARTUP_ON_DEMAND
+    from src.model_registry import STARTUP_EAGER, STARTUP_ON_DEMAND, Model
 
     idle_row = Model(
         id="tts_idle", display_name="tts_idle", backend="tts",

@@ -45,8 +45,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _lib import download, no_window_flags  # noqa: E402
-from src.model_registry import enabled_models  # noqa: E402
 
+from src.model_registry import enabled_models  # noqa: E402
 
 # Installed --no-deps after the curated runtime set above — see module
 # docstring (avoids spacy-pkuseg's compiler build + the gradio UI tree).

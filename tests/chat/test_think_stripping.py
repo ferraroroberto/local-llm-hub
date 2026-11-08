@@ -22,7 +22,6 @@ from src.openai_upstream import (
     strip_think_blocks,
 )
 
-
 # ---- ThinkStripper unit tests ----
 
 def test_strip_think_blocks_complete_string():

@@ -28,6 +28,8 @@ from typing import Any, Dict, Optional
 from fastapi import Request
 from fastapi.exception_handlers import (
     http_exception_handler as _default_http_exception_handler,
+)
+from fastapi.exception_handlers import (
     request_validation_exception_handler as _default_validation_exception_handler,
 )
 from fastapi.exceptions import RequestValidationError

@@ -15,7 +15,8 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from src import host_profile, model_registry, server as server_mod, tts_server
+from src import host_profile, model_registry, tts_server
+from src import server as server_mod
 from src.audio import server_audio_tts
 from src.tts_engines import KokoroEngine, OrpheusEngine, PiperEngine, SpeechRequest
 
@@ -269,8 +270,9 @@ def test_iter_token_ids_skips_control_without_shifting_frame():
 
 
 def test_synthesize_stream_sliding_window_cadence(monkeypatch):
-    import pytest
     from types import SimpleNamespace
+
+    import pytest
 
     np = pytest.importorskip("numpy")
     from src.tts_engines import OrpheusEngine, SpeechRequest
@@ -289,8 +291,9 @@ def test_synthesize_stream_sliding_window_cadence(monkeypatch):
 
 
 def test_synthesize_stream_short_input_falls_back_to_whole_clip(monkeypatch):
-    import pytest
     from types import SimpleNamespace
+
+    import pytest
 
     np = pytest.importorskip("numpy")
     from src.tts_engines import OrpheusEngine, SpeechRequest
@@ -498,7 +501,7 @@ def test_split_into_chunks_short_input_is_returned_unchanged():
 
 
 def test_split_into_chunks_long_input_packs_under_budget():
-    from src.tts_engines.orpheus import OrpheusEngine, _MAX_CHARS_PER_CHUNK
+    from src.tts_engines.orpheus import _MAX_CHARS_PER_CHUNK, OrpheusEngine
 
     text = _sentences(200)
     chunks = OrpheusEngine._split_into_chunks(text)
@@ -510,7 +513,7 @@ def test_split_into_chunks_long_input_packs_under_budget():
 
 
 def test_split_into_chunks_hard_wraps_oversized_sentence():
-    from src.tts_engines.orpheus import OrpheusEngine, _MAX_CHARS_PER_CHUNK
+    from src.tts_engines.orpheus import _MAX_CHARS_PER_CHUNK, OrpheusEngine
 
     giant = ("word " * 300).strip()  # one ~1500-char sentence, no terminator
     chunks = OrpheusEngine._split_into_chunks(giant)
@@ -525,8 +528,9 @@ def test_synthesize_long_input_is_not_truncated(monkeypatch):
     real ceiling that made two different long inputs return byte-identical
     output. With chunking, output length now tracks the input length.
     """
-    import pytest
     from types import SimpleNamespace
+
+    import pytest
 
     np = pytest.importorskip("numpy")
     from src.tts_engines import OrpheusEngine, SpeechRequest
@@ -577,8 +581,9 @@ def test_synthesize_long_input_is_not_truncated(monkeypatch):
 def test_synthesize_stream_long_input_streams_past_cap(monkeypatch):
     """The streamed path also chunks: total emitted audio exceeds what a
     single capped /completion could produce (#130)."""
-    import pytest
     from types import SimpleNamespace
+
+    import pytest
 
     np = pytest.importorskip("numpy")
     from src.tts_engines import OrpheusEngine, SpeechRequest

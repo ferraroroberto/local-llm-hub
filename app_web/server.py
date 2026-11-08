@@ -37,7 +37,26 @@ from src.usage_log import usage_router
 from src.webapp_config import WebappConfig, WebappConfigError, load_webapp_config
 
 from .middleware import BearerTokenMiddleware, admin_token_from_state
-from .routers import auth, code_usage, diagnostics, fleet_maintenance, fleet_placement, glossary, hosts, hub, install, machines, misc, models, playground, roles, services, startup_profile, telemetry, version
+from .routers import (
+    auth,
+    code_usage,
+    diagnostics,
+    fleet_maintenance,
+    fleet_placement,
+    glossary,
+    hosts,
+    hub,
+    install,
+    machines,
+    misc,
+    models,
+    playground,
+    roles,
+    services,
+    startup_profile,
+    telemetry,
+    version,
+)
 from .routers._helpers import STATIC_DIR
 
 _log = logging.getLogger(__name__)

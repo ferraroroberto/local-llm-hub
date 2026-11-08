@@ -18,9 +18,10 @@ from fastapi.responses import Response, StreamingResponse
 
 from src.host_profile import hub_port
 from src.http_client import get_async_client
-from src.routes import server_systemone
 from src.model_reachability import reachability_by_id
-from src.model_registry import enabled_models, resolve as resolve_model
+from src.model_registry import enabled_models
+from src.model_registry import resolve as resolve_model
+from src.routes import server_systemone
 from src.tts_engines import capabilities_for_engine
 
 from ._helpers import IDENTITY_ENCODING

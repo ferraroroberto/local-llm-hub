@@ -30,8 +30,8 @@ from _lib import (  # noqa: E402
     extract,
     fetch_release,
     flatten_if_nested,
-    linux_cuda_build_hint,
     lift_into,
+    linux_cuda_build_hint,
     no_window_flags,
     server_binary,
 )

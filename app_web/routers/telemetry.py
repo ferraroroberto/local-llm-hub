@@ -29,17 +29,18 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field, conint
 
-from src.usage.claude_code_otel import get_usage_summary as _claude_code_otel_summary
 from src.http_client import get_async_client
 from src.hub_observability import OBS
 from src.observability import (
     hash_prompts_enabled,
     is_sdk_disabled,
     langfuse_basic_auth,
-    langfuse_host as _langfuse_host_url,
     service_instance_id,
 )
-
+from src.observability import (
+    langfuse_host as _langfuse_host_url,
+)
+from src.usage.claude_code_otel import get_usage_summary as _claude_code_otel_summary
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

@@ -26,16 +26,17 @@ from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter
 
-from src.process import backend_process as bp
-from src.fleet import fleet_reconcile, remote_stats
 from src import system_stats
-from src.host_profile import HostProfile, all_hosts, resolve as resolve_host
+from src.fleet import fleet_reconcile, remote_stats
+from src.host_profile import HostProfile, all_hosts
+from src.host_profile import resolve as resolve_host
 from src.model_registry import (
     all_models,
     cpu_resident_map,
     desired_placement,
     launchable_local_ids,
 )
+from src.process import backend_process as bp
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

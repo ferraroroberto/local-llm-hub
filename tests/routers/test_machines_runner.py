@@ -18,6 +18,7 @@ from src.fleet import machine_console as mc
 from src.host_profile import HostProfile, get_host
 from tests._runner_fakes import CONFIG, OVERLAY, USER, install_fakes
 
+
 @pytest.fixture
 def fleet(write_config, monkeypatch):
     monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "hubbox")

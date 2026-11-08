@@ -46,9 +46,9 @@ import secrets
 import types
 from typing import Any, Awaitable, Callable
 
-from .routes.anthropic_errors import is_anthropic_shape_path
 from .anthropic_headers import parity_headers
 from .observability import derive_trace_id_from_uuid
+from .routes.anthropic_errors import is_anthropic_shape_path
 
 logger = logging.getLogger(__name__)
 

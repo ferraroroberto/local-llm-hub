@@ -264,8 +264,9 @@ def test_find_macos_asset_matches_when_present():
 
 
 def test_pick_assets_no_longer_handles_darwin(monkeypatch):
-    from scripts import install_whisper_cpp
     import pytest
+
+    from scripts import install_whisper_cpp
 
     monkeypatch.setattr(install_whisper_cpp.sys, "platform", "darwin")
     with pytest.raises(install_whisper_cpp.InstallError, match="unsupported platform"):
@@ -299,8 +300,9 @@ def test_macos_find_cmake_none_when_absent_everywhere(monkeypatch):
 
 
 def test_macos_build_prereqs_raises_actionable_message_when_cmake_missing(monkeypatch):
-    from scripts import install_whisper_cpp
     import pytest
+
+    from scripts import install_whisper_cpp
 
     monkeypatch.setattr(install_whisper_cpp, "_macos_find_cmake", lambda: None)
     with pytest.raises(install_whisper_cpp.InstallError, match="brew install cmake"):
@@ -308,8 +310,9 @@ def test_macos_build_prereqs_raises_actionable_message_when_cmake_missing(monkey
 
 
 def test_macos_build_prereqs_raises_actionable_message_when_clt_missing(monkeypatch):
-    from scripts import install_whisper_cpp
     import pytest
+
+    from scripts import install_whisper_cpp
 
     monkeypatch.setattr(install_whisper_cpp, "_macos_find_cmake", lambda: "/opt/homebrew/bin/cmake")
 

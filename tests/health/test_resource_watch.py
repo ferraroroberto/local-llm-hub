@@ -17,9 +17,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src import server as server_mod
-from src.health import disk_counters, resource_alert, resource_probe, resource_rules as rules, settings
-from src.health import resource_watch
-from src.health.resource_alert import send_via_notify_script as real_send  # bound before conftest blocks the module name
+from src.health import (
+    disk_counters,
+    resource_alert,
+    resource_probe,
+    resource_watch,
+    settings,
+)
+from src.health import resource_rules as rules
+from src.health.resource_alert import (
+    send_via_notify_script as real_send,  # bound before conftest blocks the module name
+)
 from src.health.resource_store import ResourceStore
 
 T0 = 1_800_000_000.0

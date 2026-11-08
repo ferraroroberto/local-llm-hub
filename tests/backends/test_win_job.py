@@ -25,8 +25,8 @@ from pathlib import Path
 import psutil
 import pytest
 
-from src.process import win_job
 from src.no_window import NO_WINDOW
+from src.process import win_job
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 

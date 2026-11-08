@@ -24,18 +24,17 @@ os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 import pytest
 from fastapi.testclient import TestClient
 
-from src import openai_upstream as upstream_mod
-from src import claude_cli as claude_cli_mod
 from src import chat_translation as chat_translation_mod
+from src import claude_cli as claude_cli_mod
+from src import openai_upstream as upstream_mod
 from src import server as server_mod
-from src.routes import anthropic_messages as anthropic_mod
-from src.routes import openai_chat as openai_chat_mod
-from src.routes import sse_response as sse_response_mod
 from src import server_common as server_common_mod
 from src.chat_translation import AnthropicStreamState, iter_claude_anthropic_sse
 from src.hub_observability import OBS
+from src.routes import anthropic_messages as anthropic_mod
+from src.routes import openai_chat as openai_chat_mod
+from src.routes import sse_response as sse_response_mod
 from tests.chat.test_think_stripping import _delta, _sse_lines
-
 
 # ---- Anthropic Messages SSE ----
 

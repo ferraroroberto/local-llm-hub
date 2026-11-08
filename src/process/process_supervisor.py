@@ -15,7 +15,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, IO, Optional
+from typing import IO, Callable, Optional
 
 # Stop budgets for a model-backend child (llama-server, the TTS server). The
 # polite window is long enough for a backend to flush its KV cache / close its

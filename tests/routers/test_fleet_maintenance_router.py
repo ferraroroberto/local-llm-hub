@@ -13,9 +13,9 @@ os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from src import server as server_mod  # noqa: E402
 from src.fleet import fleet_maintenance as fm  # noqa: E402
 from src.fleet import fleet_reconcile  # noqa: E402
-from src import server as server_mod  # noqa: E402
 
 
 def _isolate(monkeypatch, tmp_path, initial=None):

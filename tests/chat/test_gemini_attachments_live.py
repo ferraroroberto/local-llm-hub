@@ -23,9 +23,9 @@ the skip guard ensures this file never runs there.
 from __future__ import annotations
 
 import os
+import random
 import shutil
 import string
-import random
 from pathlib import Path
 
 import pytest

@@ -36,11 +36,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .host_profile import (
+    _CONFIG_CACHE,
     CONFIG_PATH,
     PROJECT_ROOT,
-    _CONFIG_CACHE,
     _load_config,
     all_hosts,
+)
+from .host_profile import (
     resolve as resolve_host,
 )
 from .model_registry import (

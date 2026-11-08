@@ -15,7 +15,6 @@ import pytest  # noqa: E402
 from src.audio import dictionary_miner as dm  # noqa: E402
 from tests._worker_loop import run_on_worker_thread as _run  # noqa: E402
 
-
 # --------------------------------------------------------------- heuristics
 
 _CORPUS = [

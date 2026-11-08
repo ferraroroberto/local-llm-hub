@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import uuid
 
-
 from src import observability as obs
 
 

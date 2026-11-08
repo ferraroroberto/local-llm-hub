@@ -21,7 +21,6 @@ from src import chat_translation as chat_translation_mod
 from src import server as server_mod
 from src import server_common as server_common_mod
 
-
 # 1x1 PNG (red pixel), valid bytes — base64-encoded for transport.
 _RED_PIXEL_B64 = (
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0g"

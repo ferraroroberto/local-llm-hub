@@ -7,7 +7,6 @@ import pytest
 from src.images import image_sizes as sz
 from src.images.image_sizes import ImageSizeError
 
-
 # --- presets are internally consistent ------------------------------------
 
 def test_every_preset_is_itself_a_valid_size():

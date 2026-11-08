@@ -64,8 +64,8 @@ async def stop_backend_children() -> None:
     restart endpoint sets ``backend_process.restart_pending()`` before
     signalling shutdown; we honour it by skipping teardown.
     """
-    from .process import backend_process as bp
     from . import http_client
+    from .process import backend_process as bp
 
     try:
         await http_client.aclose()
@@ -190,8 +190,8 @@ async def _autostart_configured_backends() -> None:
     # (or unowned and launchable on) this host. This is how an offline
     # satellite applies its models when it powers up — its own synced
     # models.yaml, no tower involvement needed.
-    from .process import backend_process as bp
     from .model_registry import desired_model_ids
+    from .process import backend_process as bp
 
     model_ids = desired_model_ids()
     if not model_ids:
@@ -218,7 +218,8 @@ async def _init_diagnostics() -> None:
     are best-effort: diagnostics must never keep the hub from starting.
     """
     try:
-        from .diagnostics import sampler, settings as diag_settings, store
+        from .diagnostics import sampler, store
+        from .diagnostics import settings as diag_settings
 
         await asyncio.to_thread(store.close_orphan_runs)
         cfg = diag_settings.load_settings()
@@ -266,9 +267,9 @@ async def _autostart_services() -> None:
     ``hosts:`` chains + ``startup:`` policy) as the sole cross-host source of
     truth.
     """
-    from .usage import agentsview_service
     from . import services as svc
     from .startup_profile import load_startup_profile
+    from .usage import agentsview_service
 
     profile = load_startup_profile()
 

@@ -14,7 +14,6 @@ import os
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
-from src.process.backend_process import _whisper_boost_args  # noqa: E402
 from src.audio import transcription_glossary as tg  # noqa: E402
 from src.audio.transcription_glossary import (  # noqa: E402
     DEFAULT_BOOST_TOKEN_BUDGET,
@@ -22,6 +21,7 @@ from src.audio.transcription_glossary import (  # noqa: E402
     estimate_tokens,
     load_boost_terms,
 )
+from src.process.backend_process import _whisper_boost_args  # noqa: E402
 
 
 def test_no_boost_without_carry_flag():

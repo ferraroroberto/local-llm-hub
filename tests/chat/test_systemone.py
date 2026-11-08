@@ -16,8 +16,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src import server as server_mod
-from src.routes import server_systemone as systemone_mod
 from src.hub_observability import OBS
+from src.routes import server_systemone as systemone_mod
 
 _KEY = "ts-test-key-do-not-leak-7f3a"
 

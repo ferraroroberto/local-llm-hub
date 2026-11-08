@@ -15,8 +15,8 @@ codebase audit:
 
 from __future__ import annotations
 
-from src.process import backend_process as bp
 from src.model_registry import Model
+from src.process import backend_process as bp
 
 
 def _model(**overrides) -> Model:

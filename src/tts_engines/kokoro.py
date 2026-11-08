@@ -17,10 +17,10 @@ from typing import Any, Dict
 from ..model_registry import Model
 from .common import (
     PROJECT_ROOT,
-    SpeechRequest,
-    TTSEngine,
     TTS_LANGUAGE_LABELS,
     TTS_SAMPLE_TEXT,
+    SpeechRequest,
+    TTSEngine,
     _to_mono_f32,
     voice_option,
 )
@@ -106,8 +106,8 @@ class KokoroEngine(TTSEngine):
             pass
 
     def load(self) -> None:
-        from kokoro_onnx import Kokoro
         import onnxruntime as ort
+        from kokoro_onnx import Kokoro
 
         if not self.model_row.model_path:
             raise RuntimeError("kokoro row has no model_path (ONNX)")

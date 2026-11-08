@@ -18,7 +18,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 from fastapi import APIRouter, HTTPException, Request
 
 from src.health.resource_alert import send_via_notify_script
-from src.login_lockout import LoginLockout, LockoutAlert, retry_after_header
+from src.login_lockout import LockoutAlert, LoginLockout, retry_after_header
 from src.webapp_config import WebappConfig
 
 from ..middleware import LOOPBACK_HOSTS, is_pc_itself

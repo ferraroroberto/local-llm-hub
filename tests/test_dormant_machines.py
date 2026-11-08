@@ -13,15 +13,14 @@ from __future__ import annotations
 import threading
 import time
 
-import yaml
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
-from src import config_write, host_profile
-from src.fleet import fleet_reconcile, machine_console as mc
-from src import model_failover, model_registry
-from src.fleet import remote_stats
+from src import config_write, host_profile, model_failover, model_registry
 from src import server as server_mod
+from src.fleet import fleet_reconcile, remote_stats
+from src.fleet import machine_console as mc
 from tests._worker_loop import run_on_worker_thread as _run
 
 CONFIG = {

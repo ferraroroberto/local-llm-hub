@@ -202,8 +202,8 @@ async def stop_agentsview() -> Dict[str, Any]:
     ``server_process.find_port_pids`` / ``kill_pid``, the same port-based
     kill idiom ``force_stop_external`` already uses for adopted models.
     """
-    from src.usage.agentsview_usage import _base_url
     from src.process.server_process import find_port_pids, kill_pid
+    from src.usage.agentsview_usage import _base_url
 
     host = _base_url()
     if not host:

@@ -37,9 +37,9 @@ import uvicorn
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-from .process.backend_process import resolve_model_for_engine
 from .event_loop import LOOP_FACTORY
 from .no_window import NO_WINDOW
+from .process.backend_process import resolve_model_for_engine
 
 log = logging.getLogger("parakeet_server")
 

@@ -39,7 +39,14 @@ from typing import Any, Dict
 
 from ..model_registry import Model
 from .chatterbox import ChatterboxEngine
-from .common import PROJECT_ROOT, SpeechRequest, TTSEngine, VOICES_DIR, resolve_device, resolve_voice_clip
+from .common import (
+    PROJECT_ROOT,
+    VOICES_DIR,
+    SpeechRequest,
+    TTSEngine,
+    resolve_device,
+    resolve_voice_clip,
+)
 from .kokoro import KokoroEngine
 from .orpheus import OrpheusEngine
 from .piper import PiperEngine

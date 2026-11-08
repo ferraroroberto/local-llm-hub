@@ -12,13 +12,13 @@ import asyncio
 
 import pytest
 
-from src.process import backend_process
 from src import model_failover, model_registry
 from src.model_failover import (
     POLICY_STICKY,
     FailoverSettings,
     OwnershipTracker,
 )
+from src.process import backend_process
 
 
 @pytest.fixture(autouse=True)

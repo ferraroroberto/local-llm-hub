@@ -37,7 +37,7 @@ import threading
 import time
 from typing import Any, Dict, Optional
 
-from .model_registry import Model, STARTUP_ON_DEMAND
+from .model_registry import STARTUP_ON_DEMAND, Model
 
 logger = logging.getLogger(__name__)
 
@@ -176,9 +176,9 @@ def _warn_on_vram_overcommit(model: Model) -> Optional[int]:
     always proceeds. Returns the projected total (MB) when it overcommits,
     ``None`` otherwise (including hosts with no ceiling).
     """
-    from .process import backend_process as bp
     from .host_profile import resolve as resolve_host
     from .model_registry import cpu_resident_map
+    from .process import backend_process as bp
 
     try:
         host = resolve_host()
@@ -218,8 +218,8 @@ def ensure_ready(model: Model, deadline_s: float = READY_DEADLINE_S) -> None:
     answers or ``deadline_s`` expires — raising :class:`OnDemandNotReady`
     so the route can surface a distinct 503.
     """
-    from .process import backend_process as bp
     from .fleet.remote_proxy import remote_base_url
+    from .process import backend_process as bp
 
     if not is_on_demand(model) or model.virtual or not model.port:
         return
@@ -270,8 +270,8 @@ def idle_unload_pass(now: Optional[float] = None) -> Dict[str, Any]:
     so it still unloads one full window later rather than immediately or
     never. Returns ``{model_id: action}`` for observability/tests.
     """
-    from .process import backend_process as bp
     from .model_registry import local_models
+    from .process import backend_process as bp
 
     t = time.monotonic() if now is None else now
     results: Dict[str, Any] = {}

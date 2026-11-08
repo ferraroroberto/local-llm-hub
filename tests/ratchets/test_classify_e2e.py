@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.classify_e2e import load_config, classify
+from scripts.classify_e2e import classify, load_config
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REAL_FLEET_TOML = REPO_ROOT / ".fleet.toml"
