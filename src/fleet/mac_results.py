@@ -31,6 +31,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
@@ -38,7 +39,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from ..host_profile import get_host
 from ..no_window import NO_WINDOW
 from . import mac_results_store as store
-from . import remote_stats
+from . import nightly_ci, nightly_ci_issues, remote_stats
 from .ssh_exec import SshResult, run_ssh
 
 RESULTS_KEY_ENV = "LOCAL_LLM_HUB_RESULTS_SSH_KEY"
@@ -124,15 +125,18 @@ class PassReport:
     outcomes: List[RunOutcome] = field(default_factory=list)
     already_delivered: int = 0
     out_of_window: int = 0
+    ci_outcomes: List[nightly_ci.CiOutcome] = field(default_factory=list)
 
     @property
     def exit_code(self) -> int:
         """0 = every run the pass met is delivered or legitimately waiting;
-        1 = at least one thing is unknown or refused (the next pass retries)."""
+        1 = at least one thing is unknown or refused (the next pass retries); the
+        nightly-CI stage's unknown, refused and unsent-digest states count the same."""
         if self.list_state != "ok":
             return 1
         bad = (REFUSED, NOT_CONFIRMED, AUDIT_NOT_MEASURED)
-        return 1 if any(o.state in bad for o in self.outcomes) else 0
+        ci_bad = (nightly_ci.UNKNOWN, nightly_ci.REFUSED, nightly_ci.DIGEST_NOT_CONFIRMED)
+        return 1 if any(o.state in bad for o in self.outcomes) or any(o.state in ci_bad for o in self.ci_outcomes) else 0
 
 
 @dataclass(frozen=True)
@@ -472,8 +476,10 @@ def file_audit(entry: RunEntry, ssh: Ssh, filer: Optional[Filer], conn, staging_
 
 
 def run_pass(ssh: Ssh, send: Sender, conn, staging_root: Path, *, window_days: int = DEFAULT_WINDOW_DAYS,
-             dry_run: bool = False, filer: Optional[Filer] = None) -> PassReport:
-    """One pull-and-deliver pass over the Mac's results folder."""
+             dry_run: bool = False, filer: Optional[Filer] = None,
+             gh: Optional[nightly_ci_issues.Gh] = None, now: Optional[float] = None) -> PassReport:
+    """One pull-and-deliver pass over the Mac's results folder. With ``gh`` it also files
+    each new night's result (``nightly_ci``): nothing is filed or sent for a night without it."""
     report = PassReport()
     listed = ssh("list", _SSH_LIST_TIMEOUT_S)
     if not listed.ok:
@@ -511,6 +517,10 @@ def run_pass(ssh: Ssh, send: Sender, conn, staging_root: Path, *, window_days: i
                 report.outcomes.append(deliver_run(entry, ssh, send, conn, staging_root))
             if need_audit:
                 report.outcomes.append(file_audit(entry, ssh, filer, conn, staging_root))
+    if gh is not None:
+        nights = [(e.repo, e.run_id, e.age_s) for e in runs if e.ready and e.age_s <= window_s]
+        report.ci_outcomes = nightly_ci.run_ci_stage(
+            nights, ssh, gh, send, conn, staging_root, now=time.time() if now is None else now, dry_run=dry_run)
     return report
 
 
@@ -562,6 +572,10 @@ def _print_report(report: PassReport) -> None:
              AUDIT_FILED: "✅", AUDIT_NOT_MEASURED: "⚠️", WOULD_FILE: "ℹ️"}
     for o in report.outcomes:
         print(f"{icons[o.state]} {o.repo} run {o.run_id}: {o.state} - {o.detail}")
+    ci_icons = {nightly_ci.REPORTED: "✅", nightly_ci.WOULD_REPORT: "ℹ️", nightly_ci.DIGEST_SENT: "✅",
+                nightly_ci.UNKNOWN: "⚠️", nightly_ci.REFUSED: "❌", nightly_ci.DIGEST_NOT_CONFIRMED: "⚠️"}
+    for c in report.ci_outcomes:
+        print(f"{ci_icons[c.state]} {c.repo} run {c.run_id}: {c.state} - {c.detail}")
     print(f"ℹ️ already delivered: {report.already_delivered}; outside the pull window: {report.out_of_window}")
 
 
@@ -622,8 +636,8 @@ def _main(argv: Optional[List[str]]) -> int:
     sender: Sender = job_sender if job_sender is not None else make_send_file_sender(send_file)
     conn = store.connect()
     try:
-        report = run_pass(ssh, sender, conn, _staging_root(),
-                          window_days=args.window_days, dry_run=args.dry_run, filer=filer)
+        report = run_pass(ssh, sender, conn, _staging_root(), window_days=args.window_days,
+                          dry_run=args.dry_run, filer=filer, gh=nightly_ci_issues.make_gh())
     finally:
         conn.close()
     _print_report(report)
