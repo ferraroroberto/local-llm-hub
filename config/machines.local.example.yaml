@@ -2,7 +2,7 @@
 #
 #     cp config/machines.local.example.yaml config/machines.local.yaml
 #
-# Why this file exists (#525): config/models.yaml is committed to a PUBLIC
+# Why this file exists: config/models.yaml is committed to a PUBLIC
 # repo. It carries what a reader needs to understand the fleet — roles, model
 # rosters, capacity ceilings — and deliberately nothing that maps a private
 # network. The per-host addressing lives here instead, and the real
@@ -19,10 +19,10 @@
 #
 # Fields (all optional, per host):
 #   address    LAN address other hosts dial to reach this box's own hub
-#   tailscale  Tailscale magic-DNS hostname — the peer-connect fallback (#396)
+#   tailscale  Tailscale magic-DNS hostname — the peer-connect fallback
 #              used when the wired LAN address stops answering
-#   mac        wired-NIC MAC for Wake-on-LAN (#356); Wi-Fi WOL is unsupported
-#   ssh_user   login for the remote-bootstrap/sync endpoints (#181). Not a
+#   mac        wired-NIC MAC for Wake-on-LAN; Wi-Fi WOL is unsupported
+#   ssh_user   login for the remote-bootstrap/sync endpoints. Not a
 #              secret — the key itself is LOCAL_LLM_HUB_SSH_KEY in .env
 #   rdp        {address, user} for the Remote-Desktop launch action
 #   actions_runner  this machine hosts a GitHub Actions runner: adds the Runner
@@ -30,7 +30,7 @@
 #              key is optional: dir (default ~/actions-runner), repo and name
 #              (read from the runner folder), workflow (a file whose latest run
 #              is shown). `actions_runner: {}` enables it with the defaults
-#   dormant    true = this machine is off on purpose (#765): no offline alert,
+#   dormant    true = this machine is off on purpose: no offline alert,
 #              never contacted by failover/placement/sync. Written by
 #              Settings › Machines; you rarely need to edit it by hand
 #

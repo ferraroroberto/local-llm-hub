@@ -1,5 +1,5 @@
 # Self-hosted SearXNG for the voice assistant's Tier-3 web-search function
-# (home-automation#321). A meta-search engine — no API key, no per-query cost.
+# (home-automation). A meta-search engine — no API key, no per-query cost.
 #
 # Start:  start_searxng.bat   (or `docker compose -f docker/searxng/docker-compose.yml up -d`)
 # Stop:   stop_searxng.bat    (or `docker compose -f docker/searxng/docker-compose.yml down`)
@@ -27,7 +27,7 @@ services:
     # always, not unless-stopped: the latter treats a graceful stop as
     # permanent (Docker's "manually stopped" flag), so a stray `docker stop`
     # or an unclean shutdown leaves this always-on backend down forever
-    # (issue #548). stop_searxng.bat runs `compose down`, which removes the
+    # stop_searxng.bat runs `compose down`, which removes the
     # container rather than leaving it parked, so the deliberate-stop path
     # is unaffected.
     restart: always
