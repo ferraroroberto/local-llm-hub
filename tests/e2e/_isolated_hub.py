@@ -220,7 +220,13 @@ def _isolate_usage_data(state_dir: Path) -> None:
     history exercises just as well; the parsers, vendor filter and response
     shape are unit-tested (tests/routers/test_code_usage_router.py, #599).
     """
-    from src.usage import claude_code_otel, code_usage, code_usage_history, codex_usage, copilot_usage
+    from src.usage import (
+        claude_code_otel,
+        code_usage,
+        code_usage_history,
+        codex_usage,
+        copilot_usage,
+    )
 
     empty = state_dir / "usage-empty"
     empty.mkdir(parents=True, exist_ok=True)
@@ -260,10 +266,10 @@ def isolate_from_live_services(state_dir: Path) -> None:
     _pin_config(state_dir)
     _isolate_usage_data(state_dir)
 
-    from src.process import backend_process, server_process
     from src import install, server_lifecycle, services, system_stats
     from src.hub_log import HUB_LOG
     from src.hub_observability import OBS
+    from src.process import backend_process, server_process
 
     async def wire_loops_only() -> None:
         # The real startup also adopts and autostarts backends, launches

@@ -18,8 +18,8 @@ import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app_web.routers import models as models_router  # noqa: E402
-from src.process import backend_process as bp  # noqa: E402
 from src import config_write  # noqa: E402
+from src.process import backend_process as bp  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

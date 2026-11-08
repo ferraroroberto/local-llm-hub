@@ -14,10 +14,12 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from src.usage import agentsview_service
+from src import model_registry, services
+from src import server as server_mod
+from src.diagnostics import report, sampler, store
+from src.diagnostics import settings as diag_settings
 from src.process import backend_process
-from src import model_registry, server as server_mod, services
-from src.diagnostics import report, sampler, settings as diag_settings, store
+from src.usage import agentsview_service
 
 
 def _stub_real_backend_ops(monkeypatch):

@@ -21,7 +21,6 @@ from app_web.routers._helpers import sse_pack, sse_stream
 from src.async_fanout import AsyncFanout
 from tests._worker_loop import run_on_worker_thread
 
-
 # First frame of every stream: flushes the response head through GZipMiddleware.
 OPEN = ":open\n\n"
 

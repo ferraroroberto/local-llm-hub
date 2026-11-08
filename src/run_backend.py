@@ -22,20 +22,28 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
+from .host_profile import resolve as resolve_host
+from .model_registry import SPAWNABLE_BACKENDS, enabled_models, launchable_local_ids
 from .process import win_job
 from .process.backend_process import (
     LIVENESS_PROBE_TIMEOUT_S,
     build_command,
-    external_pid as backend_external_pid,
-    is_reachable as backend_is_reachable,
     resolve_model_by_id,
     vendor_dir_for,
 )
-from .host_profile import resolve as resolve_host
-from .model_registry import SPAWNABLE_BACKENDS, enabled_models, launchable_local_ids
+from .process.backend_process import (
+    external_pid as backend_external_pid,
+)
+from .process.backend_process import (
+    is_reachable as backend_is_reachable,
+)
 from .process.server_process import (
     BASE_URL as HUB_BASE_URL,
+)
+from .process.server_process import (
     external_pid as hub_external_pid,
+)
+from .process.server_process import (
     is_reachable as hub_is_reachable,
 )
 

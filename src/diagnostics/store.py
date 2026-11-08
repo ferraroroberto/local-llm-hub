@@ -96,9 +96,11 @@ def _open_migrated(target: Path) -> sqlite3.Connection:
     so ``busy_timeout`` alone does not cover it). The migration is committed in
     its own transaction so concurrent openers see the new schema and stop
     racing it."""
+    # runtime-write-exempt: database path is supplied by the caller (under the runtime data dir)
     target.parent.mkdir(parents=True, exist_ok=True)
     last: Optional[sqlite3.OperationalError] = None
     for attempt in range(_OPEN_RETRIES):
+        # runtime-write-exempt: database path is supplied by the caller (under the runtime data dir)
         conn = sqlite3.connect(str(target), timeout=30.0, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         try:

@@ -19,7 +19,8 @@ import time
 from collections import deque
 from typing import Any, Deque, Dict, List, Optional
 
-from . import resource_rules as rules, settings
+from . import resource_rules as rules
+from . import settings
 from .resource_alert import AlertGate, Sender
 from .resource_probe import ResourceProbe
 from .resource_store import ResourceStore

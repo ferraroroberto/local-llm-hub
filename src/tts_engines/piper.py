@@ -23,7 +23,14 @@ from typing import Any, Dict, List, Optional
 from ..model_registry import Model
 from ..no_window import NO_WINDOW
 from ..process.win_job import assign_pid, create_kill_on_close_job, terminate_and_close
-from .common import PROJECT_ROOT, SpeechRequest, TTSEngine, TTS_LANGUAGE_LABELS, TTS_SAMPLE_TEXT, voice_option
+from .common import (
+    PROJECT_ROOT,
+    TTS_LANGUAGE_LABELS,
+    TTS_SAMPLE_TEXT,
+    SpeechRequest,
+    TTSEngine,
+    voice_option,
+)
 
 log = logging.getLogger(__name__)
 

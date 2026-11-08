@@ -26,7 +26,6 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from src import server as server_mod  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -62,7 +61,8 @@ def _patch_async_client(monkeypatch, calls: list):
 
 def _minimal_wav_bytes() -> bytes:
     """Return a tiny but valid WAV payload (44-byte header, zero frames)."""
-    import wave, io as _io
+    import io as _io
+    import wave
     buf = _io.BytesIO()
     with wave.open(buf, "wb") as w:
         w.setnchannels(1)

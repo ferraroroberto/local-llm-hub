@@ -81,8 +81,8 @@ def _peer_base(owner: Any) -> str:
     answers, tailnet name when it doesn't. The preceding ``peer_health`` call
     in every converge path has already warmed the resolver's last-known-good
     cache, so this is a dict lookup in practice, not a probe."""
-    from . import remote_stats
     from ..host_profile import hub_port
+    from . import remote_stats
     address = remote_stats.dial_address(owner) or owner.address
     return f"http://{address}:{hub_port()}"
 
@@ -128,8 +128,8 @@ async def _reconcile_local(desired: List[str]) -> Dict[str, Any]:
 
 async def _reconcile_remote(host_id: str, desired: List[str]) -> Dict[str, Any]:
     """Wake (if needed) + start the desired models on a peer."""
-    from . import remote_bootstrap, remote_stats
     from ..host_profile import get_host
+    from . import remote_bootstrap, remote_stats
 
     owner = get_host(host_id)
     if owner is None or not owner.address:
@@ -188,9 +188,10 @@ async def reconcile_once() -> Dict[str, Any]:
     loop's job. A host with an empty desired set is omitted from the derived
     placement entirely: no models to run means no reason to wake it.
     """
-    from . import fleet_maintenance
-    from ..host_profile import get_host, resolve as resolve_host
+    from ..host_profile import get_host
+    from ..host_profile import resolve as resolve_host
     from ..model_registry import desired_placement
+    from . import fleet_maintenance
 
     placement = desired_placement()
     active_id = resolve_host().id

@@ -34,9 +34,9 @@ import threading
 import time
 from typing import Any, Dict, List, Optional
 
+from src.fleet.ssh_exec import run_ssh
 from src.host_profile import HostProfile, hub_port
 from src.http_client import get_async_client
-from src.fleet.ssh_exec import run_ssh
 
 logger = logging.getLogger(__name__)
 
@@ -649,8 +649,8 @@ async def peer_health(
     reachable-but-erroring version fetch never flips ``reachable`` back to
     ``False``.
     """
-    from src.process.process_identity import git_sha
     from src.host_profile import get_host
+    from src.process.process_identity import git_sha
 
     owner = get_host(host_id)
     if owner is not None and owner.dormant:

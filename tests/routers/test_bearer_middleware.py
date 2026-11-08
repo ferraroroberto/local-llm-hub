@@ -16,9 +16,9 @@ os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 from fastapi.testclient import TestClient
 
 from app_web import server as admin_server
+from src import server as server_mod
 from src import webapp_config as webapp_config_mod
 from src.webapp_config import WebappConfig
-from src import server as server_mod
 
 _PROXY_HEADERS = {"X-Forwarded-For": "203.0.113.5"}  # forces is_loopback=False
 

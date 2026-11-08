@@ -34,9 +34,9 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
-from .process.backend_process import resolve_model_for_engine
 from .event_loop import LOOP_FACTORY
 from .model_registry import Model
+from .process.backend_process import resolve_model_for_engine
 from .tts_engines import SpeechRequest, TTSEngine, build_engine
 
 if TYPE_CHECKING:  # numpy is imported lazily at runtime (see encode_audio)

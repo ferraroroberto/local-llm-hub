@@ -21,9 +21,9 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app_web.admin_forward import forward_admin_request
 from src import startup_profile as sp
+from src.fleet.remote_proxy import remote_auth_headers, remote_base_url_for_host
 from src.host_profile import get_host
 from src.host_profile import resolve as resolve_host
-from src.fleet.remote_proxy import remote_auth_headers, remote_base_url_for_host
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

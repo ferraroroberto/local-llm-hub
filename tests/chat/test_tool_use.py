@@ -30,7 +30,6 @@ from fastapi.testclient import TestClient
 
 from src import chat_translation as chat_mod
 from src import server as server_mod
-from src.routes import anthropic_messages as anthropic_mod
 from src import server_common as server_common_mod
 from src.chat_translation import (
     AnthropicStreamState,
@@ -43,6 +42,7 @@ from src.openai_upstream import (
     anthropic_tools_to_openai,
     openai_to_anthropic_envelope,
 )
+from src.routes import anthropic_messages as anthropic_mod
 
 LOCAL_MODEL = "qwen3.5-4b"
 

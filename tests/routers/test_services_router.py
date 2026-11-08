@@ -18,9 +18,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app_web.routers import services as services_router
-from src.fleet import remote_stats
 from src import server as server_mod
 from src import services as svc
+from src.fleet import remote_stats
 from tests._worker_loop import run_on_worker_thread as _run
 
 

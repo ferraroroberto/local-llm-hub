@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from src.fleet import remote_bootstrap
 from src import server as server_mod
+from src.fleet import remote_bootstrap
 
 
 def _client() -> TestClient:

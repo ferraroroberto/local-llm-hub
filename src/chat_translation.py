@@ -35,6 +35,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from .claude_cli import ClaudeCLIError, call_claude
+from .fleet.remote_proxy import remote_auth_headers, remote_base_url
 from .gemini_cli import GeminiCLIError, call_gemini
 from .hub_observability import error_class_of, tag_error
 from .model_registry import Model
@@ -46,7 +47,7 @@ from .openai_upstream import (
     call_openai_chat,
     openai_to_anthropic_envelope,
 )
-from .fleet.remote_proxy import remote_auth_headers, remote_base_url
+
 # The Anthropic SSE adapters live in their own module; re-exported here so
 # every importer keeps the chat_translation path.
 from .translation.anthropic_sse import (  # noqa: F401
@@ -335,6 +336,7 @@ def _extract_media_blocks(
                     fname = f"{stem}_{len(attachment_paths)}.{ext}"
                     fpath = td_path / fname
                     try:
+                        # runtime-write-exempt: writes inside a per-request temporary directory
                         fpath.write_bytes(base64.b64decode(data_b64))
                     except Exception as e:
                         raise HTTPException(

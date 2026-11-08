@@ -64,20 +64,20 @@ except ImportError:
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse, Response
 
-from .routes.anthropic_errors import install_anthropic_error_handlers
+from . import gemini_cli
+from .audio import server_audio_tts as _server_audio_tts  # noqa: F401 — registers /v1/audio/speech onto _audio_router
+from .audio.server_audio_asr import router as _audio_router
 from .compression import StreamSafeGZipMiddleware
 from .cors_policy import install_cors
-from . import gemini_cli
 from .host_profile import hub_bind_host, hub_port
 from .hub_log import install_root_handler
 from .hub_observability import ObservatoryMiddleware
+from .images.server_images import router as _images_router
 from .model_registry import enabled_models
 from .observability import init_otel, instrument_fastapi_app
+from .routes.anthropic_errors import install_anthropic_error_handlers
 from .routes.anthropic_messages import router as _anthropic_router
 from .routes.openai_chat import router as _openai_router
-from .audio.server_audio_asr import router as _audio_router
-from .audio import server_audio_tts as _server_audio_tts  # noqa: F401 — registers /v1/audio/speech onto _audio_router
-from .images.server_images import router as _images_router
 from .routes.server_otel_receiver import router as _otel_receiver_router
 from .routes.server_systemone import router as _systemone_router
 from .trace_id_middleware import install_outermost as install_trace_id_layer
@@ -308,6 +308,7 @@ app.include_router(_systemone_router)
 
 def main() -> None:
     import uvicorn
+
     from src.event_loop import LOOP_FACTORY
     uvicorn.run(
         "src.server:app",

@@ -31,10 +31,10 @@ from ..process.process_supervisor import (
 from ..process.win_job import assign_pid, create_kill_on_close_job, terminate_and_close
 from .common import (
     PROJECT_ROOT,
-    SpeechRequest,
-    TTSEngine,
     TTS_LANGUAGE_LABELS,
     TTS_SAMPLE_TEXT,
+    SpeechRequest,
+    TTSEngine,
     _wrap_on_words,
     resolve_device,
     voice_option,
@@ -138,7 +138,7 @@ class OrpheusEngine(TTSEngine):
             kill_pid(int(pid))
 
     def _spawn_llama(self) -> None:
-        from ..process.backend_process import llama_server_binary, VENDOR_LLAMA
+        from ..process.backend_process import VENDOR_LLAMA, llama_server_binary
         from ..process.server_process import WIN_NEW_GROUP
 
         self._reclaim_internal_port()

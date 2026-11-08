@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from src.usage import code_usage, code_usage_history as hist
+from src.usage import code_usage
+from src.usage import code_usage_history as hist
 from src.usage.usage_common import UsageRecord
 
 

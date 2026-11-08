@@ -21,8 +21,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.process import win_job  # noqa: E402 — path insert above must run first
 from src.no_window import NO_WINDOW  # noqa: E402
+from src.process import win_job  # noqa: E402 — path insert above must run first
 
 
 def main(argv: list) -> int:

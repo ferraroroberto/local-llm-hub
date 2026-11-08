@@ -10,7 +10,8 @@ import dataclasses
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from .host_profile import HostProfile, _load_config, all_hosts, resolve as resolve_host
+from .host_profile import HostProfile, _load_config, all_hosts
+from .host_profile import resolve as resolve_host
 
 # ``startup:`` policy values — see the field docstring on ``Model``.
 STARTUP_EAGER = "eager"

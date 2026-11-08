@@ -16,8 +16,8 @@ os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 import pytest
 
-from src.process import backend_process as bp
 from src import server_lifecycle
+from src.process import backend_process as bp
 from tests._worker_loop import run_on_worker_thread as _run
 
 

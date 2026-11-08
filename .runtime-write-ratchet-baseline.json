@@ -1,27 +1,4 @@
 {
   "version": 1,
-  "entries": [
-    {"key": "app_web/routers/auth.py", "counts": {"unresolved": 2}},
-    {"key": "docker/searxng/ensure_json_format.py", "counts": {"unresolved": 1}},
-    {"key": "scripts/_lib.py", "counts": {"unresolved": 5}},
-    {"key": "scripts/bench_agentic.py", "counts": {"unresolved": 5}},
-    {"key": "scripts/bench_voice.py", "counts": {"unresolved": 1}},
-    {"key": "scripts/detect_machine_specs.py", "counts": {"unresolved": 2}},
-    {"key": "scripts/download_models.py", "counts": {"unresolved": 2}},
-    {"key": "scripts/install_comfyui.py", "counts": {"unresolved": 1}},
-    {"key": "scripts/install_tts.py", "counts": {"unresolved": 1}},
-    {"key": "scripts/install_whisper_cpp.py", "counts": {"unresolved": 1}},
-    {"key": "src/_respawn_watchdog.py", "counts": {"unresolved": 1}},
-    {"key": "src/atomic_write.py", "counts": {"unresolved": 2}},
-    {"key": "src/chat_translation.py", "counts": {"unresolved": 1}},
-    {"key": "src/config_write.py", "counts": {"unresolved": 3}},
-    {"key": "src/diagnostics/store.py", "counts": {"unresolved": 2}},
-    {"key": "src/gemini_cli.py", "counts": {"unresolved": 1}},
-    {"key": "src/health/resource_store.py", "counts": {"unresolved": 2}},
-    {"key": "src/install.py", "counts": {"unresolved": 2}},
-    {"key": "src/parakeet_server.py", "counts": {"unresolved": 1}},
-    {"key": "src/process/backend_process.py", "counts": {"unresolved": 1}},
-    {"key": "src/process/hub_process_control.py", "counts": {"unresolved": 2}},
-    {"key": "src/webapp_config.py", "counts": {"unresolved": 1}}
-  ]
+  "entries": []
 }

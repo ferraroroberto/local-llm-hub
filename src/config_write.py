@@ -36,11 +36,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .host_profile import (
+    _CONFIG_CACHE,
     CONFIG_PATH,
     PROJECT_ROOT,
-    _CONFIG_CACHE,
     _load_config,
     all_hosts,
+)
+from .host_profile import (
     resolve as resolve_host,
 )
 from .model_registry import (
@@ -579,6 +581,7 @@ def edit_models_yaml(
 
     buf = StringIO()
     yaml.dump(data, buf)
+    # runtime-write-exempt: writes the caller-supplied config path (config/models.yaml)
     path.write_text(buf.getvalue(), encoding="utf-8")
     return True
 
@@ -619,9 +622,11 @@ def apply_placement(
         message = COMMIT_MESSAGE_TEMPLATE.format(model=model_id)
         sha = commit_and_push(PROJECT_ROOT, CONFIG_RELPATH, message)
     except ConfigWriteError:
+        # runtime-write-exempt: restores config/models.yaml, which is outside the code folders
         CONFIG_PATH.write_bytes(original)
         raise
     except Exception as exc:  # noqa: BLE001 — never leave a half-written file
+        # runtime-write-exempt: restores config/models.yaml, which is outside the code folders
         CONFIG_PATH.write_bytes(original)
         raise ConfigWriteError(f"config write failed: {exc}", 500) from exc
 

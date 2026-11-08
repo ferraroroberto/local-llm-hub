@@ -17,12 +17,17 @@ from fastapi import HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 
 from .. import on_demand as _on_demand
+from ..fleet.remote_proxy import remote_auth_headers, remote_base_url
 from ..http_client import get_async_client
 from ..model_registry import Model
-from ..fleet.remote_proxy import remote_auth_headers, remote_base_url
+from ..server_common import (
+    current_otel_span,
+    ensure_backend_ready_or_503,
+    set_span_attrs,
+    stash_trace_id_on_ctx,
+)
 from .server_audio_asr import router
 from .server_audio_common import _audio_upstream_error, stamp_backend_status
-from ..server_common import current_otel_span, ensure_backend_ready_or_503, set_span_attrs, stash_trace_id_on_ctx
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +43,8 @@ def _tts_model_for_request(model_name: str) -> Optional[Model]:
     backend — the default role never silently proxies to a remote host.
     Returns ``None`` if no TTS backend is enabled on this host.
     """
-    from ..model_registry import local_models, resolve as _resolve_model
+    from ..model_registry import local_models
+    from ..model_registry import resolve as _resolve_model
 
     if model_name:
         m = _resolve_model(model_name)

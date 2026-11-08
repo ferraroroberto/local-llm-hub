@@ -62,6 +62,7 @@ def main() -> int:
     else:
         formats.append("json")
 
+    # runtime-write-exempt: rewrites the settings.yml path given on the command line
     with path.open("w", encoding="utf-8") as f:
         yaml.dump(data, f)
 

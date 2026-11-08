@@ -13,11 +13,12 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, List, Optional, Sequence
 
-from .process import backend_process as bp
 from .fleet import remote_stats
-from .host_profile import get_host, resolve as resolve_host
+from .host_profile import get_host
+from .host_profile import resolve as resolve_host
 from .model_failover import effective_owner
 from .model_registry import Model
+from .process import backend_process as bp
 from .process.server_process import snapshot_listening_pids
 
 

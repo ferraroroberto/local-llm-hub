@@ -29,9 +29,9 @@ from typing import Any, Awaitable, Dict
 
 from fastapi import APIRouter
 
+from src import services as svc
 from src.health.snapshot import Snapshot
 from src.usage import agentsview_service
-from src import services as svc
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

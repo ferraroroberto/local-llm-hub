@@ -51,9 +51,10 @@ from starlette.responses import Response
 
 from src import config_write
 from src.fleet import actions_runner, machine_console, remote_bootstrap, ssh_terminal
-from src.health import resource_watch, watch as health_watch
-from src.host_profile import all_hosts, get_host, resolve
 from src.fleet.wake_on_lan import WakeOnLanError, send_wake
+from src.health import resource_watch
+from src.health import watch as health_watch
+from src.host_profile import all_hosts, get_host, resolve
 
 from ..middleware import admin_token_from_state, authorize_websocket
 

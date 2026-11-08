@@ -30,10 +30,11 @@ from typing import Callable, List, Optional
 
 log = logging.getLogger(__name__)
 
-from .process.backend_process import llama_server_binary, whisper_server_binary
-from .host_profile import hub_port, resolve as resolve_host
+from .host_profile import hub_port
+from .host_profile import resolve as resolve_host
 from .model_registry import SPAWNABLE_BACKENDS, local_models
 from .no_window import NO_WINDOW
+from .process.backend_process import llama_server_binary, whisper_server_binary
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -643,7 +644,9 @@ def _fix_launchagent() -> None:
     )
     (PROJECT_ROOT / "data" / "logs").mkdir(parents=True, exist_ok=True)
     plist_path = _launchagent_plist_path()
+    # runtime-write-exempt: macOS LaunchAgent plist under the user's Library, not the repo
     plist_path.parent.mkdir(parents=True, exist_ok=True)
+    # runtime-write-exempt: macOS LaunchAgent plist under the user's Library, not the repo
     plist_path.write_text(rendered, encoding="utf-8")
     uid = os.getuid()
     # bootout first so a re-run picks up a changed plist (bootstrap alone

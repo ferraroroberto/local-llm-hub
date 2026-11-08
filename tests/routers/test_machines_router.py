@@ -15,8 +15,8 @@ import dataclasses
 import pytest
 from fastapi.testclient import TestClient
 
-from src.fleet import machine_console as mc
 from src import server as server_mod
+from src.fleet import machine_console as mc
 from src.fleet import ssh_exec
 from src.host_profile import HostProfile, all_hosts, get_host, resolve
 from tests._worker_loop import run_on_worker_thread as _run

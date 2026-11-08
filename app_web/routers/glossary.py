@@ -86,7 +86,7 @@ async def mine_glossary(payload: Dict[str, Any] | None = None) -> Dict[str, Any]
     loopback and returns reviewable suggestions; it never writes the
     dictionary. ``days`` may override the configured default.
     """
-    from src.audio.dictionary_miner import mine_suggestions, MinerError
+    from src.audio.dictionary_miner import MinerError, mine_suggestions
 
     days = None
     if isinstance(payload, dict) and payload.get("days") is not None:

@@ -24,8 +24,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from .http_client import DEFAULT_UPSTREAM_TIMEOUT_S
-from .no_window import NO_WINDOW
 from .hub_observability import ERROR_BACKEND_DOWN, ERROR_TIMEOUT, ClassifiedError
+from .no_window import NO_WINDOW
 from .server_common import set_span_attrs, start_span
 
 logger = logging.getLogger(__name__)

@@ -26,11 +26,17 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 
 from .. import on_demand as _on_demand
-from .audio_proxy import build_whisper_upstream_request, default_language_from_args
+from ..fleet.remote_proxy import remote_auth_headers, remote_base_url
 from ..http_client import get_async_client
 from ..hub_observability import ERROR_UPSTREAM, tag_error
 from ..model_registry import Model
-from ..fleet.remote_proxy import remote_auth_headers, remote_base_url
+from ..server_common import (
+    current_otel_span,
+    ensure_backend_ready_or_503,
+    set_span_attrs,
+    stash_trace_id_on_ctx,
+)
+from .audio_proxy import build_whisper_upstream_request, default_language_from_args
 from .server_audio_common import (
     HEADER_REQUESTED_MODEL,
     HEADER_SERVED_HOST,
@@ -38,12 +44,6 @@ from .server_audio_common import (
     _audio_upstream_error,
     _header_safe,
     stamp_backend_status,
-)
-from ..server_common import (
-    current_otel_span,
-    ensure_backend_ready_or_503,
-    set_span_attrs,
-    stash_trace_id_on_ctx,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,7 +69,8 @@ def _whisper_model_for_request(model_name: str, *, default_role: str) -> Optiona
     Returns ``None`` if no whisper backend is enabled on this host —
     the caller surfaces that as 503.
     """
-    from ..model_registry import local_models, resolve as _resolve_model
+    from ..model_registry import local_models
+    from ..model_registry import resolve as _resolve_model
 
     if model_name:
         m = _resolve_model(model_name)
@@ -137,7 +138,8 @@ def _whisper_chain_for_request(model_name: str, *, default_role: str) -> List[Mo
     condition, reported downstream by :func:`_audio_upstream_error` with a
     message naming the port (#147).
     """
-    from ..model_registry import audio_role_chain, resolve as _resolve_model, resolve_any
+    from ..model_registry import audio_role_chain, resolve_any
+    from ..model_registry import resolve as _resolve_model
 
     if model_name and model_name.strip().lower() not in _ROLE_ALIASES:
         # Ownership test first, and case-insensitively (:func:`resolve_any`):
@@ -191,8 +193,7 @@ def _whisper_chain_for_request(model_name: str, *, default_role: str) -> List[Mo
                     f"across models is acceptable."
                 ),
             )
-        # Unknown to the registry → a client-side placeholder, not a model
-        # request: fall through to the role chain (and record what served).
+        # Unknown to the registry → a client placeholder: use the role chain, recording what served.
 
     role_key = "translate" if default_role == "audio_translate" else "transcribe"
     chain: List[Model] = []
@@ -646,10 +647,10 @@ def audio_health() -> Response:
     """
     import json as _json
 
-    from ..process.backend_process import is_reachable
     from ..host_profile import resolve as _resolve_host
     from ..model_failover import effective_owner
     from ..model_registry import STARTUP_ON_DEMAND, local_models
+    from ..process.backend_process import is_reachable
 
     backends = []
     # Backends this host *currently serves* only — a remote-owned row's

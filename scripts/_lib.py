@@ -114,6 +114,7 @@ def download(url: str, dest: Path, *, skip_existing: bool = False) -> None:
     if skip_existing and dest.exists() and dest.stat().st_size > 0:
         log.info("already present: %s", dest)
         return
+    # runtime-write-exempt: download destination chosen by the installer that calls this
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".tmp")
     log.info("downloading %s", url)
@@ -123,6 +124,7 @@ def download(url: str, dest: Path, *, skip_existing: bool = False) -> None:
             total = int(r.headers.get("Content-Length", 0))
             seen = 0
             next_report = 0
+            # runtime-write-exempt: temp file beside the caller-chosen download destination
             with tmp.open("wb") as f:
                 while True:
                     chunk = r.read(1024 * 1024)
@@ -142,6 +144,7 @@ def download(url: str, dest: Path, *, skip_existing: bool = False) -> None:
 
 
 def extract(archive: Path, dest_dir: Path) -> None:
+    # runtime-write-exempt: extraction directory chosen by the installer that calls this
     dest_dir.mkdir(parents=True, exist_ok=True)
     log.info("extracting %s -> %s", archive.name, dest_dir)
     if archive.suffix == ".zip":
@@ -160,6 +163,7 @@ def flatten_if_nested(target: Path) -> None:
     if len(entries) == 1 and entries[0].is_dir():
         inner = entries[0]
         for child in inner.iterdir():
+            # runtime-write-exempt: moves extracted files within the caller-chosen install target
             shutil.move(str(child), str(target / child.name))
         inner.rmdir()
 
@@ -179,4 +183,5 @@ def lift_into(src_dir: Path, dest_dir: Path) -> None:
                 shutil.rmtree(target)
             else:
                 target.unlink()
+        # runtime-write-exempt: moves extracted files into the caller-chosen install target
         shutil.move(str(child), str(target))

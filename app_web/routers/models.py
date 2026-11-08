@@ -11,11 +11,12 @@ from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 
-from src.process import backend_process as bp
+from app_web.admin_forward import forward_admin_request
 from src import config_write
 from src.fleet import remote_stats
-from src.routes import server_systemone
-from src.host_profile import all_hosts, get_host, resolve as resolve_host
+from src.fleet.remote_proxy import remote_auth_headers, remote_base_url
+from src.host_profile import all_hosts, get_host
+from src.host_profile import resolve as resolve_host
 from src.http_client import get_async_client
 from src.model_failover import effective_owner
 from src.model_reachability import local_reachability
@@ -24,16 +25,18 @@ from src.model_registry import (
     Model,
     cpu_resident_map,
     enabled_models,
+)
+from src.model_registry import (
     resolve as resolve_model,
 )
-from src.fleet.remote_proxy import remote_auth_headers, remote_base_url
-from app_web.admin_forward import forward_admin_request
+from src.process import backend_process as bp
 from src.process.server_process import (
     OWNERSHIP_EXTERNAL,
     OWNERSHIP_NONE,
     OWNERSHIP_OURS,
     snapshot_listening_pids,
 )
+from src.routes import server_systemone
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

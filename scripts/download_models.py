@@ -65,6 +65,7 @@ def download_one(model_id: str) -> List[Path]:
 
     target_path = (PROJECT_ROOT / (model.model_path or "")).resolve()
     target_dir = target_path.parent
+    # runtime-write-exempt: model weights path comes from config/models.yaml and lands under models/
     target_dir.mkdir(parents=True, exist_ok=True)
 
     results: List[Path] = []
@@ -121,6 +122,7 @@ def _download_extra_weights(model: Model) -> List[Path]:
                      target.stat().st_size / 1e9)
             out.append(target)
             continue
+        # runtime-write-exempt: model weights path comes from config/models.yaml and lands under models/
         target.parent.mkdir(parents=True, exist_ok=True)
         log.info("  fetching %s (%s) -> %s", pattern, repo, target)
         got = Path(hf_hub_download(repo_id=repo, filename=pattern,

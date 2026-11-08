@@ -29,7 +29,8 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException, Request
 from starlette.responses import PlainTextResponse
 
-from src.diagnostics import ingest, report, rules, sampler, settings as diag_settings, store
+from src.diagnostics import ingest, report, rules, sampler, store
+from src.diagnostics import settings as diag_settings
 
 from ._helpers import maybe_json
 

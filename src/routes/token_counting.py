@@ -38,10 +38,10 @@ from ..chat_translation import (
     _content_to_text,
     _system_to_text,
 )
+from ..fleet.remote_proxy import remote_auth_headers, remote_base_url
 from ..http_client import get_sync_client
 from ..model_registry import Model
 from ..openai_upstream import anthropic_to_openai_messages
-from ..fleet.remote_proxy import remote_auth_headers, remote_base_url
 
 # Characters per token for the heuristic used on the subscription-CLI
 # backends. The widely-published English rule of thumb; it is a budgeting

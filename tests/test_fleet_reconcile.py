@@ -17,10 +17,10 @@ import pytest
 
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
-from src.process import backend_process as bp  # noqa: E402
-from src.fleet import fleet_maintenance, fleet_reconcile as fr  # noqa: E402
 from src import model_registry
-from src.fleet import remote_bootstrap, remote_stats  # noqa: E402
+from src.fleet import fleet_maintenance, remote_bootstrap, remote_stats  # noqa: E402  # noqa: E402
+from src.fleet import fleet_reconcile as fr
+from src.process import backend_process as bp  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
