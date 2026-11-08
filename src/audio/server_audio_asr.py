@@ -193,8 +193,7 @@ def _whisper_chain_for_request(model_name: str, *, default_role: str) -> List[Mo
                     f"across models is acceptable."
                 ),
             )
-        # Unknown to the registry → a client-side placeholder, not a model
-        # request: fall through to the role chain (and record what served).
+        # Unknown to the registry → a client placeholder: use the role chain, recording what served.
 
     role_key = "translate" if default_role == "audio_translate" else "transcribe"
     chain: List[Model] = []
