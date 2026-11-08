@@ -13,6 +13,9 @@
 #   files <repo> <run id>     one line per *.png entry of any type in the run
 #   get <repo> <run id> <rel> the base64 of one regular .png file
 #   audit <repo> <run id>     the base64 of the run's regular audit.json
+#   ready <repo> <run id>     the run's READY marker, reduced to plain characters
+#   text <repo> <run id> <n>  the base64 of one allowlisted evidence file (junit
+#                             xml or flaky-id list) of the run
 #
 # Run folders are written by adopter code, so this script's own output is
 # data the hub re-validates; the checks here only keep the reads in bounds.
@@ -21,6 +24,8 @@ set -u
 ROOT="$HOME/mac-nightly-results"
 MAX_BYTES=$((8 * 1024 * 1024))
 MAX_AUDIT_BYTES=$((256 * 1024))
+MAX_READY_BYTES=4096
+MAX_TEXT_BYTES=$((4 * 1024 * 1024))
 
 fail() { echo "hub-results-pull: $1" >&2; exit "${2:-1}"; }
 
@@ -113,6 +118,32 @@ cmd_audit() {
   head -c "$MAX_AUDIT_BYTES" "$path" | base64
 }
 
+# READY is a handful of key=value lines. Every character outside the plain set
+# becomes "_", so a value can never add a line, a field or a path to the output.
+cmd_ready() {
+  local dir path
+  dir="$(run_dir "$1" "$2")" || exit $?
+  path="$dir/READY"
+  [ -f "$path" ] && [ ! -L "$path" ] || fail "no regular READY in this run" 3
+  head -c "$MAX_READY_BYTES" "$path" | tr -c 'A-Za-z0-9_=.\n-' '_'
+}
+
+# Only these names can be read: the junit files and flaky-id lists the nightly
+# workflow writes. The hub parses them as data.
+cmd_text() {
+  local dir path size
+  dir="$(run_dir "$1" "$2")" || exit $?
+  case "$3" in
+    unit.xml|unit-retry.xml|junit.xml|junit-retry.xml|unit-flaky.txt|e2e-flaky.txt) ;;
+    *) fail "bad evidence name" ;;
+  esac
+  path="$dir/$3"
+  [ -f "$path" ] && [ ! -L "$path" ] || fail "no such evidence file in this run" 3
+  size="$(stat -f %z "$path")"
+  [ "$size" -le "$MAX_TEXT_BYTES" ] || fail "evidence file over the size cap" 4
+  head -c "$MAX_TEXT_BYTES" "$path" | base64
+}
+
 # shellcheck disable=SC2086  # the allowlist split on spaces is the point
 set -- ${SSH_ORIGINAL_COMMAND:-}
 case "${1:-}" in
@@ -120,5 +151,7 @@ case "${1:-}" in
   files) [ "$#" -eq 3 ] || fail "files takes <repo> <run id>"; cmd_files "$2" "$3" ;;
   get) [ "$#" -eq 4 ] || fail "get takes <repo> <run id> <file>"; cmd_get "$2" "$3" "$4" ;;
   audit) [ "$#" -eq 3 ] || fail "audit takes <repo> <run id>"; cmd_audit "$2" "$3" ;;
+  ready) [ "$#" -eq 3 ] || fail "ready takes <repo> <run id>"; cmd_ready "$2" "$3" ;;
+  text) [ "$#" -eq 4 ] || fail "text takes <repo> <run id> <name>"; cmd_text "$2" "$3" "$4" ;;
   *) fail "rejected command" ;;
 esac

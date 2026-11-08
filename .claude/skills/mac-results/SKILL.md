@@ -28,13 +28,13 @@ background it.
    When this session was started by hand with a `--dry-run` request, add that
    flag and nothing else.
 2. Relay the CLI's output lines verbatim: one line per run (`delivered`,
-   `empty`, `pending`, `refused`, `not_confirmed`, `audit_filed`, `audit_unknown`) or
+   `empty`, `pending`, `refused`, `not_confirmed`, `audit_filed`, `audit_unknown`, `ci_reported`, `ci_unknown`, `ci_refused`, `digest_sent`, `digest_not_confirmed`) or
    `nothing new to deliver`,
    and the `already delivered` summary. Do not paraphrase a state into a
    softer one, and do not add a host, user, address or key path to anything
    you say.
 3. Finish with one line: `MAC-RESULTS: exit <code>`, using the CLI's own exit
-   code (0 delivered, filed or waiting, 1 unreadable, refused, not confirmed or audit unknown,
+   code (0 delivered, filed or waiting, 1 unreadable, refused, not confirmed, audit unknown or a night's CI result unknown,
    2 not configured).
 
 ## Rules
@@ -42,7 +42,7 @@ background it.
 - Never retry within the run: a failed image is resent by the next scheduled
   pass, and only the images that never landed.
 - Never edit `config/`, `.env`, the delivered record or the Mac. Read-only
-  apart from the CLI's own staging, record and routing-audit filing (the one adopter issue, through `gh`).
+  apart from the CLI's own staging, record and routing-audit filing and nightly-CI filing (`ci-red-main` and `flaky-test` issues, through `gh`).
 - A non-zero exit is the result, not a problem to fix: report the CLI's
   reason and stop. The wrapper `run-nightly.bat` turns the CLI's exit code
   (written to `MAC_RESULTS_STATUS_FILE` by the CLI itself) into the job's

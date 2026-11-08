@@ -492,6 +492,8 @@ def cli_env(monkeypatch, tmp_path):
     monkeypatch.setenv(mr.STATUS_ENV, str(tmp_path / "out" / "status.txt"))
     monkeypatch.setenv(mr.STAGING_ENV, str(tmp_path / "staging"))
     monkeypatch.setenv("MAC_RESULTS_DB_PATH", str(tmp_path / "mac_results.sqlite3"))
+    # The delivery tests never reach gh; the nightly-CI stage has its own tests (test_nightly_ci.py).
+    monkeypatch.setattr(mr.nightly_ci_issues, "make_gh", lambda: None)
     return tmp_path / "out" / "status.txt"
 
 
