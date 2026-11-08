@@ -89,11 +89,15 @@ def test_stored_columns_hold_no_content(usage_db):
     conn = sqlite3.connect(usage_db)
     try:
         columns = [r[1] for r in conn.execute("PRAGMA table_info(events)")]
+        public_site = conn.execute("SELECT country, visitor, ip FROM events").fetchall()
     finally:
         conn.close()
     assert columns == [
         "id", "ts", "session_id", "kind", "view_id", "control_id", "device_class", "os_class",
+        "country", "visitor", "ip",
     ]
+    # The vendored table carries the public-site columns; a fleet app never fills them.
+    assert public_site and all(row == (None, None, None) for row in public_site)
 
 
 def test_client_endpoint_is_the_mounted_route(usage_db):
