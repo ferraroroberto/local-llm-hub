@@ -161,6 +161,7 @@ def _spawn_respawn_watchdog() -> None:
     parent_pid = os.getpid()
     port = int(hub_port())
     log_path = _restart_log_path()
+    # runtime-write-exempt: restart log lives under data/logs, outside the code folders
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logger.info("🔄 respawn watchdog: relaunch log → %s", log_path)
     # Same flags used for the hub's own subprocess spawns —
@@ -170,6 +171,7 @@ def _spawn_respawn_watchdog() -> None:
     # Capture the watchdog's own stdout/stderr to the same log so a
     # failure *before* it opens its own handle (e.g. a bad argv) is still
     # visible rather than swallowed by DEVNULL.
+    # runtime-write-exempt: restart log lives under data/logs, outside the code folders
     wd_log = open(log_path, "a", encoding="utf-8", errors="replace")
     subprocess.Popen(
         [

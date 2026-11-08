@@ -313,8 +313,10 @@ def call_once(base: str, model: str, item: Dict[str, Any], max_tokens: int,
 def run(base: str, models: List[str], items: List[Dict[str, Any]], reps: int,
         max_tokens: int, timeout: float, out_dir: Path, blind: bool,
         matched_temp: Optional[float], vram_guard: Optional[int]) -> int:
+    # runtime-write-exempt: report directory is the required --out argument
     out_dir.mkdir(parents=True, exist_ok=True)
     resp_dir = out_dir / "responses"
+    # runtime-write-exempt: report directory is the required --out argument
     resp_dir.mkdir(exist_ok=True)
 
     baseline_vram = vram_used_mb()
@@ -356,6 +358,7 @@ def run(base: str, models: List[str], items: List[Dict[str, Any]], reps: int,
             label = hashlib.sha256(key.encode()).hexdigest()[:10] if blind else key.replace("|", "__")
             mapping[label] = {"model": model, "prompt_id": item["id"],
                               "category": item["category"]}
+            # runtime-write-exempt: report directory is the required --out argument
             (resp_dir / f"{label}.md").write_text(
                 f"# {label}\n\n## Prompt ({item['category']})\n\n{item['user']}\n\n"
                 f"## Response\n\n{best['answer']}\n\n"
@@ -367,11 +370,13 @@ def run(base: str, models: List[str], items: List[Dict[str, Any]], reps: int,
             row["blind_label"] = label
             rows.append(row)
 
+    # runtime-write-exempt: report directory is the required --out argument
     (out_dir / "results.json").write_text(
         json.dumps({"base_url": base, "models": models, "reps": reps,
                     "max_tokens": max_tokens, "matched_temp": matched_temp,
                     "baseline_vram_mb": baseline_vram, "rows": rows},
                    indent=2), encoding="utf-8")
+    # runtime-write-exempt: report directory is the required --out argument
     (out_dir / "mapping.json").write_text(json.dumps(mapping, indent=2), encoding="utf-8")
 
     _summary(rows, models)

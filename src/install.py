@@ -644,7 +644,9 @@ def _fix_launchagent() -> None:
     )
     (PROJECT_ROOT / "data" / "logs").mkdir(parents=True, exist_ok=True)
     plist_path = _launchagent_plist_path()
+    # runtime-write-exempt: macOS LaunchAgent plist under the user's Library, not the repo
     plist_path.parent.mkdir(parents=True, exist_ok=True)
+    # runtime-write-exempt: macOS LaunchAgent plist under the user's Library, not the repo
     plist_path.write_text(rendered, encoding="utf-8")
     uid = os.getuid()
     # bootout first so a re-run picks up a changed plist (bootstrap alone

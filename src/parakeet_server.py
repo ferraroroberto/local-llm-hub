@@ -193,6 +193,7 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 raw_path = _upload_path(tmpdir, file.filename)
+                # runtime-write-exempt: writes inside a per-request temporary directory
                 raw_path.write_bytes(await file.read())
                 try:
                     wav_path = await asyncio.to_thread(_to_wav16k_mono, raw_path)

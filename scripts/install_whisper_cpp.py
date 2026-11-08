@@ -183,6 +183,7 @@ def _macos_build_from_source() -> None:
         built_binary = build_dir / "bin" / "whisper-server"
         if not built_binary.exists():
             raise InstallError(f"build reported success but {built_binary} is missing")
+        # runtime-write-exempt: installs the built binary into vendor/, an install target
         shutil.copy2(built_binary, _server_binary())
 
         dylibs = sorted(build_dir.rglob("*.dylib"))

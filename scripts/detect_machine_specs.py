@@ -339,7 +339,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
         return 1
 
+    # runtime-write-exempt: output path is chosen by the caller
     out.parent.mkdir(parents=True, exist_ok=True)
+    # runtime-write-exempt: output path is chosen by the caller
     out.write_text(yaml_text, encoding="utf-8")
     logger.info("✅ Wrote %s", out)
     return 0

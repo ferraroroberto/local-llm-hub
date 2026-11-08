@@ -308,6 +308,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                           args.reps, args.voice, args.timeout)
 
     if args.json:
+        # runtime-write-exempt: summary path is the --json argument
         args.json.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n",
                              encoding="utf-8")
         log.info("wrote %s", args.json)

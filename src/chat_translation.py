@@ -336,6 +336,7 @@ def _extract_media_blocks(
                     fname = f"{stem}_{len(attachment_paths)}.{ext}"
                     fpath = td_path / fname
                     try:
+                        # runtime-write-exempt: writes inside a per-request temporary directory
                         fpath.write_bytes(base64.b64decode(data_b64))
                     except Exception as e:
                         raise HTTPException(

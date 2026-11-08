@@ -606,6 +606,7 @@ def call_gemini_image(
                 if editing:
                     ref_in_workdir = workdir / (
                         "input" + (reference_image.suffix or ".png"))
+                    # runtime-write-exempt: copies into a per-request temporary directory
                     shutil.copyfile(reference_image, ref_in_workdir)
                     add_dirs = [str(workdir)]
                 full_prompt = _image_prompt(prompt, save_name, ref_in_workdir)

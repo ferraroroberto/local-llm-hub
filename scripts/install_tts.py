@@ -231,6 +231,7 @@ def _download_kokoro_onnx() -> None:
     for m in kokoro:
         target = (PROJECT_ROOT / str(m.model_path)).resolve()
         out_dir = target.parent
+        # runtime-write-exempt: model path comes from config/models.yaml and lands under models/
         out_dir.mkdir(parents=True, exist_ok=True)
         for filename, url in _KOKORO_ASSETS.items():
             out = out_dir / filename

@@ -19,8 +19,10 @@ def atomic_write_text(path: Path, text: str) -> None:
     file; a crash mid-write leaves only the stray ``.tmp``. UTF-8, like every
     JSON store that calls this.
     """
+    # runtime-write-exempt: the shared atomic-write helper writes wherever its caller points
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
+    # runtime-write-exempt: the shared atomic-write helper writes wherever its caller points
     tmp.write_text(text, encoding="utf-8")
     os.replace(tmp, path)
 

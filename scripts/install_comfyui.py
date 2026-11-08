@@ -230,6 +230,7 @@ def ensure_upscale_model() -> Path:
         local_dir=str(target_dir),
     ))
     if got != target:
+        # runtime-write-exempt: weights land in the install target directory, not a runtime output
         shutil.move(str(got), str(target))
     log.info("  -> %s (%.1f MB)", target, target.stat().st_size / 1e6)
     return target

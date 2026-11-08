@@ -533,6 +533,7 @@ def start(model_id: str) -> tuple[bool, str]:
     def build_spawn_spec() -> SpawnSpec:
         nonlocal log_file
         cmd = build_command(model)
+        # runtime-write-exempt: backend logs roll under data/logs, outside the code folders
         log_file = _roll_log(model_id).open("ab")
         return SpawnSpec(
             cmd=cmd,

@@ -38,7 +38,9 @@ def ensure_log_handler() -> None:
     ):
         return
     try:
+        # runtime-write-exempt: auth.log lives under webapp/, outside the code folders; the path is a module constant
         _AUTH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        # runtime-write-exempt: auth.log lives under webapp/, outside the code folders; the path is a module constant
         fh = logging.FileHandler(_AUTH_LOG_PATH, encoding="utf-8")
         fh.setLevel(logging.INFO)
         fh.setFormatter(

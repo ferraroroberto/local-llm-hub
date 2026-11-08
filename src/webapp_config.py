@@ -99,6 +99,7 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
 def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
     """Atomically write the config back to disk."""
     target = Path(path) if path is not None else DEFAULT_CONFIG_PATH
+    # runtime-write-exempt: config path defaults to config/webapp_config.json, outside the code folders
     target.parent.mkdir(parents=True, exist_ok=True)
 
     payload = {
