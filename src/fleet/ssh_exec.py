@@ -54,6 +54,7 @@ def run_ssh(
     key_path: Optional[str] = None,
     timeout: float,
     connect_timeout: int = CONNECT_TIMEOUT_S,
+    stdin_text: Optional[str] = None,
 ) -> SshResult:
     """Run ``command`` on ``user_at_host`` over SSH and return the outcome.
 
@@ -61,6 +62,9 @@ def run_ssh(
     for the hub user's own general passwordless channel. Never raises — a
     spawn failure or timeout comes back as an ``SshResult`` with ``error``
     set, because every caller here is a soft-failing status/action path.
+
+    ``stdin_text`` feeds the remote command's stdin: a payload too large for
+    the command line (the transport truncates one past ~8 KB) rides here.
     """
     cmd = ["ssh"]
     if key_path:
@@ -75,7 +79,7 @@ def run_ssh(
     try:
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=timeout,
-            creationflags=NO_WINDOW,
+            creationflags=NO_WINDOW, input=stdin_text,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         return SshResult(
