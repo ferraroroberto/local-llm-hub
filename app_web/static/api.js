@@ -184,7 +184,7 @@ export function toastPending(msg) {
 
 // --------------------------------------------------------------- fmt
 /* Shared across hub.js / models.js / code_usage.js — one definition (the
- * earlier per-file copies had drifted). */
+ * per-file copies would diverge). */
 export function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
     return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]);

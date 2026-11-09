@@ -30,6 +30,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from ..fsio.runtime_files import open_for_write
 from ..host_profile import resolve as resolve_host
 from ..http_client import get_sync_client
 from ..model_registry import (
@@ -533,8 +534,7 @@ def start(model_id: str) -> tuple[bool, str]:
     def build_spawn_spec() -> SpawnSpec:
         nonlocal log_file
         cmd = build_command(model)
-        # runtime-write-exempt: backend logs roll under data/logs, outside the code folders
-        log_file = _roll_log(model_id).open("ab")
+        log_file = open_for_write(_roll_log(model_id), "ab")
         return SpawnSpec(
             cmd=cmd,
             cwd=PROJECT_ROOT,

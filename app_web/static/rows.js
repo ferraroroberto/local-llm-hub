@@ -23,8 +23,8 @@
  *                        never wraps, so it never moves the layout.
  *   infoButton(key, label) / defineInfo(key, title, html) / wireInfoSheet()
  *                        An ⓘ icon-button that opens the shared #infoSheet
- *                        (vendored modal) with an explanation that used to be
- *                        a permanent footnote paragraph.
+ *                        (vendored modal) with an explanation kept out of the
+ *                        page as a permanent footnote paragraph.
  *   isWide() / onWideChange(fn)
  *                        The wide-window layout's breakpoint (design.md
  *                        layout.wide). A pane opts in with `data-wide`:

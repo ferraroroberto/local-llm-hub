@@ -17,6 +17,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Request
 
+from src.fsio.runtime_files import file_handler, make_dirs
 from src.health.resource_alert import send_via_notify_script
 from src.login_lockout import LockoutAlert, LoginLockout, retry_after_header
 from src.webapp_config import WebappConfig
@@ -38,10 +39,8 @@ def ensure_log_handler() -> None:
     ):
         return
     try:
-        # runtime-write-exempt: auth.log lives under webapp/, outside the code folders; the path is a module constant
-        _AUTH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        # runtime-write-exempt: auth.log lives under webapp/, outside the code folders; the path is a module constant
-        fh = logging.FileHandler(_AUTH_LOG_PATH, encoding="utf-8")
+        make_dirs(_AUTH_LOG_PATH.parent)
+        fh = file_handler(_AUTH_LOG_PATH)
         fh.setLevel(logging.INFO)
         fh.setFormatter(
             logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")

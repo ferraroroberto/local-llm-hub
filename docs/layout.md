@@ -6,7 +6,7 @@ The structure ratchet (`scripts/structure_ratchet.py`, configured in `.fleet.tom
 
 | Folder | Holds |
 | --- | --- |
-| `src/` | The hub: FastAPI routing, backend wrappers, process managers, usage parsers. A new module goes in the subpackage of its domain (`routes/`, `audio/`, `images/`, `fleet/`, `process/`, `usage/`, `diagnostics/`, …), because the flat directory sits just under its 40-module limit. |
+| `src/` | The hub: FastAPI routing, backend wrappers, process managers, usage parsers. A new module goes in the subpackage of its domain (`routes/`, `audio/`, `images/`, `fleet/`, `process/`, `usage/`, `diagnostics/`, `fsio/`, …), because the flat directory sits just under its 40-module limit. |
 | `app_web/` | The `/admin` sub-app: routers and the static SPA (no bundler). Declared by the shape instead of the scaffold's `app/webapp/`. |
 | `tray/` | The Windows system-tray launcher. Declared by the shape instead of the scaffold's `app/tray/`. |
 | `tests/` | Unit and integration tests, grouped by domain into subfolders (`chat/`, `audio/`, `backends/`, `routers/`, `usage/`, `diagnostics/`, `health/`, `ratchets/`), with `tests/e2e/` for the Playwright suite. A new test goes in the subfolder of its domain. |
@@ -183,6 +183,8 @@ local-llm-hub/
 │   ├── event_loop.py         # Windows proactor-loop shim so uvicorn survives client aborts
 │   ├── build_info.py         # vendored scaffold helper: build_identity() -> git_sha + built_at
 │   ├── services.py           # host-side service helpers: Docker engine + Langfuse stack
+│   ├── fsio/                 # guarded file writers
+│   │   └── runtime_files.py      #   mkdir/open/copy/move/log handler/SQLite opener that raise on a path under a code folder; the one place a caller-named runtime path is written
 │   ├── diagnostics/          # on-demand machine diagnostics — no resident process
 │   │   ├── sampler.py            #   in-hub asyncio capture loop + opt-in scheduled snapshot
 │   │   ├── store.py              #   SQLite store (data/diagnostics.db), migrations, retention

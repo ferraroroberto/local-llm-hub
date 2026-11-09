@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
+from ..fsio.runtime_files import copy_file, make_dirs, save_bytes, save_text
 from ..host_profile import get_host
 from ..no_window import NO_WINDOW
 from . import mac_results_store as store
@@ -316,8 +317,8 @@ class JobSender:
         # The artifact route lists direct children only, so the run's staging folder name prefixes the file.
         target = self.artifact_dir / f"{path.parent.name}-{path.name}"
         try:
-            self.artifact_dir.mkdir(parents=True, exist_ok=True)  # runtime-write-exempt: the Job's own artifact folder, named by the launcher
-            shutil.copyfile(path, target)  # runtime-write-exempt: the same launcher-named Job artifact folder
+            make_dirs(self.artifact_dir)
+            copy_file(path, target)
         except OSError as exc:
             return SendOutcome(outcome.kind, f"{outcome.detail}; copying to the Job's artifacts failed ({type(exc).__name__})")
         self.kept += 1
@@ -405,8 +406,7 @@ def deliver_run(entry: RunEntry, ssh: Ssh, send: Sender, conn, staging_root: Pat
 
     staging = staging_root / f"{repo}-{run_id}"
     shutil.rmtree(staging, ignore_errors=True)
-    # runtime-write-exempt: send_file.py only takes a file under %TEMP%/claude, so the staging folder cannot live in the runtime root
-    staging.mkdir(parents=True, exist_ok=True)
+    make_dirs(staging)
     try:
         return _copy_and_send(entry, images, ssh, send, conn, staging)
     finally:
@@ -428,8 +428,7 @@ def _copy_and_send(entry: RunEntry, images: List[RemoteImage], ssh: Ssh, send: S
         except Refusal as exc:
             return RunOutcome(repo, run_id, REFUSED, str(exc))
         path = staging / _staged_name(index, image.rel)
-        # runtime-write-exempt: the staged copy of one image, inside the staging folder above, removed after the run
-        path.write_bytes(data)
+        save_bytes(path, data)
         outcome = send(path, caption_for(entry, image.rel, index, len(images)))
         if outcome.kind == "kept":
             kept += 1
@@ -460,11 +459,10 @@ def file_audit(entry: RunEntry, ssh: Ssh, filer: Optional[Filer], conn, staging_
         return RunOutcome(repo, run_id, REFUSED, str(exc))
     staging = staging_root / f"{repo}-{run_id}-audit"
     shutil.rmtree(staging, ignore_errors=True)
-    # runtime-write-exempt: the staged audit.json beside the image staging folders, removed after the run
-    staging.mkdir(parents=True, exist_ok=True)
+    make_dirs(staging)
     try:
         path = staging / "audit.json"
-        path.write_bytes(data)  # runtime-write-exempt: the same staging folder
+        save_bytes(path, data)
         filed = filer(path)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
@@ -586,9 +584,8 @@ def _write_status(code: int) -> None:
     if not target:
         return
     try:
-        # runtime-write-exempt: the wrapping job names this file (under %TEMP%), outside the tree and the runtime root
-        Path(target).parent.mkdir(parents=True, exist_ok=True)
-        Path(target).write_text(f"{code}\n", encoding="ascii")  # runtime-write-exempt: the same job-named file
+        make_dirs(Path(target).parent)
+        save_text(target, f"{code}\n", encoding="ascii")
     except OSError as exc:
         # No file means the job reports "not confirmed", never a pass.
         print(f"⚠️ could not write the status file ({exc.__class__.__name__})")

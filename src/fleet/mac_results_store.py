@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from ..fsio.runtime_files import connect_sqlite
 from ..runtime_data import runtime_db_path
 
 DB_ENV = "MAC_RESULTS_DB_PATH"
@@ -52,8 +53,7 @@ CREATE TABLE IF NOT EXISTS filed_audits (
 def connect(path: Optional[Path] = None) -> sqlite3.Connection:
     """Open (creating on first use) the delivery store."""
     db = path or runtime_db_path("local-llm-hub", "mac_results.sqlite3", env_var=DB_ENV, create=True)
-    # runtime-write-exempt: db is runtime_db_path() or a caller-supplied path (tests), both outside the tree
-    conn = sqlite3.connect(str(db))
+    conn = connect_sqlite(db)
     conn.executescript(_SCHEMA)
     conn.executescript(_CI_SCHEMA)
     return conn

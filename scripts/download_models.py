@@ -25,6 +25,7 @@ from huggingface_hub import hf_hub_download, list_repo_files
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.fsio.runtime_files import make_dirs  # noqa: E402
 from src.model_registry import SPAWNABLE_BACKENDS, Model, enabled_models  # noqa: E402
 
 
@@ -65,8 +66,7 @@ def download_one(model_id: str) -> List[Path]:
 
     target_path = (PROJECT_ROOT / (model.model_path or "")).resolve()
     target_dir = target_path.parent
-    # runtime-write-exempt: model weights path comes from config/models.yaml and lands under models/
-    target_dir.mkdir(parents=True, exist_ok=True)
+    make_dirs(target_dir)
 
     results: List[Path] = []
     log.info("downloading %s -> %s (%d file(s))", model.id, target_dir, len(matches))
@@ -122,8 +122,7 @@ def _download_extra_weights(model: Model) -> List[Path]:
                      target.stat().st_size / 1e9)
             out.append(target)
             continue
-        # runtime-write-exempt: model weights path comes from config/models.yaml and lands under models/
-        target.parent.mkdir(parents=True, exist_ok=True)
+        make_dirs(target.parent)
         log.info("  fetching %s (%s) -> %s", pattern, repo, target)
         got = Path(hf_hub_download(repo_id=repo, filename=pattern,
                                    local_dir=str(target.parent)))

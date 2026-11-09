@@ -53,6 +53,9 @@ from typing import Dict, List, Optional, Tuple
 
 import httpx
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from src.fsio.runtime_files import save_text  # noqa: E402
+
 log = logging.getLogger("bench_voice")
 
 # UTF-8 stdout so the table renders under captured/redirected runs on Windows
@@ -308,9 +311,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                           args.reps, args.voice, args.timeout)
 
     if args.json:
-        # runtime-write-exempt: summary path is the --json argument
-        args.json.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n",
-                             encoding="utf-8")
+        save_text(args.json, json.dumps(summary, indent=2, ensure_ascii=False) + "\n")
         log.info("wrote %s", args.json)
     return 0
 

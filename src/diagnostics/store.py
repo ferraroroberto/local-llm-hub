@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional
 
+from src.fsio.runtime_files import connect_sqlite, make_dirs
 from src.runtime_data import runtime_db_path
 
 logger = logging.getLogger(__name__)
@@ -96,12 +97,10 @@ def _open_migrated(target: Path) -> sqlite3.Connection:
     so ``busy_timeout`` alone does not cover it). The migration is committed in
     its own transaction so concurrent openers see the new schema and stop
     racing it."""
-    # runtime-write-exempt: database path is supplied by the caller (under the runtime data dir)
-    target.parent.mkdir(parents=True, exist_ok=True)
+    make_dirs(target.parent)
     last: Optional[sqlite3.OperationalError] = None
     for attempt in range(_OPEN_RETRIES):
-        # runtime-write-exempt: database path is supplied by the caller (under the runtime data dir)
-        conn = sqlite3.connect(str(target), timeout=30.0, check_same_thread=False)
+        conn = connect_sqlite(target, timeout=30.0, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         try:
             conn.execute("PRAGMA busy_timeout=30000")
