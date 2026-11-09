@@ -42,7 +42,12 @@ import yaml
 from src.host_profile import CONFIG_PATH, hub_port
 from src.model_registry import SPAWNABLE_BACKENDS, Model, local_models
 from src.no_window import NO_WINDOW
-from src.process.process_supervisor import OutcomeKind, ProcessOutcome, ProcessSupervisor, SpawnSpec
+from src.process.process_supervisor import (
+    OutcomeKind,
+    ProcessOutcome,
+    ProcessSupervisor,
+    SpawnSpec,
+)
 from src.process.server_process import WIN_NEW_GROUP, lan_ip
 from src.webapp_config import (
     WebappConfig,

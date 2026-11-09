@@ -21,7 +21,11 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from src.process.process_supervisor import OutcomeKind, ProcessOutcome, ProcessSupervisor
+from src.process.process_supervisor import (
+    OutcomeKind,
+    ProcessOutcome,
+    ProcessSupervisor,
+)
 
 
 class _FakePopen:
