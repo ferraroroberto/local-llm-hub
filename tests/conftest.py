@@ -279,6 +279,13 @@ def _isolate_token_history_cache(tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_failover_record(tmp_path, monkeypatch):
+    """Point failover's engine-started record at a per-test temp file, so no
+    test reads or writes the dev machine's real runtime-data copy."""
+    monkeypatch.setenv("LLM_HUB_FAILOVER_RECORD_PATH", str(tmp_path / "failover_engine_started.json"))
+
+
+@pytest.fixture(autouse=True)
 def _isolate_claude_code_otel_store(tmp_path, monkeypatch):
     """Point the OTel usage store at a per-test temp file (#280 follow-up).
 

@@ -52,15 +52,19 @@ only read the current owner (cheap, lock-guarded dict lookup).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
+from .fsio.runtime_files import make_dirs, move, save_text
 from .host_profile import _load_config
 from .model_registry import SPAWNABLE_BACKENDS, Model
 from .process.process_supervisor import OutcomeKind
+from .runtime_data import runtime_db_path
 
 logger = logging.getLogger(__name__)
 
@@ -217,10 +221,129 @@ class OwnershipTracker:
 
 TRACKER = OwnershipTracker()
 
-# Model ids whose local process *this engine* started (failover bring-up).
-# Only these are ever stopped on failback — a hand-started or autostarted
-# instance is never touched (additive, same contract as fleet_reconcile).
-_ENGINE_STARTED: set = set()
+RECORD_ENV = "LLM_HUB_FAILOVER_RECORD_PATH"
+_CORRUPT_HINT = "treating every running copy as hand-started"
+
+
+class EngineStartedRecord:
+    """Model ids whose local process *this engine* started, with the pid it
+    spawned. Only these are ever stopped on failback — a hand-started or
+    autostarted instance is never touched (additive, same contract as
+    fleet_reconcile).
+
+    Persisted as a small JSON file in the hub's runtime-data dir because a
+    hub restart keeps its backends alive and the new hub inherits them: an
+    in-memory set would forget which inherited copy failover started, and
+    failback would then leave that copy holding the fallback host's VRAM.
+    The pid guards the other direction: a copy someone started by hand after
+    failover's own copy died is a different process, so it is never released.
+
+    Loaded lazily on first use. A missing or unreadable file means "nothing
+    is engine-started": every running copy is treated as hand-started, which
+    can leave a copy running but never stops one wrongly.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._pids: Dict[str, Optional[int]] = {}
+        self._loaded = False
+
+    @staticmethod
+    def path() -> Path:
+        return runtime_db_path("local-llm-hub", "failover_engine_started.json", env_var=RECORD_ENV)
+
+    def _ensure_loaded(self) -> None:
+        if self._loaded:
+            return
+        self._loaded = True
+        path = self.path()
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            # Writing the empty record now means this warning fires once per
+            # host, not on every boot before failover first starts a copy.
+            logger.warning("⚠️ failover: no engine-started record at %s — %s", path, _CORRUPT_HINT)
+            self._save()
+            return
+        except OSError as exc:
+            logger.warning(
+                "⚠️ failover: engine-started record %s unreadable (%s) — %s", path, exc, _CORRUPT_HINT,
+            )
+            return
+        try:
+            data = json.loads(raw)
+            if not isinstance(data, dict) or not all(
+                isinstance(k, str) and (v is None or (isinstance(v, int) and not isinstance(v, bool)))
+                for k, v in data.items()
+            ):
+                raise ValueError("expected an object of model id -> pid")
+        except ValueError as exc:
+            logger.warning(
+                "⚠️ failover: engine-started record %s is corrupt (%s) — %s", path, exc, _CORRUPT_HINT,
+            )
+            return
+        self._pids = dict(data)
+        if self._pids:
+            logger.info("ℹ️ failover: restored engine-started record %s from %s", self._pids, path)
+
+    def _save(self) -> None:
+        """Write atomically (temp file + rename); a failed write keeps the
+        in-memory record and only costs persistence across a restart."""
+        path = self.path()
+        tmp = path.with_name(path.name + ".tmp")
+        try:
+            make_dirs(path.parent)
+            save_text(tmp, json.dumps(self._pids, sort_keys=True))
+            move(tmp, path)
+        except (OSError, ValueError) as exc:
+            logger.warning("⚠️ failover: could not write engine-started record %s: %s", path, exc)
+
+    def __contains__(self, model_id: object) -> bool:
+        with self._lock:
+            self._ensure_loaded()
+            return model_id in self._pids
+
+    def pid_for(self, model_id: str) -> Optional[int]:
+        with self._lock:
+            self._ensure_loaded()
+            return self._pids.get(model_id)
+
+    def add(self, model_id: str, pid: Optional[int] = None) -> None:
+        with self._lock:
+            self._ensure_loaded()
+            self._pids[model_id] = pid
+            self._save()
+
+    def discard(self, model_id: str) -> None:
+        with self._lock:
+            self._ensure_loaded()
+            if model_id in self._pids:
+                del self._pids[model_id]
+                self._save()
+
+    def clear(self) -> None:
+        """Forget the in-memory copy; the file is re-read on next use (tests)."""
+        with self._lock:
+            self._pids = {}
+            self._loaded = False
+
+
+_ENGINE_STARTED = EngineStartedRecord()
+
+
+def _spawned_by(recorded: Optional[int], current: Optional[int]) -> bool:
+    """Whether the running ``current`` pid is the process failover spawned as
+    ``recorded``, or a descendant of it (a venv launcher stub spawns the real
+    server as its child, so the listener's pid differs from the spawned one).
+    An unknown pid on either side cannot disprove it."""
+    if recorded is None or current is None or recorded == current:
+        return True
+    import psutil
+
+    try:
+        return any(p.pid == recorded for p in psutil.Process(current).parents())
+    except (psutil.Error, OSError):
+        return False
 
 
 # ---------------------------------------------------------------------- #
@@ -371,7 +494,7 @@ async def _ensure_running_local(
     # already-running instance existed before it acted, so failback must leave
     # it alone (additive contract).
     if outcome.kind is OutcomeKind.STARTED:
-        _ENGINE_STARTED.add(model.id)
+        _ENGINE_STARTED.add(model.id, outcome.pid)
     logger.info("failover: local start %s -> %s (%s)", model.id, outcome.kind.value, outcome.detail)
     return {"started": outcome.ok, "detail": outcome.detail}
 
@@ -386,6 +509,15 @@ async def _release_local(
     if model.id not in _ENGINE_STARTED:
         return None
     if not await asyncio.to_thread(bp.is_running, model.id):
+        _ENGINE_STARTED.discard(model.id)
+        return None
+    recorded = _ENGINE_STARTED.pid_for(model.id)
+    current = await asyncio.to_thread(bp.pid, model.id)
+    if not _spawned_by(recorded, current):
+        logger.info(
+            "ℹ️ failover: %s now runs as pid %s, not the pid %s failover started — "
+            "leaving it running and dropping the record", model.id, current, recorded,
+        )
         _ENGINE_STARTED.discard(model.id)
         return None
     if stop_local is not None:
