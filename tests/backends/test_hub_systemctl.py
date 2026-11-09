@@ -56,7 +56,7 @@ def test_hub_restart_uses_systemctl_under_systemd(monkeypatch):
 
     calls = []
     monkeypatch.setattr(hub_mod, "_under_systemd", lambda: True)
-    monkeypatch.setattr(hub_mod, "_delayed_systemctl", lambda verb: calls.append(verb))
+    monkeypatch.setattr(hub_mod, "_delayed_systemctl", lambda verb, **_kw: calls.append(verb))
     try:
         r = _client().post("/admin/api/hub/restart")
         assert r.status_code == 200, r.text

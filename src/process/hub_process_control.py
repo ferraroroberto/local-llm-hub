@@ -26,6 +26,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import Callable, Optional
 
 from src.fsio.runtime_files import make_dirs, open_for_write
 from src.process.server_process import WIN_NEW_GROUP
@@ -101,7 +102,7 @@ def _under_systemd() -> bool:
     return sys.platform.startswith("linux") and bool(os.environ.get("INVOCATION_ID"))
 
 
-def _delayed_systemctl(verb: str, delay: float = 0.4) -> None:
+def _delayed_systemctl(verb: str, delay: float = 0.4, on_failure: Optional[Callable[[], None]] = None) -> None:
     """Run ``sudo -n systemctl <verb> local-llm-hub`` after a short delay so the
     HTTP response flushes first (#368).
 
@@ -109,9 +110,16 @@ def _delayed_systemctl(verb: str, delay: float = 0.4) -> None:
     cgroup) — which is the point: unlike the plain self-SIGTERM path,
     ``Restart=always`` would immediately respawn a bare signal, so a *deliberate*
     stop must go through systemd itself. ``sudo -n`` never prompts; a missing
-    passwordless-sudo rule is logged rather than hanging.
+    passwordless-sudo rule is logged rather than hanging. ``on_failure`` runs when
+    systemctl times out, cannot start or exits non-zero — the process is still
+    alive then, so a caller holding state that assumes it is about to exit can
+    release it.
     """
     from src.install import SYSTEMD_UNIT_NAME
+
+    def _failed() -> None:
+        if on_failure is not None:
+            on_failure()
 
     def _runner() -> None:
         time.sleep(delay)
@@ -124,10 +132,16 @@ def _delayed_systemctl(verb: str, delay: float = 0.4) -> None:
         except subprocess.TimeoutExpired:
             logger.error("❌ `sudo -n systemctl %s %s` did not return within %ss",
                          verb, SYSTEMD_UNIT_NAME, _SYSTEMCTL_TIMEOUT_S)
+            _failed()
+            return
+        except OSError as exc:
+            logger.error("❌ `sudo -n systemctl %s %s` could not start: %s", verb, SYSTEMD_UNIT_NAME, exc)
+            _failed()
             return
         if r.returncode != 0:
             logger.error("⚠️ `sudo -n systemctl %s %s` failed: %s",
                          verb, SYSTEMD_UNIT_NAME, (r.stderr or "").strip())
+            _failed()
 
     threading.Thread(target=_runner, daemon=True).start()
 
