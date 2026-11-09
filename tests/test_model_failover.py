@@ -19,6 +19,7 @@ from src.model_failover import (
     OwnershipTracker,
 )
 from src.process import backend_process
+from src.process.process_supervisor import OutcomeKind, ProcessOutcome
 
 
 @pytest.fixture(autouse=True)
@@ -158,16 +159,16 @@ def test_start_guard_allows_chain_members_and_refuses_outsiders(monkeypatch, wri
     _chain_config(write_config)
     # tower is NOT in qwen's chain (bare host: mac) → refused.
     monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "tower")
-    ok, msg = backend_process.start("qwen")
-    assert ok is False and "owned by host(s)" in msg and "mac" in msg
+    outcome = backend_process.start("qwen")
+    assert outcome.kind is OutcomeKind.NOT_OWNER
+    assert "owned by host(s)" in outcome.detail and "mac" in outcome.detail
 
     # mac is a *fallback* member of whisper's chain → the guard passes.
     # is_running is monkeypatched True so start() returns benignly right
     # after the guard, without touching ports or processes.
     monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "mac")
     monkeypatch.setattr(backend_process, "is_running", lambda mid: True)
-    ok, msg = backend_process.start("whisper")
-    assert (ok, msg) == (False, "already running")
+    assert backend_process.start("whisper") == ProcessOutcome(OutcomeKind.ALREADY_RUNNING, "already running")
 
 
 # --------------------------------------------------------------------------- #
@@ -476,3 +477,26 @@ def test_ensure_running_local_skips_on_demand_models(monkeypatch):
               startup="on_demand", idle_unload_minutes=30)
     result = asyncio.run(model_failover._ensure_running_local(m, None))
     assert result is None
+
+
+# --------------------------------------------------------------------------- #
+# _ensure_running_local: only a spawn this engine made is engine-started
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("outcome, owned", [
+    (ProcessOutcome(OutcomeKind.STARTED, "started (pid=7)", 7), True),
+    # Detail wording that a substring test would misread both ways.
+    (ProcessOutcome(OutcomeKind.ADOPTED, "external instance (PID 9)", 9), False),
+    (ProcessOutcome(OutcomeKind.ALREADY_RUNNING, "already running"), False),
+    (ProcessOutcome(OutcomeKind.LAUNCH_FAILED, "failed to launch: boom"), False),
+])
+def test_ensure_running_local_owns_only_a_started_spawn(monkeypatch, outcome, owned):
+    from src.model_registry import Model
+
+    monkeypatch.setattr(backend_process, "is_running", lambda mid: False)
+    monkeypatch.setattr(backend_process, "start", lambda mid: outcome)
+
+    m = Model(id="whisper", display_name="whisper", backend="openai",
+              port=8090, hosts=["tower", "gaming"], host="tower")
+    result = asyncio.run(model_failover._ensure_running_local(m, None))
+    assert result == {"started": outcome.ok, "detail": outcome.detail}
+    assert ("whisper" in model_failover._ENGINE_STARTED) is owned

@@ -83,8 +83,8 @@ async def stop_backend_children() -> None:
 
     for model_id in list(bp.running_backends().keys()):
         try:
-            ok, msg = bp.stop(model_id)
-            logger.info("shutdown: stop %s -> %s %s", model_id, ok, msg)
+            outcome = bp.stop(model_id)
+            logger.info("shutdown: stop %s -> %s %s", model_id, outcome.kind.value, outcome.detail)
         except Exception as exc:  # noqa: BLE001
             logger.warning("shutdown: stop %s raised: %s", model_id, exc)
 
@@ -199,14 +199,14 @@ async def _autostart_configured_backends() -> None:
     logger.info("autostart: configured backend set: %s", model_ids)
     for model_id in model_ids:
         try:
-            ok, msg = await asyncio.to_thread(bp.start, model_id)
+            outcome = await asyncio.to_thread(bp.start, model_id)
         except Exception as exc:  # noqa: BLE001
             logger.warning("autostart: %s raised: %s", model_id, exc)
             continue
-        if ok or "already running" in msg.lower():
-            logger.info("autostart: %s -> %s", model_id, msg)
+        if outcome.converged:
+            logger.info("autostart: %s -> %s", model_id, outcome.detail)
         else:
-            logger.warning("autostart: %s -> %s", model_id, msg)
+            logger.warning("⚠️ autostart: %s -> %s (%s)", model_id, outcome.detail, outcome.kind.value)
 
 
 async def _init_diagnostics() -> None:

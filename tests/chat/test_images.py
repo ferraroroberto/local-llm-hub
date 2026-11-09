@@ -16,6 +16,7 @@ from src import server as server_mod
 from src.gemini_cli import GeminiCLIError
 from src.images import server_images as images_mod
 from src.images.comfyui_client import ComfyUIBackendWedged, ComfyUIError
+from src.process.process_supervisor import OutcomeKind, ProcessOutcome
 
 # A 1x1 PNG — enough to round-trip through base64 in the response.
 _PNG_BYTES = base64.b64decode(
@@ -247,7 +248,7 @@ def _wedged_backend(monkeypatch, stop_result):
 def test_flux_wedged_cuda_backend_is_stopped_and_reported_as_503(monkeypatch):
     """A dead CUDA context is stopped so the next call reloads it, and is told
     apart from an ordinary failed generation (502)."""
-    stopped = _wedged_backend(monkeypatch, (True, "stopped"))
+    stopped = _wedged_backend(monkeypatch, ProcessOutcome(OutcomeKind.STOPPED, "stopped"))
     client = TestClient(server_mod.app)
     r = client.post("/v1/images/generations",
                     json={"model": "flux1_local", "prompt": "x"})
@@ -259,7 +260,7 @@ def test_flux_wedged_cuda_backend_is_stopped_and_reported_as_503(monkeypatch):
 
 
 def test_flux_wedged_backend_that_will_not_stop_says_so(monkeypatch):
-    _wedged_backend(monkeypatch, (False, "access denied"))
+    _wedged_backend(monkeypatch, ProcessOutcome(OutcomeKind.STOP_FAILED, "access denied"))
     client = TestClient(server_mod.app)
     r = client.post("/v1/images/generations",
                     json={"model": "flux1_local", "prompt": "x"})
@@ -278,7 +279,7 @@ def test_flux_ordinary_failure_does_not_stop_the_backend(monkeypatch):
 
     stopped = []
     monkeypatch.setattr(images_mod, "generate_image", boom)
-    monkeypatch.setattr(bp, "stop", lambda model_id: stopped.append(model_id) or (True, ""))
+    monkeypatch.setattr(bp, "stop", lambda model_id: stopped.append(model_id) or ProcessOutcome(OutcomeKind.STOPPED, ""))
     client = TestClient(server_mod.app)
     r = client.post("/v1/images/generations",
                     json={"model": "flux1_local", "prompt": "x"})

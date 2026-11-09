@@ -18,6 +18,7 @@ import pytest
 
 from src import server_lifecycle
 from src.process import backend_process as bp
+from src.process.process_supervisor import OutcomeKind, ProcessOutcome
 from tests._worker_loop import run_on_worker_thread as _run
 
 
@@ -32,7 +33,7 @@ def _patch_backends(monkeypatch):
     """Pretend two backends are running and record any stop() calls."""
     stopped: list[str] = []
     monkeypatch.setattr(bp, "running_backends", lambda: {"qwen": object(), "whisper": object()})
-    monkeypatch.setattr(bp, "stop", lambda mid: (stopped.append(mid), (True, "stopped"))[1])
+    monkeypatch.setattr(bp, "stop", lambda mid: (stopped.append(mid), ProcessOutcome(OutcomeKind.STOPPED, "stopped"))[1])
     return stopped
 
 

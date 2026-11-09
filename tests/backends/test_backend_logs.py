@@ -47,8 +47,8 @@ def _patch_spawn(monkeypatch, tmp_path, token: str) -> None:
 
 
 def _start_and_wait(model_id: str, timeout: float = 15.0) -> None:
-    ok, msg = bp.start(model_id)
-    assert ok, msg
+    outcome = bp.start(model_id)
+    assert outcome.ok, outcome.detail
     proc = bp._state_for(model_id).proc
     assert proc is not None
     proc.wait(timeout=timeout)

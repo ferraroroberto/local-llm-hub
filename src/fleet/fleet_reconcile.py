@@ -38,7 +38,7 @@ docstring for the full contract.
 
 Everything leans on existing idempotency: ``backend_process.start`` adopts a
 reachable port and no-ops if already running, and a forwarded ``/start`` returns
-409 "already running" — both treated as success here — so the loop is safe to
+409 with outcome ``already_running`` — both treated as success here — so the loop is safe to
 run every few minutes forever. Framework-free (raw ``httpx`` peer calls,
 soft-failing dicts) exactly like ``remote_bootstrap``, so it stays unit-testable
 with no FastAPI app in the loop.
@@ -54,6 +54,7 @@ from typing import Any, Dict, List
 import httpx
 
 from ..http_client import get_async_client
+from ..process.process_supervisor import OutcomeKind
 from .remote_proxy import remote_auth_headers
 from .wake_on_lan import WakeOnLanError, send_wake
 
@@ -87,12 +88,20 @@ def _peer_base(owner: Any) -> str:
     return f"http://{address}:{hub_port()}"
 
 
+# A peer's 409 outcomes that mean "already in the requested state".
+_PEER_NO_OP_OUTCOMES = frozenset({OutcomeKind.ALREADY_RUNNING.value, OutcomeKind.NOT_RUNNING.value})
+
+
 async def _remote_model_action(host_id: str, base: str, model_id: str, action: str) -> Dict[str, Any]:
     """POST ``/admin/api/models/{id}/{start|stop}`` to a peer hub.
 
-    409 ("already running" on start / "not running" on stop) is a benign no-op —
-    the whole point of the additive loop is that repeated starts converge — so it
-    counts as ``ok``.
+    A 409 whose ``outcome`` is ``already_running`` / ``not_running`` is a benign
+    no-op — the whole point of the additive loop is that repeated starts
+    converge — so it counts as ``ok``. A peer on an older build sends no
+    ``outcome`` and answered every refusal with 409; its bare 409 keeps that old
+    ok reading so a rolling update never flips a healthy fleet to failing.
+    Anything else (a 500 ``launch_failed``, a 404 ``not_enabled``…) is a real
+    failure and is reported with the peer's detail.
     """
     try:
         r = await get_async_client().post(
@@ -102,7 +111,29 @@ async def _remote_model_action(host_id: str, base: str, model_id: str, action: s
         )
     except httpx.HTTPError as exc:
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
-    return {"ok": r.status_code < 400 or r.status_code == 409, "status": r.status_code}
+    try:
+        body = r.json()
+    except ValueError:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    outcome = body.get("outcome")
+    if r.status_code < 400:
+        ok = True
+    elif r.status_code == 409:
+        ok = outcome is None or outcome in _PEER_NO_OP_OUTCOMES
+    else:
+        ok = False
+    result: Dict[str, Any] = {"ok": ok, "status": r.status_code}
+    if outcome is not None:
+        result["outcome"] = outcome
+    if not ok:
+        result["detail"] = body.get("detail") or r.text[:300]
+        logger.warning(
+            "⚠️ fleet reconcile: %s %s on %s -> HTTP %s %s: %s",
+            action, model_id, host_id, r.status_code, outcome or "", result["detail"],
+        )
+    return result
 
 
 # --------------------------------------------------------------------------- #
@@ -115,14 +146,16 @@ async def _reconcile_local(desired: List[str]) -> Dict[str, Any]:
     started: List[Dict[str, Any]] = []
     for model_id in desired:
         try:
-            ok, msg = await asyncio.to_thread(bp.start, model_id)
+            outcome = await asyncio.to_thread(bp.start, model_id)
         except Exception as exc:  # noqa: BLE001 — a bad row must not abort the pass
             logger.warning("fleet reconcile: local start %s raised: %s", model_id, exc)
             started.append({"id": model_id, "ok": False, "detail": str(exc)})
             continue
-        no_op = "already running" in msg.lower()
-        started.append({"id": model_id, "ok": bool(ok) or no_op, "detail": msg})
-        logger.info("fleet reconcile: local %s -> %s", model_id, msg)
+        started.append({
+            "id": model_id, "ok": outcome.converged,
+            "outcome": outcome.kind.value, "detail": outcome.detail,
+        })
+        logger.info("fleet reconcile: local %s -> %s", model_id, outcome.detail)
     return {"local": True, "reachable": True, "started": started}
 
 

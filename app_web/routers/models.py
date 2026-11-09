@@ -10,6 +10,7 @@ import wave
 from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 
 from app_web.admin_forward import forward_admin_request
 from src import config_write
@@ -30,6 +31,7 @@ from src.model_registry import (
     resolve as resolve_model,
 )
 from src.process import backend_process as bp
+from src.process.process_supervisor import OutcomeKind, ProcessOutcome
 from src.process.server_process import (
     OWNERSHIP_EXTERNAL,
     OWNERSHIP_NONE,
@@ -404,8 +406,31 @@ async def model_placement_update(model_id: str, payload: Dict[str, Any]) -> Dict
     return result
 
 
+# A refused start/stop keeps its own status so a caller (the SPA toast, a peer
+# hub's reconcile loop) can tell "already in that state" from "could not do it".
+_OUTCOME_STATUS = {
+    OutcomeKind.ALREADY_RUNNING: 409,
+    OutcomeKind.NOT_RUNNING: 409,
+    OutcomeKind.LAUNCH_FAILED: 500,
+    OutcomeKind.STOP_FAILED: 500,
+    OutcomeKind.NOT_ENABLED: 404,
+    OutcomeKind.NOT_OWNER: 403,
+}
+
+
+def _outcome_response(outcome: ProcessOutcome) -> Any:
+    """Render a start/stop outcome: 200 when it took effect, else its own status.
+    Every body carries ``outcome`` (the kind) beside the unchanged ``detail``."""
+    if outcome.ok:
+        return {"ok": True, "detail": outcome.detail, "outcome": outcome.kind.value}
+    return JSONResponse(
+        status_code=_OUTCOME_STATUS[outcome.kind],
+        content={"ok": False, "detail": outcome.detail, "outcome": outcome.kind.value},
+    )
+
+
 @router.post("/api/models/{model_id}/start")
-async def model_start(model_id: str) -> Dict[str, Any]:
+async def model_start(model_id: str) -> Any:
     target = _require_model(model_id)
     if remote_base_url(target):
         return await _forward_admin_call(target, "POST", "/start")
@@ -419,22 +444,15 @@ async def model_start(model_id: str) -> Dict[str, Any]:
             status_code=400,
             detail=f"backend {target.backend!r} has no managed process (subscription-backed)",
         )
-    ok, msg = bp.start(model_id)
-    if not ok:
-        # "already running" is OK in the SPA — surface as 409 so the UI can ignore.
-        raise HTTPException(status_code=409, detail=msg)
-    return {"ok": True, "detail": msg}
+    return _outcome_response(bp.start(model_id))
 
 
 @router.post("/api/models/{model_id}/stop")
-async def model_stop(model_id: str) -> Dict[str, Any]:
+async def model_stop(model_id: str) -> Any:
     target = _require_model(model_id)
     if remote_base_url(target):
         return await _forward_admin_call(target, "POST", "/stop")
-    ok, msg = bp.stop(model_id)
-    if not ok:
-        raise HTTPException(status_code=409, detail=msg)
-    return {"ok": True, "detail": msg}
+    return _outcome_response(bp.stop(model_id))
 
 
 @router.post("/api/models/{model_id}/force-stop")

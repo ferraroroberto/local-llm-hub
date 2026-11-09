@@ -21,6 +21,7 @@ from src import model_registry
 from src.fleet import fleet_maintenance, remote_bootstrap, remote_stats  # noqa: E402  # noqa: E402
 from src.fleet import fleet_reconcile as fr
 from src.process import backend_process as bp  # noqa: E402
+from src.process.process_supervisor import OutcomeKind, ProcessOutcome  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -198,9 +199,9 @@ def test_empty_desired_host_is_skipped(monkeypatch):
 
 def test_local_already_running_is_noop_success(monkeypatch):
     _stub_desired(monkeypatch, {"tower": ["whisper"]})
-    monkeypatch.setattr(bp, "start", lambda mid: (False, "backend already running"))
+    monkeypatch.setattr(bp, "start", lambda mid: ProcessOutcome(OutcomeKind.ALREADY_RUNNING, "already running"))
     stops: list = []
-    monkeypatch.setattr(bp, "stop", lambda mid: stops.append(mid) or (True, "stopped"))
+    monkeypatch.setattr(bp, "stop", lambda mid: stops.append(mid) or ProcessOutcome(OutcomeKind.STOPPED, "stopped"))
 
     results = _run(fr.reconcile_once())
 
@@ -258,3 +259,48 @@ def _async_ret(value):
     async def _f(*args, **kwargs):
         return value
     return _f
+
+
+# --------------------------------------------------------------------------- #
+# Start outcomes: a launch failure is a failure, "already up" is converged
+# --------------------------------------------------------------------------- #
+def test_local_launch_failure_is_not_converged(monkeypatch):
+    _stub_desired(monkeypatch, {"tower": ["whisper"]})
+    monkeypatch.setattr(bp, "start", lambda mid: ProcessOutcome(
+        OutcomeKind.LAUNCH_FAILED, "failed to launch: weights missing, already running? no"))
+
+    entry = _run(fr.reconcile_once())["tower"]["started"][0]
+    assert entry["ok"] is False
+    assert entry["outcome"] == "launch_failed"
+    assert entry["detail"].startswith("failed to launch: ")
+
+
+def _peer_answers(monkeypatch, status, body):
+    import httpx
+
+    class _Client:
+        async def post(self, url, headers=None, timeout=None):
+            return httpx.Response(status, json=body, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(fr, "get_async_client", lambda: _Client())
+    monkeypatch.setattr(fr, "remote_auth_headers", lambda host_id: {})
+
+
+@pytest.mark.parametrize("status, body, ok", [
+    (200, {"ok": True, "detail": "started (pid=4)", "outcome": "started"}, True),
+    (409, {"ok": False, "detail": "already running", "outcome": "already_running"}, True),
+    (409, {"ok": False, "detail": "not running", "outcome": "not_running"}, True),
+    # An older peer: every refusal was a bare 409 — keep reading it as ok.
+    (409, {"detail": "failed to launch: boom"}, True),
+    (500, {"ok": False, "detail": "failed to launch: boom", "outcome": "launch_failed"}, False),
+    (404, {"ok": False, "detail": "model 'x' not enabled on this host", "outcome": "not_enabled"}, False),
+    (403, {"ok": False, "detail": "model 'x' is owned by host(s) ['tower']", "outcome": "not_owner"}, False),
+])
+def test_remote_model_action_reads_the_peer_outcome(monkeypatch, status, body, ok):
+    _peer_answers(monkeypatch, status, body)
+    result = _run(fr._remote_model_action("gaming", "http://peer:8000", "x", "start"))
+    assert result["ok"] is ok
+    assert result["status"] == status
+    if not ok:
+        assert result["detail"] == body["detail"]
+        assert result["outcome"] == body["outcome"]

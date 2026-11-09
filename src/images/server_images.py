@@ -118,15 +118,15 @@ def _stop_wedged_backend(model: Model) -> str:
     """
     from ..process import backend_process as bp
 
-    ok, msg = bp.stop(model.id)
-    if ok:
+    outcome = bp.stop(model.id)
+    if outcome.ok:
         logger.warning(
             "comfyui: %s hit a fatal CUDA error and was stopped; the next "
             "request reloads it", model.id,
         )
         return f"{model.id!r} was stopped and the next request reloads it"
-    logger.error("comfyui: could not stop wedged %s: %s", model.id, msg)
-    return f"stopping {model.id!r} failed ({msg}) — restart it from the Models tab"
+    logger.error("comfyui: could not stop wedged %s: %s", model.id, outcome.detail)
+    return f"stopping {model.id!r} failed ({outcome.detail}) — restart it from the Models tab"
 
 
 def model_spec_for(model: Model) -> ModelSpec:

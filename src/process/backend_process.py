@@ -42,6 +42,8 @@ from ..model_registry import (
 from .process_supervisor import (
     STOP_KILL_TIMEOUT_S,
     STOP_TERMINATE_TIMEOUT_S,
+    OutcomeKind,
+    ProcessOutcome,
     ProcessSupervisor,
     SpawnSpec,
 )
@@ -492,10 +494,10 @@ def _whisper_command(model: Model, model_path: Path) -> list[str]:
     return cmd
 
 
-def start(model_id: str) -> tuple[bool, str]:
+def start(model_id: str) -> ProcessOutcome:
     model = resolve_model_by_id(model_id)
     if model is None:
-        return False, f"model {model_id!r} not enabled on this host"
+        return ProcessOutcome(OutcomeKind.NOT_ENABLED, f"model {model_id!r} not enabled on this host")
     # Chain-aware ownership guard: any host in the model's ordered
     # ``hosts:`` chain may spawn it locally (the failover engine relies on
     # this to bring a model up on a fallback candidate); a host *outside*
@@ -504,11 +506,11 @@ def start(model_id: str) -> tuple[bool, str]:
     chain = list(getattr(model, "hosts", None) or [])
     active = resolve_host()
     if chain and active.id not in chain:
-        return False, (
+        return ProcessOutcome(OutcomeKind.NOT_OWNER, (
             f"model {model_id!r} is owned by host(s) {chain!r} — "
             "start it there, or via the admin API which proxies this "
             "call automatically"
-        )
+        ))
     state = _state_for(model_id)
 
     env = os.environ.copy()
@@ -565,31 +567,30 @@ def start(model_id: str) -> tuple[bool, str]:
             log_file.close()
 
 
-def stop(model_id: str) -> tuple[bool, str]:
+def stop(model_id: str) -> ProcessOutcome:
     state = _state_for(model_id)
     p = state.proc
     # Inherited backend: we don't hold a Popen handle, so polite shutdown
     # isn't an option — taskkill the PID directly.
     if p is None:
         if _inherited_alive(state):
-            pid_ = state.inherited_pid
+            pid_ = int(state.inherited_pid)
             state.inherited_pid = None
             state.inherited_create_time = None
-            ok, msg = kill_pid(int(pid_))
-            return ok, msg
-        return False, "not running"
+            ok, msg = kill_pid(pid_)
+            return ProcessOutcome(OutcomeKind.STOPPED if ok else OutcomeKind.STOP_FAILED, msg, pid_)
+        return ProcessOutcome(OutcomeKind.NOT_RUNNING, "not running")
     if p.poll() is not None:
         state.proc = None
-        return False, "not running"
-    ok, msg = ProcessSupervisor.stop_popen(
+        return ProcessOutcome(OutcomeKind.NOT_RUNNING, "not running")
+    outcome = ProcessSupervisor.stop_popen(
         p,
         terminate_timeout=STOP_TERMINATE_TIMEOUT_S,
         kill_timeout=STOP_KILL_TIMEOUT_S,
     )
-    if not ok:
-        return ok, msg
-    state.proc = None
-    return True, "stopped"
+    if outcome.kind is OutcomeKind.STOPPED:
+        state.proc = None
+    return outcome
 
 
 def inherit_running_backends() -> int:
