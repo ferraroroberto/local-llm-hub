@@ -500,3 +500,157 @@ def test_ensure_running_local_owns_only_a_started_spawn(monkeypatch, outcome, ow
     result = asyncio.run(model_failover._ensure_running_local(m, None))
     assert result == {"started": outcome.ok, "detail": outcome.detail}
     assert ("whisper" in model_failover._ENGINE_STARTED) is owned
+
+
+# --------------------------------------------------------------------------- #
+# The engine-started record survives a hub restart
+# --------------------------------------------------------------------------- #
+def _simulate_hub_restart():
+    """A respawned hub re-runs this module from scratch: every in-memory
+    global (tracker, engine-started record) starts over, while the backend
+    process itself lives on and is inherited."""
+    import importlib
+
+    importlib.reload(model_failover)
+
+
+def _tower_fallback_world(monkeypatch, write_config, *, running_pid):
+    """Tower is the CPU last resort for whisper; returns the stop log."""
+    _chain_config(write_config)
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "tower")
+    stopped = []
+    monkeypatch.setattr(backend_process, "pid", lambda mid: running_pid["pid"])
+    monkeypatch.setattr(
+        backend_process, "stop",
+        lambda mid: stopped.append(mid) or ProcessOutcome(OutcomeKind.STOPPED, "stopped"),
+    )
+    return stopped
+
+
+def _fail_over_to_tower(monkeypatch, spawned_pid):
+    """Pass at t=0: gaming and mac down, so tower owns and spawns whisper."""
+    monkeypatch.setattr(backend_process, "is_running", lambda mid: False)
+    monkeypatch.setattr(
+        backend_process, "start",
+        lambda mid: ProcessOutcome(OutcomeKind.STARTED, f"started (pid={spawned_pid})", spawned_pid),
+    )
+    up = {"gaming": False, "mac": False, "tower": True}
+
+    async def _probe(h):
+        return up[h]
+
+    res = _run_pass(now=0, probe=_probe, tracker=OwnershipTracker())
+    assert res["whisper"]["owner"] == "tower"
+    assert res["whisper"]["action"]["started"] is True
+    monkeypatch.setattr(backend_process, "is_running", lambda mid: True)
+
+
+def _gaming_returns_after_restart():
+    """First pass of the respawned hub (fresh tracker, t=1000): gaming is up
+    again, so ownership leaves tower."""
+    async def _probe(h):
+        return h != "mac"
+
+    res = _run_pass(now=1000, probe=_probe, tracker=OwnershipTracker())
+    assert res["whisper"]["owner"] == "gaming"
+    return res
+
+
+def test_inherited_failover_copy_is_released_on_failback(monkeypatch, write_config):
+    running = {"pid": 4242}
+    stopped = _tower_fallback_world(monkeypatch, write_config, running_pid=running)
+    _fail_over_to_tower(monkeypatch, spawned_pid=4242)
+
+    _simulate_hub_restart()
+
+    _gaming_returns_after_restart()
+    assert stopped == ["whisper"]
+    assert "whisper" not in model_failover._ENGINE_STARTED
+
+
+def test_hand_started_copy_after_restart_is_never_released(monkeypatch, write_config):
+    # Failover's own copy (pid 4242) died while the hub was down and someone
+    # started whisper by hand (pid 5555): the record names a different process.
+    running = {"pid": 4242}
+    stopped = _tower_fallback_world(monkeypatch, write_config, running_pid=running)
+    _fail_over_to_tower(monkeypatch, spawned_pid=4242)
+
+    _simulate_hub_restart()
+    running["pid"] = 5555
+
+    class _HandStarted:
+        def __init__(self, pid):
+            self.pid = pid
+
+        def parents(self):
+            return [_HandStarted(1)]
+
+    import psutil
+
+    monkeypatch.setattr(psutil, "Process", _HandStarted)
+
+    _gaming_returns_after_restart()
+    assert stopped == []
+    assert "whisper" not in model_failover._ENGINE_STARTED
+
+
+def test_hand_started_copy_with_no_record_is_never_released(monkeypatch, write_config):
+    stopped = _tower_fallback_world(monkeypatch, write_config, running_pid={"pid": 777})
+    monkeypatch.setattr(backend_process, "is_running", lambda mid: True)
+
+    _simulate_hub_restart()
+
+    _gaming_returns_after_restart()
+    assert stopped == []
+
+
+@pytest.mark.parametrize("content", ["{not json", '["whisper"]', '{"whisper": "x"}'])
+def test_corrupt_record_degrades_to_hand_started_with_warning(
+    monkeypatch, write_config, tmp_path, caplog, content
+):
+    record = tmp_path / "failover_engine_started.json"
+    record.write_text(content, encoding="utf-8")
+    stopped = _tower_fallback_world(monkeypatch, write_config, running_pid={"pid": 4242})
+    monkeypatch.setattr(backend_process, "is_running", lambda mid: True)
+
+    _simulate_hub_restart()
+
+    with caplog.at_level("WARNING", logger="src.model_failover"):
+        _gaming_returns_after_restart()
+    assert stopped == []
+    assert any("engine-started record" in r.getMessage() for r in caplog.records
+               if r.levelname == "WARNING")
+
+
+def test_missing_record_degrades_to_hand_started_with_warning(
+    monkeypatch, write_config, caplog
+):
+    stopped = _tower_fallback_world(monkeypatch, write_config, running_pid={"pid": 4242})
+    monkeypatch.setattr(backend_process, "is_running", lambda mid: True)
+
+    _simulate_hub_restart()
+
+    with caplog.at_level("WARNING", logger="src.model_failover"):
+        _gaming_returns_after_restart()
+    assert stopped == []
+    assert any("engine-started record" in r.getMessage() for r in caplog.records
+               if r.levelname == "WARNING")
+
+
+def test_spawned_by_accepts_the_same_pid_or_a_child_of_it(monkeypatch):
+    assert model_failover._spawned_by(10, 10) is True
+    assert model_failover._spawned_by(None, 10) is True
+
+    class _Proc:
+        def __init__(self, pid):
+            self.pid = pid
+
+        def parents(self):
+            return [_Proc(10), _Proc(1)]
+
+    import psutil
+
+    monkeypatch.setattr(psutil, "Process", _Proc)
+    # The venv redirector stub spawned the real server: its child serves.
+    assert model_failover._spawned_by(10, 11) is True
+    assert model_failover._spawned_by(99, 11) is False
