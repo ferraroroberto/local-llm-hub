@@ -22,8 +22,11 @@ from src.no_window import NO_WINDOW
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VENDORED = REPO_ROOT / "scripts" / "conventions_ratchet.py"
-# The ratchet loads this sibling from beside itself, so a throwaway copy needs both.
-VENDORED_READERS = REPO_ROOT / "scripts" / "conventions_readers.py"
+# The ratchet loads these siblings from beside itself, so a throwaway copy needs all three.
+VENDORED_SIBLINGS = (
+    REPO_ROOT / "scripts" / "conventions_readers.py",
+    REPO_ROOT / "scripts" / "conventions_state.py",
+)
 
 EXIT_NOT_CONFIRMED = 3
 
@@ -51,7 +54,8 @@ def _throwaway_repo(tmp_path: Path) -> tuple[Path, Path]:
     (root / "src").mkdir()
     script = root / "scripts" / "conventions_ratchet.py"
     shutil.copyfile(VENDORED, script)
-    shutil.copyfile(VENDORED_READERS, script.parent / VENDORED_READERS.name)
+    for sibling in VENDORED_SIBLINGS:
+        shutil.copyfile(sibling, script.parent / sibling.name)
     (root / ".fleet.toml").write_text(_FLEET, encoding="utf-8")
     module = root / "src" / "lib.py"
     module.write_text(_CLEAN, encoding="utf-8")
