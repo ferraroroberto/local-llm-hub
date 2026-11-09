@@ -110,15 +110,32 @@ async def hub_stop() -> Dict[str, Any]:
     return {"ok": True, "detail": "hub will exit shortly"}
 
 
+def _clear_restart_pending(reason: str) -> None:
+    """Drop the keep-backends flag: a restart that did not happen must not make the
+    next ordinary stop orphan every model backend."""
+    from src.process import backend_process as bp
+
+    bp.set_restart_pending(False)
+    logger.info("ℹ️ keep-backends flag cleared — %s", reason)
+
+
 @router.post("/api/hub/restart")
 async def hub_restart() -> Dict[str, Any]:
     # Tell the shutdown handler to leave the model backends running so the
     # respawned hub adopts them, instead of killing the survivors that
-    # inherit_running_backends() exists to reclaim.
+    # inherit_running_backends() exists to reclaim. The flag must hold only while
+    # a restart is really in flight, so every failure path below clears it.
     from src.process import backend_process as bp
 
     bp.set_restart_pending(True)
+    try:
+        return _start_restart()
+    except Exception:
+        _clear_restart_pending("restart raised before it started")
+        raise
 
+
+def _start_restart() -> Dict[str, Any]:
     if sys.platform == "darwin":
         # On darwin the LaunchAgent is the sole supervisor — its
         # KeepAlive.SuccessfulExit=false only respawns on an *abnormal*
@@ -130,22 +147,29 @@ async def hub_restart() -> Dict[str, Any]:
 
         logger.info("🔄 /admin/api/hub/restart — launchctl kickstart")
         try:
-            subprocess.run(
+            r = subprocess.run(
                 ["launchctl", "kickstart", "-k", f"gui/{os.getuid()}/{LAUNCHAGENT_LABEL}"],
                 capture_output=True, timeout=_LAUNCHCTL_TIMEOUT_S,
             )
         except subprocess.TimeoutExpired:
             logger.error("❌ launchctl kickstart did not return within %ss", _LAUNCHCTL_TIMEOUT_S)
+            _clear_restart_pending("launchctl kickstart timed out")
             return {"ok": False, "detail": f"launchctl kickstart timed out after {_LAUNCHCTL_TIMEOUT_S}s"}
+        if r.returncode != 0:
+            err = (r.stderr or b"").decode("utf-8", "replace").strip()
+            logger.error("❌ launchctl kickstart exited %s: %s", r.returncode, err)
+            _clear_restart_pending(f"launchctl kickstart exited {r.returncode}")
+            return {"ok": False, "detail": f"launchctl kickstart failed (exit {r.returncode})"}
         return {"ok": True, "detail": "hub will restart shortly via launchd"}
 
     if _under_systemd():
         # systemd is the sole supervisor here — like launchd on the Mac, drive
         # the restart through it rather than racing a self-spawned watchdog
-        # against Restart=always for the same port. restart_pending (set above)
-        # keeps model backends alive for the respawned hub to adopt.
+        # against Restart=always for the same port. restart_pending (set by the
+        # caller) keeps model backends alive for the respawned hub to adopt; the
+        # delayed systemctl clears it itself if the restart never happens.
         logger.info("🔄 /admin/api/hub/restart — systemctl restart")
-        _delayed_systemctl("restart")
+        _delayed_systemctl("restart", on_failure=lambda: _clear_restart_pending("systemctl restart failed"))
         return {"ok": True, "detail": "hub will restart shortly via systemd"}
 
     logger.info("🔄 /admin/api/hub/restart — spawning respawn watchdog")
