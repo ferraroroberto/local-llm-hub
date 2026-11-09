@@ -1,36 +1,31 @@
-"""End-to-end tests for the Machines rows: Wake-on-LAN (issue #356) and the
-shared row + machine sheet they live on since #736.
+"""The Machines tab's rows and the machine sheet behind them.
 
-Wake is UI over the landed ``POST /admin/api/machines/{id}/wake`` endpoint and
-the ``actions.wake`` flag on ``GET /admin/api/machines/status`` (true only for
-a MAC-equipped, non-hub host). These tests pin the *SPA* contract with route
-interception, so no real fleet is ever probed:
+The SPA contract is pinned with route interception on
+``GET /admin/api/machines/status`` and the wake / sync endpoints, so no real
+fleet is ever probed. Phases run at a touch-enabled phone viewport (the same
+coarse-pointer branch the rest of the Machines tab is validated against), each in
+its own browser context.
 
-  * a **down** (or dormant) machine whose row advertises ``actions.wake`` shows
-    Wake as the row's one visible verb; a down machine without the flag does
-    not (the MAC gate);
-  * an **up** or **self** machine never shows it *even when* ``actions.wake``
-    is true; its row face still says it is up (the avatar badge) without a
-    success chip, and tapping it opens the machine sheet, whose Reboot and
-    Shut down are the last rows and open the confirm dialog; a peer that runs
-    its own hub shows its out-of-sync state with both builds and offers Sync;
-    on a wide window the same body fills the detail pane instead;
-  * clicking Wake fires the wake POST, is non-destructive (no confirm dialog,
-    not a danger button), and surfaces a success toast.
-
-Run at a touch-enabled phone viewport — the same coarse-pointer branch the rest
-of the Machines tab is validated against.
+* Wake is the row's one visible verb on a **down** (or dormant) machine whose
+  row advertises ``actions.wake`` (the MAC gate); an **up** or **self** machine
+  never shows it even when the flag is true. Wake fires the POST with no confirm
+  dialog, is not a danger button and toasts the outcome.
+* An up machine's row says so with the avatar badge and no success chip; tapping
+  it opens the machine sheet: the peer hub's out-of-sync state with both builds,
+  Sync, the health and resource sections, and Reboot / Shut down last behind the
+  confirm dialog; a down hub peer offers Start hub instead; addresses render as
+  code; on a wide window the same body fills the detail pane.
+* Sync is offered only when it can help and reports the outcome; a long reason
+  wraps inside the phone sheet.
+* A dormant machine is a neutral row sorted after the live ones, raises no alert
+  and is not counted in "N offline".
 """
 
 from __future__ import annotations
 
-import json
-
-import pytest
-
+from tests.e2e._flow import PHONE, fresh_page, fulfil_json
 from tests.e2e._surface import surface
 
-PHONE_VIEWPORT = {"width": 390, "height": 844}
 WIDE_VIEWPORT = {"width": 1440, "height": 900}
 
 # A fixed fleet spanning every branch of the Wake verb's show/hide rule and the
@@ -38,7 +33,7 @@ WIDE_VIEWPORT = {"width": 1440, "height": 900}
 FAKE_STATUS = {
     "machines": [
         {
-            # This host — never wakeable.
+            # This host: never wakeable.
             "id": "tower", "display_name": "Tower", "icon": "monitor",
             "state": "self", "is_host": True, "runs_hub": True,
             "role": "hub", "actions": {"wake": False}, "hub": None,
@@ -63,13 +58,13 @@ FAKE_STATUS = {
                           ]}},
         },
         {
-            # A reachable peer that advertises wake capability but is UP — the
+            # A reachable peer that advertises wake capability but is UP: the
             # state gate must suppress the verb regardless of the flag. It runs
             # its own hub, on a different build.
             "id": "desktop", "display_name": "Desktop", "icon": "monitor",
             "state": "up", "is_host": False, "runs_hub": True,
             "role": "peer", "uptime_seconds": 7200,
-            # Documentation-range address and a made-up MAC (COMP-11, #810).
+            # Documentation-range address and a made-up MAC.
             "ip": "192.0.2.10", "mac": "02:00:00:00:00:01",
             "actions": {"wake": True, "reboot": True, "shutdown": True, "ssh_terminal": True, "rdp": True},
             "hub": {"reachable": True, "git_sha_match": False,
@@ -78,7 +73,7 @@ FAKE_STATUS = {
                              "reason": "Desktop is 2 commits behind main. Sync updates it."}},
         },
         {
-            # A powered-off, MAC-equipped peer whose hub is down too — the row
+            # A powered-off, MAC-equipped peer whose hub is down too: the row
             # shows Wake, the sheet offers Start hub.
             "id": "mini", "display_name": "Mac Mini", "icon": "server",
             "state": "down", "is_host": False, "runs_hub": True,
@@ -87,13 +82,13 @@ FAKE_STATUS = {
                     "local_git_sha": None, "remote_git_sha": None},
         },
         {
-            # Powered off but with no MAC on file — wake unavailable, so no verb.
+            # Powered off but with no MAC on file: wake unavailable, so no verb.
             "id": "laptop", "display_name": "Laptop", "icon": "laptop",
             "state": "down", "is_host": False, "runs_hub": False,
             "role": "peer", "actions": {"wake": False}, "hub": None,
         },
         {
-            # Dormant + wakeable — the other state that shows the verb.
+            # Dormant + wakeable: the other state that shows the verb.
             "id": "sat", "display_name": "Satellite", "icon": "server",
             "state": "dormant", "is_host": False, "runs_hub": False,
             "role": "peer", "actions": {"wake": True}, "hub": None,
@@ -101,33 +96,23 @@ FAKE_STATUS = {
     ]
 }
 
-
-@pytest.fixture()
-def phone_page(browser, admin_url):
-    """A touch-enabled phone context — ``has_touch`` flips the ``pointer:
-    coarse`` branch the Machines tab is styled against."""
-    context = browser.new_context(
-        viewport=PHONE_VIEWPORT, has_touch=True, is_mobile=False,
-    )
-    page = context.new_page()
-    page.set_default_timeout(15000)
-    yield page
-    context.close()
-
-
-def _install_status_route(page):
-    """Serve the fixed machine status for every poll."""
-    page.route(
-        "**/admin/api/machines/status",
-        lambda route: route.fulfill(
-            status=200, content_type="application/json",
-            body=json.dumps(FAKE_STATUS),
-        ),
-    )
+# Intentionally off, listed ahead of a live machine to prove the sort.
+DORMANT_STATUS = {"machines": [
+    {"id": "tower", "display_name": "Tower", "icon": "monitor", "state": "self",
+     "is_host": True, "role": "hub", "actions": {"wake": False}, "hub": None},
+    {"id": "attic", "display_name": "Attic", "icon": "server", "state": "dormant",
+     "answering": False, "is_host": False, "role": "peer", "actions": {"wake": True}, "hub": None},
+    {"id": "den", "display_name": "Den", "icon": "monitor", "state": "up",
+     "is_host": False, "role": "peer", "uptime_seconds": 600,
+     "actions": {"wake": False}, "hub": None},
+    # Dormant but answering again (after a Wake).
+    {"id": "loft", "display_name": "Loft", "icon": "server", "state": "dormant",
+     "answering": True, "is_host": False, "role": "peer", "actions": {"wake": True}, "hub": None},
+]}
 
 
-def _open_machines(page, admin_url):
-    _install_status_route(page)
+def _open_machines(page, admin_url, body):
+    page.route("**/admin/api/machines/status", lambda route: fulfil_json(route, body))
     page.goto(admin_url, wait_until="load")
     page.click("#tabMachines")
     page.wait_for_selector("#paneMachines", state="visible", timeout=5000)
@@ -142,11 +127,13 @@ def _wake_btn(page, machine_id):
     return _row(page, machine_id).locator('[data-machine-action="wake"]')
 
 
-def test_wake_button_on_a_down_mac_equipped_machine(phone_page, admin_url):
-    """A powered-off, MAC-equipped peer offers the Wake verb on its row."""
-    page = phone_page
-    _open_machines(page, admin_url)
+def _open_sheet(page, machine_id):
+    _row(page, machine_id).locator(".action-row-main").click()
+    page.wait_for_selector("#machineSheet[open]", timeout=5000)
+    return page.locator("#machineSheetBody")
 
+
+def _wake_is_offered_only_to_a_down_machine_with_a_mac(page, mark):
     btn = _wake_btn(page, "mini")
     assert btn.count() == 1, "the down, wakeable machine should show a Wake verb"
     assert btn.is_visible()
@@ -155,65 +142,52 @@ def test_wake_button_on_a_down_mac_equipped_machine(phone_page, admin_url):
     assert btn.get_attribute("aria-label") == "Wake Mac Mini"
     assert btn.get_attribute("title") == "Wake Mac Mini"
     assert btn.get_attribute("data-track") == "machine-wake"
-    # It reuses the power glyph from the vendored sprite (no bespoke SVG).
-    assert btn.locator('use[href="#i-power"]').count() == 1
-    # A dormant, wakeable machine shows it too.
-    assert _wake_btn(page, "sat").count() == 1
+    assert btn.locator('use[href="#i-power"]').count() == 1  # the vendored sprite's power glyph
+    assert _wake_btn(page, "sat").count() == 1  # a dormant, wakeable machine shows it too
     # Down is readable from the row face: the avatar's down badge and the word.
     assert _row(page, "mini").locator('.action-row-avatar[data-badge="down"]').count() == 1
     assert "Offline" in _row(page, "mini").inner_text()
-    # The header line names the offline count (two machines are down).
     assert page.locator("#machinesHeadLine").inner_text().startswith("2 offline")
-    surface(page, "machines.down-wakeable")
+    mark("machines.down-wakeable")
 
-
-def test_no_wake_button_without_the_mac_flag(phone_page, admin_url):
-    """A down machine with ``actions.wake`` false gets no verb (the MAC gate)."""
-    page = phone_page
-    _open_machines(page, admin_url)
-
-    assert _wake_btn(page, "laptop").count() == 0
-
-
-def test_no_wake_button_on_up_or_self_machines(phone_page, admin_url, browser):
-    """The state gate is independent of the capability flag: an UP peer that
-    advertises ``actions.wake`` still hides the verb, and so does the host. Its
-    row says "up" with the avatar badge and no success chip; tapping it opens
-    the sheet, which carries the peer hub's state and the danger rows last."""
-    page = phone_page
-    _open_machines(page, admin_url)
-
-    assert _wake_btn(page, "desktop").count() == 0, (
-        "an up machine must never show Wake, even when actions.wake is true"
-    )
+    assert _wake_btn(page, "laptop").count() == 0  # the MAC gate
+    # The state gate is independent of the capability flag.
+    assert _wake_btn(page, "desktop").count() == 0, "an up machine must never show Wake, even when actions.wake is true"
     assert _wake_btn(page, "tower").count() == 0, "the self/host row never shows Wake"
+
+
+def _an_up_machine_opens_its_sheet(page):
     up = _row(page, "desktop")
     assert up.locator('.action-row-avatar[data-badge="up"]').count() == 1
     assert "Online" not in page.locator("#paneMachines").inner_text(), "no green Online chip"
     assert up.locator(".chip").inner_text() == "out of sync"
 
-    up.locator(".action-row-main").click()
-    page.wait_for_selector("#machineSheet[open]", timeout=5000)
-    sheet = page.locator("#machineSheetBody")
+    sheet = _open_sheet(page, "desktop")
     assert "Out of sync" in sheet.inner_text()
     assert "aaa1111" in sheet.inner_text() and "bbb2222" in sheet.inner_text()
     assert "Desktop is 2 commits behind main" in sheet.locator("[data-machine-hub-reason]").inner_text()
     assert sheet.locator('[data-machine-action="sync"]').count() == 1
+
+    # An address and a MAC are identifiers: the Connection row and its pairs show
+    # them inside <code>, never as prose.
+    sheet.locator(".sheet-disclosure > summary").first.click()
+    codes = sheet.locator(".sheet-disclosure code").all_inner_texts()
+    assert codes.count("192.0.2.10") == 2, codes  # the row value and the Address pair
+    assert "02:00:00:00:00:01" in codes, codes
+
     # Reboot and Shut down are the last rows, and Reboot opens the confirm.
-    actions = sheet.locator("[data-machine-action]").evaluate_all(
-        "els => els.map(e => e.dataset.machineAction)")
+    actions = sheet.locator("[data-machine-action]").evaluate_all("els => els.map(e => e.dataset.machineAction)")
     assert actions[-2:] == ["reboot", "shutdown"], actions
     sheet.locator('[data-machine-action="reboot"]').click()
     page.wait_for_selector("#confirmDialog[open]", timeout=5000)
     page.click("#confirmDialogCloseBtn")
     page.click("#machineSheetCloseBtn")
 
-    # This machine's health watch: a danger chip on the row, and the sheet's
-    # Health section lists every finding with the suggested fix.
+
+def _this_machines_sheet_lists_its_health_and_resources(page):
     host = _row(page, "tower")
-    assert host.locator(".chip").inner_text() == "needs action"
-    host.locator(".action-row-main").click()
-    page.wait_for_selector("#machineSheet[open]", timeout=5000)
+    assert host.locator(".chip").inner_text() == "needs action"  # a danger chip on the row
+    sheet = _open_sheet(page, "tower")
     assert sheet.locator("[data-machine-health]").inner_text() == "Act"
     assert "System handles 2.4 M" in sheet.locator(".machine-health").inner_text()
     assert sheet.locator("[data-machine-health-fix]").inner_text() == "Suggested: Restart leaky.exe"
@@ -226,80 +200,41 @@ def test_no_wake_button_on_up_or_self_machines(phone_page, admin_url, browser):
     page.click("#machineSheetCloseBtn")
 
     # The down hub peer's sheet offers Start hub (bootstrap) instead of Sync.
-    _row(page, "mini").locator(".action-row-main").click()
-    page.wait_for_selector("#machineSheet[open]", timeout=5000)
+    sheet = _open_sheet(page, "mini")
     assert sheet.locator('[data-machine-action="bootstrap"]').count() == 1
     assert sheet.locator('[data-machine-action="sync"]').count() == 0
-
-    # A wide window renders the same body in the detail pane, not a sheet.
-    wide = browser.new_context(viewport=WIDE_VIEWPORT)
-    try:
-        wpage = wide.new_page()
-        _open_machines(wpage, admin_url)
-        _row(wpage, "desktop").locator(".action-row-main").click()
-        detail = wpage.locator("#machinesDetail")
-        detail.locator('[data-machine-id="desktop"]').first.wait_for(timeout=5000)
-        assert detail.is_visible()
-        assert wpage.locator("#machineSheet[open]").count() == 0
-        assert detail.locator('[data-machine-action="terminal"]').count() == 1
-        assert detail.locator('[data-machine-action="shutdown"]').count() == 1
-        assert _row(wpage, "desktop").get_attribute("class").find("is-selected") != -1
-    finally:
-        wide.close()
+    page.click("#machineSheetCloseBtn")
 
 
-def test_wake_is_non_destructive_and_posts(phone_page, admin_url):
-    """Clicking Wake fires the wake POST with no confirm dialog (non-destructive),
-    and the verb is not a danger button; a success toast confirms it."""
-    page = phone_page
-    _open_machines(page, admin_url)
-
+def _wake_posts_without_a_confirm_and_toasts(page):
     wake_calls = []
-    page.route(
-        "**/admin/api/machines/*/wake",
-        lambda route: (
-            wake_calls.append(route.request.url),
-            route.fulfill(
-                status=200, content_type="application/json",
-                body=json.dumps({"ok": True, "sent": True}),
-            ),
-        )[-1],
-    )
+    page.route("**/admin/api/machines/*/wake", lambda route: (
+        wake_calls.append(route.request.url), fulfil_json(route, {"ok": True, "sent": True}))[-1])
 
     btn = _wake_btn(page, "mini")
-    # Non-destructive: not styled as a danger action.
-    assert "danger" not in (btn.get_attribute("class") or "")
+    assert "danger" not in (btn.get_attribute("class") or "")  # non-destructive: not a danger action
 
-    def is_wake_post(req):
-        return req.url.endswith("/admin/api/machines/mini/wake") and req.method == "POST"
-
-    with page.expect_request(is_wake_post):
+    with page.expect_request(lambda req: req.url.endswith("/admin/api/machines/mini/wake") and req.method == "POST"):
         btn.click()
 
     assert wake_calls, "clicking Wake did not POST to the wake endpoint"
-    # No confirm dialog was opened — unlike reboot/shutdown.
     assert page.locator("#confirmDialog[open]").count() == 0, (
-        "Wake must not open the destructive-action confirm dialog"
-    )
-    # Success toast surfaces the machine name.
+        "Wake must not open the destructive-action confirm dialog")
     toast = page.locator("#toast")
     toast.wait_for(state="visible", timeout=5000)
     assert "Wake packet sent to Mac Mini" in toast.inner_text()
 
 
-def test_address_and_mac_render_as_code(phone_page, admin_url):
-    """An address and a MAC are identifiers: the Connection row and its pairs
-    show them inside <code>, never as prose (design review COMP-11, #810)."""
-    page = phone_page
-    _open_machines(page, admin_url)
-
+def _a_wide_window_fills_the_detail_pane(page, admin_url):
+    _open_machines(page, admin_url, FAKE_STATUS)
     _row(page, "desktop").locator(".action-row-main").click()
-    page.wait_for_selector("#machineSheet[open]", timeout=5000)
-    sheet = page.locator("#machineSheetBody")
-    sheet.locator(".sheet-disclosure > summary").first.click()
-    codes = sheet.locator(".sheet-disclosure code").all_inner_texts()
-    assert codes.count("192.0.2.10") == 2, codes  # the row value and the Address pair
-    assert "02:00:00:00:00:01" in codes, codes
+    detail = page.locator("#machinesDetail")
+    detail.locator('[data-machine-id="desktop"]').first.wait_for(timeout=5000)
+    assert detail.is_visible()
+    assert page.locator("#machineSheet[open]").count() == 0
+    assert detail.locator('[data-machine-action="terminal"]').count() == 1
+    assert detail.locator('[data-machine-action="shutdown"]').count() == 1
+    assert "is-selected" in _row(page, "desktop").get_attribute("class")
 
 
 def _hub_status(sync, match=False):
@@ -313,82 +248,97 @@ def _hub_status(sync, match=False):
     }]}
 
 
-def test_sync_is_offered_only_when_it_can_help_and_reports_the_outcome(phone_page, admin_url):
+def _sync_is_offered_only_when_it_can_help(page, admin_url, mark):
     """A stale local hub gets its reason and no Sync button; a peer behind main
-    gets Sync, and after it runs the status is re-read and the toast says
-    whether the hubs now match."""
-    page = phone_page
+    gets Sync, and after it runs the status is re-read and the toast says whether
+    the hubs now match; a sentence-length reason wraps within the phone sheet."""
     current = {"body": _hub_status({
         "kind": "restart_local", "sync_helps": False,
         "reason": "This hub is running an older build than its own checkout. Restart this hub."})}
-    page.route(
-        "**/admin/api/machines/status",
-        lambda route: route.fulfill(
-            status=200, content_type="application/json", body=json.dumps(current["body"])),
-    )
-    page.route(
-        "**/admin/api/hosts/desktop/sync",
-        lambda route: route.fulfill(
-            status=200, content_type="application/json", body=json.dumps({"ok": True})),
-    )
+    page.route("**/admin/api/machines/status", lambda route: fulfil_json(route, current["body"]))
+    page.route("**/admin/api/hosts/desktop/sync", lambda route: fulfil_json(route, {"ok": True}))
+
+    def reopen():
+        page.reload(wait_until="load")
+        page.click("#tabMachines")
+        page.wait_for_selector(".machine-row", state="visible", timeout=15000)
+        return _open_sheet(page, "desktop")
+
     page.goto(admin_url, wait_until="load")
     page.click("#tabMachines")
     page.wait_for_selector(".machine-row", state="visible", timeout=15000)
-    _row(page, "desktop").locator(".action-row-main").click()
-    page.wait_for_selector("#machineSheet[open]", timeout=5000)
-    sheet = page.locator("#machineSheetBody")
-
+    sheet = _open_sheet(page, "desktop")
     assert "Restart this hub" in sheet.locator("[data-machine-hub-reason]").inner_text()
     assert sheet.locator('[data-machine-action="sync"]').count() == 0
 
-    # The next poll finds the peer behind main: Sync appears, and running it
-    # lands on an in-sync re-read.
+    # The next poll finds the peer behind main: Sync appears, and running it lands
+    # on an in-sync re-read.
     current["body"] = _hub_status({
         "kind": "peer_behind", "sync_helps": True,
         "reason": "Desktop is 1 commit behind main. Sync updates it."})
-    page.reload(wait_until="load")
-    page.click("#tabMachines")
-    page.wait_for_selector(".machine-row", state="visible", timeout=15000)
-    _row(page, "desktop").locator(".action-row-main").click()
-    page.wait_for_selector("#machineSheet[open]", timeout=5000)
+    sheet = reopen()
     sync_btn = sheet.locator('[data-machine-action="sync"]')
     sync_btn.wait_for(timeout=5000)
-
-    current["body"] = _hub_status({"kind": "in_sync", "sync_helps": False, "reason": "Both hubs run the same build."}, match=True)
+    current["body"] = _hub_status(
+        {"kind": "in_sync", "sync_helps": False, "reason": "Both hubs run the same build."}, match=True)
     sync_btn.click()
     toast = page.locator("#toast")
     toast.wait_for(state="visible", timeout=5000)
     assert "Desktop hub is in sync" in toast.inner_text()
 
-
-def test_a_long_sync_reason_wraps_inside_the_phone_sheet(phone_page, admin_url):
-    """The reason is body text: at phone width a sentence-length reason wraps
-    within the sheet instead of running off its right edge."""
-    page = phone_page
-    body = _hub_status({
+    long_reason = _hub_status({
         "kind": "peer_behind", "sync_helps": True,
         "reason": "Mac Mini M4 is 1 commit behind main. Sync updates it, then restarts "
                   "its hub so the new build is the one answering requests."})
-    body["machines"][0]["health"] = FAKE_STATUS["machines"][0]["health"]
-    page.route(
-        "**/admin/api/machines/status",
-        lambda route: route.fulfill(
-            status=200, content_type="application/json", body=json.dumps(body)),
-    )
-    page.goto(admin_url, wait_until="load")
-    page.click("#tabMachines")
-    page.wait_for_selector(".machine-row", state="visible", timeout=15000)
-    _row(page, "desktop").locator(".action-row-main").click()
-    page.wait_for_selector("#machineSheet[open]", timeout=5000)
-    sheet = page.locator("#machineSheetBody")
-
+    long_reason["machines"][0]["health"] = FAKE_STATUS["machines"][0]["health"]
+    current["body"] = long_reason
+    sheet = reopen()
     reason = sheet.locator("[data-machine-hub-reason]")
     assert "restarts its hub" in reason.inner_text()
-    fits = reason.evaluate("el => el.scrollWidth <= el.clientWidth")
-    assert fits, "the reason overflows its own box"
+    assert reason.evaluate("el => el.scrollWidth <= el.clientWidth"), "the reason overflows its own box"
     assert sheet.evaluate("el => el.scrollWidth <= el.clientWidth"), "the sheet scrolls sideways"
     box = reason.bounding_box()
     sheet_box = sheet.bounding_box()
     assert box["x"] + box["width"] <= sheet_box["x"] + sheet_box["width"] + 0.5
     assert box["height"] > 30, "a long reason should wrap onto several lines"
-    surface(page, "machines.peer-out-of-sync-phone")
+    mark("machines.peer-out-of-sync-phone")
+
+
+def _dormant_machines_raise_no_alert_and_sort_last(page, admin_url, mark):
+    _open_machines(page, admin_url, DORMANT_STATUS)
+
+    ids = page.locator(".machine-row").evaluate_all("els => els.map(e => e.dataset.machineId)")
+    assert ids == ["tower", "den", "attic", "loft"], ids  # live first, dormant after
+
+    head = page.locator("#machinesHeadLine")
+    assert head.inner_text() == "4 machines · 2 dormant"
+    assert head.locator('[data-tone="danger"]').count() == 0, "no red alert"
+
+    attic = _row(page, "attic")
+    assert "Dormant" in attic.inner_text()
+    assert attic.locator(".action-row-avatar[data-badge]").count() == 0, "no alive/down badge"
+    assert attic.locator('[data-machine-action="wake"]').count() == 1
+
+    loft = _row(page, "loft")
+    assert "Reachable" in loft.inner_text()
+    assert loft.locator('.action-row-avatar[data-badge="up"]').count() == 1
+    assert loft.locator('[data-machine-action="wake"]').count() == 0, "it is up: no Wake"
+    mark("machines.dormant")
+    sheet = _open_sheet(page, "loft")
+    assert "Switch Dormant off in Settings" in sheet.inner_text()
+    mark("machines.dormant-sheet")
+
+
+def test_machine_rows_and_sheet(browser, admin_url):
+    with fresh_page(browser, viewport=PHONE, has_touch=True) as page:
+        _open_machines(page, admin_url, FAKE_STATUS)
+        _wake_is_offered_only_to_a_down_machine_with_a_mac(page, lambda name: surface(page, name))
+        _an_up_machine_opens_its_sheet(page)
+        _this_machines_sheet_lists_its_health_and_resources(page)
+        _wake_posts_without_a_confirm_and_toasts(page)
+    with fresh_page(browser, viewport=WIDE_VIEWPORT) as page:
+        _a_wide_window_fills_the_detail_pane(page, admin_url)
+    with fresh_page(browser, viewport=PHONE, has_touch=True) as page:
+        _sync_is_offered_only_when_it_can_help(page, admin_url, lambda name: surface(page, name))
+    with fresh_page(browser, viewport=PHONE, has_touch=True) as page:
+        _dormant_machines_raise_no_alert_and_sort_last(page, admin_url, lambda name: surface(page, name))

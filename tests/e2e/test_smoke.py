@@ -1,460 +1,169 @@
-"""End-to-end smoke tests on the /admin SPA.
+"""The Hub landing: what the admin SPA shows on a first visit.
 
-What the gate proves:
+One phone-width visit to ``/admin/`` reads the whole Hub tab: the console stays
+clean, the default pane is Hub on its glance, the boot burst leaves out the
+live-probe endpoints, the load sparkline paints before the first poll, the
+tiles stack under a heading, each empty list names its control, labels are
+plain words and every pane header holds only the theme toggle and the gear.
 
-  * Each tab pane (Hub / Models / Playground) loads without throwing a
-    JavaScript console error.
-  * The hub-control round-trip works: a /v1/messages request to a known-
-    bad model reaches the live-request pane over SSE, without duplicating
-    rows on reconnect.
-  * Phone-viewport (390 x 844) screenshot of each tab is captured for
-    visual review — files land in ``tests/e2e/snapshots/`` (gitignored).
+Runs before ``test_traffic.py`` on purpose: the empty-state checks need a hub
+that has served no model traffic yet.
 
-The browser-free checks — the ``?v=<hash>`` asset stamps, ``/admin/api/version``
-and the request ring's API — are unit tests since #599
-(tests/test_static_versioning.py, tests/chat/test_request_ring.py).
-
-Runs under Chromium only. WebKit was dropped from the matrix in issue
-#24 — the SPA has no Safari-specific code and WebKit on windows-latest
-CI was chronically flaky.
+Runs under Chromium only; the SPA has no Safari-specific code.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
+import re
 
-import httpx
-import pytest
-
+from tests.e2e._flow import PHONE, SIDE_BY_SIDE, fresh_page, snapshot
 from tests.e2e._surface import surface
 
-pytestmark = pytest.mark.usefixtures("admin_url")
+# Each takes seconds and neither feeds the landing view; they load when their
+# card opens (Health & install) or when the Models tab opens.
+_NOT_AT_BOOT = ("/admin/api/install/status", "/admin/api/fleet-placement", "/admin/api/roles")
 
-SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
-PHONE_VIEWPORT = {"width": 390, "height": 844}
+# Whole-word, case-sensitive: "Requests" is fine, "Req" is not.
+_JARGON = re.compile(r"\b(JSON|noul|Jev|Req|Err|tok|rd|cr|p50|p95|PCM)\b")
+_LABEL_SELECTORS = "th, label, .collapse-title, .card-header h2, .card-header h3"
 
-
-# Counts the Hub tab's live-request EventSource connections and the frames
-# they deliver, so the live-stream test can wait on "stream open" and "seed
-# replayed" instead of fixed sleeps. The listener is registered at
-# construction, ahead of the app's own ``onmessage``, so a count read from a
-# later task already includes that frame's render.
-_SSE_TAP = """
-(() => {
-  const Native = window.EventSource;
-  window.__sse = { opened: 0, messages: 0 };
-  window.EventSource = class extends Native {
-    constructor(url, ...rest) {
-      super(url, ...rest);
-      if (!String(url).includes('/requests/stream')) return;
-      this.addEventListener('open', () => { window.__sse.opened += 1; });
-      this.addEventListener('message', () => { window.__sse.messages += 1; });
-    }
-  };
-})();
-"""
+_PAINT = """els => els.map(el => {
+    const s = getComputedStyle(el);
+    return [s.backgroundColor, s.borderTopWidth];
+})"""
 
 
-@pytest.fixture(autouse=True)
-def _no_console_errors(page):
-    """Fail the test if the page logs an actual ``console.error`` line.
-
-    Failures from missing icon-180.png are noise we don't care about
-    here — the icon family swap is tracked separately (issue #6). Any
-    *other* error fails fast.
-    """
-    errs = []
-
-    def _on_console(msg):
-        if msg.type != "error":
-            return
-        text = msg.text
-        # Tolerated noise — placeholder PNG icons occasionally 404 while
-        # the manifest is still settling on first paint.
-        if "icon-180" in text or "icon-512" in text:
-            return
-        errs.append(text)
-
-    page.on("console", _on_console)
-    yield
-    if errs:
-        raise AssertionError("console errors: " + " | ".join(errs))
-
-
-def test_admin_loads(page, admin_url):
-    page.goto(admin_url, wait_until="domcontentloaded")
+def _boots_clean_into_hub(page, admin_url, requested):
+    """The default pane is Hub, the sparkline paints without waiting for the
+    first 2.5 s poll, and the boot burst skips the endpoints that probe."""
+    page.goto(admin_url, wait_until="load")
+    page.wait_for_selector("#hubSparklines .sparkline", state="attached", timeout=1500)
     page.wait_for_selector("#tabHub", state="visible", timeout=5000)
-    # Hub tab is the default — wait for state, don't race.
     page.wait_for_selector("#paneHub", state="visible", timeout=3000)
     page.wait_for_selector("#paneModels", state="hidden", timeout=3000)
     page.wait_for_selector("#panePlayground", state="hidden", timeout=3000)
-
-
-def test_models_tab(page, admin_url):
-    # wait_until="load" — not "domcontentloaded" — so the module-script
-    # boot() has finished and wireTabs() has attached its #tabModels
-    # listener before we click. Otherwise the click lands on a button
-    # with no handler, setTab('models') never runs, and the pane stays
-    # hidden (issue #19).
-    page.goto(admin_url, wait_until="load")
-    page.click("#tabModels")
-    page.wait_for_selector("#paneModels", state="visible", timeout=3000)
-    # #737: the tab opens on the memory glance, then the list; its header line
-    # is live, never the old fixed slogan.
-    order = page.evaluate(
-        "() => [...document.querySelectorAll('#paneModels > .card, #paneModels > .segmented')].map(e => e.id)"
-    )
-    assert order.index("modelsMemoryCard") < order.index("modelsCard"), order
+    page.wait_for_selector("#paneHub .home-head", state="visible", timeout=5000)
     page.wait_for_function(
-        "() => !document.getElementById('modelsHeadLine').textContent.startsWith('Reading')", timeout=5000)
+        "document.getElementById('hubHeadLine').textContent.indexOf('Reading') === -1", timeout=8000)
+    page.wait_for_timeout(300)  # gives an accidental eager fetch a chance to fire
+    boot = [u for u in requested if any(u.endswith(s) for s in _NOT_AT_BOOT)]
+    assert boot == [], f"boot fetched {boot}"
 
 
-def test_toast_stacks_above_mobile_navigation(page, admin_url):
-    page.set_viewport_size(PHONE_VIEWPORT)
-    page.goto(admin_url, wait_until="load")
-    page.locator("#toast").evaluate(
-        "(toast) => { toast.textContent = 'Model stopped'; toast.hidden = false; }"
-    )
-
-    toast_z = int(page.locator("#toast").evaluate("e => getComputedStyle(e).zIndex"))
-    assert toast_z > 120, "toast must clear the floating nav's z-index: 120"
-
-
-_BLOCK_MODE_STORAGE = """
-(() => {
-  const get = Storage.prototype.getItem, set = Storage.prototype.setItem;
-  Storage.prototype.getItem = function (k) {
-    if (k === 'llmhub.playground.mode') throw new Error('blocked');
-    return get.call(this, k);
-  };
-  Storage.prototype.setItem = function (k, v) {
-    if (k === 'llmhub.playground.mode') throw new Error('blocked');
-    return set.call(this, k, v);
-  };
-})();
-"""
-
-
-def _shown_mode(page):
-    return page.evaluate(
-        "() => [...document.querySelectorAll('#panePlayground .play-composer')]"
-        ".filter(c => !c.hidden).map(c => c.dataset.mode)"
-    )
-
-
-def test_playground_tab(page, admin_url):
-    """One composer (#740): Chat on a first visit, the last mode remembered
-    across a reload, and a request in flight survives a mode switch, its
-    result shown only in its own mode."""
-    held = []
-    page.route("**/admin/api/playground/send", lambda route: held.append(route))
-    page.goto(admin_url, wait_until="load")
-    page.click("#tabPlayground")
-    page.wait_for_selector("#panePlayground", state="visible", timeout=3000)
-    # Model dropdown populated from /admin/api/playground/models. Boot
-    # fans out several fetches at once, including install_status which
-    # is the slow one — 10s window covers the cold-cache case.
-    page.wait_for_function(
-        "document.getElementById('playgroundModel').options.length > 0",
-        timeout=10000,
-    )
-    # A usable form on the first screen, no folded testers.
-    assert _shown_mode(page) == ["chat"]
-    assert page.locator("#panePlayground details.card--collapsible").count() == 0
-    assert page.locator("#playgroundPrompt").is_visible()
-
-    # A chat request in flight keeps running across a switch to Image.
-    page.fill("#playgroundPrompt", "An invented test prompt.")
-    page.click("#playgroundSendBtn")
-    page.wait_for_function("() => true")
-    for _ in range(60):
-        if held:
-            break
-        page.wait_for_timeout(50)
-    assert held, "the chat request never left"
-    page.click('#playMode [data-mode="image"]')
-    assert _shown_mode(page) == ["image"]
-    held[0].fulfill(status=200, content_type="application/json",
-                    body='{"text": "An invented reply.", "usage": {}}')
-    page.wait_for_function(
-        "document.getElementById('playgroundReply').textContent === 'An invented reply.'", timeout=5000)
-    assert "An invented reply." not in page.locator("#imageResult").inner_text()
-    page.click('#playMode [data-mode="chat"]')
-    assert page.locator("#playgroundReply").is_visible()
-
-    # The last mode survives a reload; a blocked storage falls back to Chat.
-    page.click('#playMode [data-mode="speech"]')
-    page.reload(wait_until="load")
-    page.click("#tabPlayground")
-    assert _shown_mode(page) == ["speech"]
-    assert page.locator('#playMode [data-mode="speech"]').get_attribute("aria-pressed") == "true"
-    errors = []
-    page.on("pageerror", lambda e: errors.append(str(e)))
-    page.add_init_script(_BLOCK_MODE_STORAGE)
-    page.reload(wait_until="load")
-    page.click("#tabPlayground")
-    assert _shown_mode(page) == ["chat"]
-    page.click('#playMode [data-mode="image"]')
-    assert _shown_mode(page) == ["image"]
-    assert errors == [], errors
-
-
-def test_playground_tts_capability_selectors(page, admin_url):
-    models = {
-        "models": [
-            {
-                "id": "piper",
-                "display_name": "piper-tts",
-                "engine": "piper",
-                "reachable": True,
-                "capabilities": {
-                    "languages": [{"id": "en-US", "label": "English (US)"}],
-                    "voices": [{"id": "amy", "label": "Amy", "language": "en-US", "gender": "female"}],
-                    "default_language": "en-US",
-                    "default_voice": "amy",
-                    "sample_text": {"en-US": "Hello sample."},
-                    "controls": {"speed": True, "stream": False, "exaggeration": False, "cfg_weight": False},
-                },
-            },
-            {
-                "id": "kokoro",
-                "display_name": "kokoro-tts",
-                "engine": "kokoro",
-                "reachable": True,
-                "capabilities": {
-                    "languages": [
-                        {"id": "en-US", "label": "English (US)"},
-                        {"id": "es", "label": "Spanish"},
-                    ],
-                    "voices": [
-                        {"id": "am_michael", "label": "Michael", "language": "en-US", "gender": "male"},
-                        {"id": "ef_dora", "label": "Dora", "language": "es", "gender": "female"},
-                        {"id": "em_alex", "label": "Alex", "language": "es", "gender": "male"},
-                    ],
-                    "default_language": "en-US",
-                    "default_voice": "am_michael",
-                    "sample_text": {"en-US": "Hello sample.", "es": "Hola de muestra."},
-                    "controls": {"speed": True, "stream": False, "exaggeration": False, "cfg_weight": False},
-                },
-            },
-            {
-                "id": "orpheus",
-                "display_name": "orpheus-tts",
-                "engine": "orpheus",
-                "reachable": False,
-                "capabilities": {},
-            },
-        ]
-    }
-    page.route(
-        "**/admin/api/playground/tts_models",
-        lambda route: route.fulfill(status=200, content_type="application/json", json=models),
-    )
-    page.goto(admin_url, wait_until="load")
-    page.click("#tabPlayground")
-    page.click('#playMode [data-mode="speech"]')
-    page.locator("#ttsMore").evaluate("element => { element.open = true; }")
-    page.wait_for_function("document.getElementById('ttsModel').options.length === 3")
-
-    assert page.locator("#ttsVoice").input_value() == "amy"
-    assert page.locator("#ttsSpeedGroup").is_visible()
-    assert page.locator("#ttsStreamGroup").is_hidden()
-    assert page.locator("#ttsExaggerationGroup").is_hidden()
-    assert page.locator("#ttsCfgWeightGroup").is_hidden()
-    assert page.locator("#ttsFormat").is_visible()
-    assert "stopped" in page.locator("#ttsModel option[value='orpheus']").text_content()
-    assert page.locator("#ttsModel option[value='orpheus']").is_disabled()
-    assert page.locator("#ttsCompareBtn").count() == 0
-
-    page.locator("#ttsInput").fill("Keep my edited text.")
-    page.locator("#ttsModel").select_option("kokoro")
-    page.locator("#ttsLanguage").select_option("es")
-    assert page.locator("#ttsInput").input_value() == "Keep my edited text."
-    assert page.locator("#ttsVoice option").all_text_contents() == ["Dora · female", "Alex · male"]
-
-
-def _snapshot(page, name: str, browser_name: str) -> None:
-    """Save a phone-viewport screenshot of the current page to a
-    deterministic path under ``tests/e2e/snapshots/``. The sparklines
-    region is masked because it re-renders every 2.5 s from live
-    RAM/GPU readings — masking keeps the snapshot useful for human
-    visual review without false diffs.
-    """
-    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
-    out = SNAPSHOT_DIR / f"{name}-{browser_name}.png"
-    spark = page.locator("#hubSparklines")
-    mask = [spark] if spark.count() > 0 else []
-    page.screenshot(path=str(out), full_page=True, mask=mask)
-    assert out.exists() and out.stat().st_size > 0, f"empty screenshot at {out}"
-
-
-def test_hub_tab_phone_screenshot(page, admin_url, browser_name):
-    page.set_viewport_size(PHONE_VIEWPORT)
-    page.goto(admin_url, wait_until="domcontentloaded")
-    page.wait_for_selector("#paneHub", state="visible", timeout=5000)
-    # Let the first poll settle so the snapshot reflects the populated
-    # UI rather than the "Reading hub…" placeholder in the header line.
+def _opens_on_the_glance(page, mark, browser_name):
+    """Numbers first, the window they cover named, no permanent green "up",
+    and neither the peer rows nor the Model decisions card on Hub."""
     page.wait_for_function(
         "document.getElementById('hubHeadLine').textContent.indexOf('Reading') === -1"
         " && document.getElementById('hubReqCount').textContent !== '—'",
         timeout=8000,
     )
-    # Hub opens on the glance (#738): numbers first, the window they cover
-    # named, and no permanent green "up" anywhere in the header.
-    first = page.evaluate(
-        "() => document.querySelector('#paneHub .hub-col > .card').id"
-    )
+    first = page.evaluate("() => document.querySelector('#paneHub .hub-col > .card').id")
     assert first == "hubGlance", first
     assert page.locator("#hubReqCount").text_content().strip().isdigit()
     assert "since start" in page.locator("#hubWindow").text_content()
     head = page.locator("#hubHeadLine")
     assert head.locator("[data-tone='success']").count() == 0
     assert head.text_content().strip().lower() != "up"
-    # Peer-hub rows and the Model decisions card left Hub (Steps 1 and 2).
     assert page.locator("#paneHub #peerRows, #paneHub #rolesCard").count() == 0
-    _snapshot(page, "hub-390x844", browser_name)
-    surface(page, "hub.tab")
+    snapshot(page, "hub-390x844", browser_name)
+    mark("hub.tab")
 
 
-def test_models_tab_phone_screenshot(page, admin_url, browser_name):
-    page.set_viewport_size(PHONE_VIEWPORT)
-    # See test_models_tab — wait_until="load" defeats the issue #19 race.
-    page.goto(admin_url, wait_until="load")
-    page.click("#tabModels")
-    page.wait_for_selector("#paneModels", state="visible", timeout=3000)
-    _snapshot(page, "models-390x844", browser_name)
-    surface(page, "models.tab")
-
-
-def test_playground_tab_phone_screenshot(page, admin_url, browser_name):
-    page.set_viewport_size(PHONE_VIEWPORT)
-    page.goto(admin_url, wait_until="load")
-    page.click("#tabPlayground")
-    page.wait_for_selector("#panePlayground", state="visible", timeout=3000)
+def _tiles_stack_under_a_heading(page):
+    """The first card opens on a heading, one load sparkline whose series control
+    swaps the history it draws, and the glance figures share one row."""
+    first_card = page.locator("#paneHub .hub-col > section.card").first
+    assert first_card.get_attribute("id") == "hubGlance"
+    assert first_card.locator(":scope > .card-header h2").count() == 1, (
+        "the first Hub card should open on a heading, not on the PID/uptime line"
+    )
+    assert page.locator("#hubSparklines .sparkline").count() == 1
+    series = page.locator("#hubSeries .segmented-item")
+    series.first.wait_for(state="visible", timeout=5000)
+    assert series.count() >= 2
+    ram = page.locator('#hubSeries .segmented-item[data-series="ram"]')
+    ram.click()
     page.wait_for_function(
-        "document.getElementById('playgroundModel').options.length > 0",
+        "document.querySelector('#hubSparklines .sparkline-label').textContent.startsWith('RAM')",
+        timeout=3000,
+    )
+    assert ram.get_attribute("aria-pressed") == "true"
+    got = page.evaluate(SIDE_BY_SIDE, "#hubGlance .hub-figure")
+    assert got["count"] == 3, got
+
+
+def _empty_lists_name_their_control(page, mark):
+    """The e2e hub has served no model traffic, so each list is in its empty state."""
+    action = page.locator("#liveRequestsEmpty .empty-state-action")
+    assert action.count() == 1, "#liveRequestsEmpty has no action"
+    assert action.get_attribute("data-open-tab") == "playground"
+    page.wait_for_function(
+        "(document.querySelector('#countersTable tbody')?.textContent || '').includes('No requests yet')",
         timeout=10000,
     )
-    _snapshot(page, "playground-390x844", browser_name)
-    surface(page, "playground.tab")
-    # Decide shows its third-party privacy line without a tap, at phone width
-    # and on a wide window, in both themes (#740).
-    page.click('#playMode [data-mode="decide"]')
-    for viewport in (PHONE_VIEWPORT, {"width": 1280, "height": 800}):
-        page.set_viewport_size(viewport)
-        for theme in ("light", "dark"):
-            page.evaluate("t => { document.documentElement.dataset.theme = t; }", theme)
-            privacy = page.locator("#jevCard .jev-privacy")
-            assert privacy.is_visible(), (viewport, theme)
-            assert "third-party" in privacy.inner_text()
+    counters = page.locator("#countersTable tbody").text_content() or ""
+    assert "No requests yet" in counters, counters
+    assert "Playground" in counters, f"counters empty row names no control: {counters!r}"
+    errors_action = page.locator("#recentErrorsEmpty .empty-state-action")
+    assert errors_action.count() == 1, "recent errors empty state has no action"
+    assert errors_action.get_attribute("data-open-tab") == "playground"
+    mark("hub.empty-counters")
 
 
-def test_live_requests_stream_rolls_forward(page, admin_url):
-    """Regression guard for the live-stream pane.
-
-    The bug this catches (issue #10 item 2): SSE seed fills the list,
-    but subsequent frames never reach the UI, so the pane freezes at
-    its initial snapshot. Boot the page, take a baseline count of
-    #liveRequestsList rows, fire two distinct /v1/messages from this
-    test process, and assert both rows show up within a short window.
-    """
-    base = admin_url.rsplit("/admin/", 1)[0]
-    # wait_until="load" — consistent with test_models_tab (issue #19);
-    # the later #tabModels click then can't race wireTabs() either.
-    page.add_init_script(_SSE_TAP)
-    page.goto(admin_url, wait_until="load")
-    page.wait_for_selector("#paneHub", state="visible", timeout=5000)
-    page.wait_for_selector("#liveRequestsList", state="attached", timeout=3000)
-    # Wait for the EventSource to open, so the requests below arrive as live
-    # frames. We don't rely on baseline counts because earlier tests in the
-    # same session may have left records in the server-side ring.
-    page.wait_for_function("window.__sse.opened >= 1", timeout=5000)
-
-    # Use distinguishable model names so each marker is a unique row.
-    marker_a = "e2e-rolls-forward-A"
-    marker_b = "e2e-rolls-forward-B"
-    for marker in (marker_a, marker_b):
-        r = httpx.post(
-            f"{base}/v1/messages",
-            json={"model": marker, "messages": [{"role": "user", "content": "hi"}]},
-            timeout=5.0,
-        )
-        assert r.status_code == 400, r.text
-
-    # Both markers must arrive in the live list. 4000ms was tight enough that
-    # the multi-host proxying routing added by #181 pushed CI runners (slower
-    # than local) past it on every run since 2026-07-02 (tracked + resolved in
-    # #192); 10000ms matches the window already used elsewhere in this file
-    # for slower CI operations.
-    page.wait_for_function(
-        "(args) => {"
-        "  const ul = document.getElementById('liveRequestsList');"
-        "  if (!ul) return false;"
-        "  const text = ul.textContent || '';"
-        "  return text.indexOf(args.a) !== -1 && text.indexOf(args.b) !== -1;"
-        "}",
-        arg={"a": marker_a, "b": marker_b},
-        timeout=10000,
+def _labels_and_headers_are_plain(page):
+    """Plain words in every label, the verbs spelled out on the service buttons,
+    and every pane header holding exactly the theme toggle and the gear."""
+    texts = page.evaluate(
+        r"""sel => [...document.querySelectorAll(sel)]
+            .map(el => (el.textContent || '').replace(/\s+/g, ' ').trim())
+            .filter(Boolean)""",
+        _LABEL_SELECTORS,
     )
+    assert texts, "no labels found: selector drifted"
+    offenders = sorted({t for t in texts if _JARGON.search(t)})
+    assert not offenders, f"labels with jargon or abbreviations: {offenders}"
 
-    def _marker_counts():
-        return page.evaluate(
-            "(markers) => {"
-            "  const ul = document.getElementById('liveRequestsList');"
-            "  const items = Array.from(ul ? ul.children : []);"
-            "  const out = {};"
-            "  for (const m of markers) {"
-            "    out[m] = items.filter(li => (li.textContent || '').includes(m)).length;"
-            "  }"
-            "  return out;"
-            "}",
-            [marker_a, marker_b],
-        )
+    # The six buttons are shown one at a time by service state; read the words
+    # off the DOM rather than the state.
+    for service in ("docker", "langfuse", "agentsview"):
+        for verb in ("Start", "Stop"):
+            btn = page.locator(f"#{service}{verb}Btn")
+            assert btn.count() == 1, f"missing #{service}{verb}Btn"
+            assert (btn.text_content() or "").strip() == verb, f"{service} {verb} is icon-only"
 
-    counts = _marker_counts()
-    assert counts[marker_a] == 1, f"marker_a duplicated on first delivery: {counts}"
-    assert counts[marker_b] == 1, f"marker_b duplicated on first delivery: {counts}"
-
-    # Bounce the SSE: switch away from Hub and back. main.js stops the
-    # stream on tab-out and starts it again on tab-in — the server then
-    # replays its 20-record seed, which used to duplicate every visible
-    # row in the pane.
-    frames_before = page.evaluate("window.__sse.messages")
-    page.click("#tabModels")
-    page.wait_for_selector("#paneModels", state="visible", timeout=2000)
-    page.click("#tabHub")
-    page.wait_for_selector("#paneHub", state="visible", timeout=2000)
-    # Wait until the fresh EventSource has replayed its seed: the ring holds
-    # at least the two markers above, one frame each.
-    page.wait_for_function(
-        "(n) => window.__sse.opened >= 2 && window.__sse.messages >= n + 2",
-        arg=frames_before,
-        timeout=10000,
+    heads = page.evaluate(
+        """() => [...document.querySelectorAll('.home-head')].map(h =>
+            [...h.querySelectorAll('button')].map(b =>
+                b.classList.contains('theme-toggle') ? 'theme' : b.classList.contains('home-settings') ? 'gear' : b.className))"""
     )
-    counts_after = _marker_counts()
-    assert counts_after[marker_a] == 1, (
-        f"marker_a duplicated after SSE reconnect: {counts_after}"
-    )
-    assert counts_after[marker_b] == 1, (
-        f"marker_b duplicated after SSE reconnect: {counts_after}"
-    )
+    assert len(heads) == 5, heads
+    assert all(h == ["theme", "gear"] for h in heads), heads
+
+    # The header toggles and dialog closes are .icon-button's: a glyph on nothing at rest.
+    toggles = page.locator("#paneHub .home-head .home-toggle")
+    closes = page.locator(".detail-close")
+    assert toggles.count() == 2 and closes.count() >= 4
+    for paint in toggles.evaluate_all(_PAINT) + closes.evaluate_all(_PAINT):
+        assert paint == ["rgba(0, 0, 0, 0)", "0px"]
 
 
-def test_auth_error_is_a_typed_contract(page, admin_url):
-    """api() signals a 401 with ``AuthRequiredError``; callers test it with
-    ``isAuthError`` and never match the message text (#708)."""
-    page.goto(admin_url, wait_until="domcontentloaded")
-    got = page.evaluate(
-        """() => import('/admin/static/api.js').then(m => [
-            m.isAuthError(new m.AuthRequiredError()),
-            m.isAuthError(new Error('auth required')),
-        ])"""
+def _toast_clears_the_phone_nav(page):
+    page.locator("#toast").evaluate(
+        "(toast) => { toast.textContent = 'Model stopped'; toast.hidden = false; }"
     )
-    assert got == [True, False]
+    toast_z = int(page.locator("#toast").evaluate("e => getComputedStyle(e).zIndex"))
+    assert toast_z > 120, "toast must clear the floating nav's z-index: 120"
 
-    # The sheet a 401 raises: api() calls showLogin() before it throws.
-    page.evaluate("() => import('/admin/static/api.js').then(m => m.showLogin())")
-    sheet = page.locator("dialog.sign-in")
-    sheet.wait_for(state="visible", timeout=3000)
-    assert sheet.locator("input[type=password]").is_visible()
-    surface(page, "login.overlay")
+
+def test_hub_landing(browser, admin_url, browser_name):
+    requested: list[str] = []
+    with fresh_page(browser, console_errors=True, viewport=PHONE) as page:
+        page.on("request", lambda r: requested.append(r.url.split("?")[0]))
+        mark = lambda name: surface(page, name)  # noqa: E731 -- surface() must be called from the test body
+        _boots_clean_into_hub(page, admin_url, requested)
+        _opens_on_the_glance(page, mark, browser_name)
+        _tiles_stack_under_a_heading(page)
+        _empty_lists_name_their_control(page, mark)
+        _labels_and_headers_are_plain(page)
+        _toast_clears_the_phone_nav(page)

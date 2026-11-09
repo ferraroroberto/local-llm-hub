@@ -1,50 +1,42 @@
-"""End-to-end tests for the Models tab's read-only placement cards (#423).
+"""The Models tab's read-only placement cards.
 
-UI over the extended ``/admin/api/models`` payload (placement intent per
-row). Same discipline as the fleet-placement grid
-suite: the GET contract is pinned with route interception so the render is
-deterministic and no real backend is started — the SPA is the unit under
-test (the API itself is covered in ``tests/routers/test_models_router.py``).
+UI over the extended ``/admin/api/models`` payload (placement intent per row).
+The GET contract is pinned with route interception so the render is
+deterministic and no real backend is started: the SPA is the unit under test
+(the API itself is covered in ``tests/routers/test_models_router.py``).
 
-What they lock in:
-  * chain pills render in priority order with the effective owner
-    highlighted and cpu-resident tiers marked — including an always-CPU row
-    (whisper_translate's ``-ng``) whose *owner* pill carries the tag (#434);
-  * the startup policy reads the policy + live state truthfully — ``Always
-    on`` in plain words, ``on demand · loaded``, ``on demand · idle`` (#737:
-    "eager" is gone, and a loaded on-demand row is never painted green);
-  * the cards stay light (#434): no per-card size chip and no host budget
-    bar anywhere — capacity is the Fleet summary card's job;
-  * #436: the meta line ends with ``· ~X GB`` (the registry's est_vram_mb)
-    only on rows that load a model process of their own — a virtual alias
-    sharing another row's process (qwen35_4b_nothink) and subscription rows
-    show no size;
-  * subscription rows (claude) carry no placement section at all;
-  * #647 (J-10): the placement chips are not on the row face — a row reads in
-    two lines (name, then one budgeted meta line) — and sit one tap behind the
-    row, in its sheet or detail pane; the row's "More actions" menu (the
-    vendored row-menu, #772) repeats the chain and policy as one header line,
+What it locks in:
+  * chain pills render in priority order with the effective owner highlighted
+    and cpu-resident tiers marked, including an always-CPU row whose *owner*
+    pill carries the tag;
+  * the startup policy reads the policy and live state truthfully: ``Always
+    on`` in plain words, ``on demand · loaded``, ``on demand · idle``; a loaded
+    on-demand row is never painted green;
+  * the cards stay light: no per-card size chip and no host budget bar anywhere
+    (capacity is the Fleet summary card's job);
+  * the meta line ends with ``· ~X GB`` (the registry's est_vram_mb) only on
+    rows that load a model process of their own; a virtual alias sharing another
+    row's process and subscription rows show no size;
+  * subscription rows carry no placement section at all;
+  * a row reads in two lines (name, then one budgeted meta line) with the alive
+    badge instead of a "running" chip, and the placement chips sit one tap
+    behind the row, in its sheet or detail pane; the row's "More actions" menu
+    (the vendored row-menu) repeats the chain and policy as one header line,
     keyboard-reachable, on phone and desktop;
-  * #737: the face carries the alive badge instead of a "running" chip, no
-    "stopped" or "eager" word, and only exception chips (on demand, failover).
+  * a model's aliases are ids a caller sends as ``model``, so they render inside
+    ``<code>``.
 """
 
 from __future__ import annotations
 
-import json
-
-import pytest
-
+from tests.e2e._flow import DESKTOP, PHONE, fresh_page, fulfil_json
 from tests.e2e._models_rows import gemma_row, whisper_row
-
-PHONE = {"width": 390, "height": 844}
-DESKTOP = {"width": 1280, "height": 900}
 
 FAKE_MODELS = {
     "models": [
         {
             # Eager multi-host row served by its preferred host: tower owner,
-            # gaming fallback (the #422 orpheus shape).
+            # gaming fallback.
             "id": "orpheus", "display_name": "orpheus-tts", "backend": "tts",
             "engine": "tts-server", "port": 8093, "url": None, "aliases": [],
             "controllable": True, "ownership": "ours", "pid": 4242,
@@ -59,14 +51,13 @@ FAKE_MODELS = {
                 "est_vram_mb": 2200,
             },
         },
-        # On-demand row currently idle-unloaded (stopped, waits for a
-        # request) — the gemma4_26b shape.
+        # On-demand row currently idle-unloaded (stopped, waits for a request).
         gemma_row(),
         # Remote-owned chain with a degraded cpu last resort.
         whisper_row(),
         {
-            # Always-CPU row (#265/#434): whisper-server `-ng` holds no GPU
-            # anywhere, so the effective-device flag tags its owner pill.
+            # Always-CPU row: whisper-server `-ng` holds no GPU anywhere, so the
+            # effective-device flag tags its owner pill.
             "id": "whisper_translate", "display_name": "whisper-medium-translate",
             "backend": "whisper", "engine": "whisper-server", "port": 8091,
             "url": None, "aliases": [], "controllable": True,
@@ -93,7 +84,7 @@ FAKE_MODELS = {
         },
         {
             # On-demand row currently loaded (a request demanded it and the
-            # idle window hasn't elapsed) — the third badge state.
+            # idle window hasn't elapsed): the third badge state.
             "id": "chatterbox", "display_name": "chatterbox-tts",
             "backend": "tts", "engine": "tts-server", "port": 8092,
             "url": None, "aliases": [], "controllable": True,
@@ -106,9 +97,9 @@ FAKE_MODELS = {
             },
         },
         {
-            # Virtual alias (#436): shares qwen35_4b's process on :8088 —
-            # engine None, not controllable, est_vram_mb 0. Loads no model
-            # process of its own, so the meta line must show no size.
+            # Virtual alias: shares qwen35_4b's process on :8088, engine None,
+            # not controllable, est_vram_mb 0. Loads no model process of its
+            # own, so the meta line must show no size.
             "id": "qwen35_4b_nothink", "display_name": "qwen3.5-4b-nothink",
             "backend": "openai", "engine": None, "port": 8088,
             "url": None, "aliases": ["agentic_light_nothink"],
@@ -121,7 +112,7 @@ FAKE_MODELS = {
             },
         },
         {
-            # Subscription row — no placement key, no placement section.
+            # Subscription row: no placement key, no placement section.
             "id": "claude_haiku", "display_name": "claude-haiku-4-5",
             "backend": "claude", "engine": None, "port": None, "url": None,
             "aliases": ["claude_haiku"], "controllable": False,
@@ -132,23 +123,11 @@ FAKE_MODELS = {
 }
 
 
-def _install_routes(page):
-    def handler(route):
-        route.fulfill(
-            status=200, content_type="application/json",
-            body=json.dumps(FAKE_MODELS),
-        )
-
-    page.route("**/admin/api/models", handler)
-
-
 def _open_models_tab(page, admin_url):
-    # Show every row, not just active ones — the idle-unloaded on-demand row
-    # is exactly what the cards must describe truthfully.
-    page.add_init_script(
-        "localStorage.setItem('llmhub.models.activeOnly', 'false');"
-    )
-    _install_routes(page)
+    # Show every row, not just active ones: the idle-unloaded on-demand row is
+    # exactly what the cards must describe truthfully.
+    page.add_init_script("localStorage.setItem('llmhub.models.activeOnly', 'false');")
+    page.route("**/admin/api/models", lambda route: fulfil_json(route, FAKE_MODELS))
     page.goto(admin_url, wait_until="load")
     page.click("#tabModels")
     page.wait_for_selector("#paneModels", state="visible", timeout=5000)
@@ -160,9 +139,9 @@ def _item(page, model_id):
 
 
 def _open_details(page, model_id):
-    """Open a model's detail (the pane on a wide window, the sheet on a phone)
-    — where the placement chips live. The row's menu carries the same facts as
-    one text line (see test_row_menu_header_reads_the_placement)."""
+    """Open a model's detail (the pane on a wide window, the sheet on a phone),
+    where the placement chips live. The row's menu carries the same facts as one
+    text line."""
     if page.locator("#modelSheet[open]").count():
         page.click("#modelSheetCloseBtn")
     _item(page, model_id).locator(".action-row-main").click()
@@ -171,9 +150,14 @@ def _open_details(page, model_id):
     return body
 
 
-def test_chain_pills_render_with_owner_highlight(page, admin_url):
-    _open_models_tab(page, admin_url)
+def _open_details_without_placement(page, model_id):
+    _item(page, model_id).locator(".action-row-main").click()
+    body = page.locator(f'.model-body[data-id="{model_id}"]')
+    body.wait_for(state="visible", timeout=5000)
+    return body
 
+
+def _pills_policy_and_size_read_truthfully(page):
     orpheus = _open_details(page, "orpheus")
     pills = orpheus.locator(".place-pill")
     assert pills.count() == 2
@@ -181,96 +165,74 @@ def test_chain_pills_render_with_owner_highlight(page, admin_url):
     assert "owner" in (pills.nth(0).get_attribute("class") or "")
     assert pills.nth(1).inner_text() == "gaming"
     assert "owner" not in (pills.nth(1).get_attribute("class") or "")
-    # #434: no size chip on the card — sizes live in the editor + summary.
-    assert orpheus.locator(".placement-vram").count() == 0
+    assert orpheus.locator(".placement-vram").count() == 0  # sizes live in the editor + summary
+    policy = orpheus.locator(".placement .startup-policy")
+    assert policy.count() == 1
+    assert policy.first.inner_text() == "Always on"
 
-
-def test_degraded_cpu_tier_is_marked(page, admin_url):
-    _open_models_tab(page, admin_url)
-
-    whisper = _open_details(page, "whisper")
-    pills = whisper.locator(".place-pill")
+    # The owner highlight follows the *effective* owner (gaming), not position.
+    pills = _open_details(page, "whisper").locator(".place-pill")
     assert pills.count() == 3
-    # Owner highlight follows the *effective* owner (gaming), not position.
     assert "owner" in (pills.nth(0).get_attribute("class") or "")
     last = pills.nth(2)
     assert "tower" in last.inner_text() and "cpu" in last.inner_text()
     assert "owner" not in (last.get_attribute("class") or "")
 
-
-def test_startup_policy_reads_policy_and_live_state(page, admin_url):
-    _open_models_tab(page, admin_url)
-
-    orpheus_policy = _open_details(page, "orpheus").locator(".placement .startup-policy")
-    assert orpheus_policy.count() == 1
-    assert orpheus_policy.first.inner_text() == "Always on"
-
     gemma_policy = _open_details(page, "gemma4_26b").locator(".placement .startup-policy").first
     assert gemma_policy.inner_text() == "on demand · idle"
-
-    # A reachable on-demand row reads "loaded" — a plain fact, never the success tint.
+    # A reachable on-demand row reads "loaded": a plain fact, never the success tint.
     chatter_policy = _open_details(page, "chatterbox").locator(".placement .startup-policy").first
     assert chatter_policy.inner_text() == "on demand · loaded"
     assert chatter_policy.get_attribute("data-tone") is None
 
-
-def test_always_cpu_owner_pill_carries_cpu_tag(page, admin_url):
-    """#434: whisper_translate's effective device is CPU by design (#265) —
-    its owner pill must read `gaming · cpu`, matching the fleet summary."""
-    _open_models_tab(page, admin_url)
-
+    # whisper_translate's effective device is CPU by design: its owner pill reads `gaming · cpu`.
     pills = _open_details(page, "whisper_translate").locator(".place-pill")
     assert pills.count() == 1
     assert "gaming" in pills.first.inner_text()
     assert "cpu" in pills.first.inner_text()
     assert "owner" in (pills.first.get_attribute("class") or "")
 
-
-def test_cards_carry_no_capacity_bar_or_size_chip(page, admin_url):
-    """#434: the per-card host budget bar and the `~X GB` size chip are gone
-    everywhere — the Fleet summary card owns capacity."""
-    _open_models_tab(page, admin_url)
-
     assert page.locator("#modelsList .placement-budget").count() == 0
     assert page.locator("#modelsList .placement-vram").count() == 0
     assert "VRAM" not in page.locator("#modelsList").inner_text()
 
-
-def test_meta_line_carries_size_only_for_process_rows(page, admin_url):
-    """#436: the meta line ends with `· ~X GB` — the registry's static
-    est_vram_mb, the same figure the removed #434 chip showed — only on rows
-    that actually load a model process. The virtual nothink alias (shares
-    :8088, est 0) and the subscription row show no size."""
-    _open_models_tab(page, admin_url)
-
     orpheus_meta = _item(page, "orpheus").locator(".action-row-meta").inner_text()
-    assert "~2.1 GB" in orpheus_meta          # 2200 MB → 2.1 GB
+    assert "~2.1 GB" in orpheus_meta  # 2200 MB → 2.1 GB
     gemma_meta = _item(page, "gemma4_26b").locator(".action-row-meta").inner_text()
-    assert "~13.1 GB" in gemma_meta           # 13400 MB → 13.1 GB
+    assert "~13.1 GB" in gemma_meta  # 13400 MB → 13.1 GB
     nothink_meta = _item(page, "qwen35_4b_nothink").locator(".action-row-meta").inner_text()
     assert "GB" not in nothink_meta, "virtual alias must carry no size"
     claude_meta = _item(page, "claude_haiku").locator(".action-row-meta").inner_text()
     assert "GB" not in claude_meta, "subscription row must carry no size"
 
-
-def test_subscription_row_has_no_placement_section(page, admin_url):
-    _open_models_tab(page, admin_url)
-
     claude = _item(page, "claude_haiku")
     assert claude.count() == 1, "subscription row should still render"
     assert claude.locator(".placement").count() == 0
 
+    if page.locator("#modelSheet[open]").count():
+        page.click("#modelSheetCloseBtn")
+    body = _open_details_without_placement(page, "qwen35_4b_nothink")
+    aliases = body.locator("dt", has_text="Aliases").locator("xpath=following-sibling::dd[1]")
+    assert aliases.locator("code").all_inner_texts() == ["agentic_light_nothink"]
 
-@pytest.mark.parametrize("viewport", [PHONE, DESKTOP], ids=["phone", "desktop"])
-def test_row_face_is_two_lines_and_chips_sit_behind_details(page, admin_url, viewport):
-    """#647 (J-10): a Models row reads in two lines — name/status and the key
-    fact — with no placement chips on its face; one tap on "More actions"
-    shows every chip, and the keyboard reaches them too."""
-    page.set_viewport_size(viewport)
+
+def _the_menu_opens_from_the_keyboard(page):
+    _item(page, "orpheus").locator(".row-kebab").focus()
+    page.keyboard.press("Enter")
+    menu = page.locator("body > .row-menu")
+    menu.wait_for(state="visible", timeout=5000)
+    assert "tower ● → gaming" in menu.locator(".row-menu-head").inner_text()
+    # Enter opens it with the first action focused; Escape returns focus to the kebab.
+    assert page.evaluate("document.activeElement.classList.contains('row-menu-item')")
+    page.keyboard.press("Escape")
+    assert page.evaluate("document.activeElement.classList.contains('row-kebab')")
+
+
+def _the_row_face_is_two_lines_and_the_menu_reads_the_placement(page, admin_url, viewport):
     _open_models_tab(page, admin_url)
 
     # Face: the title + one meta line, no placement chip, and the alive badge
-    # (not a "running" / "stopped" / "eager" word) saying what runs (#737).
+    # (not a "running" / "stopped" / "eager" word) saying what runs.
     for model_id in ("orpheus", "whisper", "gemma4_26b", "claude_haiku"):
         main = _item(page, model_id).locator(":scope > .action-row-main")
         text = main.locator(".action-row-text > *")
@@ -295,26 +257,13 @@ def test_row_face_is_two_lines_and_chips_sit_behind_details(page, admin_url, vie
     # The subscription row has nothing to show, so its details hold no chips.
     if page.locator("#modelSheet[open]").count():
         page.click("#modelSheetCloseBtn")
-    claude = _open_details_without_placement(page, "claude_haiku")
-    assert claude.locator(".placement").count() == 0
+    assert _open_details_without_placement(page, "claude_haiku").locator(".placement").count() == 0
+    if page.locator("#modelSheet[open]").count():
+        page.click("#modelSheetCloseBtn")
 
-
-def _open_details_without_placement(page, model_id):
-    _item(page, model_id).locator(".action-row-main").click()
-    body = page.locator(f'.model-body[data-id="{model_id}"]')
-    body.wait_for(state="visible", timeout=5000)
-    return body
-
-
-@pytest.mark.parametrize("viewport", [PHONE, DESKTOP], ids=["phone", "desktop"])
-def test_row_menu_header_reads_the_placement(page, admin_url, viewport):
-    """The row's "More actions" menu is the vendored row-menu: its one header
-    line carries the host chain (owner marked, cpu tier tagged), the startup
-    policy and the roles, as plain text above the actions (#772). It is the
-    role=menu layer, fixed to the viewport, and stays inside it."""
-    page.set_viewport_size(viewport)
-    _open_models_tab(page, admin_url)
-
+    # The menu is the role=menu layer, fixed to the viewport, and stays inside it;
+    # its one header line carries the host chain (owner marked, cpu tier tagged),
+    # the startup policy and the roles.
     _item(page, "whisper").locator(".row-kebab").click()
     menu = page.locator("body > .row-menu")
     menu.wait_for(state="visible", timeout=5000)
@@ -335,28 +284,14 @@ def test_row_menu_header_reads_the_placement(page, admin_url, viewport):
     claude_menu = page.locator("body > .row-menu")
     claude_menu.wait_for(state="visible", timeout=5000)
     assert "→" not in (claude_menu.locator(".row-menu-head").inner_text()
-                          if claude_menu.locator(".row-menu-head").count() else "")
+                       if claude_menu.locator(".row-menu-head").count() else "")
 
 
-def test_placement_menu_opens_from_the_keyboard(page, admin_url):
-    _open_models_tab(page, admin_url)
-    orpheus = _item(page, "orpheus")
-    orpheus.locator(".row-kebab").focus()
-    page.keyboard.press("Enter")
-    menu = page.locator("body > .row-menu")
-    menu.wait_for(state="visible", timeout=5000)
-    assert "tower ● → gaming" in menu.locator(".row-menu-head").inner_text()
-    # Enter opens it with the first action focused; Escape returns focus to the kebab.
-    assert page.evaluate("document.activeElement.classList.contains('row-menu-item')")
-    page.keyboard.press("Escape")
-    assert page.evaluate("document.activeElement.classList.contains('row-kebab')")
-
-
-def test_aliases_render_as_code(page, admin_url):
-    """A model's aliases are ids a caller sends as ``model``: its details list
-    each one inside <code>, never as prose (design review COMP-11, #810)."""
-    _open_models_tab(page, admin_url)
-
-    body = _open_details_without_placement(page, "qwen35_4b_nothink")
-    aliases = body.locator("dt", has_text="Aliases").locator("xpath=following-sibling::dd[1]")
-    assert aliases.locator("code").all_inner_texts() == ["agentic_light_nothink"]
+def test_models_placement_cards(browser, admin_url):
+    with fresh_page(browser) as page:
+        _open_models_tab(page, admin_url)
+        _pills_policy_and_size_read_truthfully(page)
+        _the_menu_opens_from_the_keyboard(page)
+    for viewport in (PHONE, DESKTOP):
+        with fresh_page(browser, viewport=viewport) as page:
+            _the_row_face_is_two_lines_and_the_menu_reads_the_placement(page, admin_url, viewport)

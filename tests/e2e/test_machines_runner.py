@@ -1,32 +1,30 @@
-"""End-to-end tests for the Runner section of a machine's sheet (#980).
+"""The Runner section of a machine's sheet.
 
 The browser drives the real SPA against the real ``actions_runner`` code; only
 the two edges are fake. ``tests/_runner_fakes.py`` stands in for SSH to the
-runner Mac and for ``gh api``, and a route handler serves the Runner endpoints
-by calling ``actions_runner`` through them (the isolated e2e hub cannot spawn
-``ssh`` or ``gh`` at all, its egress guard refuses). The machine status is
-served from a fixed payload, as the other Machines tests do, so no real fleet
-is probed.
+runner Mac and for ``gh api``, and a route handler serves the Runner endpoints by
+calling ``actions_runner`` through them (the isolated e2e hub cannot spawn ``ssh``
+or ``gh`` at all: its egress guard refuses). The machine status is served from a
+fixed payload, so no real fleet is probed.
 
 Pinned here: the section shows the service and GitHub's view separately; Stop
 and Start toast the outcome of the re-read, not of the request; Stop is refused
 with its reason while a job runs; a source that cannot be read says "Not
-confirmed" and offers no verb; an outstanding owner step is named on the card.
+confirmed" and offers no verb; an outstanding owner step is named on the card;
+Install is offered when the service is missing; a wide window shows the same
+section in the detail pane.
 """
 
 from __future__ import annotations
 
-import json
 import re
-
-import pytest
 
 from src.fleet import actions_runner as ar
 from tests._runner_fakes import CONFIG, OVERLAY, install_fakes
 from tests._worker_loop import run_on_worker_thread
+from tests.e2e._flow import PHONE, fresh_page, fulfil_json
 from tests.e2e._surface import surface
 
-PHONE_VIEWPORT = {"width": 390, "height": 844}
 WIDE_VIEWPORT = {"width": 1440, "height": 900}
 
 FAKE_STATUS = {
@@ -47,20 +45,10 @@ FAKE_STATUS = {
 _RUNNER_URL = re.compile(r".*/admin/api/machines/mini/runner(/[a-z]+)?(\?.*)?$")
 
 
-@pytest.fixture()
-def fakes(write_config, monkeypatch):
-    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "hubbox")
-    write_config(CONFIG, machines=OVERLAY)
-    return install_fakes(monkeypatch)
-
-
 def _serve(page):
     """Fixed machine status; the Runner endpoints answered by ``actions_runner``
     over the fakes."""
-    page.route(
-        "**/admin/api/machines/status",
-        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(FAKE_STATUS)),
-    )
+    page.route("**/admin/api/machines/status", lambda route: fulfil_json(route, FAKE_STATUS))
 
     def runner(route):
         req = route.request
@@ -70,30 +58,22 @@ def _serve(page):
             else:
                 verb = req.url.split("?")[0].rsplit("/", 1)[1]
                 body = run_on_worker_thread(ar.run_verb("mini", verb))
-            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+            fulfil_json(route, body)
         except ar.RunnerRefused as exc:
-            route.fulfill(status=exc.status, content_type="application/json", body=json.dumps({"detail": exc.detail}))
+            fulfil_json(route, {"detail": exc.detail}, status=exc.status)
 
     page.route(_RUNNER_URL, runner)
 
 
-@pytest.fixture()
-def phone(browser, admin_url, fakes):
-    context = browser.new_context(viewport=PHONE_VIEWPORT, has_touch=True, is_mobile=False)
-    page = context.new_page()
-    page.set_default_timeout(15000)
+def _open_mini(page, admin_url, *, detail="#machineSheetBody"):
     _serve(page)
     page.goto(admin_url, wait_until="load")
     page.click("#tabMachines")
     page.wait_for_selector(".machine-row", state="visible", timeout=15000)
-    yield page
-    context.close()
-
-
-def _open_mini(page):
     page.locator('.machine-row[data-machine-id="mini"] .action-row-main').click()
-    page.wait_for_selector("#machineSheet[open]", timeout=5000)
-    section = page.locator("#machineSheetBody .machine-runner")
+    if detail == "#machineSheetBody":
+        page.wait_for_selector("#machineSheet[open]", timeout=5000)
+    section = page.locator(f"{detail} .machine-runner")
     section.wait_for(timeout=5000)
     return section
 
@@ -111,10 +91,12 @@ def _toast_text(page):
     return toast.inner_text()
 
 
-def test_the_section_shows_service_and_github_separately(phone, fakes):
-    section = _open_mini(phone)
+def _the_section_runs_stops_and_refuses(page, admin_url, fakes, mark):
+    mac, gh = fakes
+    section = _open_mini(page, admin_url)
     _wait_headline(section, "online")
 
+    # The service and GitHub's view are shown separately.
     assert section.locator("[data-machine-runner-state]").inner_text() == "Online · idle"
     assert section.locator("[data-runner-service]").inner_text() == "Running"
     assert section.locator("[data-runner-github]").inner_text() == "Online · idle"
@@ -123,19 +105,14 @@ def test_the_section_shows_service_and_github_separately(phone, fakes):
     assert section.locator('[data-machine-action="runner-stop"]').is_enabled()
     assert section.locator('[data-machine-action="runner-start"]').is_disabled()
     # The section sits above the danger rows, which stay last.
-    actions = phone.locator("#machineSheetBody [data-machine-action]").evaluate_all(
+    actions = page.locator("#machineSheetBody [data-machine-action]").evaluate_all(
         "els => els.map(e => e.dataset.machineAction)")
     assert actions[-2:] == ["reboot", "shutdown"], actions
-    surface(phone, "machines.runner-online")
+    mark("machines.runner-online")
 
-
-def test_stop_then_start_toast_the_reread_outcome(phone, fakes):
-    mac, gh = fakes
-    section = _open_mini(phone)
-    _wait_headline(section, "online")
-
+    # Stop then Start toast the outcome of the re-read, not of the request.
     section.locator('[data-machine-action="runner-stop"]').click()
-    assert "Runner stopped. GitHub shows it offline." in _toast_text(phone)
+    assert "Runner stopped. GitHub shows it offline." in _toast_text(page)
     _wait_headline(section, "stopped")
     assert section.locator("[data-runner-service]").inner_text() == "Stopped"
     assert section.locator("[data-runner-github]").inner_text() == "Offline"
@@ -145,18 +122,14 @@ def test_stop_then_start_toast_the_reread_outcome(phone, fakes):
 
     section.locator('[data-machine-action="runner-start"]').click()
     _wait_headline(section, "online")
-    assert "Runner started. GitHub shows it online." in phone.locator("#toast").inner_text()
+    assert "Runner started. GitHub shows it online." in page.locator("#toast").inner_text()
     assert section.locator("[data-machine-runner-state]").inner_text() == "Online · idle"
 
-
-def test_stop_is_refused_with_its_reason_while_a_job_runs(phone, fakes):
-    mac, gh = fakes
-    section = _open_mini(phone)
-    _wait_headline(section, "online")
-
+    # Stop is refused with its reason while a job runs.
     gh.busy = True  # a job started after the sheet last read the runner
+    mac.commands.clear()
     section.locator('[data-machine-action="runner-stop"]').click()
-    assert "A job is running" in _toast_text(phone)
+    assert "A job is running" in _toast_text(page)
     assert not any("svc.sh stop" in c for c in mac.commands), "nothing may be sent while busy"
     # The refusal re-reads: the section now says so and Stop is off.
     _wait_headline(section, "busy")
@@ -165,10 +138,10 @@ def test_stop_is_refused_with_its_reason_while_a_job_runs(phone, fakes):
     assert "A job is running" in section.locator("[data-runner-blocked]").inner_text()
 
 
-def test_unreadable_sources_say_not_confirmed_and_offer_no_verb(phone, fakes):
-    mac, gh = fakes
+def _unreadable_sources_say_not_confirmed(page, admin_url, fakes, mark):
+    mac, _ = fakes
     mac.reachable = False
-    section = _open_mini(phone)
+    section = _open_mini(page, admin_url)
     _wait_headline(section, "unknown")
 
     assert section.locator("[data-machine-runner-state]").inner_text() == "Not confirmed"
@@ -180,13 +153,13 @@ def test_unreadable_sources_say_not_confirmed_and_offer_no_verb(phone, fakes):
     assert "The runner's repo or name could not be read." in section.inner_text()
     for verb in ("start", "stop"):
         assert section.locator(f'[data-machine-action="runner-{verb}"]').is_disabled()
-    surface(phone, "machines.runner-not-confirmed")
+    mark("machines.runner-not-confirmed")
 
 
-def test_an_outstanding_owner_step_is_named_on_the_card(phone, fakes):
-    mac, gh = fakes
+def _an_outstanding_owner_step_is_named(page, admin_url, fakes):
+    mac, _ = fakes
     mac.autologin = None
-    section = _open_mini(phone)
+    section = _open_mini(page, admin_url)
     _wait_headline(section, "online")
 
     assert section.locator("[data-runner-boot]").inner_text() == "Needs a step at the Mac"
@@ -195,32 +168,37 @@ def test_an_outstanding_owner_step_is_named_on_the_card(phone, fakes):
     assert step.get_attribute("data-tone") == "attention"
 
 
-def test_install_is_offered_when_the_service_is_missing(phone, fakes):
+def _install_is_offered_when_the_service_is_missing(page, admin_url, fakes):
     mac, gh = fakes
     mac.service, gh.status = "not_installed", "offline"
-    section = _open_mini(phone)
+    section = _open_mini(page, admin_url)
     _wait_headline(section, "not_installed")
 
     assert section.locator('[data-machine-action="runner-start"]').count() == 0
     section.locator('[data-machine-action="runner-install"]').click()
-    assert "Runner installed and started." in _toast_text(phone)
+    assert "Runner installed and started." in _toast_text(page)
     _wait_headline(section, "online")
 
 
-def test_a_wide_window_shows_the_same_section_in_the_detail_pane(browser, admin_url, fakes):
-    context = browser.new_context(viewport=WIDE_VIEWPORT)
-    try:
-        page = context.new_page()
-        page.set_default_timeout(15000)
-        _serve(page)
-        page.goto(admin_url, wait_until="load")
-        page.click("#tabMachines")
-        page.wait_for_selector(".machine-row", state="visible", timeout=15000)
-        page.locator('.machine-row[data-machine-id="mini"] .action-row-main').click()
-        section = page.locator("#machinesDetail .machine-runner")
-        section.wait_for(timeout=5000)
-        _wait_headline(section, "online", "#machinesDetail .machine-runner")
-        assert section.locator("[data-runner-service]").inner_text() == "Running"
-        assert page.locator("#machineSheet[open]").count() == 0
-    finally:
-        context.close()
+def _a_wide_window_shows_the_section_in_the_detail_pane(page, admin_url):
+    section = _open_mini(page, admin_url, detail="#machinesDetail")
+    _wait_headline(section, "online", "#machinesDetail .machine-runner")
+    assert section.locator("[data-runner-service]").inner_text() == "Running"
+    assert page.locator("#machineSheet[open]").count() == 0
+
+
+def test_machine_runner(browser, admin_url, write_config, monkeypatch):
+    monkeypatch.setenv("LOCAL_LLM_HUB_HOST", "hubbox")
+    write_config(CONFIG, machines=OVERLAY)
+
+    with fresh_page(browser, viewport=PHONE, has_touch=True) as page:
+        _the_section_runs_stops_and_refuses(page, admin_url, install_fakes(monkeypatch), lambda name: surface(page, name))
+    with fresh_page(browser, viewport=PHONE, has_touch=True) as page:
+        _unreadable_sources_say_not_confirmed(page, admin_url, install_fakes(monkeypatch), lambda name: surface(page, name))
+    with fresh_page(browser, viewport=PHONE, has_touch=True) as page:
+        _an_outstanding_owner_step_is_named(page, admin_url, install_fakes(monkeypatch))
+    with fresh_page(browser, viewport=PHONE, has_touch=True) as page:
+        _install_is_offered_when_the_service_is_missing(page, admin_url, install_fakes(monkeypatch))
+    install_fakes(monkeypatch)
+    with fresh_page(browser, viewport=WIDE_VIEWPORT) as page:
+        _a_wide_window_shows_the_section_in_the_detail_pane(page, admin_url)
