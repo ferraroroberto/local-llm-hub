@@ -205,6 +205,8 @@ runs the full suite):
 .\scripts\verify-before-ship.ps1
 ```
 
+The last stdout line of a gate run is `GATE-RESULT: PASS` or `GATE-RESULT: FAIL`; never pipe the gate when its exit code matters (`... | tail` reports `tail`'s status, so a red run reads green), and treat a run with no such line as not passed.
+
 Unit tests alone (fast, no real `claude` / GPU calls):
 
 ```bat
