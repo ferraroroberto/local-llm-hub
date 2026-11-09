@@ -146,7 +146,7 @@ path = ".usage-track-ratchet-baseline.json"
 instruction_frontmatter = { src = "scripts/instruction_frontmatter.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "scripts/instruction_frontmatter.py" }
 instruction_repeats = { src = "scripts/instruction_repeats.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "scripts/instruction_repeats.py" }
 runtime_data  = { src = "src/runtime_data.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "src/runtime_data.py" }
-classify_e2e  = { src = "scripts/classify_e2e.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "scripts/classify_e2e.py" }
+classify_e2e  = { src = "scripts/classify_e2e.py", sha = "3f15581f2188895a27f5a32083f7f7cdb7e93648", dest = "scripts/classify_e2e.py" }
 button        = { src = "app/webapp/static/_vendored/button", sha = "6c8ae06472edc4c7448a767656060cd2b79cefe9", dest = "app_web/static/_vendored/button" }
 card          = { src = "app/webapp/static/_vendored/card", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app_web/static/_vendored/card" }
 disclosure    = { src = "app/webapp/static/_vendored/disclosure", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app_web/static/_vendored/disclosure" }
