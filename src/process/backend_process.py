@@ -48,12 +48,12 @@ from .process_supervisor import (
     ProcessSupervisor,
     SpawnSpec,
 )
-from .serving_state import LoadRecord, Observation, Serving, derive
 from .server_process import (
     WIN_NEW_GROUP,
     kill_pid,
     resolve_external_pid,
 )
+from .serving_state import LoadRecord, Observation, Serving, derive
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 VENDOR_LLAMA = PROJECT_ROOT / "vendor" / "llama.cpp"
