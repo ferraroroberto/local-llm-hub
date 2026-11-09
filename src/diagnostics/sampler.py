@@ -19,6 +19,7 @@ import asyncio
 import logging
 import platform
 import socket
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
@@ -83,6 +84,14 @@ _lock = asyncio.Lock()
 _stop_requested = asyncio.Event()
 # How long a graceful stop waits before falling back to cancellation.
 _STOP_GRACE_S = 30.0
+# Serialises a tick's store write against sealing its run (see _seal_run).
+# Held only around the SQLite write, never the slow collection, so sealing
+# waits at most one short write.
+_write_lock = threading.Lock()
+_sealed_runs: set[str] = set()
+# Bound on how long sealing blocks the event loop behind an in-flight write;
+# a write wedged past it is logged rather than hanging the hub.
+_SEAL_WAIT_S = 5.0
 
 
 async def _sleep_or_stop(seconds: float) -> bool:
@@ -183,8 +192,31 @@ def _io_counters(fn) -> Dict[str, Any]:
 def _write_tick(run_id: str) -> tuple[int, bool]:
     """Collect + persist one tick. Returns ``(process_count, ports_denied)``."""
     sample, processes, ports, ports_denied = _collect_tick()
-    store.write_sample(run_id, sample, processes, ports)
+    with _write_lock:
+        if run_id in _sealed_runs:
+            # The capture already ended (a stop outlived its grace window and
+            # cancelled the await, which cannot stop this thread): writing now
+            # would add a row after the caller was told the run was over.
+            logger.info("ℹ️ diagnostics dropped a late sample for closed run %s", run_id)
+            return len(processes), ports_denied
+        store.write_sample(run_id, sample, processes, ports)
     return len(processes), ports_denied
+
+
+def _seal_run(run_id: str) -> None:
+    """Refuse every later write for ``run_id``, after any write already in
+    progress finishes, so the run's row count is final once this returns."""
+    acquired = _write_lock.acquire(timeout=_SEAL_WAIT_S)
+    try:
+        _sealed_runs.add(run_id)
+    finally:
+        if acquired:
+            _write_lock.release()
+    if not acquired:
+        logger.warning(
+            "⚠️ diagnostics write for run %s still in flight after %.0fs — sealing without it",
+            run_id, _SEAL_WAIT_S,
+        )
 
 
 # ------------------------------------------------------------- run control
@@ -370,7 +402,10 @@ async def _run_loop(run: ActiveRun) -> None:
         # asyncio.to_thread: in the cancellation backstop path every *await*
         # here would re-raise CancelledError and silently skip the finalize,
         # leaving the run stuck at "running" forever. These are two short
-        # SQLite writes, and the loop is already ending.
+        # SQLite writes, and the loop is already ending. Sealing first means a
+        # worker thread a cancel left running can no longer add a sample
+        # behind the finalize.
+        _seal_run(run.run_id)
         try:
             # A run that recorded samples but never once read the ports was
             # blind to them throughout — the coverage signal.
