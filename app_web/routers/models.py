@@ -32,12 +32,8 @@ from src.model_registry import (
 )
 from src.process import backend_process as bp
 from src.process.process_supervisor import OutcomeKind, ProcessOutcome
-from src.process.server_process import (
-    OWNERSHIP_EXTERNAL,
-    OWNERSHIP_NONE,
-    OWNERSHIP_OURS,
-    snapshot_listening_pids,
-)
+from src.process.server_process import OWNERSHIP_NONE, snapshot_listening_pids
+from src.process.serving_state import ServingState
 from src.routes import server_systemone
 
 logger = logging.getLogger(__name__)
@@ -65,6 +61,9 @@ def _offline_remote_row(m: Model, host_id: str) -> Dict[str, Any]:
         "model_path": m.model_path,
         "host": host_id,
         "host_unreachable": True,
+        # The owning hub did not answer, so nothing is known about its process.
+        "serving_state": ServingState.UNKNOWN.value,
+        "serving_reason": f"host {host_id} unreachable",
     }
 
 
@@ -169,25 +168,6 @@ async def _forward_admin_call(
     )
 
 
-def _ownership_from_snapshot(m: Model, listening: Optional[Dict[int, list]]) -> tuple[str, Any]:
-    """Compute (ownership, pid) for a controllable model from a port→pids map.
-
-    Takes the pre-snapshotted ``listening`` map instead of doing its own
-    netstat lookup per model, so listing every model costs one snapshot
-    rather than one per row. ``listening=None`` means the snapshot itself
-    failed (already logged there) — there is no "external owner" PID to
-    report, so this degrades to ``OWNERSHIP_NONE`` same as "nothing found".
-    """
-    if bp.is_running(m.id):
-        return OWNERSHIP_OURS, bp.pid(m.id)
-    if not m.port or listening is None:
-        return OWNERSHIP_NONE, None
-    pids = listening.get(m.port) or []
-    if pids:
-        return OWNERSHIP_EXTERNAL, pids[0]
-    return OWNERSHIP_NONE, None
-
-
 async def _probe_device(m: Model, reachable: bool) -> Optional[str]:
     """Resolved device (cuda/cpu/mps) a reachable TTS row reports on /health.
 
@@ -219,10 +199,7 @@ def _local_row(
     # Virtual aliases share an existing backend's port and own no process,
     # so they're reachable but never independently start/stop-able.
     controllable = m.backend in SPAWNABLE_BACKENDS and not m.virtual
-    own = OWNERSHIP_NONE
-    pid: Any = None
-    if controllable:
-        own, pid = _ownership_from_snapshot(m, listening)
+    serving = bp.serving(m, reachable, listening) if controllable else None
     row: Dict[str, Any] = {
         "id": m.id,
         "display_name": m.display_name,
@@ -232,12 +209,14 @@ def _local_row(
         "url": m.url,
         "aliases": list(m.aliases or []),
         "controllable": controllable,
-        "ownership": own,
-        "pid": pid,
+        "ownership": serving.ownership if serving else OWNERSHIP_NONE,
+        "pid": serving.pid if serving else None,
         "reachable": bool(reachable),
         "model_path": m.model_path,
         "host": host_id,
     }
+    if serving is not None:
+        row.update(serving.payload())
     _add_failover_fields(row, m, host_id)
     _add_placement_fields(row, m, cpu_map)
     if device:

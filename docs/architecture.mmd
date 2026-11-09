@@ -160,6 +160,7 @@ running the fleet notify_send.py)"]
     SUPERVISOR["process/process_supervisor.py\nshared subprocess start/stop workflow"]
     SERVPROC["process/server_process.py\nport/PID lookup + ownership tri-state\n(no Popen of its own)"]
     BACKPROC["process/backend_process.py\nper-model Popen: llama-server ·\nwhisper-server · tts_server shim ·\nparakeet_server · comfyui-server"]
+    SERVSTATE["process/serving_state.py\nper-model serving state: stopped · loading ·\nready · adopted · failed · unknown\n(read by models tab, audio health, fleet placement)"]
     ONDEMAND["on_demand.py\nstartup: on_demand lifecycle:\nspawn-on-first-request (request waits for\nreadiness) + idle-unload watchdog +\nVRAM overcommit warning"]
     WATCHDOG["_respawn_watchdog.py\ndetached: wait for parent PID to die,\nthen relaunch (stdlib-only)"]
     HUBCTL["process/hub_process_control.py\nself stop/restart: SIGINT/SIGTERM,\nlaunchd bootout/kickstart, systemctl,\nrespawn-watchdog spawn"]
@@ -168,6 +169,7 @@ running the fleet notify_send.py)"]
   RUNMODEL --> BACKPROC
   TRAY -->|Models submenu: POST /admin/api/models/{id}/start,stop,force-stop| WROUT
   BACKPROC --> SUPERVISOR
+  BACKPROC -->|serving: one derivation| SERVSTATE
   BACKPROC -.spawns.-> PARAKEETSRV
   SRV -->|ensure_ready before dispatch (chat/messages/speech)| ONDEMAND
   LIFECYCLE -->|idle-unload loop| ONDEMAND
