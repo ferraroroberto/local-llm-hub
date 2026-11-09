@@ -186,6 +186,7 @@ conventions_readers = { src = "scripts/conventions_readers.py", sha = "8e66d3f95
 runtime_write_ratchet = { src = "scripts/runtime_write_ratchet.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "scripts/runtime_write_ratchet.py" }
 runtime_write_resolve = { src = "scripts/runtime_write_resolve.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/runtime_write_resolve.py" }
 login_lockout = { src = "src/login_lockout.py", sha = "93208ab08bdc8591c678a08f55a0f46b3fc8a525", dest = "src/login_lockout.py" }
+no_window = { src = "src/no_window.py", sha = "da2e9350daee6ab9d25d399daca21663aa509030", dest = "src/no_window.py" }
 single_instance = { src = "app/tray/single_instance.py", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "tray/single_instance.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
