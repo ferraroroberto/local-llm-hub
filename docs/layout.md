@@ -133,6 +133,7 @@ local-llm-hub/
 │   │   ├── server_process.py         #   hub port/PID lookup + ownership tri-state (used by backend_process.py, admin routers)
 │   │   ├── backend_process.py        #   per-model Popen (llama-server + whisper-server);
 │   │   │                             #   stdout/stderr → data/logs/backend-<id>.log (child-owned)
+│   │   ├── serving_state.py          #   per-model serving state (stopped/loading/ready/adopted/failed/unknown), derived in one place
 │   │   ├── process_identity.py       #   this process's one build_identity() capture, shared by /admin/api/version, the index ETag and peer_health
 │   │   ├── hub_process_control.py    #   self stop/restart: SIGINT/SIGTERM, launchd bootout/kickstart,
 │   │   │                             #   systemctl, respawn-watchdog spawn
@@ -234,7 +235,7 @@ local-llm-hub/
 │   │                         #   telemetry / code_usage / glossary / hosts / machines /
 │   │                         #   diagnostics
 │   └── static/               #   index.html (+ sheets.html, spliced in at serve time) + main.js + state.js + tabs.js + api.js +
-│                             #   hub.js + models.js + startup.js + fleet_placement.js +
+│                             #   hub.js + models.js + serving_state.js + startup.js + fleet_placement.js +
 │                             #   playground.js + playground_jev.js + code_usage.js/.css +
 │                             #   confirm_dialog.js + diagnostics.js + glossary.js + machines.js/.css +
 │                             #   machines_terminal.js + rows.js/.css + settings.js +

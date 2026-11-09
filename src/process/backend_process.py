@@ -27,6 +27,7 @@ import logging
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -52,6 +53,7 @@ from .server_process import (
     kill_pid,
     resolve_external_pid,
 )
+from .serving_state import LoadRecord, Observation, Serving, derive
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 VENDOR_LLAMA = PROJECT_ROOT / "vendor" / "llama.cpp"
@@ -141,6 +143,11 @@ class _BackendState:
         # Windows reuses PIDs aggressively, so a matching PID alone doesn't
         # prove it is still the backend. ``None`` = unreadable at adoption.
         self.inherited_create_time: Optional[float] = None
+        # The current spawn or inheritance of this backend, kept until the hub
+        # stops it on purpose: a process that dies while this is set died on
+        # its own, which is what lets ``serving`` report "failed" instead of
+        # "stopped". ``None`` = never spawned, or stopped by the hub.
+        self.load: Optional[LoadRecord] = None
 
 
 _STATES: Dict[str, _BackendState] = {}
@@ -258,6 +265,44 @@ def _inherited_alive(state: "_BackendState") -> bool:
     except Exception:  # noqa: BLE001
         state.inherited_pid = None
         return False
+
+
+def serving(
+    model: Model,
+    reachable: bool,
+    listening: Optional[Dict[int, list]],
+    now: Optional[float] = None,
+) -> Serving:
+    """The model's serving state — the one derivation every reader uses.
+
+    ``reachable`` is the caller's probe of the backend (``is_reachable``);
+    ``listening`` the port → PIDs snapshot (``snapshot_listening_pids``),
+    ``None`` when that snapshot failed. See :mod:`src.process.serving_state`.
+    """
+    state = _state_for(model.id)
+    alive = is_running(model.id)
+    exit_code: Optional[int] = None
+    holders = (listening or {}).get(model.port) if model.port else None
+    if alive:
+        pid_ = pid(model.id)
+    else:
+        pid_ = holders[0] if holders else None
+        if state.proc is not None:
+            exit_code = state.proc.poll()
+    obs = Observation(
+        alive=alive, reachable=bool(reachable),
+        port_known=listening is not None or not model.port,
+        port_foreign=not alive and bool(holders),
+        exit_code=exit_code, pid=pid_,
+    )
+    return derive(obs, state.load, time.monotonic() if now is None else now)
+
+
+def mark_ready(model_id: str) -> None:
+    """Latch that this model's current spawn answered its readiness probe."""
+    load = _state_for(model_id).load
+    if load is not None:
+        load.ready = True
 
 
 def is_reachable(model: Model, timeout: float = 1.5) -> bool:
@@ -551,9 +596,10 @@ def start(model_id: str) -> ProcessOutcome:
         # its own copy (and keeping it open would pin the file). Closing it is
         # exactly what makes the log restart-safe — only the child holds the fd.
         log_file.close()
+        state.load = LoadRecord(started_at=time.monotonic())
 
     try:
-        return ProcessSupervisor(
+        outcome = ProcessSupervisor(
             already_running=lambda: is_running(model_id),
             reachable=lambda: is_reachable(model, timeout=LIVENESS_PROBE_TIMEOUT_S),
             external_pid=lambda: external_pid(model_id),
@@ -562,6 +608,11 @@ def start(model_id: str) -> ProcessOutcome:
             on_spawned=on_spawned,
             adopt_message="adopted external instance",
         ).start()
+        # A record left by an earlier process that died describes nothing
+        # once someone else's process serves the port or no spawn happened.
+        if outcome.kind in (OutcomeKind.ADOPTED, OutcomeKind.LAUNCH_FAILED):
+            state.load = None
+        return outcome
     finally:
         if log_file is not None and not log_file.closed:
             log_file.close()
@@ -578,10 +629,15 @@ def stop(model_id: str) -> ProcessOutcome:
             state.inherited_pid = None
             state.inherited_create_time = None
             ok, msg = kill_pid(pid_)
+            if ok:
+                state.load = None
             return ProcessOutcome(OutcomeKind.STOPPED if ok else OutcomeKind.STOP_FAILED, msg, pid_)
+        # Stopping a process that already died acknowledges the failure.
+        state.load = None
         return ProcessOutcome(OutcomeKind.NOT_RUNNING, "not running")
     if p.poll() is not None:
         state.proc = None
+        state.load = None
         return ProcessOutcome(OutcomeKind.NOT_RUNNING, "not running")
     outcome = ProcessSupervisor.stop_popen(
         p,
@@ -590,6 +646,7 @@ def stop(model_id: str) -> ProcessOutcome:
     )
     if outcome.kind is OutcomeKind.STOPPED:
         state.proc = None
+        state.load = None
     return outcome
 
 
@@ -650,6 +707,11 @@ def inherit_running_backends() -> int:
                 state.inherited_create_time = proc.create_time()
             except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
                 state.inherited_create_time = None
+            # Not yet seen answering: the previous hub may have died mid-load.
+            # A foreign sibling's server (voice-transcriber's whisper-server)
+            # gets no record: its exit is that app's choice, not a failure.
+            if not inherited_foreign(m.id):
+                state.load = LoadRecord(started_at=time.monotonic())
             count += 1
             logging.getLogger(__name__).info(
                 "📎 Inherited %s on :%s (PID %s) — log tail at %s",

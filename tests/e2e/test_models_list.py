@@ -11,6 +11,8 @@ stopped. Each phase runs in its own browser context.
 * No verb is filled or outlined at rest, in either theme at phone and desktop.
 * The row menu stays reachable on a phone: upward in front of the nav pill for
   the last row, downward for the first, anchored to its row across a repoll.
+* A row reads its serving state: loading, failed and unknown each carry their
+  chip, none counts as running, and an unknown port state never offers Start.
 """
 
 from __future__ import annotations
@@ -79,6 +81,21 @@ DEMO_ROWS = {"models": [
     _llama_row(f"demo_{i:02d}", 9100 + i, ownership="none", pid=None, reachable=False) | {
         "display_name": f"demo-{i:02d}"}
     for i in range(14)
+]}
+
+# One row per serving state the hub derives; ready and loading are ours, the
+# failed one died during load, the unknown one's port snapshot failed.
+SERVING_ROWS = {"models": [
+    _llama_row("ready_row", 8081, ownership="ours", pid=4242, reachable=True)
+    | {"serving_state": "ready"},
+    _llama_row("loading_row", 8082, ownership="ours", pid=4343, reachable=False)
+    | {"serving_state": "loading", "placement": {
+        "chain": [{"id": "tower", "cpu": False}], "startup": "on_demand",
+        "idle_unload_minutes": 30, "est_vram_mb": 2000, "editable": False}},
+    _llama_row("failed_row", 8083, ownership="none", pid=None, reachable=False)
+    | {"serving_state": "failed", "serving_reason": "process exited during load (exit code 3)"},
+    _llama_row("unknown_row", 8084, ownership="none", pid=None, reachable=False)
+    | {"serving_state": "unknown", "serving_reason": "listening-port snapshot failed"},
 ]}
 
 _GEOMETRY = """() => {
@@ -408,6 +425,39 @@ def _an_open_menu_follows_its_row_through_a_repoll(page, admin_url):
     assert g["frontMost"], g
 
 
+def _a_row_reads_its_serving_state(page, admin_url):
+    page.add_init_script(_SHOW_ALL)
+    page.route("**/admin/api/models", lambda route: fulfil_json(route, SERVING_ROWS))
+    page.goto(admin_url, wait_until="load")
+    page.click("#tabModels")
+    page.wait_for_selector("#modelsList .model-row", state="visible", timeout=10000)
+
+    def row(row_id):
+        return page.locator(f'#modelsList .model-row[data-id="{row_id}"]')
+
+    for row_id, word in (("loading_row", "loading"), ("failed_row", "failed"), ("unknown_row", "unknown")):
+        expect(row(row_id).locator(".chip").first).to_have_text(word)
+    expect(row("failed_row").locator('.chip[data-tone="danger"]')).to_have_count(1)
+    expect(row("ready_row").locator(".chip")).to_have_count(0)
+
+    # Only the ready row serves; loading, failed and unknown are not running.
+    expect(page.locator("#modelsHeadLine")).to_have_text("1 running")
+
+    # Loading is ours to stop; failed (dead) may be started again; unknown is
+    # not a confirmed stop, so Start stays disabled and says why.
+    expect(row("loading_row").locator('.action-row-verb[data-act="stop"]')).to_have_count(1)
+    expect(row("failed_row").locator('.action-row-verb[data-act="start"]')).to_be_enabled()
+    unknown_start = row("unknown_row").locator('.action-row-verb[data-act="start"]')
+    expect(unknown_start).to_be_disabled()
+    expect(unknown_start).to_have_attribute("title", "State not confirmed — listening-port snapshot failed")
+
+    # An on-demand row between spawn and first answer reads loading, not idle.
+    row("loading_row").locator(".row-kebab").click()
+    page.wait_for_selector("body > .row-menu", state="visible", timeout=5000)
+    expect(page.locator("body > .row-menu")).to_contain_text("on demand · loading")
+    page.keyboard.press("Escape")
+
+
 def test_models_list(browser, admin_url, browser_name):
     with fresh_page(browser) as page:
         _running_all_follows_the_filter_and_persists(page, admin_url)
@@ -418,6 +468,8 @@ def test_models_list(browser, admin_url, browser_name):
         _a_row_verb_is_a_named_glyph_and_its_menu_acts(page, admin_url)
     with fresh_page(browser) as page:
         _row_verbs_are_unpainted_at_rest(page, admin_url)
+    with fresh_page(browser) as page:
+        _a_row_reads_its_serving_state(page, admin_url)
     with fresh_page(browser, viewport=PHONE) as page:
         _roles_reach_each_model_sheet_and_the_glance(page, admin_url, lambda name: surface(page, name))
     with fresh_page(browser, viewport=PHONE, has_touch=True) as page:

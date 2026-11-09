@@ -38,13 +38,13 @@ import time
 from typing import Any, Dict, Optional
 
 from .model_registry import STARTUP_ON_DEMAND, Model
+from .process.serving_state import LOAD_DEADLINE_S
 
 logger = logging.getLogger(__name__)
 
-# How long the first request waits for a cold backend to come up. Sized for
-# the heaviest on-demand row (gemma4_26b's 13.4 GB IQ4_XS read from NVMe) with
-# the same generosity as the orpheus shim's llama child (180 s deadline).
-READY_DEADLINE_S = 180.0
+# How long the first request waits for a cold backend to come up: the same
+# deadline after which the model's serving state reads "failed".
+READY_DEADLINE_S = LOAD_DEADLINE_S
 READY_POLL_S = 1.0
 # Idle watchdog cadence — coarse on purpose; unload windows are minutes.
 IDLE_CHECK_INTERVAL_S = 60.0
@@ -250,6 +250,7 @@ def ensure_ready(model: Model, deadline_s: float = READY_DEADLINE_S) -> None:
         started = time.monotonic()
         while time.monotonic() - started < deadline_s:
             if bp.is_reachable(model, timeout=1.0):
+                bp.mark_ready(model.id)
                 logger.info("✅ on-demand: %s ready after %.1fs",
                             model.id, time.monotonic() - started)
                 return

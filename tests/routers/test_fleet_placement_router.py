@@ -31,6 +31,16 @@ def _example_identity(config_with_example_identity):
     (#561, #564, #565); the peers need the example identity overlay."""
 
 
+@pytest.fixture(autouse=True)
+def _stubbed_backends_serve(monkeypatch):
+    """The stubbed ``running_backends`` maps ids to bare objects, not models;
+    treat every one as serving. ``test_serving_state`` covers the real filter."""
+    async def serving_ids(alive):
+        return list(alive)
+
+    monkeypatch.setattr(fpr, "_serving_ids", serving_ids)
+
+
 def _stub_collect(monkeypatch, stats=None):
     """Keep the live probes off the network/subprocess: remote_stats.collect
     would SSH a reachable peer for its stats snapshot (#434), and the local

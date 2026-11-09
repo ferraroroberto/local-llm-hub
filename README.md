@@ -23,7 +23,7 @@ mechanisms.
 - **Models and roles** — subscription routes, self-hosted rotation, the role table, the refresh workflow and the latest-only policy: [docs/models-and-roles.md](docs/models-and-roles.md). Side-by-side specs: [docs/model-comparison.md](docs/model-comparison.md).
 - **Architecture** — request flow at a glance: [docs/architecture-overview.md](docs/architecture-overview.md); component map: [docs/architecture.mmd](docs/architecture.mmd); per-backend request lifecycles: [docs/project-structure.md](docs/project-structure.md).
 - **Multi-host fleet** — cross-host proxying, the Mac Mini, registry-derived placement, ordered failover chains: [docs/multi-host.md](docs/multi-host.md).
-- **Model lifecycle** — on-demand load/idle-unload and the Linux systemd satellite: [docs/model-lifecycle.md](docs/model-lifecycle.md).
+- **Model lifecycle** — on-demand load/idle-unload and the Linux systemd satellite: [docs/model-lifecycle.md](docs/model-lifecycle.md). The declared per-model serving state (loading, ready, failed, unknown) and why it is declared: [docs/serving-state.md](docs/serving-state.md).
 - **Admin console** — Hub, Settings, Machines (including a hosted Actions runner), machine identity, diagnostics: [docs/admin-console.md](docs/admin-console.md).
 - **Health watch** — per-machine leak and pressure verdict with a restart-or-reboot fix, plus a one-minute RAM, free-space and per-disk latency watch with Telegram alerts and a weekly stall summary: [docs/health-watch.md](docs/health-watch.md).
 - **Mac results** — the nightly Mac screenshots pulled over a read-only SSH key and sent to the owner's chat, once per run, plus a red `main` filed as an issue, a flake ledger and a morning digest line: [docs/mac-results.md](docs/mac-results.md).

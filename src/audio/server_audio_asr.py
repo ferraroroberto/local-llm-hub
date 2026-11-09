@@ -639,8 +639,12 @@ def audio_health() -> Response:
     currently reachable (a cheap GET to the backend, never a transcription).
     ``status`` is ``ok`` when every enabled audio backend answers, ``degraded``
     when at least one is down, and ``none`` when no audio backend is enabled on
-    this host. A degraded/none result returns HTTP 503 so a consumer can branch
-    on the status code alone; ``ok`` returns 200.
+    this host. Each entry carries the model's ``state`` (the serving state of
+    :mod:`src.process.serving_state`, with ``idle`` for a stopped on-demand
+    row): ``idle`` and ``loading`` rows are left out of the verdict, a
+    ``failed`` row (with its ``reason``) counts as down. A degraded/none
+    result returns HTTP 503 so a consumer can branch on the status code
+    alone; ``ok`` returns 200.
 
     Defined as a sync route on purpose: ``is_reachable`` does blocking socket
     probes, so FastAPI runs it in a threadpool rather than stalling the loop.
@@ -650,7 +654,9 @@ def audio_health() -> Response:
     from ..host_profile import resolve as _resolve_host
     from ..model_failover import effective_owner
     from ..model_registry import STARTUP_ON_DEMAND, local_models
-    from ..process.backend_process import is_reachable
+    from ..process.backend_process import is_reachable, serving
+    from ..process.server_process import snapshot_listening_pids
+    from ..process.serving_state import ServingState
 
     backends = []
     # Backends this host *currently serves* only — a remote-owned row's
@@ -666,26 +672,31 @@ def audio_health() -> Response:
         if m.backend in ("whisper", "tts") and m.port
         and effective_owner(m) in (None, active_id)
     ]
+    listening = snapshot_listening_pids() if audio else None
     for m in audio:
         reachable = is_reachable(m, timeout=1.0)
+        derived = serving(m, reachable, listening)
         entry = {
             "id": m.id,
             "backend": m.backend,
             "port": m.port,
             "reachable": reachable,
+            "state": derived.state.value,
         }
-        # An idle `startup: on_demand` row is unloaded by design, not down —
-        # the first real request would load it. Give it its own state
-        # and drop it from the ok/degraded verdict rather than counting it as
-        # an outage.
-        if not reachable and m.startup == STARTUP_ON_DEMAND:
+        # A stopped `startup: on_demand` row is unloaded by design, not down —
+        # the first real request would load it — so it reads "idle".
+        if derived.state is ServingState.STOPPED and m.startup == STARTUP_ON_DEMAND:
             entry["state"] = "idle"
+        if derived.reason:
+            entry["reason"] = derived.reason
         backends.append(entry)
 
-    verdict_backends = [b for b in backends if b.get("state") != "idle"]
+    # Idle and loading rows are on their way, not an outage; a failed row is
+    # one, even if something else happens to answer on its port.
+    verdict_backends = [b for b in backends if b["state"] not in ("idle", "loading")]
     if not backends:
         status, code = "none", 503
-    elif not verdict_backends or all(b["reachable"] for b in verdict_backends):
+    elif all(b["reachable"] and b["state"] != "failed" for b in verdict_backends):
         status, code = "ok", 200
     else:
         status, code = "degraded", 503

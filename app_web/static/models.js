@@ -19,6 +19,7 @@
 
 import { els, state, MODELS_ACTIVE_ONLY_KEY } from './state.js';
 import { jsonApi, postJson, putJson, toast, escapeHtml, codeHtml, fmtGb, isAuthError } from './api.js';
+import { servingState, isServing, servingChip, onDemandWord } from './serving_state.js';
 import { mountGlossaryEditor } from './glossary.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createRowMenu } from './_vendored/row-menu/row-menu.js';
@@ -83,12 +84,12 @@ function renderConfigChip() {
     : '';
 }
 
-// A row counts as "running" only if it's a controllable backend that's
-// currently running/adopted. Claude/Gemini are excluded outright — they're
-// subscription-backed with no on/off state, always "on", so listing them
-// here is just noise rather than a signal.
+// A row counts as "running" only if it's a controllable backend that serves:
+// a model still loading, failed or of unknown state is not running.
+// Claude/Gemini are excluded outright — they're subscription-backed with no
+// on/off state, always "on", so listing them here is just noise.
 function isActive(m) {
-  return m.controllable && (m.ownership === 'ours' || m.ownership === 'external');
+  return m.controllable && isServing(m);
 }
 
 function findModel(id) {
@@ -117,6 +118,8 @@ function kindLabel(m) {
  * normal states and carry nothing. */
 function exceptionChips(m) {
   const out = [];
+  const serving = m.controllable ? servingChip(m) : null;
+  if (serving) out.push(serving);
   if (m.backend === 'typesafe' && !m.key_configured) out.push({ text: 'no key', tone: 'attention' });
   if (m.failover) out.push({ text: 'failover', tone: 'attention' });
   if (m.ownership === 'external') out.push({ text: 'adopted' });
@@ -141,6 +144,7 @@ function fullMetaPairs(m) {
   if (m.host) pairs.push(['Served by', m.host + (isRemote(m) ? '' : ' (this machine)')]);
   if (m.failover) pairs.push(['Prefers', m.preferred_host || '—']);
   if (m.port) pairs.push(['Port', ':' + m.port]);
+  if (m.serving_reason) pairs.push(['Status', servingState(m) + ' — ' + m.serving_reason]);
   if (m.pid && m.ownership === 'external') pairs.push(['Process', String(m.pid)]);
   if (m.device) pairs.push(['Device', m.device]);
   // Aliases are ids a caller sends as `model`: a list of identifiers (COMP-11).
@@ -171,11 +175,12 @@ function roleLabel(key) {
 }
 
 /* The one visible verb (action-row): Start while the model is down, Stop once
- * this hub owns the process. On the row it is a plain glyph-only icon-button
- * (play / square); the wide detail pane's head keeps the
- * worded button and draws Stop outlined (label, outline). An adopted
- * process is not this hub's to stop gracefully, so Start stays disabled and
- * Force stop lives in the menu. */
+ * this hub owns the process (loading, ready, or alive but failed). On the row
+ * it is a plain glyph-only icon-button (play / square); the wide detail pane's
+ * head keeps the worded button and draws Stop outlined (label, outline). An
+ * adopted process is not this hub's to stop gracefully, so Start stays
+ * disabled and Force stop lives in the menu; an unknown port state is not a
+ * confirmed stop, so Start stays disabled there too. */
 function powerVerb(m) {
   if (!m.controllable) return null;
   const ownership = m.ownership || 'none';
@@ -186,10 +191,14 @@ function powerVerb(m) {
       track: 'model-stop', label: 'Stop', glyph: 'square', outline: true,
     };
   }
+  const unknown = servingState(m) === 'unknown';
+  const tip = unknown ? 'State not confirmed — ' + (m.serving_reason || 'unknown')
+    : ownership !== 'none' ? 'Adopted from another process — use Force stop in the menu'
+      : 'Start ' + m.display_name;
   return {
     attrs: ' data-act="start" aria-label="Start ' + name + '"',
-    tip: ownership !== 'none' ? 'Adopted from another process — use Force stop in the menu' : 'Start ' + m.display_name,
-    track: 'model-start', label: 'Start', glyph: 'play', disabled: ownership !== 'none',
+    tip: tip,
+    track: 'model-start', label: 'Start', glyph: 'play', disabled: unknown || ownership !== 'none',
   };
 }
 
@@ -215,10 +224,13 @@ function menuItems(m) {
 }
 
 /* Startup policy, in words: always on (eager, the quiet default) or on demand,
- * reading its live state honestly — loaded while the backend answers, else
- * idle (stopped by the idle watchdog or never yet demanded). */
+ * reading its live state honestly — loaded while the backend answers, loading
+ * between spawn and its first answer, failed or unknown when the hub says so,
+ * else idle (stopped by the idle watchdog or never yet demanded). */
 function startupLabel(m, p) {
   if (p.startup !== 'on_demand') return 'Always on';
+  const word = onDemandWord(m);
+  if (word) return 'on demand · ' + word;
   return m.reachable ? 'on demand · loaded' : 'on demand · idle';
 }
 

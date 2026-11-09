@@ -30,6 +30,7 @@ from src import system_stats
 from src.fleet import fleet_reconcile, remote_stats
 from src.host_profile import HostProfile, all_hosts
 from src.host_profile import resolve as resolve_host
+from src.model_reachability import local_reachability
 from src.model_registry import (
     all_models,
     cpu_resident_map,
@@ -37,6 +38,8 @@ from src.model_registry import (
     launchable_local_ids,
 )
 from src.process import backend_process as bp
+from src.process.server_process import snapshot_listening_pids
+from src.process.serving_state import SERVING
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -170,6 +173,18 @@ async def _host_status(
     return await _peer_host_status(profile, base, placed, eligible_set, vram, devices)
 
 
+async def _serving_ids(alive: Dict[str, Any]) -> List[str]:
+    """Ids of the live local backends that serve — a backend still loading,
+    or alive but not answering, is not "running" (``bp.serving``)."""
+    models = list(alive.values())
+    listening = await asyncio.to_thread(snapshot_listening_pids)
+    reach = await local_reachability(models, listening)
+    return [
+        m.id for m, ok in zip(models, reach)
+        if bp.serving(m, ok, listening).state in SERVING
+    ]
+
+
 async def _local_host_status(
     profile: HostProfile,
     base: Dict[str, Any],
@@ -179,9 +194,11 @@ async def _local_host_status(
     devices: Dict[str, str],
 ) -> Dict[str, Any]:
     """The grid row for the host this hub runs on: live state read in-process."""
-    # Only the launchable models that are up — so a summary row reads
-    # honestly. Excludes subscription + virtual rows.
-    running = [m for m in bp.running_backends().keys() if m in eligible_set]
+    # Excludes subscription + virtual rows. VRAM is held by every live
+    # process, so capacity sums those whatever their serving state; the
+    # "running" list names only the ones that serve.
+    alive = {mid: m for mid, m in bp.running_backends().items() if mid in eligible_set}
+    running = await _serving_ids(alive)
     # A live backend whose adopted PID is a *foreign* process (an external
     # sibling on a mutex-shared port — voice-transcriber's whisper-server
     # on :8090) is flagged so the summary can label it distinctly rather
@@ -193,7 +210,7 @@ async def _local_host_status(
         "running": running, "external": external,
         "ram": system_stats.ram_stats(),
         "gpu": _gpu_snapshot(gpus),
-        **_capacity(profile, placed, running, vram, devices),
+        **_capacity(profile, placed, list(alive), vram, devices),
     }
 
 
