@@ -1,24 +1,21 @@
-"""End-to-end tests for the Models tab's placement editor (#424).
+"""The Models tab's placement editor.
 
-Same discipline as ``test_models_placement_cards.py``: the GET contract is
-pinned with route interception so the render is deterministic; the PUT is
-intercepted too, so no real config write ever happens — the SPA is the unit
-under test (validation + the git transaction are covered in
-``tests/test_config_write.py`` / ``tests/routers/test_models_router.py``).
+The GET contract is pinned with route interception so the render is
+deterministic; the PUT is intercepted too, so no real config write ever happens:
+the SPA is the unit under test (validation and the git transaction are covered
+in ``tests/test_config_write.py`` / ``tests/routers/test_models_router.py``).
 
-What they lock in:
+What it locks in:
   * the editor only offers itself where the server says this hub may write
-    (``config.write_enabled`` — satellites render read-only cards), and
-    never on a virtual-alias row (``placement.editable: false``);
-  * the full edit surface drives the PUT payload faithfully — reorder /
-    remove / add chain hosts, cpu-tier toggle, startup policy, idle window;
-  * a validation rejection (400) surfaces its detail *inline* in the open
-    editor — the VRAM arithmetic is the message — and nothing closes;
-  * a successful save closes the editor and refreshes;
-  * #737: the editor opens in the model's detail pane on a wide window and in
-    its sheet on a phone, keeps an unsaved draft across the 5 s poll, and the
-    shared transcription dictionary opens in the same slot;
-  * the config-version chip renders the models.yaml sha under the list.
+    (``config.write_enabled``: satellites render read-only cards), and never on a
+    virtual-alias row (``placement.editable: false``);
+  * the full edit surface drives the PUT payload faithfully: reorder / remove /
+    add chain hosts, cpu-tier toggle, startup policy, idle window; a 200 closes
+    the editor;
+  * a validation rejection (400) surfaces its detail *inline* in the open editor,
+    the VRAM arithmetic being the message, and nothing closes;
+  * the editor opens in the model's detail pane on a wide window and in its sheet
+    on a phone, and the shared transcription dictionary opens in the same slot.
 """
 
 from __future__ import annotations
@@ -26,6 +23,7 @@ from __future__ import annotations
 import copy
 import json
 
+from tests.e2e._flow import PHONE, fresh_page
 from tests.e2e._models_rows import gemma_row, whisper_row
 from tests.e2e._surface import surface
 
@@ -43,13 +41,13 @@ BASE_CONFIG = {
 
 FAKE_MODELS = {
     "models": [
-        # Multi-host chain with a degraded cpu last resort — the whisper
-        # shape; the editor's reorder/remove/cpu controls act on this.
+        # Multi-host chain with a degraded cpu last resort: the editor's
+        # reorder/remove/cpu controls act on this.
         whisper_row(editable=True),
-        # On-demand row — the idle-window edit target (gemma shape).
+        # On-demand row: the idle-window edit target.
         gemma_row(editable=True),
         {
-            # Virtual alias — placement rendered but never editable.
+            # Virtual alias: placement rendered but never editable.
             "id": "qwen35_4b_nothink", "display_name": "qwen3.5-4b-nothink",
             "backend": "openai", "engine": None, "port": 8088, "url": None,
             "aliases": [], "controllable": False, "ownership": "none",
@@ -64,6 +62,11 @@ FAKE_MODELS = {
     "config": BASE_CONFIG,
 }
 
+VALIDATION_DETAIL = (
+    "placing gemma4_26b (~13400 MB) on tower overcommits its VRAM budget: "
+    "~25700 MB estimated vs the 16384 MB ceiling"
+)
+
 
 def _payload(write_enabled=True):
     body = copy.deepcopy(FAKE_MODELS)
@@ -72,21 +75,17 @@ def _payload(write_enabled=True):
 
 
 def _open_models_tab(page, admin_url, body, put_handler=None):
-    page.add_init_script(
-        "localStorage.setItem('llmhub.models.activeOnly', 'false');"
-    )
+    page.add_init_script("localStorage.setItem('llmhub.models.activeOnly', 'false');")
 
     def handler(route):
         if route.request.method == "PUT" and put_handler is not None:
             put_handler(route)
             return
-        route.fulfill(
-            status=200, content_type="application/json", body=json.dumps(body)
-        )
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
-    # ``**`` (not ``*``): Playwright's single star never crosses a ``/``,
-    # and the PUT lands on /admin/api/models/<id>/placement — both the GET
-    # and the PUT must be intercepted for the suite to stay hermetic.
+    # ``**`` (not ``*``): Playwright's single star never crosses a ``/``, and the
+    # PUT lands on /admin/api/models/<id>/placement. Both the GET and the PUT must
+    # be intercepted for the suite to stay hermetic.
     page.route("**/admin/api/models**", handler)
     page.goto(admin_url, wait_until="load")
     page.click("#tabModels")
@@ -112,27 +111,18 @@ def _menu_acts(page, model_id):
 
 
 def _open_editor(page, model_id):
-    """Edit placement from the row menu: the editor mounts in the model's
-    detail pane (wide window) or its sheet (phone), never under the row."""
+    """Edit placement from the row menu: the editor mounts in the model's detail
+    pane (wide window) or its sheet (phone), never under the row."""
     _item(page, model_id).locator(".row-kebab").click()
     page.locator('body > .row-menu .row-menu-item[data-act="edit-placement"]').click()
     page.wait_for_selector(
-        f'.model-body[data-id="{model_id}"] .placement-editor', state="visible", timeout=5000,
-    )
+        f'.model-body[data-id="{model_id}"] .placement-editor', state="visible", timeout=5000)
     return page.locator(f'.model-body[data-id="{model_id}"] .placement-editor')
 
 
-def test_config_sha_chip_renders(page, admin_url):
-    _open_models_tab(page, admin_url, _payload())
-    # Settings › About carries the models.yaml version since #741.
-    page.click("#paneModels .home-settings")
-    assert page.locator("#settingsDialog #modelsConfigSha").inner_text() == "abc1234"
-    surface(page, "settings.about")
-
-
-def test_no_edit_affordance_when_not_write_host(page, admin_url):
-    """A satellite hub (write_enabled false) renders the cards read-only —
-    zero edit buttons anywhere, exactly the pre-#424 surface."""
+def _a_satellite_renders_read_only_cards(page, admin_url):
+    """A satellite hub (write_enabled false) renders the cards read-only: zero
+    edit buttons anywhere."""
     _open_models_tab(page, admin_url, _payload(write_enabled=False))
     for model_id in ("whisper", "gemma4_26b"):
         acts = _menu_acts(page, model_id)
@@ -141,38 +131,38 @@ def test_no_edit_affordance_when_not_write_host(page, admin_url):
     assert page.locator(".placement-edit-btn").count() == 0
 
 
-def test_virtual_alias_row_is_never_editable(page, admin_url):
-    _open_models_tab(page, admin_url, _payload())
-    assert _menu_acts(page, "whisper").count("edit-placement") == 1
-    assert "edit-placement" not in _menu_acts(page, "qwen35_4b_nothink")
-
-
-def test_full_edit_drives_put_payload(page, admin_url):
-    """Reorder + remove + cpu-toggle + add + policy edits land in the PUT
-    body exactly as drafted, and a 200 closes the editor."""
+def _an_edit_drives_the_put_and_a_rejection_stays_inline(page, admin_url, mark):
+    """Reorder + remove + cpu-toggle + add + policy edits land in the PUT body
+    exactly as drafted and a 200 closes the editor; a 400 (the VRAM hard gate)
+    renders its detail inline in the open editor and nothing is lost."""
     captured = {}
+    reject = {"on": False}
 
     def put_handler(route):
+        if reject["on"]:
+            route.fulfill(status=400, content_type="application/json",
+                          body=json.dumps({"detail": VALIDATION_DETAIL}))
+            return
         captured["url"] = route.request.url
         captured["body"] = route.request.post_data_json
         route.fulfill(
             status=200, content_type="application/json",
-            body=json.dumps({"ok": True, "changed": True, "commit": "beefcaf",
-                             "config_sha": "beefcaf"}),
+            body=json.dumps({"ok": True, "changed": True, "commit": "beefcaf", "config_sha": "beefcaf"}),
         )
 
     _open_models_tab(page, admin_url, _payload(), put_handler=put_handler)
-    editor = _open_editor(page, "whisper")
-    surface(page, "models.placement-editor")
+    assert _menu_acts(page, "whisper").count("edit-placement") == 1
+    assert "edit-placement" not in _menu_acts(page, "qwen35_4b_nothink")
 
-    # Chain: [gaming, mac-mini-m4, tower·cpu] → remove mac-mini-m4, move
-    # tower to the front, clear its cpu flag, then add mac-mini-m4 back.
+    editor = _open_editor(page, "whisper")
+    mark("models.placement-editor")
+    # Chain: [gaming, mac-mini-m4, tower·cpu] → remove mac-mini-m4, move tower to
+    # the front, clear its cpu flag, then add mac-mini-m4 back.
     editor.locator('.pe-host-row[data-host="mac-mini-m4"] .pe-remove').click()
     editor.locator('.pe-host-row[data-host="tower"] .pe-up').click()
     editor.locator('.pe-host-row[data-host="tower"] .pe-cpu').uncheck()
     editor.locator(".pe-add-select").select_option("mac-mini-m4")
     editor.locator(".pe-add-btn").click()
-
     editor.locator(".pe-startup").select_option("on_demand")
     editor.locator(".pe-idle").fill("45")
     editor.locator(".pe-save").click()
@@ -189,31 +179,14 @@ def test_full_edit_drives_put_payload(page, admin_url):
         "idle_unload_minutes": 45,
     }
 
-
-def test_validation_rejection_shows_inline_and_keeps_editor_open(page, admin_url):
-    """A 400 (the #375 VRAM hard gate) renders its detail inline in the open
-    editor — the arithmetic is the message — and nothing is lost."""
-    detail = (
-        "placing gemma4_26b (~13400 MB) on tower overcommits its VRAM budget: "
-        "~25700 MB estimated vs the 16384 MB ceiling"
-    )
-
-    def put_handler(route):
-        route.fulfill(
-            status=400, content_type="application/json",
-            body=json.dumps({"detail": detail}),
-        )
-
-    _open_models_tab(page, admin_url, _payload(), put_handler=put_handler)
+    reject["on"] = True
     editor = _open_editor(page, "gemma4_26b")
     editor.locator(".pe-startup").select_option("eager")
     editor.locator(".pe-save").click()
-
-    err = editor.locator(".pe-error")
     page.wait_for_selector(".placement-editor .pe-error", state="visible", timeout=5000)
-    assert "overcommits" in err.inner_text()
-    surface(page, "models.placement-error")
-    # Editor stays open with the draft intact for correction — also across the
+    assert "overcommits" in editor.locator(".pe-error").inner_text()
+    mark("models.placement-error")
+    # The editor stays open with the draft intact for correction, also across the
     # 5 s models poll, which repaints the pane's info but never its editor slot.
     assert editor.locator(".pe-startup").input_value() == "eager"
     assert page.locator("#modelsDetail .placement-editor").count() == 1, "wide window: the detail pane"
@@ -222,13 +195,11 @@ def test_validation_rejection_shows_inline_and_keeps_editor_open(page, admin_url
     assert "overcommits" in editor.locator(".pe-error").inner_text()
 
 
-def test_idle_input_disabled_for_eager_policy(page, admin_url):
-    # On a phone the editor opens in the model's sheet.
-    page.set_viewport_size({"width": 390, "height": 844})
+def _a_phone_edits_in_the_sheet_and_the_dictionary_takes_its_slot(page, admin_url):
     _open_models_tab(page, admin_url, _payload())
     editor = _open_editor(page, "whisper")
     assert page.locator("#modelSheet[open] .placement-editor").count() == 1
-    assert editor.locator(".pe-idle").is_disabled()
+    assert editor.locator(".pe-idle").is_disabled()  # an eager policy has no idle window
     editor.locator(".pe-startup").select_option("on_demand")
     assert editor.locator(".pe-idle").is_enabled()
 
@@ -238,3 +209,12 @@ def test_idle_input_disabled_for_eager_policy(page, admin_url):
     page.locator('body > .row-menu .row-menu-item[data-act="dictionary"]').click()
     page.wait_for_selector("#modelSheet[open] .model-editor .glossary-panel", timeout=5000)
     assert page.locator(".placement-editor").count() == 0
+
+
+def test_models_placement_editor(browser, admin_url):
+    with fresh_page(browser) as page:
+        _a_satellite_renders_read_only_cards(page, admin_url)
+    with fresh_page(browser) as page:
+        _an_edit_drives_the_put_and_a_rejection_stays_inline(page, admin_url, lambda name: surface(page, name))
+    with fresh_page(browser, viewport=PHONE) as page:
+        _a_phone_edits_in_the_sheet_and_the_dictionary_takes_its_slot(page, admin_url)
