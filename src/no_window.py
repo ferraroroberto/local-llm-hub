@@ -1,28 +1,33 @@
-"""Shared Windows console-suppression flag for subprocess spawns (issue #450).
+"""One definition of the Windows ``CREATE_NO_WINDOW`` subprocess flag.
 
-Every parent process that shells out from this hub (the tray running under
-``pythonw``, the FastAPI hub itself when launched windowless, or a script
-dispatched from either) has no console of its own — any bare
-``subprocess.Popen``/``.run``/``.call``/``.check_output``/``.check_call``
-under such a parent flashes a fresh console window per spawn unless the
-child is told to suppress it.
+Every ``subprocess`` spawn that launches an external console executable
+(``git``, ``netstat``, ``taskkill``, ``powershell.exe``, ``tailscale``, a
+helper script, ...) must pass ``creationflags=NO_WINDOW`` on Windows. A parent
+with no console of its own -- a ``pythonw`` tray, a scheduled task, a daemon,
+an agent's captured shell -- otherwise makes Windows allocate a fresh console
+per child, flashing a window on screen; on a poll loop that reads as malware
+or a stuck app. See ``CLAUDE.md`` -> "Windows console-subprocess suppression
+(``CREATE_NO_WINDOW``)".
 
-Previously this one-line ternary was re-derived independently in ~11
-modules (two different spellings — most matched ``subprocess.CREATE_NO_WINDOW``,
-one hardcoded the magic number ``0x08000000``), so a new call site was a
-fresh chance to forget it (issues #169, #174, #282, #317). Import
-``NO_WINDOW`` from here instead of re-deriving the ternary.
+Import the flag from here instead of re-deriving the
+``sys.platform == "win32"`` ternary at each call site::
 
-``NO_WINDOW`` is ``0`` on non-Windows platforms, so it is always safe to
-pass as ``creationflags=NO_WINDOW`` unconditionally — ``subprocess.Popen``
-only rejects a *non-zero* ``creationflags`` on POSIX.
+    from src.no_window import NO_WINDOW
 
-``src/_respawn_watchdog.py`` is a deliberate exception — it is the detached
-process that recovers *from* a broken deploy, so it can't assume any other
-``src.*`` module (including this one) still imports cleanly, and re-derives
-the ternary inline for that reason. ``scripts/_lib.py``'s own
-``no_window_flags()`` similarly stays independent so the install/detection
-scripts don't need this package's import machinery.
+    subprocess.run([...], creationflags=NO_WINDOW)
+
+**Vendor-verbatim modules are the one exception and keep a local definition.**
+A file copied byte-identical into adopter repos cannot import a module of this
+repo's -- the copy would not resolve, and the hash-verified bytes must stay
+self-contained. A handful of such files therefore derive the flag themselves
+on purpose, and that is not drift: every ``src`` catalogued in
+``.fleet.toml``'s ``[components]`` table (read via
+``scripts/vendored_catalog.py``) is a vendor-verbatim publication, and
+``tests/test_no_window_convention.py`` derives its allow-list from that same
+catalog.
+
+Stdlib-only and side-effect-free, so a standalone script launched outside the
+project venv can import it after putting the repo root on ``sys.path``.
 """
 
 from __future__ import annotations
@@ -30,4 +35,8 @@ from __future__ import annotations
 import subprocess
 import sys
 
+#: ``subprocess.CREATE_NO_WINDOW`` on Windows, ``0`` (a no-op) elsewhere, so
+#: the same call site is portable without a per-platform branch.
 NO_WINDOW: int = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+__all__ = ["NO_WINDOW"]
