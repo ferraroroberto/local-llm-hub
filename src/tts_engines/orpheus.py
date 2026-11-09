@@ -492,13 +492,13 @@ class OrpheusEngine(TTSEngine):
         proc = self.proc
         self.proc = None
         if proc is not None and proc.poll() is None:
-            ok, msg = ProcessSupervisor.stop_popen(
+            outcome = ProcessSupervisor.stop_popen(
                 proc,
                 terminate_timeout=STOP_TERMINATE_TIMEOUT_S,
                 kill_timeout=STOP_KILL_TIMEOUT_S,
             )
-            if not ok:
-                log.warning("error stopping Orpheus llama-server: %s", msg)
+            if not outcome.ok:
+                log.warning("error stopping Orpheus llama-server: %s", outcome.detail)
         job = self._job
         self._job = None
         terminate_and_close(job)

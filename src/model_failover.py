@@ -60,6 +60,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from .host_profile import _load_config
 from .model_registry import SPAWNABLE_BACKENDS, Model
+from .process.process_supervisor import OutcomeKind
 
 logger = logging.getLogger(__name__)
 
@@ -365,13 +366,14 @@ async def _ensure_running_local(
         result = await start_local(model.id)
         _ENGINE_STARTED.add(model.id)
         return {"started": True, "detail": result}
-    ok, msg = await asyncio.to_thread(bp.start, model.id)
-    # An *adopted* external instance existed before this engine acted — it is
-    # not engine-started, so failback must leave it alone (additive contract).
-    if ok and "adopted" not in msg.lower():
+    outcome = await asyncio.to_thread(bp.start, model.id)
+    # Only a process this engine spawned is engine-started: an adopted or
+    # already-running instance existed before it acted, so failback must leave
+    # it alone (additive contract).
+    if outcome.kind is OutcomeKind.STARTED:
         _ENGINE_STARTED.add(model.id)
-    logger.info("failover: local start %s -> %s (%s)", model.id, ok, msg)
-    return {"started": bool(ok), "detail": msg}
+    logger.info("failover: local start %s -> %s (%s)", model.id, outcome.kind.value, outcome.detail)
+    return {"started": outcome.ok, "detail": outcome.detail}
 
 
 async def _release_local(
@@ -390,10 +392,10 @@ async def _release_local(
         result = await stop_local(model.id)
         _ENGINE_STARTED.discard(model.id)
         return {"stopped": True, "detail": result}
-    ok, msg = await asyncio.to_thread(bp.stop, model.id)
+    outcome = await asyncio.to_thread(bp.stop, model.id)
     _ENGINE_STARTED.discard(model.id)
-    logger.info("failover: local stop %s -> %s (%s)", model.id, ok, msg)
-    return {"stopped": bool(ok), "detail": msg}
+    logger.info("failover: local stop %s -> %s (%s)", model.id, outcome.kind.value, outcome.detail)
+    return {"stopped": outcome.ok, "detail": outcome.detail}
 
 
 async def failover_loop(boot_delay_s: float = 20.0) -> None:

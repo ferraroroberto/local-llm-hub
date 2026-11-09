@@ -240,13 +240,13 @@ def ensure_ready(model: Model, deadline_s: float = READY_DEADLINE_S) -> None:
         # long-idle backend and kills the process mid-load.
         with _LOCK:
             _LAST_USED[model.id] = time.monotonic()
-        ok, msg = bp.start(model.id)
-        # "already running" means a process exists but isn't answering yet
+        outcome = bp.start(model.id)
+        # ALREADY_RUNNING means a process exists but isn't answering yet
         # (mid-load) — that's exactly what the readiness poll below absorbs.
-        if not ok and "already running" not in msg.lower():
-            raise OnDemandNotReady(f"on-demand start of {model.id!r} failed: {msg}")
+        if not outcome.converged:
+            raise OnDemandNotReady(f"on-demand start of {model.id!r} failed: {outcome.detail}")
         logger.info("⏳ on-demand: loading %s (%s) — idle clock armed, request waits "
-                    "for readiness", model.id, msg)
+                    "for readiness", model.id, outcome.detail)
         started = time.monotonic()
         while time.monotonic() - started < deadline_s:
             if bp.is_reachable(model, timeout=1.0):
@@ -304,12 +304,12 @@ def idle_unload_pass(now: Optional[float] = None) -> Dict[str, Any]:
         if idle_s < window_s:
             results[m.id] = "warm"
             continue
-        ok, msg = bp.stop(m.id)
+        outcome = bp.stop(m.id)
         logger.info(
             "💤 on-demand: unloaded %s after %.0f min idle (window %s min) -> %s %s",
-            m.id, idle_s / 60.0, m.idle_unload_minutes, ok, msg,
+            m.id, idle_s / 60.0, m.idle_unload_minutes, outcome.kind.value, outcome.detail,
         )
-        results[m.id] = "unloaded" if ok else f"stop failed: {msg}"
+        results[m.id] = "unloaded" if outcome.converged else f"stop failed: {outcome.detail}"
     return results
 
 

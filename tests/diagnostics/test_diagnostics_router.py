@@ -19,6 +19,7 @@ from src import server as server_mod
 from src.diagnostics import report, sampler, store
 from src.diagnostics import settings as diag_settings
 from src.process import backend_process
+from src.process.process_supervisor import OutcomeKind, ProcessOutcome
 from src.usage import agentsview_service
 
 
@@ -35,8 +36,8 @@ def _stub_real_backend_ops(monkeypatch):
     """
     monkeypatch.setattr(model_registry, "desired_model_ids", lambda *a, **kw: [])
     monkeypatch.setattr(backend_process, "inherit_running_backends", lambda: 0)
-    monkeypatch.setattr(backend_process, "start", lambda model_id: (True, "stubbed (test)"))
-    monkeypatch.setattr(backend_process, "stop", lambda model_id: (True, "stubbed (test)"))
+    monkeypatch.setattr(backend_process, "start", lambda model_id: ProcessOutcome(OutcomeKind.STARTED, "stubbed (test)"))
+    monkeypatch.setattr(backend_process, "stop", lambda model_id: ProcessOutcome(OutcomeKind.STOPPED, "stubbed (test)"))
 
     async def _no_launch():
         return {"ok": True, "steps": []}

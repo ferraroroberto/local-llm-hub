@@ -42,7 +42,12 @@ import yaml
 from src.host_profile import CONFIG_PATH, hub_port
 from src.model_registry import SPAWNABLE_BACKENDS, Model, local_models
 from src.no_window import NO_WINDOW
-from src.process.process_supervisor import ProcessSupervisor, SpawnSpec
+from src.process.process_supervisor import (
+    OutcomeKind,
+    ProcessOutcome,
+    ProcessSupervisor,
+    SpawnSpec,
+)
 from src.process.server_process import WIN_NEW_GROUP, lan_ip
 from src.webapp_config import (
     WebappConfig,
@@ -153,14 +158,14 @@ class HubProcess:
             creationflags=WIN_NEW_GROUP,
         )
 
-    def start(self) -> Tuple[bool, str]:
+    def start(self) -> ProcessOutcome:
         # Race-safe adopt-or-spawn: serialize the
         # is_running/is_reachable check-then-Popen across processes so two trays
         # can't both spawn the hub. self._lock is in-process only;
         # cross_process_lock adds the cross-process guarantee and fails open so
         # it never blocks startup. Primitive vendored byte-identical from scaffold.
         with cross_process_lock(rf"Global\local-llm-hub-hub-start-{hub_port()}"):
-            ok, msg = ProcessSupervisor(
+            return ProcessSupervisor(
                 already_running=self.is_running,
                 reachable=lambda: self.is_reachable(0.3),
                 external_pid=lambda: None,
@@ -168,18 +173,8 @@ class HubProcess:
                 set_process=self._set_proc,
                 adopt_message="adopted external hub",
             ).start()
-            # The supervisor reports "already running" as ok=False — the
-            # convention every other caller in this repo applies at its own
-            # boundary (on_demand.ensure_ready, server_lifecycle, fleet_reconcile)
-            # is to treat that message as a benign no-op, not a failure; the
-            # tray's two callers (_autostart_worker / _restart_worker) only
-            # branch on ``ok``, so translate it here rather than teaching the
-            # shared supervisor a tray-only rule.
-            if not ok and msg == "already running":
-                return True, msg
-            return ok, msg
 
-    def stop(self) -> Tuple[bool, str]:
+    def stop(self) -> ProcessOutcome:
         with self._lock:
             p = self.proc
         if p is None or p.poll() is not None:
@@ -187,17 +182,16 @@ class HubProcess:
             if self.is_reachable(0.3):
                 # Something is listening on the port but it isn't a subprocess
                 # we spawned (adopted external hub) — there is nothing here we
-                # can tear down. Surfacing this distinctly from "not running"
+                # can tear down. Surfacing this distinctly from NOT_RUNNING
                 # lets callers (e.g. _restart_worker) avoid reporting a false
                 # "restarted" once start() re-adopts the same stale process.
-                return False, "adopted (not ours to stop)"
-            return False, "not running"
-        ok, msg = ProcessSupervisor.stop_popen(
+                return ProcessOutcome(OutcomeKind.NOT_OWNER, "adopted (not ours to stop)")
+            return ProcessOutcome(OutcomeKind.NOT_RUNNING, "not running")
+        outcome = ProcessSupervisor.stop_popen(
             p, terminate_timeout=_HUB_STOP_TIMEOUT_S, kill_timeout=_HUB_STOP_TIMEOUT_S)
-        if not ok:
-            return ok, msg
-        self._set_proc(None)
-        return True, "stopped"
+        if outcome.kind is OutcomeKind.STOPPED:
+            self._set_proc(None)
+        return outcome
 
     def wait_ready(self, timeout_s: float = 30.0) -> bool:
         deadline = time.time() + timeout_s
@@ -420,11 +414,11 @@ class TrayApp:
     # ------------------------------------------------------------- workers
 
     def _autostart_worker(self) -> None:
-        ok, msg = self.hub.start()
-        if not ok:
-            self._notify("Hub", f"⚠️ {msg}")
+        outcome = self.hub.start()
+        if not outcome.converged:
+            self._notify("Hub", f"⚠️ {outcome.detail}")
             return
-        self._notify("Hub", f"▶ {msg}")
+        self._notify("Hub", f"▶ {outcome.detail}")
         if not self.hub.wait_ready(self.cfg.hub_ready_timeout_s):
             self._notify("Hub", f"⚠️ not reachable after {self.cfg.hub_ready_timeout_s:.0f}s")
             return
@@ -434,8 +428,7 @@ class TrayApp:
 
     def _restart_worker(self) -> None:
         self._notify("Hub", "🔄 restarting…")
-        stopped, stop_msg = self.hub.stop()
-        if not stopped and stop_msg.startswith("adopted"):
+        if self.hub.stop().kind is OutcomeKind.NOT_OWNER:
             # The tray didn't spawn this hub, so stop() had nothing to tear
             # down — start() would just re-adopt the same stale process and
             # report success, masking a build that never actually restarted.
@@ -446,9 +439,9 @@ class TrayApp:
             )
             return
         time.sleep(0.6)
-        ok, msg = self.hub.start()
-        if not ok:
-            self._notify("Hub", f"⚠️ {msg}")
+        outcome = self.hub.start()
+        if not outcome.converged:
+            self._notify("Hub", f"⚠️ {outcome.detail}")
             return
         if not self.hub.wait_ready(self.cfg.hub_ready_timeout_s):
             self._notify("Hub", f"⚠️ not reachable after {self.cfg.hub_ready_timeout_s:.0f}s")
@@ -471,11 +464,11 @@ class TrayApp:
         if _tcp_reachable("127.0.0.1", model.port, 0.3):
             # Try a graceful Stop first; fall back to Force stop if the
             # hub doesn't own it (e.g. a leftover from a previous run).
-            ok, msg = self._admin_request("POST", f"/admin/api/models/{model_id}/stop")
+            ok, msg, outcome = self._admin_request("POST", f"/admin/api/models/{model_id}/stop")
             if ok:
                 self._notify(model_id, "■ Stopped")
-            elif "not running" in (msg or "").lower():
-                ok2, msg2 = self._admin_request(
+            elif outcome == OutcomeKind.NOT_RUNNING.value:
+                ok2, msg2, _ = self._admin_request(
                     "POST", f"/admin/api/models/{model_id}/force-stop"
                 )
                 self._notify(model_id, "💀 Force-stopped" if ok2 else f"⚠️ {msg2}")
@@ -487,10 +480,10 @@ class TrayApp:
 
     def _start_model_worker(self, model_id: str, *, autostart: bool) -> None:
         prefix = "(autostart) " if autostart else ""
-        ok, msg = self._admin_request("POST", f"/admin/api/models/{model_id}/start")
+        ok, msg, outcome = self._admin_request("POST", f"/admin/api/models/{model_id}/start")
         if not ok:
-            # "already running" is a 409 — surface as info, not error.
-            if "already running" in (msg or "").lower():
+            # Already running is a 409 — surface as info, not error.
+            if outcome == OutcomeKind.ALREADY_RUNNING.value:
                 self._notify(f"{prefix}{model_id}", f"✅ {msg}")
             else:
                 self._notify(f"{prefix}{model_id}", f"⚠️ {msg}")
@@ -516,23 +509,28 @@ class TrayApp:
         self._notify(model_id, f"⚠️ not reachable after {_MODEL_READY_TIMEOUT_S:.0f}s")
         self._update_menu()
 
-    def _admin_request(self, method: str, path: str) -> Tuple[bool, str]:
+    def _admin_request(self, method: str, path: str) -> Tuple[bool, str, Optional[str]]:
         """Talk to the hub's /admin API on loopback. Bearer-token middleware
         bypasses on loopback so we don't need to attach the token here.
-        Returns ``(ok, detail)``; ``ok`` is True on 2xx, False on any error.
+        Returns ``(ok, detail, outcome)``; ``ok`` is True on 2xx, False on any
+        error, and ``outcome`` is the start/stop route's ``outcome`` kind (None
+        when the route or the hub build does not send one).
         """
         url = self.hub.base_url() + path
         try:
             r = httpx.request(method, url, timeout=15.0)
         except httpx.HTTPError as exc:
-            return False, f"hub unreachable: {exc}"
+            return False, f"hub unreachable: {exc}", None
         try:
             body = r.json() if r.content else {}
         except Exception:  # noqa: BLE001
             body = {}
+        if not isinstance(body, dict):
+            body = {}
+        outcome = body.get("outcome")
         if r.is_success:
-            return True, str(body.get("detail") or "ok")
-        return False, str(body.get("detail") or f"HTTP {r.status_code}")
+            return True, str(body.get("detail") or "ok"), outcome
+        return False, str(body.get("detail") or f"HTTP {r.status_code}"), outcome
 
     # ---------------------------------------------------- copy / open helpers
 

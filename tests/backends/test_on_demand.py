@@ -17,6 +17,7 @@ from src import host_profile, model_registry, on_demand
 from src.fleet import remote_proxy
 from src.model_registry import Model
 from src.process import backend_process as bp
+from src.process.process_supervisor import OutcomeKind, ProcessOutcome
 
 
 def _model(**kw) -> Model:
@@ -85,7 +86,7 @@ def test_ensure_ready_spawns_and_waits_for_readiness(monkeypatch):
     started: list[str] = []
     monkeypatch.setattr(bp, "is_reachable", _reachable)
     monkeypatch.setattr(bp, "running_backends", dict)
-    monkeypatch.setattr(bp, "start", lambda mid: (started.append(mid), (True, "started"))[1])
+    monkeypatch.setattr(bp, "start", lambda mid: (started.append(mid), ProcessOutcome(OutcomeKind.STARTED, "started"))[1])
 
     on_demand.ensure_ready(_model(), deadline_s=5.0)
     assert started == ["gemma"]
@@ -100,7 +101,7 @@ def test_cold_load_is_not_killed_by_idle_sweep_with_stale_last_used(monkeypatch)
     monkeypatch.setattr(on_demand, "READY_POLL_S", 0.01)
     monkeypatch.setattr(host_profile, "resolve", lambda: _Profile(None))
     monkeypatch.setattr(bp, "running_backends", dict)
-    monkeypatch.setattr(bp, "start", lambda mid: (True, "started"))
+    monkeypatch.setattr(bp, "start", lambda mid: ProcessOutcome(OutcomeKind.STARTED, "started"))
 
     # Last activity 40 min before the cold request: past the window.
     on_demand.request_finished("gemma", now=1000.0)
@@ -135,7 +136,7 @@ def test_ensure_ready_raises_on_deadline(monkeypatch):
     monkeypatch.setattr(host_profile, "resolve", lambda: _Profile(None))
     monkeypatch.setattr(bp, "is_reachable", lambda m, timeout=1.5: False)
     monkeypatch.setattr(bp, "running_backends", dict)
-    monkeypatch.setattr(bp, "start", lambda mid: (True, "started"))
+    monkeypatch.setattr(bp, "start", lambda mid: ProcessOutcome(OutcomeKind.STARTED, "started"))
 
     with pytest.raises(on_demand.OnDemandNotReady):
         on_demand.ensure_ready(_model(), deadline_s=0.05)
@@ -146,7 +147,7 @@ def test_ensure_ready_raises_on_start_failure(monkeypatch):
     monkeypatch.setattr(host_profile, "resolve", lambda: _Profile(None))
     monkeypatch.setattr(bp, "is_reachable", lambda m, timeout=1.5: False)
     monkeypatch.setattr(bp, "running_backends", dict)
-    monkeypatch.setattr(bp, "start", lambda mid: (False, "GGUF not found"))
+    monkeypatch.setattr(bp, "start", lambda mid: ProcessOutcome(OutcomeKind.LAUNCH_FAILED, "failed to launch: GGUF not found"))
 
     with pytest.raises(on_demand.OnDemandNotReady, match="GGUF not found"):
         on_demand.ensure_ready(_model(), deadline_s=0.05)
@@ -210,7 +211,7 @@ def _wire_sweep(monkeypatch, models, running=True):
     monkeypatch.setattr(model_registry, "local_models", lambda host=None: models)
     monkeypatch.setattr(bp, "is_running", lambda mid: running)
     stopped: list[str] = []
-    monkeypatch.setattr(bp, "stop", lambda mid: (stopped.append(mid), (True, "stopped"))[1])
+    monkeypatch.setattr(bp, "stop", lambda mid: (stopped.append(mid), ProcessOutcome(OutcomeKind.STOPPED, "stopped"))[1])
     return stopped
 
 
@@ -308,3 +309,46 @@ def test_finish_is_idempotent():
     track.finish()
     track.finish()
     assert _in_flight("gemma") == 0
+
+
+# --------------------------------------------------------------------------- #
+# ensure_ready branches on the start outcome's kind, never its detail text
+# --------------------------------------------------------------------------- #
+def _cold_start(monkeypatch, outcome, reachable_after: int):
+    monkeypatch.setattr(remote_proxy, "remote_base_url", lambda m: None)
+    monkeypatch.setattr(on_demand, "READY_POLL_S", 0.01)
+    monkeypatch.setattr(host_profile, "resolve", lambda: _Profile(None))
+    monkeypatch.setattr(bp, "running_backends", dict)
+    probes = {"n": 0}
+
+    def _reachable(m, timeout=1.5):
+        probes["n"] += 1
+        return probes["n"] > reachable_after
+
+    monkeypatch.setattr(bp, "is_reachable", _reachable)
+    monkeypatch.setattr(bp, "start", lambda mid: outcome)
+    return probes
+
+
+def test_ensure_ready_polls_on_already_running_whatever_its_detail(monkeypatch):
+    # A process mid-load: the detail no longer says "already running", only
+    # the kind does — the request still waits for readiness instead of failing.
+    probes = _cold_start(
+        monkeypatch, ProcessOutcome(OutcomeKind.ALREADY_RUNNING, "busy loading"), reachable_after=3,
+    )
+    on_demand.ensure_ready(_model(), deadline_s=5.0)
+    assert probes["n"] == 4
+
+
+@pytest.mark.parametrize("kind, detail", [
+    (OutcomeKind.LAUNCH_FAILED, "failed to launch: already running elsewhere"),
+    (OutcomeKind.NOT_ENABLED, "model 'gemma' not enabled on this host"),
+    (OutcomeKind.NOT_OWNER, "model 'gemma' is owned by host(s) ['mac'] — start it there"),
+])
+def test_ensure_ready_raises_on_every_failure_kind(monkeypatch, kind, detail):
+    # The launch-failure detail mentions "already running" on purpose: a text
+    # match would have waited on it, the kind says it failed.
+    probes = _cold_start(monkeypatch, ProcessOutcome(kind, detail), reachable_after=99)
+    with pytest.raises(on_demand.OnDemandNotReady, match="failed"):
+        on_demand.ensure_ready(_model(), deadline_s=5.0)
+    assert probes["n"] == 2  # the two pre-checks only, no readiness poll

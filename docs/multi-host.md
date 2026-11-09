@@ -199,6 +199,18 @@ a live port and a forwarded `/start` returns a benign `409` — so the periodic
 pass is safe to repeat forever and is strictly **additive**: it never stops a
 model you started by hand.
 
+Start and stop report a typed outcome (`ProcessOutcome` in
+`src/process/process_supervisor.py`), and every caller branches on its kind,
+never on the `detail` text. `POST /admin/api/models/{id}/start|stop` maps
+each kind to its own status and returns it as `outcome` beside `detail`:
+`started` / `adopted` / `stopped` → 200, `already_running` / `not_running`
+→ 409, `launch_failed` / `stop_failed` → 500, `not_enabled` → 404,
+`not_owner` → 403. The reconcile loop counts a 409 as converged, but a model
+a peer cannot launch (a missing binary or weights file) comes back
+`ok: false` with the peer's detail and a ⚠️ log line on every pass. A peer on
+an older build sends no `outcome`; its bare 409 still reads as converged, so
+a rolling update never marks a healthy fleet as failing.
+
 Each machine's **memory summary** on the Models tab (opened from its memory row) is read-only, over
 **every** configured fleet host: the models **running** there right now (live state), the models
 **loadable** but not running (that host's chain members, including
