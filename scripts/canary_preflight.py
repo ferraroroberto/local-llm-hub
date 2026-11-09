@@ -40,6 +40,9 @@ from typing import Dict, List, Optional
 
 import httpx
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from src.fsio.runtime_files import make_dirs, open_for_write, save_bytes, save_text  # noqa: E402
+
 log = logging.getLogger("canary_preflight")
 
 _FLEURS = "https://huggingface.co/datasets/google/fleurs/resolve/main/data/{lang}"
@@ -64,8 +67,7 @@ def _download(url: str, dest: Path) -> None:
     tmp = dest.with_suffix(dest.suffix + ".part")
     with httpx.stream("GET", url, follow_redirects=True, timeout=600.0) as resp:
         resp.raise_for_status()
-        # runtime-write-exempt: --out is the caller's folder, outside the tree
-        with tmp.open("wb") as fh:
+        with open_for_write(tmp, "wb") as fh:
             for chunk in resp.iter_bytes():
                 fh.write(chunk)
     tmp.replace(dest)
@@ -81,8 +83,7 @@ def _read_tsv(path: Path) -> List[List[str]]:
 
 def prepare(out: Path, short: int, long_: int) -> int:
     cache = out / "cache"
-    # runtime-write-exempt: --out is the caller's folder, outside the tree
-    cache.mkdir(parents=True, exist_ok=True)
+    make_dirs(cache)
     src_tsv, ref_tsv = cache / "src.tsv", cache / "ref.tsv"
     tarball = cache / "src_audio.tar.gz"
     _download(_FLEURS.format(lang=_SRC_LANG) + "/test.tsv", src_tsv)
@@ -107,14 +108,12 @@ def prepare(out: Path, short: int, long_: int) -> int:
     wanted = {r[1]: r for r in chosen}
 
     clips = out / "clips"
-    # runtime-write-exempt: --out is the caller's folder, outside the tree
-    clips.mkdir(exist_ok=True)
+    make_dirs(clips)
     with tarfile.open(tarball) as tar:
         for member in tar:
             name = Path(member.name).name
             if name in wanted and member.isfile():
-                # runtime-write-exempt: --out is the caller's folder, outside the tree
-                (clips / name).write_bytes(tar.extractfile(member).read())  # type: ignore[union-attr]
+                save_bytes(clips / name, tar.extractfile(member).read())  # type: ignore[union-attr]
     missing = [n for n in wanted if not (clips / n).exists()]
     if missing:
         raise SystemExit(f"{len(missing)} selected clips were not in the tarball: {missing[:3]}")
@@ -123,8 +122,7 @@ def prepare(out: Path, short: int, long_: int) -> int:
         {"id": r[0], "file": r[1], "seconds": round(seconds(r), 2), "es": r[2], "ref_en": refs[r[0]]}
         for r in chosen
     ]
-    # runtime-write-exempt: --out is the caller's folder, outside the tree
-    (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
+    save_text(out / "manifest.json", json.dumps(manifest, ensure_ascii=False, indent=1))
     log.info("✅ %d clips (%d short, %d long) -> %s", len(manifest), short, long_, out / "manifest.json")
     return 0
 
@@ -195,8 +193,7 @@ def run_hub(out: Path, base: str, stage1: str, stage2: str, think: bool) -> int:
             if polish["ok"]:
                 two_stage["elapsed_s"] = round(float(asr["elapsed_s"]) + float(polish["elapsed_s"]), 3)  # type: ignore[arg-type]
         results.append({"id": clip["id"], "whisper_translate": translate, "two_stage": two_stage})
-    # runtime-write-exempt: --out is the caller's folder, outside the tree
-    (out / "hub_results.json").write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
+    save_text(out / "hub_results.json", json.dumps(results, ensure_ascii=False, indent=1))
     log.info("✅ hub legs -> %s", out / "hub_results.json")
     return 0
 
@@ -292,9 +289,7 @@ def build_report(out: Path, canary_path: Path) -> int:
          **{name: paths[name][cid] for name in paths}}
         for cid in ordered
     ]
-    # runtime-write-exempt: --out is the caller's folder, outside the tree
-    (out / "report.json").write_text(json.dumps({"summary": summary, "clips": clips}, ensure_ascii=False, indent=1),
-                                     encoding="utf-8")
+    save_text(out / "report.json", json.dumps({"summary": summary, "clips": clips}, ensure_ascii=False, indent=1))
     print(json.dumps(summary, indent=1))
     return 0
 

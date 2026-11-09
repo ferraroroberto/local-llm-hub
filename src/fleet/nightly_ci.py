@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Protocol, Sequence, Tuple
 
+from ..fsio.runtime_files import make_dirs, save_text
 from . import mac_results_store as store
 from . import nightly_ci_issues as issues
 from .ssh_exec import SshResult
@@ -284,9 +285,9 @@ def send_digest(conn, send: Sender, staging_root: Path, unknown_repos: Sequence[
         return None
     line = digest_line(nights, unknown_repos)
     folder = staging_root / "nightly-digest"
-    folder.mkdir(parents=True, exist_ok=True)  # runtime-write-exempt: send_file.py only takes a file under %TEMP%/claude, so the digest is staged beside the images
+    make_dirs(folder)
     path = folder / "digest.txt"
-    path.write_text(line + "\n", encoding="utf-8")  # runtime-write-exempt: the same staging folder, removed after the send
+    save_text(path, line + "\n")
     try:
         outcome = send(path, line)
     finally:

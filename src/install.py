@@ -30,6 +30,7 @@ from typing import Callable, List, Optional
 
 log = logging.getLogger(__name__)
 
+from .fsio.runtime_files import make_dirs, save_text
 from .host_profile import hub_port
 from .host_profile import resolve as resolve_host
 from .model_registry import SPAWNABLE_BACKENDS, local_models
@@ -644,10 +645,8 @@ def _fix_launchagent() -> None:
     )
     (PROJECT_ROOT / "data" / "logs").mkdir(parents=True, exist_ok=True)
     plist_path = _launchagent_plist_path()
-    # runtime-write-exempt: macOS LaunchAgent plist under the user's Library, not the repo
-    plist_path.parent.mkdir(parents=True, exist_ok=True)
-    # runtime-write-exempt: macOS LaunchAgent plist under the user's Library, not the repo
-    plist_path.write_text(rendered, encoding="utf-8")
+    make_dirs(plist_path.parent)
+    save_text(plist_path, rendered)
     uid = os.getuid()
     # bootout first so a re-run picks up a changed plist (bootstrap alone
     # errors "already bootstrapped" on a still-loaded label); ignore its

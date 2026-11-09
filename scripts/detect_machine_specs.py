@@ -24,7 +24,7 @@ import psutil
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _lib import no_window_flags  # noqa: E402
+from _lib import make_dirs, no_window_flags, open_for_write  # noqa: E402
 
 logger = logging.getLogger("detect_machine_specs")
 
@@ -339,10 +339,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
         return 1
 
-    # runtime-write-exempt: output path is chosen by the caller
-    out.parent.mkdir(parents=True, exist_ok=True)
-    # runtime-write-exempt: output path is chosen by the caller
-    out.write_text(yaml_text, encoding="utf-8")
+    make_dirs(out.parent)
+    with open_for_write(out, "w", encoding="utf-8") as fh:
+        fh.write(yaml_text)
     logger.info("✅ Wrote %s", out)
     return 0
 

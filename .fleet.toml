@@ -221,10 +221,14 @@ exclude  = ["docs/frontier/runs/**"]
 # scripts/comment_ratchet.py, which fails when a file's reference count rises
 # above .comment-ratchet-baseline.json. Not path-routed: a count needs the
 # whole tree. Procedure + limits: project-scaffolding docs/comment-ratchet.md.
+# history_phrases counts decision-history wording in comments and docstrings. `docstrings`
+# (a `#NNN` inside a docstring) stays off: it finds 404 references in 103 files here, past
+# the point where one PR can burn them without a baseline.
 [comment_ratchet]
-enabled  = true
-baseline = ".comment-ratchet-baseline.json"
-exclude  = ["**/_vendored/**", "vendor/**", "data/**", "models/**"]
+enabled         = true
+baseline        = ".comment-ratchet-baseline.json"
+exclude         = ["**/_vendored/**", "vendor/**", "data/**", "models/**"]
+history_phrases = true
 
 # [structure_ratchet] -- the scaffold's baseline-and-ratchet layout stage. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/structure_ratchet.py, which fails when
@@ -248,9 +252,16 @@ exclude  = ["docs/frontier/runs/**"]
 # a file passes its size cap. Not path-routed: one file's reader depends on another
 # (AGENTS.md points at CLAUDE.md). Exit 3 (could not measure) fails the gate.
 # Procedure + limits: project-scaffolding docs/instruction-ratchet.md.
+# ci_expectations: .github/workflows/ needs a `## CI expectations` section in CLAUDE.md;
+# agents_pointer: AGENTS.md stays a short pointer; claude_md_max_lines: the app-repo cap;
+# repeated_text_words: CLAUDE.md may not repeat a 12-word run of docs/ (point to the doc).
 [instruction_ratchet]
-enabled  = true
-baseline = ".instruction-ratchet-baseline.json"
+enabled             = true
+baseline            = ".instruction-ratchet-baseline.json"
+ci_expectations     = true
+agents_pointer      = true
+claude_md_max_lines = 120
+repeated_text_words = 12
 
 # [doc_refs_ratchet] -- the scaffold's baseline-and-ratchet for references in
 # README.md, CLAUDE.md and docs/**/*.md to a repo path, `python -m` module, relative
@@ -306,12 +317,18 @@ rules       = ["no-window", "logging-not-print", "no-drive-path", "password-inpu
 exclude     = ["vendor/**", "data/**", "models/**"]
 print_paths = ["src/", "app_web/", "tray/"]
 
-# A raw replace skips the tmp-file swap. No sqlite3.connect entry: the two stores
-# each own their connection, and two call sites do not justify a shared helper.
+# A raw replace skips the tmp-file swap.
 [[conventions_ratchet.must_use]]
 call   = "os.replace"
 helper = ["src/atomic_write.py"]
 why    = "src/atomic_write.py is the one atomic-write helper (write-tmp + replace)"
+
+# Every store opens its database through the guarded writer, which refuses a path under a code folder.
+# The vendored src/usage_log.py is skipped by the rule.
+[[conventions_ratchet.must_use]]
+call   = "sqlite3.connect"
+helper = ["src/fsio/runtime_files.py"]
+why    = "src/fsio/runtime_files.py connect_sqlite() is the one database opener (it refuses a code-folder path)"
 
 # [runtime_write_ratchet] -- scripts/runtime_write_ratchet.py fails when a tracked
 # Python file gains a write target (open for writing, Path.write_*, mkdir, a log

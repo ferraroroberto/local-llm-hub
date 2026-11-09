@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _lib import InstallError, no_window_flags  # noqa: E402
+from _lib import InstallError, move, no_window_flags  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -230,8 +230,7 @@ def ensure_upscale_model() -> Path:
         local_dir=str(target_dir),
     ))
     if got != target:
-        # runtime-write-exempt: weights land in the install target directory, not a runtime output
-        shutil.move(str(got), str(target))
+        move(got, target)
     log.info("  -> %s (%.1f MB)", target, target.stat().st_size / 1e6)
     return target
 

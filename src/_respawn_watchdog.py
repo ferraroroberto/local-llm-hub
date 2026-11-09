@@ -113,7 +113,7 @@ def run(parent_pid: int, port: int, log_path: str, root: str) -> None:
     if sys.platform == "win32":
         flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
 
-    # runtime-write-exempt: log path is the argument the hub passes when it spawns the watchdog
+    # runtime-write-exempt: stdlib-only recovery process that imports nothing from src.* (it runs when a deploy is broken), so it cannot use the guarded writers; the hub passes a data/logs path
     with open(log_path, "a", encoding="utf-8", errors="replace") as logf:
         logf.write(f"{_stamp()} [respawn] relaunching {exe} -m src.server\n")
         logf.flush()

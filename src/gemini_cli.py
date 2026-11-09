@@ -44,6 +44,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from .fsio.runtime_files import copy_file
 from .http_client import DEFAULT_UPSTREAM_TIMEOUT_S
 from .hub_observability import ERROR_BACKEND_DOWN, ERROR_TIMEOUT, ClassifiedError
 from .server_common import safe_span, set_span_attrs, start_span
@@ -606,8 +607,7 @@ def call_gemini_image(
                 if editing:
                     ref_in_workdir = workdir / (
                         "input" + (reference_image.suffix or ".png"))
-                    # runtime-write-exempt: copies into a per-request temporary directory
-                    shutil.copyfile(reference_image, ref_in_workdir)
+                    copy_file(reference_image, ref_in_workdir)
                     add_dirs = [str(workdir)]
                 full_prompt = _image_prompt(prompt, save_name, ref_in_workdir)
                 reply = _print_call(

@@ -100,8 +100,8 @@ class RequestTracking:
     Every dispatch site that can reach a local ``startup: on_demand`` backend
     has to pair a :func:`request_started` with exactly one
     :func:`request_finished`, or the idle-unload window stays pinned open
-    forever. That pairing used to be hand-copied at four sites across three
-    modules — worst case, one ``request_started`` balanced by three separately
+    forever. Hand-copying that pairing at each site across several
+    modules goes wrong — worst case, one ``request_started`` balanced by three separately
     placed ``request_finished`` calls in a branched streaming function, where
     a fifth exit path added later silently leaks. Obtain one of these from
     :func:`tracking` instead:

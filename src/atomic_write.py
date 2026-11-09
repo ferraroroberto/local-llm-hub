@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 from typing import Any, Optional
 
+from .fsio.runtime_files import make_dirs, save_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,11 +21,9 @@ def atomic_write_text(path: Path, text: str) -> None:
     file; a crash mid-write leaves only the stray ``.tmp``. UTF-8, like every
     JSON store that calls this.
     """
-    # runtime-write-exempt: the shared atomic-write helper writes wherever its caller points
-    path.parent.mkdir(parents=True, exist_ok=True)
+    make_dirs(path.parent)
     tmp = path.with_name(path.name + ".tmp")
-    # runtime-write-exempt: the shared atomic-write helper writes wherever its caller points
-    tmp.write_text(text, encoding="utf-8")
+    save_text(tmp, text)
     os.replace(tmp, path)
 
 

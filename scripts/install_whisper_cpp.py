@@ -26,6 +26,7 @@ from typing import List, Optional
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _lib import (  # noqa: E402
     InstallError,
+    copy_file,
     download,
     extract,
     fetch_release,
@@ -183,8 +184,7 @@ def _macos_build_from_source() -> None:
         built_binary = build_dir / "bin" / "whisper-server"
         if not built_binary.exists():
             raise InstallError(f"build reported success but {built_binary} is missing")
-        # runtime-write-exempt: installs the built binary into vendor/, an install target
-        shutil.copy2(built_binary, _server_binary())
+        copy_file(built_binary, _server_binary())
 
         dylibs = sorted(build_dir.rglob("*.dylib"))
         log.info("flattening %d dylib(s) into %s", len(dylibs), VENDOR_DIR)

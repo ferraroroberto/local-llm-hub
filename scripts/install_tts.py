@@ -44,7 +44,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _lib import download, no_window_flags  # noqa: E402
+from _lib import download, make_dirs, no_window_flags  # noqa: E402
 
 from src.model_registry import enabled_models  # noqa: E402
 
@@ -231,8 +231,7 @@ def _download_kokoro_onnx() -> None:
     for m in kokoro:
         target = (PROJECT_ROOT / str(m.model_path)).resolve()
         out_dir = target.parent
-        # runtime-write-exempt: model path comes from config/models.yaml and lands under models/
-        out_dir.mkdir(parents=True, exist_ok=True)
+        make_dirs(out_dir)
         for filename, url in _KOKORO_ASSETS.items():
             out = out_dir / filename
             try:

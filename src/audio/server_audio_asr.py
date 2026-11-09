@@ -259,9 +259,9 @@ def _observable_audio_error(exc: HTTPException, ctx, requested: str) -> HTTPExce
     """Make an audio *failure* as observable as an audio success (#412).
 
     A strict rejection is precisely the event an operator has to be able to
-    see, yet it used to be the least visible thing the hub emitted: the reject
-    fired before anything stamped ``request.state.obs_ctx``, so the ring
-    recorded a blank row (``model=''``, ``backend=''``, counter key
+    see, yet an unstamped reject is the least visible thing the hub emits: it
+    fires before anything stamps ``request.state.obs_ctx``, so the ring
+    would record a blank row (``model=''``, ``backend=''``, counter key
     ``unknown``) and ``ObservatoryMiddleware`` could not recover it — its
     fallback peeks a *JSON* body and a multipart request never parses. Stamp
     the detail on the context and echo the same header trio a 200 carries,

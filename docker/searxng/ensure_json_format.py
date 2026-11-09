@@ -62,7 +62,7 @@ def main() -> int:
     else:
         formats.append("json")
 
-    # runtime-write-exempt: rewrites the settings.yml path given on the command line
+    # runtime-write-exempt: runs standalone in the SearXNG container with no repo on its path; rewrites the bind-mounted settings.yml the operator names, which the container also reads
     with path.open("w", encoding="utf-8") as f:
         yaml.dump(data, f)
 

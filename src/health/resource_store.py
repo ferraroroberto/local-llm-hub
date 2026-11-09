@@ -19,6 +19,7 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ..fsio.runtime_files import connect_sqlite, make_dirs
 from ..runtime_data import runtime_db_path
 
 logger = logging.getLogger(__name__)
@@ -45,10 +46,8 @@ class ResourceStore:
         return self._path or DEFAULT_DB_PATH
 
     def _connect(self) -> sqlite3.Connection:
-        # runtime-write-exempt: database path resolves to the runtime data dir (runtime_db_path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        # runtime-write-exempt: database path resolves to the runtime data dir (runtime_db_path)
-        conn = sqlite3.connect(self.path, timeout=5)
+        make_dirs(self.path.parent)
+        conn = connect_sqlite(self.path, timeout=5)
         conn.executescript(_SCHEMA)
         return conn
 

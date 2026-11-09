@@ -29,6 +29,11 @@ Local HTTP hub routing Anthropic- and OpenAI-shaped requests to multiple LLM/ASR
 
 **Design inventory.** Each e2e surface is tagged with the vendored `surface(page, "<tab>.<surface>")` hook (`tests/e2e/_surface.py`, inert unless `DESIGN_SURFACE_CAPTURE` is set) at the first test that opens it, after that test's assertions, directly in the test body (the hook deselects any test whose own source never calls it). A new surface takes one such call; `/design-review measure local-llm-hub --e2e` walks them on a disposable hub and reports any overlay still not walked.
 
+## CI expectations
+
+- Workflow `.github/workflows/e2e.yml` runs on every PR and every push to `main` on a hosted Windows runner: byte-compile, unit pytest, Chromium e2e. **Advisory, not required** (no branch protection): the local gate is the contract and CI is the clean-runner second opinion. Chromium only, by decision (`docs/ci-e2e-decision.md`).
+- CI's only signal beyond the local gate is a fresh `.venv` with committed files only. Its e2e surface is `app_web/`, `src/`, `tests/e2e/` and `.github/workflows/`; a diff that touches none of them (docs, `scripts/`, `tray/`) gains nothing from a CI run.
+
 ## UX surface
 *The design-conformance gate the `/issue-{start,finish,yolo}` skills read (convention: `project-scaffolding#83`). Live, parseable block — the admin PWA is the FastAPI + static app under `app_web/static/`, mounted at `/admin`.*
 
