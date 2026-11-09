@@ -19,6 +19,7 @@
 
 import { els, state, MODELS_ACTIVE_ONLY_KEY } from './state.js';
 import { jsonApi, postJson, putJson, toast, escapeHtml, codeHtml, fmtGb, isAuthError } from './api.js';
+import { servingState, isServing, servingChip, onDemandWord } from './serving_state.js';
 import { mountGlossaryEditor } from './glossary.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createRowMenu } from './_vendored/row-menu/row-menu.js';
@@ -83,22 +84,12 @@ function renderConfigChip() {
     : '';
 }
 
-/* The model's serving state as the hub derives it (serving_state: stopped,
- * loading, ready, adopted, failed, unknown). A peer on an older build sends
- * only `ownership`, read the way it always was. */
-function servingState(m) {
-  if (m.serving_state) return m.serving_state;
-  if (m.ownership === 'ours') return 'ready';
-  return m.ownership === 'external' ? 'adopted' : 'stopped';
-}
-
 // A row counts as "running" only if it's a controllable backend that serves:
 // a model still loading, failed or of unknown state is not running.
 // Claude/Gemini are excluded outright — they're subscription-backed with no
 // on/off state, always "on", so listing them here is just noise.
 function isActive(m) {
-  const s = servingState(m);
-  return m.controllable && (s === 'ready' || s === 'adopted');
+  return m.controllable && isServing(m);
 }
 
 function findModel(id) {
@@ -127,12 +118,8 @@ function kindLabel(m) {
  * normal states and carry nothing. */
 function exceptionChips(m) {
   const out = [];
-  if (m.controllable) {
-    const s = servingState(m);
-    if (s === 'failed') out.push({ text: 'failed', tone: 'danger' });
-    else if (s === 'unknown') out.push({ text: 'unknown', tone: 'attention' });
-    else if (s === 'loading') out.push({ text: 'loading' });
-  }
+  const serving = m.controllable ? servingChip(m) : null;
+  if (serving) out.push(serving);
   if (m.backend === 'typesafe' && !m.key_configured) out.push({ text: 'no key', tone: 'attention' });
   if (m.failover) out.push({ text: 'failover', tone: 'attention' });
   if (m.ownership === 'external') out.push({ text: 'adopted' });
@@ -240,11 +227,9 @@ function menuItems(m) {
  * reading its live state honestly — loaded while the backend answers, loading
  * between spawn and its first answer, failed or unknown when the hub says so,
  * else idle (stopped by the idle watchdog or never yet demanded). */
-const ON_DEMAND_WORD = { loading: 'loading', failed: 'failed', unknown: 'unknown' };
-
 function startupLabel(m, p) {
   if (p.startup !== 'on_demand') return 'Always on';
-  const word = ON_DEMAND_WORD[servingState(m)];
+  const word = onDemandWord(m);
   if (word) return 'on demand · ' + word;
   return m.reachable ? 'on demand · loaded' : 'on demand · idle';
 }

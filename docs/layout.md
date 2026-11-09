@@ -235,7 +235,7 @@ local-llm-hub/
 │   │                         #   telemetry / code_usage / glossary / hosts / machines /
 │   │                         #   diagnostics
 │   └── static/               #   index.html (+ sheets.html, spliced in at serve time) + main.js + state.js + tabs.js + api.js +
-│                             #   hub.js + models.js + startup.js + fleet_placement.js +
+│                             #   hub.js + models.js + serving_state.js + startup.js + fleet_placement.js +
 │                             #   playground.js + playground_jev.js + code_usage.js/.css +
 │                             #   confirm_dialog.js + diagnostics.js + glossary.js + machines.js/.css +
 │                             #   machines_terminal.js + rows.js/.css + settings.js +
