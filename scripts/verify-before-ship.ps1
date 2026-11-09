@@ -61,27 +61,59 @@
 #      Anything the router cannot read runs the full suite, never less.
 #
 # Stops on the first failure.
+#
+# Verdict line: the last stdout line is `GATE-RESULT: PASS` or `GATE-RESULT: FAIL`
+# on every path that can still run code. Never pipe the gate when its exit code
+# matters (a pipeline reports its last command's status, so `... | tail -40`
+# turns a red run green); a caller that cannot avoid a pipe asserts on that line.
+# A run with no such line is not a pass. Exit codes are the failing stage's own.
 
 $ErrorActionPreference = "Stop"
+
+# gate-verdict:begin
+# The verdict is the last stdout line of every path that can still run code. A
+# terminating error under the "Stop" preference above would otherwise print to
+# stderr only and exit 1, leaving a piped caller an empty, apparently clean run,
+# so the trap reports it on stdout first. The exit code is the failing stage's
+# own (1 for the trap and a missing .venv); the verdict only names pass or fail.
+function Write-GateResult($verdict) {
+    Write-Host "GATE-RESULT: $verdict"
+}
+
+function Complete-Gate([int]$Code) {
+    Write-GateResult $(if ($Code -eq 0) { "PASS" } else { "FAIL" })
+    exit $Code
+}
+
+trap {
+    Write-Host ""
+    Write-Host "[FAIL] the gate aborted on an unhandled error:" -ForegroundColor Red
+    Write-Host ("       {0}" -f $_.Exception.Message) -ForegroundColor Red
+    Complete-Gate 1
+}
+# gate-verdict:end
+
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $ProjectRoot
 
 $Python = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 if (-not (Test-Path $Python)) {
     Write-Host "❌ .venv\Scripts\python.exe not found at $Python" -ForegroundColor Red
-    exit 1
+    Complete-Gate 1
 }
 
+# gate-step:begin
 function Step($label, $block) {
     Write-Host ""
     Write-Host "▶ $label" -ForegroundColor Cyan
     & $block
     if ($LASTEXITCODE -ne 0) {
         Write-Host "❌ $label failed (exit $LASTEXITCODE)" -ForegroundColor Red
-        exit $LASTEXITCODE
+        Complete-Gate $LASTEXITCODE
     }
     Write-Host "✅ $label" -ForegroundColor Green
 }
+# gate-step:end
 
 Step "byte-compile" {
     & $Python -m compileall -q src app_web tray scripts
@@ -222,3 +254,4 @@ Step "runtime write probe" {
 
 Write-Host ""
 Write-Host "🚀 all green" -ForegroundColor Green
+Complete-Gate 0
