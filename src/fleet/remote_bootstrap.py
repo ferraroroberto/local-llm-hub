@@ -51,7 +51,7 @@ def _ssh_key_path() -> Optional[str]:
     return os.environ.get(_SSH_KEY_ENV)
 
 
-def _resolve_dialable(host_id: str) -> tuple[Optional[Any], Optional[str], Optional[Dict[str, Any]]]:
+def resolve_dialable(host_id: str) -> tuple[Optional[Any], Optional[str], Optional[Dict[str, Any]]]:
     """Look up ``host_id`` and dial its address. Returns ``(owner, address,
     None)`` on success, or ``(None, None, <error dict>)`` when the host is
     unconfigured/unreachable-by-config — shared by the forced-command and
@@ -95,7 +95,7 @@ def _run_remote_command(host_id: str, verb: str) -> Dict[str, Any]:
     key_path = _ssh_key_path()
     if not key_path:
         return {"ok": False, "error": f"{_SSH_KEY_ENV} is not set in .env"}
-    owner, address, err = _resolve_dialable(host_id)
+    owner, address, err = resolve_dialable(host_id)
     if err is not None:
         return err
     return _run_ssh(owner, address, verb, use_key=True)
@@ -161,7 +161,7 @@ def _run_power_command(host_id: str, flag: str) -> Dict[str, Any]:
     detach a short-delayed ``shutdown`` with ``nohup`` (survives the closing
     SSH channel) and let the remote command return cleanly; the box powers
     down/reboots ~2 s later."""
-    owner, address, err = _resolve_dialable(host_id)
+    owner, address, err = resolve_dialable(host_id)
     if err is not None:
         return err
     remote = f"nohup sh -c 'sleep 2; sudo -n /sbin/shutdown {flag} now' >/dev/null 2>&1 &"

@@ -120,6 +120,7 @@ local-llm-hub/
 │   │   ├── ssh_exec.py               #   the one `ssh <user>@<host> <cmd>` builder (remote_stats + remote_bootstrap + actions_runner)
 │   │   ├── actions_runner.py         #   a machine's GitHub Actions runner: service + GitHub readings, start/stop/install
 │   │   ├── mac_results.py            #   one pass: pull the Mac runner's new screenshots over the read-only key, send them to the owner's chat
+│   │   ├── mac_results_install.py    #   installs mac/bin/hub-results-pull.sh on the Mac over the general SSH channel: unchanged / installed / not_confirmed
 │   │   ├── mac_results_store.py      #   the pull's own SQLite record of what it delivered, reported and saw flaky (runtime-data path)
 │   │   ├── nightly_ci.py             #   a nightly Mac run's READY result -> ci-red-main action, flake ledger, digest line
 │   │   ├── nightly_ci_issues.py      #   the gh calls behind it: open/update/close ci-red-main, file flaky-test (deduped)
