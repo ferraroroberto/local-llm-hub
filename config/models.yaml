@@ -246,9 +246,9 @@ models:
     aliases: ["claude_opus", "claude-opus-4-8"]
 
   claude_fable:
-    display_name: claude-fable-5-1
+    display_name: claude-fable-5-2
     backend: claude
-    aliases: ["claude_fable", "claude-fable-5"]
+    aliases: ["claude_fable", "claude-fable-5", "claude-fable-5-1"]
 
   # --- Gemini subscription path (Google AI Pro via the Antigravity CLI) ---
   # Google deprecated the standalone `gemini` CLI (service ends

@@ -13,11 +13,11 @@ Subscription-backed cloud routes (no GPU, no API keys, no Cloud project):
   using your local Claude Code auth (your subscription) instead of an
   API key. Four rows: `claude-haiku-5-5` (alias `claude_haiku`),
   `claude-sonnet-5-5` (`claude_sonnet`), `claude-opus-5-5`
-  (`claude_opus`), `claude-fable-5-1` (`claude_fable`). The short aliases
+  (`claude_opus`), `claude-fable-5-2` (`claude_fable`). The short aliases
   are version-free, so when a new Claude release lands only the row's
   `display_name` needs updating and downstream callers keep working
   unchanged. The previous version ids (`claude-haiku-4-5`,
-  `claude-sonnet-4-6`, `claude-opus-4-8`, `claude-fable-5`) stay as extra
+  `claude-sonnet-4-6`, `claude-opus-4-8`, `claude-fable-5`, `claude-fable-5-1`) stay as extra
   aliases of their row, so a caller pinned to a raw old id gets the newest
   model instead of an error; the next bump appends its replaced id the same
   way.

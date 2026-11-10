@@ -611,6 +611,7 @@ def test_shipped_claude_rows_keep_previous_version_ids_as_aliases():
         "claude-sonnet-4-6": "claude_sonnet",
         "claude-opus-4-8": "claude_opus",
         "claude-fable-5": "claude_fable",
+        "claude-fable-5-1": "claude_fable",
     }
     for old_id, row_id in old_ids.items():
         model = model_registry.resolve(old_id)
