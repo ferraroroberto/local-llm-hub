@@ -258,8 +258,8 @@
       max(var(--nav-fade-tail, 24px), var(--bottom-tabs-margin, 21px)) +
       var(--bottom-tabs-height, 61px) + var(--bottom-tabs-margin, 21px) + var(--gap)
     );
-    /* Top = the safe area only: the top fade is off at scroll-top, so the
-       first card sits right under the status bar. */
+    /* Top = the safe area only in a browser tab: the top fade is off at
+       scroll-top, so the first card sits right under the status bar. */
     padding: env(safe-area-inset-top, 0px) var(--gap) var(--nav-bottom-reserve);
     scroll-padding-bottom: var(--nav-bottom-reserve);
   }
@@ -298,11 +298,22 @@
     transform: translateZ(0);
     will-change: transform;
   }
-  /* One-frame filter drop that nav-tabs.js sets once the standalone viewport
-     has settled, so iOS rebuilds the glass layer at its final bounds. */
+  /* One-frame rebuild that nav-tabs.js sets each time the installed app's
+     viewport settles (launch, return to the foreground). The filter drop makes
+     iOS rebuild the glass layer at its final bounds. The promotion drop (bar,
+     labels, badges) makes WebKit paint those layers' contents again: a
+     promoted layer keeps its bitmap across a filter toggle, so a raster taken
+     while the viewport was still growing would otherwise stay soft. Both
+     return on the next frame, so the modal-repaint reason above still holds. */
   .tabs.glass-rebuild {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+    transform: none;
+    will-change: auto;
+  }
+  .tabs.glass-rebuild .tab-label,
+  .tabs.glass-rebuild .tab-badge {
+    transform: none;
   }
   /* Hit area only, never painted: the rounded corners would otherwise let a
      row scrolled under the bar take taps in the outer tabs' corner slivers. */
@@ -395,6 +406,15 @@
     html {
       min-height: calc(100vh + 1px);
       min-height: calc(100lvh + 1px);
+    }
+    /* Content starts --standalone-head-offset below the safe area. iOS rasters
+       the header card soft when the page content begins right at the
+       safe-area edge of the installed app, and 20px lower renders it sharp on
+       the device. Plain padding, so it creates no layer and the bar (a
+       body-level sibling of .app) does not move; a browser tab and the
+       desktop keep the safe area alone. */
+    .app {
+      padding-top: calc(env(safe-area-inset-top, 0px) + var(--standalone-head-offset, 20px));
     }
     .tabs {
       top: calc(100vh - var(--bottom-tabs-margin, 21px) - var(--bottom-tabs-height, 61px));
