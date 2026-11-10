@@ -84,6 +84,8 @@ _REGULAR = "Regular File"
 AUDIT_CLEAN = "clean"
 AUDIT_MISS = "miss"
 AUDIT_UNKNOWN = "unknown"
+# READY has no audit line at all: written before the audit existed, so it can never be measured.
+AUDIT_LEGACY = "legacy"
 
 # Outcome states (one per run, per pass).
 DELIVERED = "delivered"
@@ -95,6 +97,11 @@ WOULD_DELIVER = "would_deliver"  # --dry-run only
 AUDIT_FILED = "audit_filed"  # the filing tool confirmed an outcome (FILE=created|commented|unchanged)
 AUDIT_NOT_MEASURED = "audit_unknown"  # the audit was not measured, or the filing was not confirmed
 WOULD_FILE = "would_file"  # --dry-run only
+LEGACY = "legacy"  # a folder that predates the audit or the READY marker; can never become measurable
+
+# A run folder with no READY this long after its last write is not in progress (a run
+# finishes within hours and the workflow writes READY last), so READY will never come.
+STALE_PENDING_S = 24 * 3600
 
 
 @dataclass(frozen=True)
@@ -129,15 +136,23 @@ class PassReport:
     ci_outcomes: List[nightly_ci.CiOutcome] = field(default_factory=list)
 
     @property
-    def exit_code(self) -> int:
-        """0 = every run the pass met is delivered or legitimately waiting;
-        1 = at least one thing is unknown or refused (the next pass retries); the
-        nightly-CI stage's unknown, refused and unsent-digest states count the same."""
-        if self.list_state != "ok":
-            return 1
+    def attention(self) -> int:
+        """How many things are unknown or refused (the next pass retries): runs refused,
+        not confirmed or unmeasured, and the nightly-CI stage's unknown, refused and
+        unsent-digest states. A ``legacy`` folder is not one of them."""
         bad = (REFUSED, NOT_CONFIRMED, AUDIT_NOT_MEASURED)
         ci_bad = (nightly_ci.UNKNOWN, nightly_ci.REFUSED, nightly_ci.DIGEST_NOT_CONFIRMED)
-        return 1 if any(o.state in bad for o in self.outcomes) or any(o.state in ci_bad for o in self.ci_outcomes) else 0
+        return sum(o.state in bad for o in self.outcomes) + sum(o.state in ci_bad for o in self.ci_outcomes)
+
+    @property
+    def legacy(self) -> int:
+        return sum(o.state == LEGACY for o in self.outcomes)
+
+    @property
+    def exit_code(self) -> int:
+        """0 = every run the pass met is delivered, legacy or legitimately waiting;
+        1 = the Mac could not be read, or something is unknown or refused."""
+        return 1 if self.list_state != "ok" or self.attention else 0
 
 
 @dataclass(frozen=True)
@@ -172,6 +187,18 @@ def _ssh_failure(result: SshResult) -> str:
     return f"remote command exited {result.returncode}"
 
 
+def _audit_word(fields: List[str]) -> str:
+    """The audit state of a RUN line's optional eighth field. The dispatcher prints ``-``
+    for a READY with no audit line at all, which only a pre-audit workflow wrote (the
+    current one always records ``unknown`` or ``not-run``). A missing field means an old
+    dispatcher, which says nothing about the folder, so it stays unmeasured."""
+    if not fields:
+        return AUDIT_UNKNOWN
+    if fields[0] in (AUDIT_CLEAN, AUDIT_MISS):
+        return fields[0]
+    return AUDIT_LEGACY if fields[0] == "-" else AUDIT_UNKNOWN
+
+
 def parse_listing(text: str) -> Tuple[List[RunEntry], List[str]]:
     """``(runs, malformed)`` from the script's ``list`` output. A line that does
     not match the grammar is reported, not trusted and not fatal."""
@@ -192,7 +219,7 @@ def parse_listing(text: str) -> Tuple[List[RunEntry], List[str]]:
                 repo, run_id, kind == "ready", max(0, now - int(stamp)),
                 e2e if _OUTCOME_RE.match(e2e) else "unknown",
                 smoke if _OUTCOME_RE.match(smoke) else "unknown",
-                audit[0] if audit and audit[0] in (AUDIT_CLEAN, AUDIT_MISS) else AUDIT_UNKNOWN,
+                _audit_word(audit),
             ))
         elif line.strip():
             malformed.append("unparseable listing line")
@@ -493,13 +520,18 @@ def run_pass(ssh: Ssh, send: Sender, conn, staging_root: Path, *, window_days: i
             report.out_of_window += 1
             continue
         if not entry.ready:
-            report.outcomes.append(RunOutcome(entry.repo, entry.run_id, PENDING, "no READY yet"))
+            if entry.age_s > STALE_PENDING_S:
+                report.outcomes.append(RunOutcome(entry.repo, entry.run_id, LEGACY, "no READY marker a day after the last write; it will not become measurable"))
+            else:
+                report.outcomes.append(RunOutcome(entry.repo, entry.run_id, PENDING, "no READY yet"))
             continue
         need_images = not store.run_delivered(conn, entry.repo, entry.run_id)
         need_audit = entry.audit == AUDIT_MISS and not store.audit_filed(conn, entry.repo, entry.run_id)
         if entry.audit == AUDIT_UNKNOWN:
             # Never folded into clean: the night was not measured. Not recorded, so every pass says so.
             report.outcomes.append(RunOutcome(entry.repo, entry.run_id, AUDIT_NOT_MEASURED, "READY records no measured routing audit"))
+        elif entry.audit == AUDIT_LEGACY:
+            report.outcomes.append(RunOutcome(entry.repo, entry.run_id, LEGACY, "READY predates the routing audit; not measurable, not counted"))
         if not (need_images or need_audit):
             report.already_delivered += 1
         elif dry_run:
@@ -567,7 +599,7 @@ def _print_report(report: PassReport) -> None:
     if not report.outcomes:
         print("ℹ️ nothing new to deliver")
     icons = {DELIVERED: "✅", EMPTY: "ℹ️", PENDING: "ℹ️", WOULD_DELIVER: "ℹ️", REFUSED: "❌", NOT_CONFIRMED: "⚠️",
-             AUDIT_FILED: "✅", AUDIT_NOT_MEASURED: "⚠️", WOULD_FILE: "ℹ️"}
+             AUDIT_FILED: "✅", AUDIT_NOT_MEASURED: "⚠️", WOULD_FILE: "ℹ️", LEGACY: "ℹ️"}
     for o in report.outcomes:
         print(f"{icons[o.state]} {o.repo} run {o.run_id}: {o.state} - {o.detail}")
     ci_icons = {nightly_ci.REPORTED: "✅", nightly_ci.WOULD_REPORT: "ℹ️", nightly_ci.DIGEST_SENT: "✅",
@@ -575,6 +607,17 @@ def _print_report(report: PassReport) -> None:
     for c in report.ci_outcomes:
         print(f"{ci_icons[c.state]} {c.repo} run {c.run_id}: {c.state} - {c.detail}")
     print(f"ℹ️ already delivered: {report.already_delivered}; outside the pull window: {report.out_of_window}")
+    print(_verdict_line(report))
+
+
+def _verdict_line(report: PassReport) -> str:
+    """One line that says why the pass is green or red. A missing setup never reaches
+    it: that exits 2 with its own ``setup missing`` line before the Mac is read."""
+    if report.attention:
+        return f"⚠️ verdict: red - {report.attention} item(s) unknown, refused or not confirmed (listed above)"
+    if report.legacy:
+        return f"ℹ️ verdict: ok - old folders only: {report.legacy} legacy, not measurable and not counted; setup is complete"
+    return "ℹ️ verdict: ok"
 
 
 def _write_status(code: int) -> None:
@@ -613,15 +656,15 @@ def _main(argv: Optional[List[str]]) -> int:
         pass
     host_id = (args.host or os.environ.get(HOST_ENV, "")).strip()
     if not host_id:
-        print(f"❌ no host: pass --host or set {HOST_ENV} in .env")
+        print(f"❌ setup missing - no host: pass --host or set {HOST_ENV} in .env")
         return 2
     ssh, problem = _ssh_for(host_id)
     if ssh is None:
-        print(f"❌ {problem}")
+        print(f"❌ setup missing - {problem}")
         return 2
     send_file = Path(args.send_file) if args.send_file else _default_send_file()
     if not send_file.is_file():
-        print("❌ send_file.py not found; pass --send-file")
+        print("❌ setup missing - send_file.py not found; pass --send-file")
         return 2
     # A missing filing script does not stop the screenshots: a miss run then reports audit_unknown.
     routing_audit = Path(args.routing_audit) if args.routing_audit else _default_routing_audit()

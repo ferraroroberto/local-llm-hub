@@ -28,9 +28,9 @@ background it.
    When this session was started by hand with a `--dry-run` request, add that
    flag and nothing else.
 2. Relay the CLI's output lines verbatim: one line per run (`delivered`,
-   `empty`, `pending`, `refused`, `not_confirmed`, `audit_filed`, `audit_unknown`, `ci_reported`, `ci_unknown`, `ci_refused`, `digest_sent`, `digest_not_confirmed`) or
+   `empty`, `pending`, `refused`, `not_confirmed`, `audit_filed`, `audit_unknown`, `legacy`, `ci_reported`, `ci_unknown`, `ci_refused`, `digest_sent`, `digest_not_confirmed`) or
    `nothing new to deliver`,
-   and the `already delivered` summary. Do not paraphrase a state into a
+   the `already delivered` summary and the `verdict:` line. Do not paraphrase a state into a
    softer one, and do not add a host, user, address or key path to anything
    you say.
 3. Finish with one line: `MAC-RESULTS: exit <code>`, using the CLI's own exit

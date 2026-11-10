@@ -352,7 +352,7 @@ def test_clean_run_files_nothing(conn, tmp_path):
     assert filer.seen == [] and not any(c.startswith("audit") for c in mac.commands)
 
 
-@pytest.mark.parametrize("audit", ["unknown", "not_run", "-", "$(rm)"])
+@pytest.mark.parametrize("audit", ["unknown", "not_run", "not-run", "$(rm)"])
 def test_unmeasured_audit_is_reported_unknown_and_retried_never_clean(conn, tmp_path, audit):
     mac = FakeMac({"100": _run(audit=audit)})
     filer = FakeFiler()
@@ -362,6 +362,43 @@ def test_unmeasured_audit_is_reported_unknown_and_retried_never_clean(conn, tmp_
     second = _pass(mac, FakeSender(), conn, tmp_path, filer=filer)  # images are done; the audit is still unknown
     assert [o.state for o in second.outcomes] == [mr.AUDIT_NOT_MEASURED] and second.exit_code == 1
     assert filer.seen == []
+
+
+def test_ready_without_an_audit_line_is_legacy_and_does_not_fail_the_pass(conn, tmp_path, capsys):
+    # The dispatcher prints "-" for a READY that has no audit line: written before the audit existed.
+    mac = FakeMac({"100": _run(audit="-")})
+    sender = FakeSender()
+    report = _pass(mac, sender, conn, tmp_path, filer=FakeFiler())
+    assert [o.state for o in report.outcomes] == [mr.LEGACY, mr.DELIVERED]
+    assert report.exit_code == 0 and report.attention == 0 and report.legacy == 1
+    assert len(sender.sent) == 2  # the old folder's images still reach the owner
+    mr._print_report(report)
+    assert "verdict: ok - old folders only: 1 legacy" in capsys.readouterr().out
+    again = _pass(mac, sender, conn, tmp_path, filer=FakeFiler())
+    assert [o.state for o in again.outcomes] == [mr.LEGACY] and again.exit_code == 0
+
+
+def test_new_run_with_unmeasured_audit_still_fails_next_to_a_legacy_folder(conn, tmp_path, capsys):
+    mac = FakeMac({"100": _run(audit="-", age=3 * 86400), "101": _run(audit="unknown")})
+    report = _pass(mac, FakeSender(), conn, tmp_path, filer=FakeFiler())
+    assert {o.run_id: o.state for o in report.outcomes if o.state != mr.DELIVERED} == {"100": mr.LEGACY, "101": mr.AUDIT_NOT_MEASURED}
+    assert report.exit_code == 1 and report.attention == 1
+    mr._print_report(report)
+    assert "verdict: red - 1 item(s)" in capsys.readouterr().out
+
+
+def test_ready_run_with_a_measured_audit_is_ok_with_no_legacy_note(conn, tmp_path, capsys):
+    report = _pass(FakeMac({"100": _run(audit="clean")}), FakeSender(), conn, tmp_path, filer=FakeFiler())
+    assert report.exit_code == 0 and report.legacy == 0
+    mr._print_report(report)
+    assert "verdict: ok\n" in capsys.readouterr().out
+
+
+def test_old_run_folder_without_ready_is_legacy_but_a_recent_one_is_pending(conn, tmp_path):
+    mac = FakeMac({"100": _run(ready=False, age=mr.STALE_PENDING_S + 60), "101": _run(ready=False, age=3600)})
+    report = _pass(mac, FakeSender(), conn, tmp_path)
+    assert {o.run_id: o.state for o in report.outcomes} == {"100": mr.LEGACY, "101": mr.PENDING}
+    assert report.exit_code == 0 and mac.commands == ["list"]
 
 
 def test_dispatcher_without_the_audit_field_reads_as_unknown():
@@ -511,7 +548,8 @@ def test_host_comes_from_the_env_when_not_passed(cli_env, monkeypatch, tmp_path,
 
 def test_no_host_is_not_configured_and_the_status_file_says_so(cli_env, capsys):
     assert mr.main([]) == 2
-    assert mr.HOST_ENV in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert mr.HOST_ENV in out and "setup missing" in out
     assert cli_env.read_text() == "2\n"
 
 

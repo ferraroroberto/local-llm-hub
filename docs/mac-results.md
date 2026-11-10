@@ -49,7 +49,10 @@ Each condition is reported on its own line and never folded into "nothing to del
 | `ci_refused` | `READY` names another run or repo than its folder | no, retried |
 | `digest_sent` | the digest line was confirmed sent | yes |
 | `digest_not_confirmed` | the digest send was refused, unavailable or kept in a Job's artifacts | no, retried |
+| `legacy` | a folder that can never become measurable: its `READY` has no audit line (written before the audit existed), or it has no `READY` a day after its last write. Reported on its own line, never counted in the verdict; a READY run's images are still delivered | yes (images) / nothing to do |
 | `unreachable` (pass level) | the Mac's listing could not be read | no |
+
+Every pass ends with a `verdict:` line: `red` when something above is unknown, refused or not confirmed, `ok - old folders only` when the only noise is `legacy` folders (they age out of the window by themselves), plain `ok` otherwise. A missing setup never reaches it: that exits 2 with a `setup missing - ...` line before the Mac is read. A new run whose `READY` says `audit=unknown` or `not-run` is a real unmeasured night and stays `audit_unknown`; so does a `READY` listed by a dispatcher that predates the audit field, because the folder itself is not known to be old.
 
 An `audit=unknown` run is reported on every pass until it leaves the pull window, because the night was never measured (the first run of a repo only records a baseline, a skipped e2e leg is unmeasured too). A `READY` from a dispatcher or workflow that predates the audit field reads the same way. Only a `SENT=` line counts as sent. A timeout is `UNAVAILABLE`: the launcher may have stored the file, so a retry can rarely duplicate an image, but it is never lost.
 
