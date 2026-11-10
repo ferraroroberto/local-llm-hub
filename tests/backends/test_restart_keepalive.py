@@ -32,7 +32,9 @@ def _reset_restart_flag():
 def _patch_backends(monkeypatch):
     """Pretend two backends are running and record any stop() calls."""
     stopped: list[str] = []
-    monkeypatch.setattr(bp, "running_backends", lambda: {"qwen": object(), "whisper": object()})
+    live = {"qwen": object(), "whisper": object()}
+    monkeypatch.setattr(bp, "running_backends", lambda: live)
+    monkeypatch.setattr(bp, "spawned_backends", lambda: live)
     monkeypatch.setattr(bp, "stop", lambda mid: (stopped.append(mid), ProcessOutcome(OutcomeKind.STOPPED, "stopped"))[1])
     return stopped
 

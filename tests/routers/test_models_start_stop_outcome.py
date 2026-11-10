@@ -36,6 +36,7 @@ def _client() -> TestClient:
     (OutcomeKind.LAUNCH_FAILED, "failed to launch: piper binary not found", 500),
     (OutcomeKind.NOT_ENABLED, "model 'piper' not enabled on this host", 404),
     (OutcomeKind.NOT_OWNER, "model 'piper' is owned by host(s) ['mac'] — start it there", 403),
+    (OutcomeKind.UNCONFIRMED_LISTENER, "the port answers but its holder (PID 5) is not confirmed", 409),
 ])
 def test_start_maps_each_outcome_to_its_status(monkeypatch, kind, detail, status):
     monkeypatch.setattr(bp, "start", lambda mid: ProcessOutcome(kind, detail))

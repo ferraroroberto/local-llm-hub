@@ -115,6 +115,10 @@ def comfyui_python() -> Path:
     return VENDOR_COMFYUI / ".venv" / "bin" / "python"
 
 
+# Engines the hub hosts as ``python -m src.<module>`` rather than a prebuilt binary.
+_PYTHON_HOSTED_ENGINES = frozenset({"tts-server", "parakeet-server"})
+
+
 def _is_whisper(model: Model) -> bool:
     return model.engine == "whisper-server" or model.backend == "whisper"
 
@@ -267,6 +271,32 @@ def _inherited_alive(state: "_BackendState") -> bool:
         return False
 
 
+def holder_confirmed(model: Model, holder_pid: Optional[int]) -> Optional[bool]:
+    """Is the process holding *model*'s port that model's server binary?
+
+    ``True`` confirmed, ``False`` another program, ``None`` not established (no
+    PID, the process is gone, or its exe is unreadable). A listener counts as
+    the backend only once this is ``True``: an unrelated program on the port is
+    neither adopted nor routed to as ours.
+    """
+    if holder_pid is None:
+        return None
+    try:
+        import psutil
+
+        proc = psutil.Process(holder_pid)
+        exe = proc.exe()
+        try:
+            cmdline = list(proc.cmdline() or [])
+        except (psutil.AccessDenied, OSError):
+            cmdline = []
+    except Exception:  # noqa: BLE001 — NoSuchProcess / AccessDenied / OSError all mean "unreadable"
+        return None
+    if not exe:
+        return None
+    return _looks_like_backend_binary(exe, model, cmdline)
+
+
 def serving(
     model: Model,
     reachable: bool,
@@ -289,11 +319,13 @@ def serving(
         pid_ = holders[0] if holders else None
         if state.proc is not None:
             exit_code = state.proc.poll()
+    foreign = not alive and bool(holders)
     obs = Observation(
         alive=alive, reachable=bool(reachable),
         port_known=listening is not None or not model.port,
-        port_foreign=not alive and bool(holders),
+        port_foreign=foreign,
         exit_code=exit_code, pid=pid_,
+        holder_confirmed=holder_confirmed(model, pid_) if foreign else None,
     )
     return derive(obs, state.load, time.monotonic() if now is None else now)
 
@@ -607,6 +639,7 @@ def start(model_id: str) -> ProcessOutcome:
             set_process=lambda proc: setattr(state, "proc", proc),
             on_spawned=on_spawned,
             adopt_message="adopted external instance",
+            listener_confirmed=lambda holder: holder_confirmed(model, holder),
         ).start()
         # A record left by an earlier process that died describes nothing
         # once someone else's process serves the port or no spawn happened.
@@ -752,12 +785,13 @@ def _looks_like_backend_binary(
             str(VENDOR_COMFYUI).lower() in joined
             or exe == str(comfyui_python()).lower()
         )
-    # Default: llama.cpp's llama-server. tts-server and parakeet-server run
-    # as ``python -m src.<module>`` — recognise pythonw too.
-    return (
-        "llama-server" in exe
-        or "python" in exe  # tts_server.py / parakeet_server.py path
-    )
+    # tts-server and parakeet-server run as ``python -m src.<module>`` —
+    # recognise pythonw too.
+    if model.engine in _PYTHON_HOSTED_ENGINES:
+        return "python" in exe
+    # Every other engine is llama.cpp's llama-server. A python process on a
+    # llama port is a stranger, not the backend.
+    return "llama-server" in exe
 
 
 def resolve_model_by_id(model_id: str) -> Optional[Model]:
@@ -796,6 +830,20 @@ def running_backends() -> Dict[str, Model]:
     out: Dict[str, Model] = {}
     for m in local_models():
         if m.backend in SPAWNABLE_BACKENDS and is_running(m.id):
+            out[m.id] = m
+    return out
+
+
+def spawned_backends() -> Dict[str, Model]:
+    """{model_id: Model} for each local backend this hub spawned and still owns.
+
+    Narrower than :func:`running_backends`: an inherited backend is excluded.
+    Another hub or a launcher started it, so this hub's shutdown leaves it running.
+    """
+    out: Dict[str, Model] = {}
+    for m in local_models():
+        p = _state_for(m.id).proc
+        if m.backend in SPAWNABLE_BACKENDS and p is not None and p.poll() is None:
             out[m.id] = m
     return out
 

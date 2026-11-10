@@ -122,7 +122,9 @@ admin SPA's Hub/Models tabs coexist, every launcher follows the same
 **adopt-or-spawn** rule:
 
 - If the port is already reachable, the launcher *adopts* the running
-  process (no second spawn, no error) and treats it as up.
+  process (no second spawn, no error) and treats it as up. A model
+  backend's port is adopted only when its holder is confirmed to be that
+  model's server binary (docs/serving-state.md).
 - Each launcher only stops what it spawned itself. Closing the tray
   doesn't stop a hub that `run_hub.bat` started, and vice versa.
 - The admin webapp's **🧠 Models** tab distinguishes managed vs.

@@ -63,6 +63,10 @@ async def stop_backend_children() -> None:
     respawned hub re-adopts them (``inherit_running_backends``). The
     restart endpoint sets ``backend_process.restart_pending()`` before
     signalling shutdown; we honour it by skipping teardown.
+
+    A backend this hub only inherited or adopted (another hub, a launcher or
+    the user started it) is never stopped here: shutdown ends what this hub
+    spawned, nothing else.
     """
     from . import http_client
     from .process import backend_process as bp
@@ -81,7 +85,7 @@ async def stop_backend_children() -> None:
         )
         return
 
-    for model_id in list(bp.running_backends().keys()):
+    for model_id in list(bp.spawned_backends().keys()):
         try:
             outcome = bp.stop(model_id)
             logger.info("shutdown: stop %s -> %s %s", model_id, outcome.kind.value, outcome.detail)

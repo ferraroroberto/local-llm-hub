@@ -126,6 +126,7 @@ def test_never_started_with_a_free_port_is_stopped(monkeypatch):
 
 def test_someone_elses_listener_is_adopted(monkeypatch):
     monkeypatch.setitem(bp._STATES, "m_serving", bp._BackendState())
+    monkeypatch.setattr(bp, "holder_confirmed", lambda _model, _pid: True)
     s = _serving(_model(), reachable=True, listening={PORT: [5151]})
     assert (s.state.value, s.ownership, s.pid) == ("adopted", "external", 5151)
 

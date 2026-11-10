@@ -394,6 +394,7 @@ _OUTCOME_STATUS = {
     OutcomeKind.STOP_FAILED: 500,
     OutcomeKind.NOT_ENABLED: 404,
     OutcomeKind.NOT_OWNER: 403,
+    OutcomeKind.UNCONFIRMED_LISTENER: 409,
 }
 
 
