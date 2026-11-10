@@ -395,6 +395,47 @@ def test_a_pass_with_nothing_new_sends_no_digest(conn, tmp_path):
     assert _pass(FakeMac({}), FakeGh(), sender, conn, tmp_path).ci_outcomes == [] and sender.sent == []
 
 
+# ---------------------------------------------- a legacy folder is classified once
+
+
+class LegacyAuditMac(FakeMac):
+    """Lists the ``legacy_runs`` with the ``-`` audit word the dispatcher prints for a READY that predates the audit."""
+
+    def __init__(self, nights: Dict[str, Dict], legacy_runs: Sequence[str]) -> None:
+        super().__init__(nights)
+        self.legacy_runs = set(legacy_runs)
+
+    def __call__(self, command: str, timeout: int) -> SshResult:
+        got = super().__call__(command, timeout)
+        if command != "list":
+            return got
+        lines = [ln[:-len("clean")] + "-" if ln.startswith("RUN ") and ln.split(" ")[2] in self.legacy_runs else ln
+                 for ln in got.stdout.splitlines()]
+        return _ok("\n".join(lines) + "\n")
+
+
+def test_a_legacy_folder_is_one_outcome_and_does_not_turn_the_verdict_red(conn, tmp_path, capsys):
+    # A READY with no recorded nightly result reads "unknown" in the CI step; the audit step already called it legacy.
+    mac = LegacyAuditMac({"100": {"age": 3 * 86400, "ready": "run=100\nrepo=task-os\n"}}, ["100"])
+    report = _pass(mac, FakeGh(), FakeSender(), conn, tmp_path)
+    assert [(o.run_id, o.state) for o in report.outcomes if o.state == mr.LEGACY] == [("100", mr.LEGACY)]
+    assert report.ci_outcomes == [] and not any(c.startswith("ready") for c in mac.commands)
+    assert report.exit_code == 0 and report.attention == 0
+    mr._print_report(report)
+    assert "verdict: ok - old folders only: 1 legacy" in capsys.readouterr().out
+
+
+def test_an_unknown_night_beside_a_legacy_folder_still_reports_unknown_and_red(conn, tmp_path, capsys):
+    nights = {"100": {"age": 3 * 86400, "ready": "run=100\nrepo=task-os\n"},
+              "101": {"age": 60, "ready": "run=101\nrepo=task-os\n"}}
+    report = _pass(LegacyAuditMac(nights, ["100"]), FakeGh(), FakeSender(), conn, tmp_path)
+    assert [(o.run_id, o.state) for o in report.outcomes if o.state == mr.LEGACY] == [("100", mr.LEGACY)]
+    assert _states(report) == [("101", nc.UNKNOWN)]
+    assert report.exit_code == 1 and report.attention == 1
+    mr._print_report(report)
+    assert "verdict: red - 1 item(s)" in capsys.readouterr().out
+
+
 # ------------------------------------------------------------------ gh helpers
 
 
