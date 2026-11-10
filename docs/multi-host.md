@@ -205,7 +205,8 @@ never on the `detail` text. `POST /admin/api/models/{id}/start|stop` maps
 each kind to its own status and returns it as `outcome` beside `detail`:
 `started` / `adopted` / `stopped` → 200, `already_running` / `not_running`
 → 409, `launch_failed` / `stop_failed` → 500, `not_enabled` → 404,
-`not_owner` → 403. The reconcile loop counts a 409 as converged, but a model
+`not_owner` → 403, `unconfirmed_listener` → 409 (the port answers but its holder is not
+confirmed as the model's server binary). The reconcile loop counts a 409 as converged, but a model
 a peer cannot launch (a missing binary or weights file) comes back
 `ok: false` with the peer's detail and a ⚠️ log line on every pass. A peer on
 an older build sends no `outcome`; its bare 409 still reads as converged, so

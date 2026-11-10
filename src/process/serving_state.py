@@ -13,12 +13,13 @@ States:
 * ``loading`` — ours, spawned (or inherited) and not yet answering, still
   inside the load deadline.
 * ``ready`` — ours and answering.
-* ``adopted`` — someone else's process holds the port (the hub routes to it
-  but did not start it).
+* ``adopted`` — someone else's process holds the port and is confirmed to be
+  this model's server binary (the hub routes to it but did not start it).
 * ``failed`` — ours died, or never answered within the deadline, or stopped
   answering after it was ready; ``reason`` says which.
-* ``unknown`` — the port snapshot failed, so "stopped" cannot be told from
-  "held by someone else".
+* ``unknown`` — a fact needed to tell the states apart could not be gathered
+  (the port snapshot failed, or the port holder's identity could not be
+  read), or the port holder is some other program.
 
 :func:`derive` is pure apart from latching ``LoadRecord.ready`` the first
 time a live process answers; the per-model ``LoadRecord`` lives in
@@ -77,6 +78,10 @@ class Observation:
     port_foreign: bool                # someone else listens on the port
     exit_code: Optional[int] = None   # our Popen's exit code once it died
     pid: Optional[int] = None         # ours while alive, else the port holder's
+    # The foreign port holder is this model's server binary: True confirmed,
+    # False another program, None could not be read. Unset reads as
+    # unconfirmed, so a reader that skips the check cannot produce ``adopted``.
+    holder_confirmed: Optional[bool] = None
 
 
 @dataclass(frozen=True)
@@ -140,5 +145,9 @@ def derive(
     if not obs.port_known:
         return Serving(ServingState.UNKNOWN, "listening-port snapshot failed")
     if obs.port_foreign:
-        return Serving(ServingState.ADOPTED, ownership=OWNERSHIP_EXTERNAL, pid=obs.pid)
+        if obs.holder_confirmed:
+            return Serving(ServingState.ADOPTED, ownership=OWNERSHIP_EXTERNAL, pid=obs.pid)
+        if obs.holder_confirmed is False:
+            return Serving(ServingState.UNKNOWN, "port holder is not this model's server binary")
+        return Serving(ServingState.UNKNOWN, "port holder's identity could not be confirmed")
     return Serving(ServingState.STOPPED)

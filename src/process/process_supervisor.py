@@ -57,6 +57,7 @@ class OutcomeKind(str, Enum):
     LAUNCH_FAILED = "launch_failed"
     NOT_ENABLED = "not_enabled"
     NOT_OWNER = "not_owner"
+    UNCONFIRMED_LISTENER = "unconfirmed_listener"  # the port answers but its holder is not the backend
     STOPPED = "stopped"
     NOT_RUNNING = "not_running"
     STOP_FAILED = "stop_failed"
@@ -106,6 +107,7 @@ class ProcessSupervisor:
         set_process: Callable[[Optional[subprocess.Popen]], None],
         on_spawned: Callable[[subprocess.Popen], None] | None = None,
         adopt_message: str,
+        listener_confirmed: Callable[[Optional[int]], Optional[bool]] | None = None,
     ) -> None:
         self._already_running = already_running
         self._reachable = reachable
@@ -114,6 +116,7 @@ class ProcessSupervisor:
         self._set_process = set_process
         self._on_spawned = on_spawned
         self._adopt_message = adopt_message
+        self._listener_confirmed = listener_confirmed
 
     def start(self) -> ProcessOutcome:
         if self._already_running():
@@ -121,6 +124,17 @@ class ProcessSupervisor:
 
         if self._reachable():
             ext_pid = self._external_pid()
+            # A listener that answers is adopted only once the caller confirms
+            # its identity: a stranger on the port is neither adopted nor
+            # spawned over. Callers that pass no check keep adopting any
+            # reachable listener (the tray adopting an external hub).
+            if self._listener_confirmed is not None and self._listener_confirmed(ext_pid) is not True:
+                who = f"PID {ext_pid}" if ext_pid else "an unidentified process"
+                return ProcessOutcome(
+                    OutcomeKind.UNCONFIRMED_LISTENER,
+                    f"the port answers but its holder ({who}) is not confirmed as this backend's server binary",
+                    ext_pid,
+                )
             suffix = f" (PID {ext_pid})" if ext_pid else ""
             return ProcessOutcome(OutcomeKind.ADOPTED, f"{self._adopt_message}{suffix}", ext_pid)
 

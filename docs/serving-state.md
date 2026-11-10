@@ -17,11 +17,19 @@ Declaring the states makes a bad transition fail loudly (a dead process with a l
 | `stopped` | No process of ours, nothing on the port. |
 | `loading` | Ours, spawned or inherited, not yet answering, still inside the load deadline (`LOAD_DEADLINE_S`, the same budget an on-demand first request waits). |
 | `ready` | Ours and answering. |
-| `adopted` | Someone else's process holds the port; the hub routes to it but did not start it. |
+| `adopted` | Someone else's process holds the port and is confirmed to be this model's server binary (see [Adoption needs identity](#adoption-needs-identity)); the hub routes to it but did not start it. |
 | `failed` | Ours died on its own, missed the load deadline, or stopped answering after it was ready. `serving_reason` says which. |
-| `unknown` | The listening-port snapshot failed, so `stopped` cannot be told from `adopted`. Start stays disabled. |
+| `unknown` | A fact needed to tell the states apart could not be gathered (the listening-port snapshot failed, or the port holder's identity could not be read), or the port holder is some other program. `serving_reason` says which. Start stays disabled. |
 
 `backend_process.serving()` gathers one observation (process alive, probe answered, port snapshot, exit code) and `serving_state.derive()` maps it to a state. A per-spawn `LoadRecord` is what tells "died on its own" from "stopped by the hub": `start` creates it, a deliberate `stop` clears it. A foreign sibling's server inherited on a shared port gets no record, so its exit is never reported as the hub's failure.
+
+## Adoption needs identity
+
+A foreign listener on a model's port is `adopted` only when its process exe passes `_looks_like_backend_binary` for that model, the same test hub-startup inheritance uses: `llama-server` for a llama row, `whisper-server` for a whisper row, a `python` host for `tts-server` and `parakeet-server`, the vendored install for ComfyUI. A holder that is another program reads `unknown` ("port holder is not this model's server binary"); a holder whose exe cannot be read reads `unknown` too ("port holder's identity could not be confirmed"). `backend_process.start` follows the same rule: a port that answers but whose holder is not confirmed returns the `unconfirmed_listener` outcome (HTTP 409) and neither adopts nor spawns over it. `POST /admin/api/models/{id}/force-stop` still reclaims any port holder when called directly.
+
+## Shutdown leaves what the hub did not spawn
+
+A hub that shuts down stops only the backends it spawned (`backend_process.spawned_backends()`). A backend it inherited from a previous hub or only adopted keeps running; the explicit Stop button and the on-demand idle unload still stop an inherited one, because those are deliberate acts on a tile the hub manages.
 
 ## Who reads it
 
