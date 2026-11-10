@@ -548,7 +548,9 @@ def run_pass(ssh: Ssh, send: Sender, conn, staging_root: Path, *, window_days: i
             if need_audit:
                 report.outcomes.append(file_audit(entry, ssh, filer, conn, staging_root))
     if gh is not None:
-        nights = [(e.repo, e.run_id, e.age_s) for e in runs if e.ready and e.age_s <= window_s]
+        # A pre-audit folder is already classified legacy above; a second class (ci_unknown) would
+        # count it as bad though it can never become measurable.
+        nights = [(e.repo, e.run_id, e.age_s) for e in runs if e.ready and e.age_s <= window_s and e.audit != AUDIT_LEGACY]
         report.ci_outcomes = nightly_ci.run_ci_stage(
             nights, ssh, gh, send, conn, staging_root, now=time.time() if now is None else now, dry_run=dry_run)
     return report
