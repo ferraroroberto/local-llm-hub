@@ -39,7 +39,7 @@ def resolve_model_or_400(model_name: str) -> Model:
 
 
 def ensure_backend_ready_or_503(model: Model) -> None:
-    """Bring a ``startup: on_demand`` local backend up before dispatch (#422).
+    """Bring a ``startup: on_demand`` local backend up before dispatch.
 
     No-op for eager rows and remote-owned models (``src.on_demand`` decides).
     A cold on-demand backend is spawned here and the call blocks until it

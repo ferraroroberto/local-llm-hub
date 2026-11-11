@@ -1,4 +1,4 @@
-"""CORS policy for browser-based clients (#462).
+"""CORS policy for browser-based clients.
 
 Without CORS headers a page's JavaScript cannot call the hub at all: the
 preflight fails and the ``fetch`` never reaches a route, so every sister

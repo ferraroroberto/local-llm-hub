@@ -1,4 +1,4 @@
-"""The on-demand capture loop (issue #315).
+"""The on-demand capture loop.
 
 One asyncio task inside the already-running hub, alive only while a capture
 is. That is the whole anti-bloat contract: when no run is active, this module
@@ -427,7 +427,7 @@ def _finalize(run_id: str, status: RunStatus, *, ports_denied: bool = False) -> 
     INSERT OR REPLACE, so a double call is harmless.
 
     Coverage is written *before* the verdict so the rules can see which
-    collectors were blind and decline to score the ones they depend on (#322)."""
+    collectors were blind and decline to score the ones they depend on."""
     store.finish_run(run_id, status=status)
     from . import coverage
     store.save_coverage(run_id, coverage.compute(run_id, ports_denied=ports_denied))

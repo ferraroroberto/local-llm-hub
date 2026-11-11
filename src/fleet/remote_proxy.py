@@ -27,12 +27,12 @@ def remote_base_url_for_host(host_id: Optional[str]) -> Optional[str]:
     with no dialable address configured.
 
     Host-level analogue of :func:`remote_base_url` for admin calls addressed to
-    a *host* rather than a single model (e.g. the startup-profile API, #352).
+    a *host* rather than a single model (e.g. the startup-profile API).
 
-    The address is resolved through ``remote_stats.dial_address`` (#396): the
+    The address is resolved through ``remote_stats.dial_address``: the
     LAN ``address:`` while it answers, the host's ``tailscale:`` MagicDNS name
     when the LAN path is dead. Hosts with no ``tailscale:`` name never probe
-    and behave exactly as before; when both paths are down the LAN URL is
+    and dial the LAN URL directly; when both paths are down the LAN URL is
     returned so connect errors surface unchanged.
     """
     if not host_id:
@@ -55,8 +55,8 @@ def remote_base_url(model: Model) -> Optional[str]:
     active host — ``None`` when it's local (no owning host, or it matches
     the active host) or when the owning host has no ``address`` configured.
 
-    Ownership is the *effective* owner (#342): for a single-host row that is
-    statically ``model.host`` exactly as before; for a multi-host chain it is
+    Ownership is the *effective* owner: for a single-host row that is
+    statically ``model.host``; for a multi-host chain it is
     whichever candidate the failover tracker currently holds, so requests
     follow the model when it fails over/back.
     """
@@ -79,7 +79,7 @@ def remote_auth_token(owning_host_id: str) -> Optional[str]:
 
 
 def remote_auth_token_for_model(model: Model) -> Optional[str]:
-    """Bearer token for the host that *currently* owns ``model`` (#342) — the
+    """Bearer token for the host that *currently* owns ``model`` — the
     per-model companion to :func:`remote_auth_token`, so every dispatch path
     sends the token matching the hub the request is actually proxied to.
     ``None`` for locally-served models and token-less setups.

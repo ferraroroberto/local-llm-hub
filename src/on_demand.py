@@ -1,15 +1,15 @@
-"""On-demand model lifecycle — spawn on first request, unload when idle (#422).
+"""On-demand model lifecycle — spawn on first request, unload when idle.
 
 A ``models.yaml`` row may declare ``startup: on_demand`` (default ``eager``,
 today's always-on behavior). Such a row is never started eagerly — not by
 hub autostart (``model_registry.desired_model_ids`` excludes it), not by
-the fleet reconcile loop (same derived set, #430), not by the failover
+the fleet reconcile loop (same derived set), not by the failover
 engine (guards on ``Model.startup``). Instead:
 
 * **Load on first request** — the dispatch paths that reach a local backend
   (chat completions, the Anthropic-shape ``/v1/messages`` translation, the
-  ``/v1/audio/speech`` proxy, and — since #530 retired the dedicated
-  lazy-load whisper shim in favor of this generic mechanism — the
+  ``/v1/audio/speech`` proxy, and — instead of a dedicated
+  lazy-load whisper shim — the
   ``/v1/audio/transcriptions`` / ``/translations`` proxy) call
   :func:`ensure_ready` before forwarding. When the backend isn't up, the
   request spawns it via ``backend_process.start`` and blocks polling
@@ -19,10 +19,10 @@ engine (guards on ``Model.startup``). Instead:
   minutes without a request the hub stops the backend. A model stopped this
   way (or by hand via the admin API) stays down — the reconcile/failover
   guards above are what keep the supervisor from resurrecting it, the
-  regression observed live in #422.
+  regression observed live.
 * **VRAM budget warning, not arbitration** — before an on-demand spawn, the
   sum of the running local models' ``est_vram_mb`` plus the candidate's is
-  checked against the host's ``vram_mb`` ceiling (#375 grid math). Overcommit
+  checked against the host's ``vram_mb`` ceiling (the placement grid math). Overcommit
   logs a loud warning and proceeds: WDDM overcommit degrades transiently and
   idle unload recovers it. Eviction arbitration is explicitly out of scope.
 
@@ -65,7 +65,7 @@ class OnDemandNotReady(RuntimeError):
 
 
 def is_on_demand(model: Model) -> bool:
-    """True when ``model`` declared ``startup: on_demand`` (#422)."""
+    """True when ``model`` declared ``startup: on_demand``."""
     return getattr(model, "startup", None) == STARTUP_ON_DEMAND
 
 
@@ -95,7 +95,7 @@ def request_finished(model_id: str, now: Optional[float] = None) -> None:
 
 
 class RequestTracking:
-    """In-flight bookkeeping for one request against one model (#470).
+    """In-flight bookkeeping for one request against one model.
 
     Every dispatch site that can reach a local ``startup: on_demand`` backend
     has to pair a :func:`request_started` with exactly one
@@ -153,7 +153,7 @@ class RequestTracking:
 
 
 def tracking(model: Model, remote: Optional[str] = None) -> RequestTracking:
-    """Tracker for one request against ``model`` (#470).
+    """Tracker for one request against ``model``.
 
     Tracking is a no-op unless the request is served *locally* (``remote`` is
     the resolved peer base URL, ``None`` when this hub serves it) by a row
@@ -171,7 +171,7 @@ def _idle_state(model_id: str) -> tuple[int, Optional[float]]:
 
 def _warn_on_vram_overcommit(model: Model) -> Optional[int]:
     """Log a loud warning when loading ``model`` would exceed the host's
-    ``vram_mb`` ceiling (#375 math: sum of running local models' static
+    ``vram_mb`` ceiling (sum of running local models' static
     ``est_vram_mb`` estimates + the candidate's). Advisory only — the load
     always proceeds. Returns the projected total (MB) when it overcommits,
     ``None`` otherwise (including hosts with no ceiling).

@@ -8,7 +8,7 @@ Used by the hub when routing to local Qwen / GLM backends. Helpers:
   without translating shapes).
 - ``anthropic_tools_to_openai()`` / ``anthropic_tool_choice_to_openai()``:
   translate an Anthropic ``tools`` / ``tool_choice`` request into
-  llama-server's OpenAI function-calling parameters (#552).
+  llama-server's OpenAI function-calling parameters.
 - ``openai_tool_use_blocks()``: the inverse — an upstream response's
   ``tool_calls`` as Anthropic ``tool_use`` content blocks.
 - ``openai_to_anthropic_envelope()``: shape the response into the same
@@ -109,7 +109,7 @@ def anthropic_to_openai_messages(
 
     Anthropic allows ``content`` to be a list of content blocks; OpenAI
     expects a string for text-only messages. Text, ``tool_use`` and
-    ``tool_result`` blocks are translated (#552); image/document blocks are
+    ``tool_result`` blocks are translated; image/document blocks are
     rejected before reaching here by the caller's text-only guard.
 
     Two block types change the message *count*, not just its shape:
@@ -634,7 +634,7 @@ def openai_to_anthropic_envelope(resp: Dict[str, Any]) -> Dict[str, Any]:
     "content": [block, ...], "stop_reason": str, "usage": {...}}``.
     ``result`` stays the plain-text rendering used for logging and the
     observability payload; ``content`` carries the real block list so a
-    ``tool_use`` response survives the trip (#552). The CLI backends emit
+    ``tool_use`` response survives the trip. The CLI backends emit
     no ``content`` key and fall back to a single text block.
     """
     usage = resp.get("usage") or {}

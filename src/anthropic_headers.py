@@ -1,4 +1,4 @@
-"""Anthropic request/response header parity for the Anthropic-shape routes (#461).
+"""Anthropic request/response header parity for the Anthropic-shape routes.
 
 The hub is a drop-in for the ``anthropic`` SDK, and the SDK speaks a small
 header vocabulary the hub used to swallow whole: ``anthropic-version`` and

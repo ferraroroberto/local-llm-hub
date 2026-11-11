@@ -13,7 +13,7 @@ row's `backend`. The backend families dispatched on:
 
 Which rows exist, which host owns each, and which port each listens on
 are `config/models.yaml`'s alone — deliberately not restated here, since
-a copy of the registry in this docstring is a copy that goes stale (#505).
+a copy of the registry in this docstring is a copy that goes stale.
 
 Shapes exposed:
   * POST /v1/messages          - Anthropic shape (drop-in for the SDK)
@@ -122,8 +122,8 @@ def _hub_get_token() -> Optional[str]:
     ``""`` means no token is configured (enforcement off by design);
     ``None`` means the config could not be loaded — including a malformed
     file, which the loader reports as ``WebappConfigError`` rather than
-    defaults (#585) — so the token is *unknown*, and the middleware must
-    not read that as "no token" and open the gate (#558).
+    defaults — so the token is *unknown*, and the middleware must
+    not read that as "no token" and open the gate.
     """
     try:
         from .webapp_config import load_webapp_config
@@ -164,7 +164,7 @@ def _load_startup_webapp_config() -> Optional[WebappConfig]:
     ``None`` is the restrictive side for both readers, so startup carries
     on: the middleware applies no ``extra_allowlist`` entries and
     ``install_cors`` allows loopback origins only. Logged, because the
-    configured extras are silently absent until a restart otherwise (#585).
+    configured extras are silently absent until a restart otherwise.
     """
     from .webapp_config import load_webapp_config
 

@@ -77,7 +77,7 @@ async def build_whisper_upstream_request(
 
 def default_language_from_args(args: Optional[List[str]]) -> Optional[str]:
     """Pull a whisper-server row's configured spoken-language launch flag
-    (``-l``/``--language``) out of its ``args`` (#128).
+    (``-l``/``--language``) out of its ``args``.
 
     whisper-server takes ``--language`` at launch but its HTTP handler resets
     each request's language to ``en`` unless the request body carries one —

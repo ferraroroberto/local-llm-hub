@@ -1,4 +1,4 @@
-"""ComfyUI client — drives the local FLUX image backend (#492).
+"""ComfyUI client — drives the local FLUX image backend.
 
 The hub's other image path (``gemini_cli.call_gemini_image``) shells out to the
 Antigravity CLI and scrapes whatever artifact the agent leaves on disk. This one
@@ -28,7 +28,7 @@ are load-bearing and easy to get wrong:
 Output uses ``PreviewImage`` (ComfyUI's ``temp`` type) rather than
 ``SaveImage``. The hub returns the bytes to the caller and has no reason to keep
 a copy; ``temp`` is cleared by ComfyUI on startup, so the on-demand
-load/idle-unload cycle (#422) garbage-collects generations for free instead of
+load/idle-unload cycle garbage-collects generations for free instead of
 growing an unbounded output directory nobody prunes.
 """
 
@@ -120,7 +120,7 @@ DEFAULT_REFINE_STEPS = 10
 
 @dataclass(frozen=True)
 class GraphHandles:
-    """Where the reusable edges live in a built workflow (#498).
+    """Where the reusable edges live in a built workflow.
 
     The two FLUX generations need structurally different graphs, but the
     upscale/refine tail is identical work in both. Rather than teach the tail
@@ -273,9 +273,9 @@ def build_flux2_workflow(
       conditioning, matching a guidance-distilled model, instead of KSampler's
       positive/negative pair with a CFG that would be a no-op.
 
-    The transformer loads through the stock ``UNETLoader``. #498 also carried a
-    ``UnetLoaderGGUF`` branch for the quantized 32B [dev] transformer, dropped
-    with that row in #501 — see ``config/models.yaml``. Re-adding a ``.gguf``
+    The transformer loads through the stock ``UNETLoader``; there is no
+    ``UnetLoaderGGUF`` branch for a quantized transformer (see
+    ``config/models.yaml``). Supporting a ``.gguf``
     model means restoring both the loader branch and the ComfyUI-GGUF custom
     node, since stock ComfyUI cannot read that format at all.
 
@@ -395,7 +395,7 @@ def add_upscale_tail(
     seed: Optional[int] = None,
     upscale_model: str = DEFAULT_UPSCALE_MODEL,
 ) -> Dict[str, Any]:
-    """Extend a base txt2img graph to reach an above-native target size (#497).
+    """Extend a base txt2img graph to reach an above-native target size.
 
     Mutates and returns ``workflow``. The base graph must already sample at a
     native-safe size (see ``image_sizes.native_source_size``); this bolts on:
@@ -613,7 +613,7 @@ def _fetch_image(base_url: str, ref: Dict[str, Any]) -> tuple[bytes, str]:
 
 @dataclass(frozen=True)
 class ModelSpec:
-    """Everything the client needs to build a graph for one registry row (#498).
+    """Everything the client needs to build a graph for one registry row.
 
     Built by ``server_images`` from a ``models.yaml`` row, so the client stays
     ignorant of the registry. ``workflow`` selects the graph; the file fields

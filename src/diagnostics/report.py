@@ -1,4 +1,4 @@
-"""Summaries, baseline drift, and the markdown health report (issue #315).
+"""Summaries, baseline drift, and the markdown health report.
 
 The UI is a trigger plus a digest — deep analysis happens against the SQLite
 file or by pasting :func:`markdown_report` into an LLM session. This module is

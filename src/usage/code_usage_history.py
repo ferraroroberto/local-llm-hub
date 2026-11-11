@@ -2,8 +2,8 @@
 
 Claude Code deletes session transcripts after ~30 days (``cleanupPeriodDays``),
 so the live parsers can never show more than a rolling month and the "All"
-period silently equals "Month" (#280 follow-up, verified 2026-07-12: the
-oldest file on disk is always ~30 days old).  This module snapshots what the
+period silently equals "Month" (the oldest file on
+disk is always ~30 days old).  This module snapshots what the
 parsers *do* see into ``data/code_usage_history.json`` — one entry per
 ``(date, vendor, model, project)`` — so history accumulates from today
 forward and keeps counting after the source files are pruned.

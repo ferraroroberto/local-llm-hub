@@ -300,7 +300,7 @@ def _parakeet_enabled() -> bool:
 
 
 def _check_parakeet_worker() -> Check:
-    """Is the FluidAudio Swift binary (mac/parakeet-worker) built? (#138)
+    """Is the FluidAudio Swift binary (mac/parakeet-worker) built?
 
     darwin-only in practice — gated on a `engine: parakeet-server` row
     being locally enabled, which only ever happens on mac-mini-m4. No
@@ -327,7 +327,7 @@ def _launchagent_plist_path() -> Path:
 
 
 def _check_launchagent() -> Check:
-    """Is the boot-time LaunchAgent installed and loaded? (#181, darwin-only)
+    """Is the boot-time LaunchAgent installed and loaded? (darwin-only)
 
     Boot autostart + crash respawn for the Mac Mini's otherwise-unsupervised
     hub process — the macOS analogue of the Windows tray's spawn-on-launch.
@@ -371,7 +371,7 @@ def _systemd_unit_path() -> Path:
 
 
 def _check_systemd_unit() -> Check:
-    """Is the boot-time systemd unit installed and active? (#341/#368, linux-only)
+    """Is the boot-time systemd unit installed and active? (linux-only)
 
     Boot autostart + crash respawn for a headless Linux satellite's otherwise
     unsupervised hub — the systemd analogue of the Mac's LaunchAgent and the
@@ -461,7 +461,7 @@ def _comfyui_enabled() -> bool:
 
 
 def _check_comfyui() -> Check:
-    """Is the vendored ComfyUI image engine installed and CUDA-verified? (#492)
+    """Is the vendored ComfyUI image engine installed and CUDA-verified?
 
     Gated on a ``comfyui-server`` row being enabled.
 
@@ -671,7 +671,7 @@ def _fix_launchagent() -> None:
 
 
 def _fix_systemd_unit() -> None:
-    """Render + install the boot-time systemd unit on a Linux satellite (#368).
+    """Render + install the boot-time systemd unit on a Linux satellite.
 
     The Linux counterpart to ``_fix_launchagent``. Substitutes the two
     placeholders in ``linux/systemd/local-llm-hub.service`` with this box's

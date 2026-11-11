@@ -40,10 +40,10 @@ def _header_safe(value: str) -> str:
 
     The requested-model name is peeked out of a *client-supplied* multipart
     body by regex. That pattern rejects CR/LF but nothing else, so a
-    ``model=`` carrying a NUL (or any other control byte) used to reach h11
+    ``model=`` carrying a NUL (or any other control byte) would reach h11
     verbatim and raise ``LocalProtocolError`` — after the upstream
-    transcription had already run, turning a completed request into a 500
-    (#412). Strip to printable ASCII and cap the length instead.
+    transcription had already run, turning a completed request into a 500.
+    Strip to printable ASCII and cap the length instead.
     """
     return _NON_PRINTABLE_ASCII.sub("", value or "")[:_HEADER_VALUE_MAX]
 
@@ -70,7 +70,7 @@ def _audio_upstream_error(exc: Exception, *, backend: str, port: int) -> HTTPExc
     message names the port and says the backend isn't running, instead of the
     opaque ``502 "whisper upstream error: All connection attempts failed"`` that
     gave downstream consumers no way to tell "down" from "in flight past
-    timeout" (issue #147). A read that ran past the deadline is a ``502``
+    timeout". A read that ran past the deadline is a ``502``
     that says it timed out; every other upstream error is a plain ``502``.
     """
     import httpx as _httpx

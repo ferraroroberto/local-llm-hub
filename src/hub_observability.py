@@ -288,7 +288,7 @@ class Observatory:
 
     def overall_p50_ms(self) -> Optional[float]:
         """Median latency over every backend's retained samples since hub
-        start (the Hub glance's one latency figure, #738); ``None`` before
+        start (the Hub glance's one latency figure); ``None`` before
         the first request so a caller never shows a made-up zero."""
         with self._lock:
             samples = [v for c in self._counters.values() for v in c.latencies_ms]

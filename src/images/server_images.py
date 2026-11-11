@@ -7,16 +7,15 @@ Two image backends exist, and ``/v1/images/generations`` dispatches on
 ``model.backend``:
 
 * ``gemini`` — Google's Imagen, driven through the Antigravity CLI's agentic
-  tool harness (there is no Nano Banana picker model — issue #114). A
+  tool harness (there is no Nano Banana picker model). A
   subscription path with no local process.
-* ``comfyui`` — FLUX.1 [dev] on this host's own GPU (#492). An ordinary
-  ``models.yaml`` backend process, so it goes through the on-demand lifecycle
-  (#422): the first request spawns ComfyUI and waits for it, and the idle
+* ``comfyui`` — FLUX.1 [dev] on this host's own GPU. An ordinary
+  ``models.yaml`` backend process, so it goes through the on-demand lifecycle:
+  the first request spawns ComfyUI and waits for it, and the idle
   watchdog unloads it again.
 
 ``/v1/images/edits`` stays **gemini-only** — editing on the ComfyUI path needs a
-different workflow graph (img2img/inpaint) and is deliberately out of #492's
-scope.
+different workflow graph (img2img/inpaint) and is deliberately out of scope.
 
 The routes are collected on a module-level :class:`fastapi.APIRouter` and
 mounted onto the parent hub app by ``server.py`` via ``include_router``.
@@ -130,7 +129,7 @@ def _stop_wedged_backend(model: Model) -> str:
 
 
 def model_spec_for(model: Model) -> ModelSpec:
-    """Translate a ``models.yaml`` row into the client's workflow spec (#498).
+    """Translate a ``models.yaml`` row into the client's workflow spec.
 
     ComfyUI resolves weights by bare filename inside its own search path, while
     the registry stores repo-relative paths so the downloader and the install

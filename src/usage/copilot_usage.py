@@ -1,4 +1,4 @@
-"""Host-side GitHub Copilot usage parser (issue #231).
+"""Host-side GitHub Copilot usage parser.
 
 Two independent local sources feed the shared ``UsageRecord`` shape (tagged
 ``vendor="copilot"``), so both flow through the same Code-tab summary builder

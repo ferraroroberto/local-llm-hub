@@ -142,8 +142,8 @@ def openai_backend_extra(model: Model, req: MessagesRequest) -> Dict[str, Any]:
     Seeds from the row's server-side ``inject_extra`` (e.g. the no-think
     alias's ``chat_template_kwargs``), then layers this request's tool params
     on top so the caller wins on a key collision. The single place both the
-    buffered and streaming paths build it (#567 — the buffered path used to
-    drop the overlay).
+    buffered and streaming paths build it, so neither path can drop the
+    overlay.
     """
     extra: Dict[str, Any] = dict(model.inject_extra or {})
     extra.update(openai_tool_params(req))
@@ -173,7 +173,7 @@ def reject_unservable_request(model: Model, req: MessagesRequest) -> None:
 
     Called before dispatch on every ``/v1/messages`` path (buffered and before
     a stream begins), so the refusal is a real 400, never a dropped parameter
-    that yields a well-formed wrong answer (#474, #552, #607).
+    that yields a well-formed wrong answer.
     """
     if req.thinking is not None and req.thinking.get("type") != "disabled":
         raise HTTPException(
@@ -210,7 +210,7 @@ def _reject_tools_on_cli_backend(model: Model, req: MessagesRequest) -> None:
     prompt (``_flatten_messages``), so ``tools`` and ``tool_use`` /
     ``tool_result`` blocks have nowhere to go. Dropping them silently would
     answer in prose a caller that asked for a tool call — the well-formed
-    wrong answer #474 refused for non-text parts on the OpenAI shape.
+    wrong answer that the OpenAI shape also refuses for non-text parts.
     """
     if req.tools:
         unsupported = "a 'tools' parameter"
@@ -392,13 +392,13 @@ def _openai_messages_to_anthropic(
     """Normalize OpenAI-shape dict messages into Anthropic-shape ``Message``
     objects plus an extracted system prompt, so ``/v1/chat/completions`` can
     reuse ``_flatten_messages`` instead of hand-rolling its own prompt
-    scaffold (issue #195 — the two routes previously diverged silently).
+    scaffold, so the two routes cannot diverge.
 
     Inline OpenAI ``file`` parts become Anthropic-style ``document`` blocks so
     the caller can reuse ``_extract_media_blocks`` and the existing CLI
-    attachment path (#554). Other non-text parts (``image_url``,
-    ``input_audio``, …) are **refused with a 400** rather than dropped (issue
-    #474): silently keeping only text would return a well-formed answer to a
+    attachment path. Other non-text parts (``image_url``,
+    ``input_audio``, …) are **refused with a 400** rather than dropped:
+    silently keeping only text would return a well-formed answer to a
     request the caller never made.
     """
     sys_text: Optional[str] = None
@@ -614,7 +614,7 @@ def call_openai_upstream(
     """Send one *buffered* chat call to an already-resolved OpenAI upstream.
 
     Owns the pair both buffered dispatch paths need identically: the
-    on-demand idle-tracking context (#422, so a locally-served ``on_demand``
+    on-demand idle-tracking context (so a locally-served ``on_demand``
     row isn't unloaded mid-request) and the ``UpstreamError`` -> 502 mapping.
     Used by ``_run_openai_backend`` (``/v1/messages``) and ``chat_completions``
     (``/v1/chat/completions``).

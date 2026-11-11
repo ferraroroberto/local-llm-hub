@@ -41,7 +41,7 @@ async def stop_background_tasks() -> None:
     module-global state (``model_failover.TRACKER``, ``fleet_reconcile``'s
     peer-transport hooks) that ``test_fleet_reconcile.py`` /
     ``test_model_failover.py`` monkeypatch and assert on from the main thread
-    -- the order-dependent full-suite pollution in issue #416."""
+    -- the order-dependent full-suite pollution this avoids."""
     loop_watch.WATCH.stop()
     tasks, _BACKGROUND_TASKS[:] = list(_BACKGROUND_TASKS), []
     if not tasks:
@@ -94,9 +94,9 @@ async def stop_backend_children() -> None:
 
 
 async def stop_diagnostics_sampler() -> None:
-    """Gracefully finish any diagnostics capture on hub shutdown (#316).
+    """Gracefully finish any diagnostics capture on hub shutdown.
 
-    The sampler is an in-process asyncio task (issue #315), so a capture cannot
+    The sampler is an in-process asyncio task, so a capture cannot
     survive a process restart regardless — draining it here finalizes the run as
     ``stopped`` instead of leaving it to be recovered as an ``orphan`` on the
     next boot. It also closes a test-isolation hazard: without this, a capture's
@@ -179,7 +179,7 @@ async def wire_observatory_loop() -> None:
 
 
 async def _prewarm_code_usage() -> None:
-    """Build the Code tab's opening summary in the background (#826).
+    """Build the Code tab's opening summary in the background.
 
     Off the event loop and off the startup path: the build walks every usage
     record (5-10 s on the tower) and nothing at start waits for it.
@@ -214,7 +214,7 @@ async def _autostart_configured_backends() -> None:
 
 
 async def _init_diagnostics() -> None:
-    """Diagnostics startup housekeeping (issue #315).
+    """Diagnostics startup housekeeping.
 
     The sampler lives in-process, so a run still marked ``running`` in the DB
     belongs to a hub that died mid-capture — close it so a stale row never
@@ -260,14 +260,13 @@ async def _resource_watch_loop() -> None:
 
 
 async def _autostart_services() -> None:
-    """Bring up Docker/Langfuse + AgentsView per the startup profile (#265).
+    """Bring up Docker/Langfuse + AgentsView per the startup profile.
 
     Best-effort and soft-failing, same spirit as ``services.launch_stack()``
     itself — a slow/unreachable Docker Desktop must never block the hub from
-    finishing its own startup. Peer wake/sync used to live here too (the legacy
-    ``mac_mini_sync`` branch); since #374 it is owned entirely by the fleet
+    finishing its own startup. Peer wake/sync is owned entirely by the fleet
     reconcile loop (``_fleet_reconcile_loop`` → ``fleet_reconcile.reconcile_once``),
-    driven since #430 by the registry-derived desired state (``models.yaml``'s
+    driven by the registry-derived desired state (``models.yaml``'s
     ``hosts:`` chains + ``startup:`` policy) as the sole cross-host source of
     truth.
     """
@@ -301,7 +300,7 @@ async def _autostart_services() -> None:
 
 
 async def _fleet_reconcile_loop() -> None:
-    """Periodic fleet convergence (issue #353).
+    """Periodic fleet convergence.
 
     A short boot delay lets ``_autostart_configured_backends`` +
     ``inherit_running_backends`` settle so the first pass sees accurate running
@@ -324,7 +323,7 @@ async def _fleet_reconcile_loop() -> None:
 
 
 async def _model_failover_loop() -> None:
-    """Dynamic model fallback across ordered host chains (issue #342).
+    """Dynamic model fallback across ordered host chains.
 
     Thin lifecycle shim — the probe/decide/act cycle, the hysteresis rules,
     and the no-chains early exit all live in ``src.model_failover``
@@ -341,7 +340,7 @@ async def _model_failover_loop() -> None:
 
 
 async def _config_drift_loop() -> None:
-    """Periodic models.yaml drift sync across hub peers (issue #424).
+    """Periodic models.yaml drift sync across hub peers.
 
     Thin lifecycle shim — the write-host gate, the per-(peer, sha) attempt
     memory, and the sync call live in ``src.config_write``
@@ -356,7 +355,7 @@ async def _config_drift_loop() -> None:
 
 
 async def _on_demand_idle_loop() -> None:
-    """Idle unload for ``startup: on_demand`` models (issue #422).
+    """Idle unload for ``startup: on_demand`` models.
 
     Thin lifecycle shim — the sweep cadence, the idle decision, and the
     in-flight guard live in ``src.on_demand`` (``idle_unload_loop``),
@@ -373,7 +372,7 @@ async def _on_demand_idle_loop() -> None:
 async def _resource_sampler() -> None:
     """Background task that samples RAM + CPU + GPU usage every 2 s.
 
-    The sampling itself runs in a worker thread (#392): ``gpu_stats()``
+    The sampling itself runs in a worker thread: ``gpu_stats()``
     shells out to nvidia-smi, which stalls for seconds when the GPU is
     busy serving models — calling it inline here blocked the whole event
     loop every 2 s, and any HTTP client with a 5 s timeout (the e2e

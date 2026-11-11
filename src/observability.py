@@ -1,4 +1,4 @@
-"""OpenTelemetry bootstrap for the local LLM hub (issue #4).
+"""OpenTelemetry bootstrap for the local LLM hub.
 
 Initialises tracing + metrics + log-record correlation, exporting via
 OTLP/gRPC to a local Langfuse stack (see

@@ -1,4 +1,4 @@
-"""Anthropic-shaped error envelopes for the Anthropic-shape routes (#460).
+"""Anthropic-shaped error envelopes for the Anthropic-shape routes.
 
 The hub raises :class:`fastapi.HTTPException` throughout, so without this
 module every error reaches the client as FastAPI's default

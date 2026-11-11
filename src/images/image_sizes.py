@@ -1,4 +1,4 @@
-"""Image size presets, parsing and validation for ``/v1/images/*`` (#497).
+"""Image size presets, parsing and validation for ``/v1/images/*``.
 
 One source of truth for *what sizes exist and which are sane*, shared by the
 API (which validates), the ComfyUI client (which decides whether a request

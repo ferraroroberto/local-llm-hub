@@ -187,10 +187,9 @@ def terminate_and_close(job_handle: Optional[int]) -> None:
 
     Explicit ``TerminateJobObject`` gives immediate, deterministic cleanup
     on the happy path (a clean fixture teardown) and reaches a member whose
-    immediate parent has already exited — the exact shape of #468's
-    incident. The ``KILL_ON_JOB_CLOSE`` flag set at creation is what makes
-    the same cleanup happen automatically if this line is never reached at
-    all (the caller itself killed mid-run) — Windows closes a dying
+    immediate parent has already exited. The ``KILL_ON_JOB_CLOSE``
+    flag set at creation is what makes the same cleanup happen automatically
+    if this line is never reached at all (the caller itself killed mid-run) — Windows closes a dying
     process's handles for it. No-op if ``job_handle`` is ``None``.
     """
     if not _IS_WINDOWS or not job_handle:

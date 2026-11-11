@@ -1,4 +1,4 @@
-"""Process → fleet-app attribution and the listening-port map (issue #315).
+"""Process → fleet-app attribution and the listening-port map.
 
 ``python.exe × 14`` is noise. ``app-launcher: 3 procs / 800 MB`` is signal.
 This module turns the former into the latter by reading each process's command
@@ -15,7 +15,7 @@ line and deciding which *app* owns it:
   4. **path prefix** — the broad net, matched last: an OS-owned directory
      (``/System/Library/``, ``/usr/libexec/``, ``C:/Windows/``) tells you the
      owner even when the executable's name means nothing on its own. This is
-     what makes macOS and Linux legible (#320); enumerating Apple's several
+     what makes macOS and Linux legible; enumerating Apple's several
      hundred daemon names by hand never would have been.
   5. **``unattributed``** — everything else. This bucket is not a failure mode;
      it is the review list of processes nobody has accounted for yet, which is
@@ -64,7 +64,7 @@ def set_rules_path(path: Optional[Path]) -> None:
 def set_platform(platform: Optional[str]) -> None:
     """Force the platform used to select ``_windows``/``_darwin``/``_linux``
     rule groups. Tests only — it is the sole way to exercise the macOS and
-    Linux tables from the Windows dev box (#320)."""
+    Linux tables from the Windows dev box."""
     global _platform_override
     _platform_override = platform
     _rules_cache.clear()
@@ -104,7 +104,7 @@ def load_rules(platform: Optional[str] = None) -> Dict[str, Any]:
 
     ``platform`` selects which ``_windows``/``_darwin``/``_linux`` rule groups
     merge in; it defaults to this host's, and is passed explicitly only when
-    ingesting a foreign run (#316). Cached per platform so a foreign attribution
+    ingesting a foreign run. Cached per platform so a foreign attribution
     never evicts the live host's compiled rules."""
     plat = platform or current_platform()
     cached = _rules_cache.get(plat)
@@ -159,7 +159,7 @@ def attribute(name: str, cmdline: str, platform: Optional[str] = None) -> str:
     still attributes to that repo.
 
     ``platform`` picks the OS rule group; it defaults to this host's and is
-    supplied explicitly only when re-attributing a foreign run at ingest (#316),
+    supplied explicitly only when re-attributing a foreign run at ingest,
     so a Linux capture is judged by the Linux rules even on the Windows hub."""
     rules = load_rules(platform)
     hay = _norm(cmdline or name or "")
@@ -235,7 +235,7 @@ def scan_processes() -> List[Dict[str, Any]]:
     cmdline — 310 of 673 processes on the Mac Mini. ``exe`` uses a different
     kernel call (``proc_pidpath``) that stays readable, and it resolved 308 of
     those 310. Without this the path rules would have nothing to match and 42%
-    of the machine would stay unattributed regardless of the rule table (#320).
+    of the machine would stay unattributed regardless of the rule table.
 
     Every per-process read is individually guarded: a process that exits
     mid-iteration is normal on a busy box and must never abort a capture."""
@@ -308,7 +308,7 @@ def scan_listening_ports(
     ``denied=True`` ("the scan was blind") so the caller can record coverage —
     an empty list and a *blind* list are otherwise indistinguishable once
     stored, and treating "couldn't look" as "nothing there" is exactly the
-    defect #322 fixes."""
+    defect coverage tracking guards against."""
     by_pid = {p.get("pid"): p for p in (processes or [])}
     out: List[Dict[str, Any]] = []
     try:

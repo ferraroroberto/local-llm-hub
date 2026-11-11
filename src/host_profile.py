@@ -9,7 +9,7 @@ the `LOCAL_LLM_HUB_HOST` env var as an explicit override.
 ``config/models.yaml`` — ``src/model_registry.py`` imports it directly
 rather than keeping its own parallel cache of the same file.
 
-Machine *identity* is deliberately NOT in that committed file (#525): this
+Machine *identity* is deliberately NOT in that committed file: this
 repo is public, and the per-host addressing (`address`, `tailscale`, `mac`,
 `ssh_user`, `rdp`) is a map of a private network, as is the `actions_runner`
 block that names a hosted CI runner. Those six fields live in
@@ -20,7 +20,7 @@ The overlay is optional by design: a fresh clone without one boots fine and
 every peer-dependent feature simply stays inert (all five fields are
 ``Optional`` on ``HostProfile``, and ``can_ssh`` already degrades to False).
 
-The same overlay carries one non-identity field, ``dormant`` (#765): whether
+The same overlay carries one non-identity field, ``dormant``: whether
 a machine is intentionally off is a fact about *this* operator's fleet, set
 from Settings, so it lives machine-local too and never reaches a commit.
 """
@@ -136,8 +136,8 @@ def machines_path() -> Path:
 
 
 def _merge_identity(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Merge ``machines.local.yaml``'s per-host identity (and ``dormant``,
-    #765) onto the ``hosts:`` rows. Absent overlay, unreadable overlay, or a host it says nothing about
+    """Merge ``machines.local.yaml``'s per-host identity (and ``dormant``)
+    onto the ``hosts:`` rows. Absent overlay, unreadable overlay, or a host it says nothing about
     all mean the same thing: those fields stay unset and the peer features
     that need them stay inert. Never raises -- a broken overlay must not stop
     the hub booting."""
@@ -265,7 +265,7 @@ def get_host(host_id: str) -> Optional[HostProfile]:
 
 def all_hosts() -> List[HostProfile]:
     """Every declared host row as a profile, in config order — the machine
-    console's inventory (#309). Unlike ``resolve()`` (the active host) or
+    console's inventory. Unlike ``resolve()`` (the active host) or
     ``get_host()`` (one by id), this returns the whole fleet, including
     managed-only machines that serve no models (OpenClaw, gaming).
     """

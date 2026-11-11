@@ -1,4 +1,4 @@
-"""Fleet machine console (#309) — the data layer behind the Machines tab.
+"""Fleet machine console — the data layer behind the Machines tab.
 
 Turns the host inventory (``host_profile.all_hosts()``) into a per-machine
 view for the admin SPA, with the **same** CPU/RAM/GPU/disk/uptime snapshot on
@@ -10,12 +10,12 @@ not whether the hub happens to run there:
   * a **peer** is liveness-probed by a hub-independent TCP connect
     (``remote_stats.is_reachable``) and, when up, gives the same snapshot over
     the hub user's own SSH (``remote_stats.collect``);
-  * a **dormant** node (intentionally off, #765) is shown as a neutral card
+  * a **dormant** node (intentionally off) is shown as a neutral card
     and never SSH'd or hub-probed; only a cached TCP connect tells whether it
-    is answering again (background-refreshed, never awaited, #821).
+    is answering again (background-refreshed, never awaited).
 
 Power actions (reboot/shutdown) live in ``remote_bootstrap`` and run over the
-hub user's own general SSH (#311); this module only computes *which* actions
+hub user's own general SSH; this module only computes *which* actions
 each machine may offer. The active hub host never offers reboot/shutdown —
 the destructive action the whole design excludes.
 """
@@ -61,14 +61,14 @@ def _actions_for(
     destructive actions; SSH/RDP to self is pointless — and waking the box
     the hub is already running on is meaningless). A peer with SSH (address
     + ssh_user) gets reboot/shutdown + an SSH terminal; RDP is offered
-    wherever an ``rdp`` target is configured; wake (#356) is offered
+    wherever an ``rdp`` target is configured; wake is offered
     wherever a ``mac`` is configured, independent of SSH/reachability —
     Wake-on-LAN's whole point is reaching a box that's down.
 
     ``reachable`` mirrors the card's own liveness signal (the Online/Offline
     dot) — ``True`` only for a peer whose TCP probe just succeeded. Anything
     else (dormant, an unreachable peer, no probe path, or a probe error —
-    all ``None``/``False``) disables every SSH/RDP-dependent action (#388):
+    all ``None``/``False``) disables every SSH/RDP-dependent action:
     they can only fail against a box nothing is listening on. Wake survives
     unreachability by design, since that's the one action meant to reach a
     box that's down."""
@@ -140,7 +140,7 @@ def _hub_facts_down(host: HostProfile) -> Optional[Dict[str, Any]]:
 
 async def _hub_facts(host: HostProfile) -> Optional[Dict[str, Any]]:
     """Peer-hub reachability + build identity for a machine that runs its own
-    hub (#736), so the Machines tab owns Sync, the out-of-sync state and
+    hub, so the Machines tab owns Sync, the out-of-sync state and
     bootstrap before the Hub tab drops its peer rows. The shared
     ``remote_stats.peer_health`` probe, minus its raw error text: the SPA
     shows a sanitized state, never an exception string."""

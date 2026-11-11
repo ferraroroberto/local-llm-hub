@@ -44,7 +44,7 @@ def iter_jsonl(path: Path) -> Iterator[Any]:
 class UsageRecord:
     """One aggregated usage record (one assistant / agent API call).
 
-    Shared across vendors (issue #71): Claude Code records carry
+    Shared across vendors: Claude Code records carry
     ``vendor="claude"``; Codex records (from ``codex_usage.py``) carry
     ``vendor="codex"``.  The two trailing fields have defaults so the
     Claude parser, which never sets them, is unaffected.
@@ -168,7 +168,7 @@ def project_pretty(key: str) -> str:
 
     Drops the drive-letter prefix, then collapses the shared ``automation``
     workspace-root segment so the per-project table reads as the folder name
-    and fits on mobile without horizontal scroll (issue #71)::
+    and fits on mobile without horizontal scroll::
 
         E--automation-local-llm-hub → local-llm-hub
         E--automation              → automation   (the workspace root itself)

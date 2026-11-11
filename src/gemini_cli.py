@@ -238,7 +238,7 @@ def _is_picker_chrome(row: str) -> bool:
     """True for a header-area line that is UI chrome, not a model row.
 
     `agy` >=1.2 draws a ``Search:`` input and a rule between the "Switch
-    Model" header and the model rows (#629); read as rows they made every
+    Model" header and the model rows; read as rows they made every
     Gemini call fail with a garbage "available" list.
     """
     return row.lower().startswith("search:") or bool(_RULE_RE.match(row))
@@ -261,13 +261,13 @@ def _parse_picker(rendered: str) -> Tuple[List[str], int]:
     ``(current)``.
 
     Rows are a contiguous run of non-blank lines under the "Switch Model"
-    header, after any header chrome (the ``Search:`` input and its rule —
-    #629) — bounded structurally by that chrome above and the first blank
+    header, after any header chrome (the ``Search:`` input and its rule)
+    — bounded structurally by that chrome above and the first blank
     line below, not by row content. (Older `agy` baked the effort tier into
     each label, e.g. "Gemini 3.1 Pro (High)"; newer `agy` shows a bare model
     name here and exposes effort as a separate Low/Medium/High slider
     control below the list, so a row is no longer guaranteed to contain
-    "(...)" — issue #440.)
+    "(...)".)
     """
     start = rendered.rfind("Switch Model")
     if start < 0:
@@ -419,7 +419,7 @@ def _print_call(exe: str, prompt: str, cwd: Optional[str],
     attachment directory is part of `agy`'s workspace and ``@<basename>``
     references resolve against it deterministically. Without this `agy`
     treats ``@<basename>`` as a filesystem search and intermittently fails
-    to read the file (or scans the whole drive) — see issue #63.
+    to read the file (or scans the whole drive).
     """
     print_timeout = max(30, int(timeout))
     args = [
@@ -470,7 +470,7 @@ def call_gemini(
     tokens; their parent dir is both set as the subprocess ``cwd`` and
     added to `agy`'s workspace via ``--add-dir`` so the CLI resolves the
     references against the trusted workspace instead of searching the
-    filesystem (the latter is unreliable — see issue #63).
+    filesystem (the latter is unreliable).
     """
     global _current_model
     exe = _resolve_agy()
@@ -569,7 +569,7 @@ def call_gemini_image(
 
     There is no ``size`` parameter: Imagen controls the output dimensions and
     ignores pixel-size hints — aspect ratio is steered from the prompt text
-    (e.g. "16:9"), proven empirically (issue #114).
+    (e.g. "16:9"), proven empirically.
 
     When ``reference_image`` is given the call is an **edit**: the file is
     copied into the working dir and referenced as ``@<basename>`` so `agy`

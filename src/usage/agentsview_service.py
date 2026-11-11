@@ -1,4 +1,4 @@
-"""Optional external AgentsView server process lifecycle (issue #280).
+"""Optional external AgentsView server process lifecycle.
 
 Feeds the Code tab's AGY vendor. Same optional-service shape as
 ``services.py``'s Langfuse handling: short probe, launch helper,
@@ -6,7 +6,7 @@ soft-fail everywhere. Never installed into the hub's own ``.venv`` — the
 exe resolves from ``AGENTSVIEW_EXE``, the dedicated ``.venv-agentsview/``,
 or PATH.
 
-Split out of ``services.py`` (issue #533) — that module's docstring
+Split out of ``services.py`` — that module's docstring
 advertised "Docker engine + Langfuse stack" while this whole AgentsView
 lifecycle (probe/launch/stop) had also grown in there, unrelated to
 either. Reuses :func:`src.services.poll_until` rather than duplicating
@@ -43,8 +43,8 @@ def agentsview_exe() -> Optional[str]:
     """Resolve the agentsview executable, or ``None`` when not installed.
 
     Order: ``AGENTSVIEW_EXE`` env → the repo-local dedicated venv
-    (``.venv-agentsview/``, kept separate from the hub's own ``.venv`` per
-    #280's isolation rule) → PATH (pipx install).
+    (``.venv-agentsview/``, kept separate from the hub's own ``.venv`` for
+    isolation) → PATH (pipx install).
     """
     env = os.environ.get("AGENTSVIEW_EXE", "").strip()
     if env:
@@ -194,7 +194,7 @@ async def launch_agentsview() -> Dict[str, Any]:
 
 
 async def stop_agentsview() -> Dict[str, Any]:
-    """Stop AgentsView by killing whoever holds its port (issue #284).
+    """Stop AgentsView by killing whoever holds its port.
 
     AgentsView is spawned detached with no PID tracked by the hub — same
     fire-and-forget shape as Docker Desktop — so the only reliable way to

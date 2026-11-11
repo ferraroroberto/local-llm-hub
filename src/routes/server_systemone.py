@@ -1,4 +1,4 @@
-"""TypeSafe "System One" passthrough route (``POST /v1/systemone``, #611).
+"""TypeSafe "System One" passthrough route (``POST /v1/systemone``).
 
 TypeSafe's Jev is a decision model, not a text generator: a request carries a
 ``state`` plus a map of typed ``questions`` (Noul / Choice / Score) and the

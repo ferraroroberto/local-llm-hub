@@ -73,12 +73,12 @@ def load_startup_profile(path: Optional[str] = None) -> StartupProfile:
 
     A broken or absent profile must never prevent the hub from starting —
     same tolerant-load contract as ``transcription_glossary.load_rules()``.
-    Unknown keys (the retired ``models`` list, #430; ``mac_mini_sync``, #374)
+    Unknown keys (the retired ``models`` list; ``mac_mini_sync``)
     are ignored, so a pre-migration live file loads cleanly.
 
     When the live file is absent (fresh clone / first run) and no explicit
     ``path`` was given, the committed ``EXAMPLE_PROFILE_PATH`` template is read
-    instead (issue #304), so the example seeds fresh-clone defaults. The cache
+    instead, so the example seeds fresh-clone defaults. The cache
     still keys on the resolved live ``target`` so ``save_startup_profile``'s
     invalidation lands on the same slot once a real file is written.
     """
@@ -114,7 +114,7 @@ def load_startup_profile(path: Optional[str] = None) -> StartupProfile:
 def normalize_profile(data: Dict[str, Any]) -> StartupProfile:
     """Validate + clean an incoming profile payload for persistence.
 
-    Service flags only (#430) — a lingering ``models`` key from an older
+    Service flags only — a lingering ``models`` key from an older
     caller is silently dropped rather than rejected, so a not-yet-updated
     peer PATching the old shape can never 400 the migration.
     """

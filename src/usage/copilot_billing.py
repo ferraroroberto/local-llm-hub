@@ -1,4 +1,4 @@
-"""GitHub Copilot billing-API daily credits poller (issue #231, part B).
+"""GitHub Copilot billing-API daily credits poller.
 
 The Copilot CLI/VS Code session parsers in ``copilot_usage.py`` only see
 usage the local machine actually wrote to disk — sessions that crashed
@@ -8,8 +8,7 @@ reports the real per-day x per-model AI Credit spend for the account,
 independent of which device generated it. Trade-off: no session/project
 attribution is possible from this endpoint, so it is surfaced as its own
 "official credits" card rather than folded into the session-shaped tables
-``code_usage.py`` builds for Claude/Codex/Copilot-local (issue #231 design
-decision).
+``code_usage.py`` builds for Claude/Codex/Copilot-local.
 
 Design constraints mirror ``code_usage.py``/``codex_usage.py`` as closely as
 a *remote* API allows:

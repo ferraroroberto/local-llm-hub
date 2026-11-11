@@ -1,9 +1,9 @@
 """Fleet reconcile — converge each host to its registry-derived desired state.
 
-Step 2 of the always-on control plane (#353), re-sourced in #430: the desired
+Step 2 of the always-on control plane: the desired
 running set per host is **derived from ``config/models.yaml``**
 (``model_registry.desired_placement()`` — ``startup: eager`` rows on their
-preferred chain host), replacing the retired ``config/fleet_placement.json``.
+preferred chain host).
 For every host with desired models, one pass makes the live fleet match the
 registry:
 
@@ -11,7 +11,7 @@ registry:
     ``remote_bootstrap.bootstrap_host`` (the tower holds the forced-command
     key); once it answers, converge it in the same pass;
   * a **reachable remote** host → start any desired model not up via its own
-    hub's models API. No profile write-through is needed any more: the peer
+    hub's models API. No profile write-through is needed: the peer
     self-boots its desired set from its *own* synced ``models.yaml``
     (``server_lifecycle._autostart_configured_backends`` →
     ``model_registry.desired_model_ids``), even when the tower is down;
@@ -20,18 +20,18 @@ registry:
 
 The periodic pass (:func:`reconcile_once`) is **additive**: it starts missing
 desired models but never stops one that was started by hand. ``startup:
-on_demand`` rows (#422) are never in the desired set — ``src.on_demand`` owns
+on_demand`` rows are never in the desired set — ``src.on_demand`` owns
 their load/unload lifecycle, so an idle-unloaded or hand-stopped on-demand
-model staying down is by design (the pre-#422 supervisor resurrected a
-stopped ``gemma4_26b`` within minutes, observed live). Stopping an eager
+model staying down is by design (resurrecting a stopped on-demand model
+would fight that lifecycle). Stopping an eager
 model permanently is a config edit: flip its row to ``on_demand`` or move its
 chain in ``models.yaml``.
 
-**Maintenance gate (#411):** this loop's own always-on convergence used to race
-``model_failover.py`` (#342) — a deliberately-stopped peer got SSH-resurrected
+**Maintenance gate:** this loop's own always-on convergence would race
+``model_failover.py`` — a deliberately-stopped peer would get SSH-resurrected
 here within seconds, well inside ``model_failover``'s ``fail_after_s`` window,
 so failover could never trigger on a drill-induced outage. :func:`reconcile_once`
-now checks ``src.fleet.fleet_maintenance.is_under_maintenance`` per host and skips a
+checks ``src.fleet.fleet_maintenance.is_under_maintenance`` per host and skips a
 drained host entirely (no wake, no bootstrap, no start) until its window
 expires or is cleared via ``/admin/api/fleet-maintenance`` — see that module's
 docstring for the full contract.
@@ -78,7 +78,7 @@ _PEER_TIMEOUT_S = 30.0
 # Peer transport — raw httpx, soft-failing (no FastAPI HTTPException in a loop).
 # --------------------------------------------------------------------------- #
 def _peer_base(owner: Any) -> str:
-    """Peer hub base URL via the #396 dial resolver — LAN address while it
+    """Peer hub base URL via the dial resolver — LAN address while it
     answers, tailnet name when it doesn't. The preceding ``peer_health`` call
     in every converge path has already warmed the resolver's last-known-good
     cache, so this is a dict lookup in practice, not a probe."""

@@ -96,7 +96,7 @@ def _whisper_model_for_request(model_name: str, *, default_role: str) -> Optiona
 class _BackendUnavailable(Exception):
     """Raised inside a single candidate attempt when that backend is *down* —
     a connection error/timeout or an upstream 502/503/504 — so ``_proxy_audio``
-    can fail over to the next model in the role chain (#348). Carries the
+    can fail over to the next model in the role chain. Carries the
     HTTPException to surface if this turns out to be the last candidate."""
 
     def __init__(self, http_exc: HTTPException) -> None:
@@ -109,25 +109,25 @@ _ROLE_ALIASES = {"audio_transcribe", "audio_translate"}
 
 
 def _whisper_chain_for_request(model_name: str, *, default_role: str) -> List[Model]:
-    """Ordered whisper-shaped candidates to try for this request (#348).
+    """Ordered whisper-shaped candidates to try for this request.
 
     * An explicit **concrete** model (``model=whisper-vanilla``) → a one-element
       chain: honour it exactly, never fail over to a *different model*, and
-      never fall through to the role chain. Preserves #128 — a caller that
-      picked ``whisper-vanilla`` to escape the glossary must not silently land
-      on turbo — and #412: when that model can't be served here the caller gets
-      a 503 naming it, not a 200 produced by some other model. (Host-level
-      failover for the *same* model id — the #342 chain — is not a
+      never fall through to the role chain. A caller that picked
+      ``whisper-vanilla`` to escape the glossary must not silently land on
+      turbo, and when that model can't be served here the caller gets a 503
+      naming it, not a 200 produced by some other model. (Host-level
+      failover for the *same* model id — the host chain — is not a
       substitution and still applies, inside :func:`_forward_to_candidate`.)
     * The **role** path (no ``model``, or a role alias like ``audio_transcribe``)
       → the configured ``roles.audio.<role>`` chain (``model_id`` + ``fallback``),
       resolved via the registry so it can include remote/cross-enabled rows
       (e.g. ``parakeet`` on the Mac). Falling back across models here is the
-      whole point of the role — it is only made *observable* (#412), never
+      whole point of the role — it is only made *observable*, never
       blocked.
     * A ``model=`` the registry has never heard of (OpenAI clients must send
       something, and the SDK's default is ``whisper-1``) is not a request for
-      one of our models — it addresses the role, exactly as before.
+      one of our models — it addresses the role.
     * If the config chain is empty/unresolvable → the legacy local-only heuristic
       (:func:`_whisper_model_for_request`), so nothing regresses.
 
@@ -136,7 +136,7 @@ def _whisper_chain_for_request(model_name: str, *, default_role: str) -> List[Mo
     the id names a transcription model this host does not serve. Neither of
     those is an *outage*: a backend that is genuinely down is a different
     condition, reported downstream by :func:`_audio_upstream_error` with a
-    message naming the port (#147).
+    message naming the port.
     """
     from ..model_registry import audio_role_chain, resolve_any
     from ..model_registry import resolve as _resolve_model
@@ -211,9 +211,9 @@ def _whisper_chain_for_request(model_name: str, *, default_role: str) -> List[Mo
 
 
 def _served_host_for(target: Model) -> str:
-    """Host id that serves ``target`` from this hub's point of view (#412).
+    """Host id that serves ``target`` from this hub's point of view.
 
-    The *effective* owner (#342) when the row declares one — that is the host
+    The *effective* owner when the row declares one — that is the host
     the request is proxied to — and the active host otherwise (a row nobody
     owns is served right here). Best-effort: an unresolvable host profile
     yields ``""`` rather than failing a transcription that already succeeded.
@@ -242,7 +242,7 @@ def _served_identity(target: Model, upstream, *, remote: bool) -> Tuple[str, str
     own config and may legitimately answer off a different chain member. Its
     ``X-Hub-Served-Model`` / ``X-Hub-Served-Host`` are the honest answer and
     win; a peer too old to send them — or a bare whisper-server, which never
-    does — falls back to what this hub dispatched (#412).
+    does — falls back to what this hub dispatched.
     """
     peer_model = ""
     peer_host = ""
@@ -256,7 +256,7 @@ def _served_identity(target: Model, upstream, *, remote: bool) -> Tuple[str, str
 
 
 def _observable_audio_error(exc: HTTPException, ctx, requested: str) -> HTTPException:
-    """Make an audio *failure* as observable as an audio success (#412).
+    """Make an audio *failure* as observable as an audio success.
 
     A strict rejection is precisely the event an operator has to be able to
     see, yet an unstamped reject is the least visible thing the hub emits: it
@@ -280,7 +280,7 @@ def _observable_audio_error(exc: HTTPException, ctx, requested: str) -> HTTPExce
 
 async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) -> Response:
     """Forward a multipart audio request to a whisper backend, failing over
-    across the role's model chain (#348).
+    across the role's model chain.
 
     The whisper-server already speaks the OpenAI ``/v1/audio/*`` shape, so we
     forward the bytes/form and pass the response back — the point of going
@@ -289,8 +289,8 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
     connection error/timeout or a 502/503/504), it transparently retries the
     next model in ``roles.audio.<role>`` instead of erroring — so a dead
     ``parakeet@mac`` falls through to whisper, never a failed dictation. That
-    fallback is no longer *silent*: who served, and on which host, is stamped
-    on the request record and echoed in the response headers (#412). An
+    fallback is never *silent*: who served, and on which host, is stamped
+    on the request record and echoed in the response headers. An
     explicit ``model=`` is strict and never substituted at all — see
     :func:`_whisper_chain_for_request`. A real client error (4xx) or a 200 is
     returned as-is.
@@ -356,7 +356,7 @@ async def _dispatch_audio(
     Split out of :func:`_proxy_audio` purely so every ``HTTPException`` raised
     on the way — strict rejection, malformed multipart, whole chain down — is
     funnelled through one observability wrapper instead of each raise site
-    remembering to stamp the context (#412).
+    remembering to stamp the context.
     """
     chain = _whisper_chain_for_request(model_name, default_role=default_role)
     if not chain:
@@ -525,10 +525,10 @@ async def _forward_to_candidate(
 ) -> Response:
     """POST the prepared payload to one candidate backend and return its
     Response, or raise :class:`_BackendUnavailable` when the backend is down so
-    the caller can try the next model (#348). Records obs/OTel against the model
-    that actually served, and applies the #90 glossary to a 200 transcript.
+    the caller can try the next model. Records obs/OTel against the model
+    that actually served, and applies the glossary to a 200 transcript.
 
-    The request record carries *three* names (#412): ``model`` is what the
+    The request record carries *three* names: ``model`` is what the
     caller asked for (stamped by :func:`_proxy_audio` before anything can
     fail), while ``served_model`` and ``served_host`` are the chain member and
     the machine that **answered** — so the Telemetry tab and
@@ -633,7 +633,7 @@ async def audio_translations(request: Request) -> Response:
 @router.get("/v1/audio/health")
 def audio_health() -> Response:
     """Probe-only liveness of the audio backends — lets a consumer preflight
-    instead of discovering an outage one failed transcription at a time (#147).
+    instead of discovering an outage one failed transcription at a time.
 
     Reports each enabled whisper / TTS backend with its port and whether it is
     currently reachable (a cheap GET to the backend, never a transcription).

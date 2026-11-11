@@ -1,17 +1,17 @@
-"""Git-backed write path for config/models.yaml placement edits (#424).
+"""Git-backed write path for config/models.yaml placement edits.
 
 The admin UI's editable placement cards write *through to git*: an accepted
 edit mutates ``config/models.yaml`` comment-preservingly (ruamel.yaml — the
 file's comments are load-bearing), commits with the config-bot message
 convention (``config: <model> placement via admin UI``) and pushes to
 ``origin main``. The YAML stays the single source of truth; satellites
-converge by pulling (the #181 sync endpoints + the drift loop below).
+converge by pulling (the sync endpoints + the drift loop below).
 
 Safety contract, in order:
 
 * **Single writer** — only the host named by ``hub.config_write_host`` in
   models.yaml (tower) may write; everything else 403s at the router.
-* **Validate before any file change** — schema checks plus the #375
+* **Validate before any file change** — schema checks plus the
   VRAM-budget math: a placement whose *eager, GPU-tier* chain members
   overcommit a host's declared ``vram_mb`` ceiling is hard-rejected
   (config-time overcommit is a standing error, unlike the transient
@@ -91,7 +91,7 @@ def write_host_id() -> Optional[str]:
 
 
 def is_write_host() -> bool:
-    """True only on the declared single-writer host (#424's tower)."""
+    """True only on the declared single-writer host (the tower)."""
     writer = write_host_id()
     if not writer:
         return False
@@ -318,7 +318,7 @@ def _eager_gpu_hosts(
 def _overcommit_errors(
     model_id: str, chain: List[Dict[str, Any]], startup: str
 ) -> List[str]:
-    """The #375 budget math as a hard config-time gate: with the edit
+    """The VRAM budget math as a hard config-time gate: with the edit
     applied, no host with a declared ``vram_mb`` ceiling that this model
     would sit on (eager, non-cpu) may have its eager GPU-tier set exceed
     the ceiling. Matches the worst-case chain-membership arithmetic the
@@ -434,7 +434,7 @@ def _trailing_comment_slot(node: Any, key: Any) -> Tuple[Dict[Any, list], Any, i
 
 
 def _delete_key_keeping_comments(row: Any, key: str) -> None:
-    """``del row[key]`` without losing the comment block written below it (#595).
+    """``del row[key]`` without losing the comment block written below it.
 
     ruamel attaches the comment lines that follow a key's line to that key,
     so a bare ``del`` drops them. Re-home them onto the previous key's
@@ -593,7 +593,7 @@ def apply_placement(
     startup: str,
     idle_unload_minutes: Optional[int],
 ) -> Dict[str, Any]:
-    """The full write transaction (#424): validate → git preflight →
+    """The full write transaction: validate → git preflight →
     comment-preserving edit → verify-only-our-file → commit → push.
 
     Raises :class:`ConfigWriteError` with the right HTTP status at every
@@ -745,7 +745,7 @@ _DRIFT_BOOT_DELAY_S = 120
 
 async def config_drift_sync_loop() -> None:
     """Write-host only: poll hub peers' ``/admin/api/version`` for their
-    ``config_sha`` and fire the #181 sync (git pull + hub restart) at any
+    ``config_sha`` and fire the sync (git pull + hub restart) at any
     peer whose models.yaml lags this host's."""
     if not is_write_host():
         return

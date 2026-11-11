@@ -1,6 +1,6 @@
 """Per-vendor $/Mtok pricing tables and per-record cost estimation.
 
-Extracted out of ``code_usage.py`` (#451) — three independent pricing-table
+Extracted out of ``code_usage.py`` — three independent pricing-table
 loaders (Claude/OpenAI/Gemini) plus the cross-vendor cost dispatcher
 (:func:`record_costs`) were one of five unrelated concerns that module mixed
 together. ``code_usage.py`` imports :func:`record_costs` for its
@@ -135,7 +135,7 @@ def record_costs(r: "UsageRecord") -> Tuple[float, float, float]:
     long-context surcharge (2x input / 1.5x output) is not modelled — this is an
     estimate, and per-request context size isn't tracked.
 
-    AGY (#280): priced per tile against Gemini API list prices
+    AGY: priced per tile against Gemini API list prices
     (``config/gemini_pricing.json``), same estimate-vs-list-prices idea as
     Codex — AgentsView's own ``cost_usd`` is unreliable here (it can't price
     the display-name model ids ``antigravity-cli`` sessions carry).  Cache
@@ -143,8 +143,8 @@ def record_costs(r: "UsageRecord") -> Tuple[float, float, float]:
     implicit-caching rate.
 
     Copilot and any other AgentsView-sourced vendor: ``credits_usd`` carries
-    the record's own dollar figure — Copilot's *exact* billed AI Credits
-    (#231) — returned directly as the input-cost slot so it still nets into
+    the record's own dollar figure — Copilot's *exact* billed AI Credits —
+    returned directly as the input-cost slot so it still nets into
     the same three-tile total the SPA sums, never re-priced against a hub
     rate table.  This must be checked before the Claude family-substring
     fallback below, or a Copilot call that resolved to e.g.
