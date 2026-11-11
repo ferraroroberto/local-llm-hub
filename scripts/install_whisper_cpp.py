@@ -3,7 +3,7 @@
 Picks a release asset from ggerganov/whisper.cpp that matches this machine:
   - Windows x64 + NVIDIA  -> whisper-cublas-<cuda>-bin-x64.zip
   - macOS arm64           -> built from source (Metal) — upstream ships no
-    prebuilt macOS asset as of the pinned tag (#413); see
+    prebuilt macOS asset as of the pinned tag; see
     ``_macos_build_from_source``.
 
 Extracts into vendor/whisper.cpp/ at the project root, then renames the
@@ -93,7 +93,7 @@ def already_installed() -> bool:
 
 
 def _linux_cuda_build_hint() -> str:
-    """Upstream ships no prebuilt Linux CUDA whisper-server (#368). The pinned
+    """Upstream ships no prebuilt Linux CUDA whisper-server. The pinned
     tag matches the Windows/macOS vendored line."""
     return linux_cuda_build_hint(
         name="whisper.cpp",
@@ -109,7 +109,7 @@ def _macos_find_cmake() -> Optional[str]:
     """cmake's location on macOS, tolerant of a restricted non-interactive
     PATH (``/usr/bin:/bin:/usr/sbin:/sbin``) that a launchd/SSH-triggered
     "Fix" run gets even when an interactive shell's PATH has it via
-    Homebrew (#413 — confirmed on mac-mini-m4: ``cmake`` is on
+    Homebrew (on the mac mini, ``cmake`` is on
     ``/opt/homebrew/bin``, off that restricted PATH)."""
     found = shutil.which("cmake")
     if found:
@@ -122,9 +122,8 @@ def _macos_find_cmake() -> Optional[str]:
 
 def _macos_build_prereqs() -> str:
     """Returns the cmake path if every from-source build prerequisite is
-    present; raises a clear, actionable InstallError otherwise (#413 scope:
-    "fail with a clear message when a build prerequisite is missing rather
-    than an asset-list dump")."""
+    present; raises a clear, actionable InstallError otherwise, rather than
+    dumping the asset list when a build prerequisite is missing."""
     cmake_path = _macos_find_cmake()
     if not cmake_path:
         raise InstallError(
@@ -147,7 +146,7 @@ def _macos_build_prereqs() -> str:
 
 
 def _macos_build_from_source() -> None:
-    """Build whisper-server from source for this pinned tag (#413) — no
+    """Build whisper-server from source for this pinned tag — no
     prebuilt macOS asset exists as of ``PINNED_TAG``. Mirrors the recipe
     hand-verified on mac-mini-m4: cmake configure (Metal + Accelerate BLAS
     are auto-detected on Apple platforms), build the ``whisper-server``
@@ -241,7 +240,7 @@ def _purge_vendor() -> None:
 
 def _pick_assets(release: dict) -> List[dict]:
     """Windows only — the darwin platform has no reliable prebuilt asset as
-    of ``PINNED_TAG`` (#413) and is handled separately by ``_find_macos_asset``
+    of ``PINNED_TAG`` and is handled separately by ``_find_macos_asset``
     plus a from-source fallback."""
     assets = release.get("assets") or []
     names = [a["name"] for a in assets]
@@ -267,7 +266,7 @@ def _pick_assets(release: dict) -> List[dict]:
 
 def _find_macos_asset(release: dict) -> Optional[dict]:
     """A prebuilt macOS arm64 asset, if the pinned tag happens to publish one
-    (upstream did not as of v1.8.6 — #413). Checked first so a future
+    (upstream does not at v1.8.6). Checked first so a future
     ``PINNED_TAG`` bump onto a release that does ship one uses it instead of
     building from source."""
     assets = release.get("assets") or []

@@ -9,7 +9,7 @@ by ``--base-url``, so the *same* tool measures any machine::
     python scripts/bench_agentic.py run --base-url http://127.0.0.1:8000 \
         --model qwen35_4b --out .scratch/nemotron-spike
 
-    # a whole bake-off, arms measured back to back (issue #486)
+    # a whole bake-off, arms measured back to back
     python scripts/bench_agentic.py run --base-url http://127.0.0.1:8000 \
         --model qwen35_4b --model qwen35_4b_nothink \
         --model nemotron4b --model nemotron4b_nothink \
@@ -28,7 +28,7 @@ own ``usage`` and ``timings`` — and both *include* reasoning tokens, which is
 precisely why the two numbers diverge.
 
 The reasoning tax is measured as the **think-arm minus no-think-arm delta**
-rather than estimated per response. That is what the 4-arm layout in issue #486
+rather than estimated per response. That is what the 4-arm layout
 buys: the hub scrubs ``<think>`` blocks server-side
 (``src/openai_upstream.ThinkStripper``), so the reasoning never appears in the
 response text and cannot be counted from it — but running the same prompt with
@@ -36,14 +36,14 @@ thinking on and off isolates the cost exactly.
 
 Note that server-side scrubbing also means the caller sees *nothing* until
 reasoning finishes: streamed TTFT on a thinking arm was 1.005 s of a 1.571 s
-total (64%) during #486. ``ttft_s`` is measured with a real streaming request
+total (64%) on one run. ``ttft_s`` is measured with a real streaming request
 for that reason.
 
 **A truncated answer is a failed answer.** Any response with
 ``finish_reason == "length"`` is recorded as ``ok=False`` and excluded from the
 timing aggregates. Reasoning models blow small budgets *inside* the think block
-and return nothing usable (observed at ``max_tokens=384`` on the work-PC spike,
-issue #486); counting that as a fast response would invert the result.
+and return nothing usable (observed at ``max_tokens=384`` on the work-PC spike);
+counting that as a fast response would invert the result.
 
 **VRAM sampling is a validity check, not a metric.** ``gemma4_26b`` is
 on-demand at ~13.4 GB on the tower. If a fleet client wakes it mid-run it
@@ -67,8 +67,8 @@ carry both ``model`` and ``blind_label`` — the timing analysis is per-arm and
 would be impossible otherwise — so anyone who opens it has the mapping. The
 discipline is procedural, not cryptographic: *do not open ``results.json`` or
 ``mapping.json`` until the content scores are written down.* When that has to be
-violated (during #486 the truncation triage required per-arm token counts before
-judging could start at all), say so in the write-up and stop calling the result
+violated (truncation triage can require per-arm token counts before
+judging can start at all), say so in the write-up and stop calling the result
 blind. An overstated method is worse than an honest single-judge one.
 """
 
@@ -190,7 +190,7 @@ def _measure_ttft(base: str, model: str, body: Dict[str, Any],
     Worth measuring separately because the hub strips ``<think>`` blocks
     server-side: on a thinking arm the caller sees *nothing* until reasoning
     ends, so TTFT is dominated by reasoning time, not by prompt eval. Measured
-    at 1.005 s of a 1.571 s total (64%) on nemotron4b during #486 — which is
+    at 1.005 s of a 1.571 s total (64%) on nemotron4b — which is
     the whole argument for a no-think lane, and is invisible if you only look
     at tok/s.
     """

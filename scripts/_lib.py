@@ -3,7 +3,7 @@
 ``install_llama_cpp.py`` and ``install_whisper_cpp.py`` both download a
 GitHub release archive, extract it into a ``vendor/`` directory, and
 collapse a single-subdir extraction — near line-for-line duplicates before
-this module existed (issue #195). Consolidated here so a fix to the
+this module existed. Consolidated here so a fix to the
 release-fetch/download/extract/flatten logic and the Linux CUDA build hint
 lands once instead of twice.
 
@@ -42,7 +42,7 @@ class InstallError(RuntimeError):
 
 def no_window_flags() -> int:
     """CREATE_NO_WINDOW on Windows — this also runs from the windowless hub
-    when triggered via the admin SPA's "Fix" button (issue #174)."""
+    when triggered via the admin SPA's "Fix" button."""
     return subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
@@ -50,7 +50,7 @@ def detect_cuda_arch() -> str:
     """The host GPU's CUDA compute capability as a bare arch (e.g. ``61`` for a
     GTX 1070's sm_61), from ``nvidia-smi --query-gpu=compute_cap``. Empty string
     if nvidia-smi is absent/unreadable — the caller supplies a default. Used by
-    the Linux from-source build hints (#368), where the vendored-release path
+    the Linux from-source build hints, where the vendored-release path
     upstream ships for Windows/macOS has no Linux equivalent.
     """
     try:
@@ -90,7 +90,7 @@ def linux_cuda_build_hint(
     """A reproducible from-source CUDA build recipe for a Linux satellite.
 
     Upstream ships no prebuilt Linux CUDA server binary for either project;
-    gaming's sm_61 build was compiled by hand (#368). Rather than ship an
+    gaming's sm_61 build was compiled by hand. Rather than ship an
     untested automated compile, surface the exact commands with the arch
     defaulted to this host's detected GPU (override via
     ``LOCAL_LLM_HUB_CUDA_ARCH``). ``ref`` pins a git tag to clone;

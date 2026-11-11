@@ -126,7 +126,7 @@ def _load_admin_webapp_config() -> Optional[WebappConfig]:
     """The sub-app's config, or ``None`` when it can't be loaded.
 
     The sub-app still mounts so loopback keeps its admin UI, but ``None`` is
-    unknown, not defaults (#585): the bearer gate admits loopback callers
+    unknown, not defaults: the bearer gate admits loopback callers
     only (no token, no ``extra_allowlist`` to match), and the routers that
     read the config answer 503 ``webapp config could not be loaded``.
     """

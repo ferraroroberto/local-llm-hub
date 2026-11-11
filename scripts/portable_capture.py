@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Zero-install portable diagnostics sampler (issue #316).
+"""Zero-install portable diagnostics sampler.
 
 Delivered to a hub-less machine over SSH and run without a checkout::
 
@@ -138,7 +138,7 @@ def _scan_ports(processes):
     Returns ``(rows, denied)``. On ``AccessDenied`` (needs root/sudo on macOS to
     see other users' sockets) or any other scan failure it degrades to an empty
     list but reports ``denied=True``, so the ingest records a coverage gap
-    instead of letting a blind scan read as 'nothing listening' (#322)."""
+    instead of letting a blind scan read as 'nothing listening'."""
     by_pid = {p.get("pid"): p for p in processes}
     try:
         conns = psutil.net_connections(kind="inet")

@@ -68,12 +68,12 @@ def _offline_remote_row(m: Model, host_id: str) -> Dict[str, Any]:
 
 
 def _add_failover_fields(row: Dict[str, Any], m: Model, owner_id: str) -> None:
-    """Annotate a tile row with #342 chain state — only for multi-host rows.
+    """Annotate a tile row with its failover chain state — only for multi-host rows.
 
     ``preferred_host`` is the chain's first candidate; ``failover: true``
     flags that the model is currently served off-preference (failed over),
     which the SPA renders as an amber hint on the tile's meta line. A
-    dormant head (intentionally off, #765) is not preferred: serving from the
+    dormant head (intentionally off) is not preferred: serving from the
     next member is the plan, not a failover to flag.
     """
     if len(m.host_chain) <= 1:
@@ -90,8 +90,8 @@ def _add_failover_fields(row: Dict[str, Any], m: Model, owner_id: str) -> None:
 def _add_placement_fields(
     row: Dict[str, Any], m: Model, cpu_map: Dict[str, set]
 ) -> None:
-    """Annotate a tile row with its declared placement *intent* (#423) — the
-    Phase 1 (#422) registry fields the read-only placement card renders.
+    """Annotate a tile row with its declared placement *intent* — the
+    Phase 1 registry fields the read-only placement card renders.
 
     Config-derived from the local registry, never trusted from a peer: the
     YAML is the fleet-wide source of truth and every hub reads the same file,
@@ -123,7 +123,7 @@ def _add_placement_fields(
 
 
 async def _config_block() -> Dict[str, Any]:
-    """Config-as-code context for the Models tab (#424): the models.yaml
+    """Config-as-code context for the Models tab: the models.yaml
     HEAD sha (the drift-visible config version), whether *this* hub may
     write (single-writer contract — tower only), and the full fleet host
     list the chain editor offers (with ceilings for context)."""
@@ -150,7 +150,7 @@ async def _forward_admin_call(
     target: Model, method: str, suffix: str, **kwargs: Any
 ) -> Dict[str, Any]:
     """Forward an admin models-API call to the host that actually owns
-    ``target`` (#178) — used by start/stop/force-stop/log when the
+    ``target`` — used by start/stop/force-stop/log when the
     resolved model isn't local. Mirrors the local handlers' error shape
     (404/400/409 from the remote surface verbatim; 502 if the remote
     hub itself is unreachable) via the shared ``forward_admin_request``.
@@ -259,7 +259,7 @@ async def _remote_owned_rows(
 @router.get("/api/models")
 async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
     """Per-tile state for every enabled model — local rows computed here,
-    plus (#178) any remote-owned rows merged in from the host that
+    plus any remote-owned rows merged in from the host that
     actually runs them.
 
     ``local_only=true`` skips the remote-merge step and returns just this
@@ -331,7 +331,7 @@ _PEER_SYNC_TASKS: set = set()
 
 
 def _schedule_peer_sync() -> None:
-    """Fire the #181 sync (git pull + hub restart) at every hub peer after a
+    """Fire the peer sync (git pull + hub restart) at every hub peer after a
     successful config push — the immediate leg of propagation; the periodic
     drift loop (``config_drift_sync_loop``) is the catch-up net."""
     from src.fleet import remote_bootstrap
@@ -353,7 +353,7 @@ def _schedule_peer_sync() -> None:
 @router.put("/api/models/{model_id}/placement")
 async def model_placement_update(model_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     """Update a model's placement in config/models.yaml via the git-backed
-    write path (#424): validate (schema + #375 VRAM budget, hard-reject) →
+    write path: validate (schema + VRAM budget, hard-reject) →
     comment-preserving YAML edit → config-bot commit → push to origin main
     → background peer sync. 403 on every host but the declared writer.
     """
@@ -486,7 +486,7 @@ def _silent_wav(seconds: float = 0.5, rate: int = 16000) -> bytes:
     Just enough for whisper-server to decode and return a (blank)
     transcription — proves the backend can actually run inference, not
     merely that its port is open. 0.5s (not the original 0.1s): FluidAudio's
-    Parakeet worker (#138) rejects anything under ~0.3s as invalidAudioData;
+    Parakeet worker rejects anything under ~0.3s as invalidAudioData;
     whisper.cpp tolerates any length so the longer default doesn't regress it.
     """
     buf = io.BytesIO()

@@ -1,11 +1,11 @@
-"""On-demand machine diagnostics API (#315) — behind the Machines tab's
+"""On-demand machine diagnostics API — behind the Machines tab's
 diagnostics modal.
 
   * ``GET  /admin/api/diagnostics/status``       — is a capture running, plus settings
   * ``POST /admin/api/diagnostics/start``        — begin a timed capture
   * ``POST /admin/api/diagnostics/snapshot``     — one-shot sample
   * ``POST /admin/api/diagnostics/stop``         — stop the active capture
-  * ``POST /admin/api/diagnostics/ingest``       — ingest a portable foreign capture (#316)
+  * ``POST /admin/api/diagnostics/ingest``       — ingest a portable foreign capture
   * ``GET  /admin/api/diagnostics/runs``         — past runs, newest first
   * ``GET  /admin/api/diagnostics/runs/{id}``    — the summary digest
   * ``GET  /admin/api/diagnostics/runs/{id}/drift``  — delta vs the baseline
@@ -110,7 +110,7 @@ async def diagnostics_stop() -> Dict[str, Any]:
 async def diagnostics_ingest(request: Request) -> Dict[str, Any]:
     """Ingest a portable capture (``scripts/portable_capture.py`` output) from a
     hub-less machine as an ordinary run — the native-path symmetry for the SSH
-    delivery (#316). The heavy lifting (attribution, coverage, verdict) runs in
+    delivery. The heavy lifting (attribution, coverage, verdict) runs in
     ``ingest.ingest_payload``; this just carries the JSON in and the run id out."""
     body = await maybe_json(request)
     if isinstance(body, dict) and isinstance(body.get("payload"), dict):

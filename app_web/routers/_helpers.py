@@ -45,7 +45,7 @@ WEBAPP_CONFIG_UNREADABLE = "webapp config could not be loaded"
 def loaded_webapp_config(request: Request) -> WebappConfig:
     """The sub-app's ``WebappConfig``, or a 503 when it could not be loaded.
 
-    ``create_app`` stores ``None`` for an unreadable config (#585). Handing a
+    ``create_app`` stores ``None`` for an unreadable config. Handing a
     router defaults instead would answer "not configured" for settings that
     are merely unknown, so the failure reaches the client as its own state.
     """
@@ -75,7 +75,7 @@ def sse_stream(
 ) -> StreamingResponse:
     """Generic subscribe -> seed -> disconnect/keepalive -> unsubscribe SSE
     skeleton — shared by hub.py's ``log_tail``/``requests_stream`` and
-    telemetry.py's ``telemetry_stream`` (issue #195), which were three
+    telemetry.py's ``telemetry_stream``, which were three
     near-identical copies of this generator (``telemetry_stream`` even
     reimplemented ``_sse_pack`` inline) before this helper existed.
 

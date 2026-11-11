@@ -1,10 +1,10 @@
-"""Machines console API (#309) — the fleet machine console behind the SPA's
+"""Machines console API — the fleet machine console behind the SPA's
 Machines tab.
 
   * ``GET  /admin/api/machines/status`` — every enrolled machine as a probed
     card (reachability, uptime, actions, host stats). The tab's poll.
   * ``GET  /admin/api/machines/dormant`` and ``PUT .../{id}/dormant`` — read
-    and set the per-machine dormant flag (intentionally off, #765) behind
+    and set the per-machine dormant flag (intentionally off) behind
     Settings › Machines; the write lands in ``machines.local.yaml`` only.
   * ``GET  /admin/api/machines/health`` — this machine's health-watch
     verdict (leaks and pressure, ``ok``/``watch``/``act``/``unknown``) for
@@ -13,10 +13,10 @@ Machines tab.
     (CPU/RAM/GPU/disk/uptime/version). Also fetched cross-host by a peer's
     aggregator, so it rides the normal bearer-token/loopback middleware.
   * ``POST /admin/api/machines/{id}/reboot`` and ``.../shutdown`` —
-    destructive power actions over the hub user's own general SSH (#311). The
+    destructive power actions over the hub user's own general SSH. The
     active hub host is refused (it is the excluded destructive case).
   * ``POST /admin/api/machines/{id}/wake`` — fire-and-forget Wake-on-LAN
-    (#356) for a machine with a configured ``mac``. Unlike reboot/shutdown
+    for a machine with a configured ``mac``. Unlike reboot/shutdown
     this legitimately targets a powered-down box, so it is not gated on
     reachability — only on having a MAC and not being the hub's own host.
   * ``GET  /admin/api/machines/{id}/runner`` and ``POST .../runner/{verb}`` —
@@ -95,7 +95,7 @@ async def machines_resources() -> Dict[str, Any]:
 async def machines_dormant() -> Dict[str, Any]:
     """Every peer with its dormant flag — config only, no live probe — for
     Settings › Machines. The machine the hub runs on is left out: it cannot
-    be dormant (#765)."""
+    be dormant."""
     active_id = resolve().id
     return {"machines": [
         {"id": h.id, "display_name": h.display_name or h.id, "role": h.role or "", "dormant": h.dormant}
@@ -106,7 +106,7 @@ async def machines_dormant() -> Dict[str, Any]:
 @router.put("/api/machines/{host_id}/dormant")
 async def machine_set_dormant(host_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     """Mark a machine dormant (intentionally off) or back, in the
-    machine-local ``machines.local.yaml`` (#765). Takes effect at once — the
+    machine-local ``machines.local.yaml``. Takes effect at once — the
     parsed config is re-read — and survives a restart."""
     try:
         changed = await asyncio.to_thread(
@@ -167,7 +167,7 @@ def _require_wake_target(host_id: str):
 
 @router.post("/api/machines/{host_id}/wake")
 async def machine_wake(host_id: str) -> Dict[str, Any]:
-    """Fire-and-forget Wake-on-LAN (#356) — no confirmation loop, no
+    """Fire-and-forget Wake-on-LAN — no confirmation loop, no
     reachability polling; the caller only learns the packet was sent."""
     host = _require_wake_target(host_id)
     logger.info("🌅 /admin/api/machines/%s/wake", host_id)
@@ -235,7 +235,7 @@ def _admin_token_getter(websocket: WebSocket):
 @router.websocket("/api/machines/{host_id}/terminal")
 async def machine_terminal(websocket: WebSocket, host_id: str) -> None:
     """Proxy an ``ssh <user>@<host>`` PTY session (app-launcher's session-
-    host) to the browser (#309, Step 3).
+    host) to the browser.
 
     The handshake is gated *before* ``accept()`` by
     ``middleware.authorize_websocket`` — ``BaseHTTPMiddleware`` (and so

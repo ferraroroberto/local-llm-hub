@@ -1,5 +1,5 @@
 """Idempotently enable SearXNG's `json` output format on a generated
-settings.yml (home-automation#321, local-llm-hub#438/#439).
+settings.yml.
 
 JSON is off by default (SearXNG's abuse-prevention default) but the HA voice
 search function and the home-automation webapp's status card both need

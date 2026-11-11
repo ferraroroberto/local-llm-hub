@@ -1,4 +1,4 @@
-"""Fleet maintenance API (#411) — the tower's drain-marker control surface
+"""Fleet maintenance API — the tower's drain-marker control surface
 that closes the ``fleet_reconcile.py``/``model_failover.py`` race.
 
   * ``GET    /api/fleet-maintenance``            → active (non-expired) drains.

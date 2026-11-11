@@ -11,7 +11,7 @@ Surfaces the host-side ``src.services`` (Docker/Langfuse) and
     step log when the chain settles — the request can take ~30-90 s on
     a cold start. Idempotent: a no-op when both services are already up.
   * ``POST /admin/api/services/{docker,langfuse,agentsview}/start`` and
-    ``.../stop`` (issue #284) — per-service controls mirroring the
+    ``.../stop`` — per-service controls mirroring the
     Models tab's per-model start/stop, for the Services card's
     individual row buttons. All idempotent.
 
@@ -41,10 +41,9 @@ async def _service_action(
     path: str, label: str, verb: str, coro: Awaitable[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Run one service start/stop/launch coroutine and log its outcome
-    uniformly (#530: was seven repeats of the same five-line body — await,
-    log an emoji + ``result["steps"]`` keyed on ``result["ok"]``, return it
-    — mirroring the SPA-side collapse already done for this exact shape in
-    ``app_web/static/hub.js``'s ``onServiceAction``).
+    uniformly (await, log an emoji + ``result["steps"]`` keyed on
+    ``result["ok"]``, return it) so the endpoints share one body — mirroring
+    the SPA-side ``onServiceAction`` in ``app_web/static/hub.js``.
     """
     icon = "🛑" if verb == "stop" else "🚀"
     logger.info("%s /admin/api/services/%s", icon, path)
@@ -103,7 +102,7 @@ async def services_status() -> Dict[str, Any]:
 
 @router.post("/api/services/agentsview/launch")
 async def services_agentsview_launch() -> Dict[str, Any]:
-    """Start the optional AgentsView server (issue #280). Returns a step log."""
+    """Start the optional AgentsView server. Returns a step log."""
     return await _service_action(
         "agentsview/launch", "agentsview", "launch", agentsview_service.launch_agentsview())
 
@@ -116,30 +115,30 @@ async def services_launch() -> Dict[str, Any]:
 
 @router.post("/api/services/agentsview/stop")
 async def services_agentsview_stop() -> Dict[str, Any]:
-    """Stop AgentsView (issue #284). Returns a step log."""
+    """Stop AgentsView. Returns a step log."""
     return await _service_action(
         "agentsview/stop", "agentsview", "stop", agentsview_service.stop_agentsview())
 
 
 @router.post("/api/services/docker/start")
 async def services_docker_start() -> Dict[str, Any]:
-    """Start Docker Desktop only (issue #284). Returns a step log."""
+    """Start Docker Desktop only. Returns a step log."""
     return await _service_action("docker/start", "docker", "start", svc.start_docker_desktop())
 
 
 @router.post("/api/services/docker/stop")
 async def services_docker_stop() -> Dict[str, Any]:
-    """Stop Docker Desktop via its CLI (issue #284). Returns a step log."""
+    """Stop Docker Desktop via its CLI. Returns a step log."""
     return await _service_action("docker/stop", "docker", "stop", svc.stop_docker_desktop())
 
 
 @router.post("/api/services/langfuse/start")
 async def services_langfuse_start() -> Dict[str, Any]:
-    """Start the Langfuse stack only, without touching Docker (issue #284)."""
+    """Start the Langfuse stack only, without touching Docker."""
     return await _service_action("langfuse/start", "langfuse", "start", svc.start_langfuse())
 
 
 @router.post("/api/services/langfuse/stop")
 async def services_langfuse_stop() -> Dict[str, Any]:
-    """Stop the Langfuse stack (issue #284). Returns a step log."""
+    """Stop the Langfuse stack. Returns a step log."""
     return await _service_action("langfuse/stop", "langfuse", "stop", svc.stop_langfuse())

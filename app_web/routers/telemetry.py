@@ -236,10 +236,10 @@ async def telemetry_metrics() -> Dict[str, Any]:
 @router.get("/api/telemetry/claude-code/usage")
 async def telemetry_claude_code_usage(period: str = "today") -> Dict[str, Any]:
     """Per-(date, model, query_source, project) rollup of Claude Code's own
-    OTel metrics export (issue #68, day breakdown #233, project attribution
-    #234), persisted at ``POST /v1/metrics`` (``src/routes/server_otel_receiver.py``
+    OTel metrics export (with a day breakdown and project attribution),
+    persisted at ``POST /v1/metrics`` (``src/routes/server_otel_receiver.py``
     -> ``src/usage/claude_code_otel.py``). ``project`` is auto-populated for any
-    session launched via the ``claude`` shell wrapper fleet-config#310 wires
+    session launched via the ``claude`` shell wrapper that fleet-config wires
     into ``$PROFILE`` (derived from the invoking repo); ``None`` otherwise.
 
     Deliberately separate from the Code tab's JSONL-sourced totals — this

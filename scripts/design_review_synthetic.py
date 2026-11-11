@@ -1,4 +1,4 @@
-"""Throwaway hub for the design-review walk's synthetic run (#736).
+"""Throwaway hub for the design-review walk's synthetic run.
 
 ``/design-review local-llm-hub --synthetic`` runs this (``[design.review.synthetic]``
 in ``.fleet.toml``) with the repo's venv python, from the repo root. It boots the

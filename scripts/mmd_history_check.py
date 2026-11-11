@@ -1,8 +1,7 @@
 """Fails when a `docs/**/*.mmd` diagram carries a `#NNN`-style issue
-reference (issue #910 finding: the vendored `docs_ratchet.py` only scans
-`.md` files by its own suffix check, so `.mmd` diagrams are a blind spot
-the docs ratchet never covers — `docs/architecture.mmd` had accumulated
-~58 such references with no gate noticing). A hand-authored diagram is a
+reference (the vendored `docs_ratchet.py` only scans `.md` files by its own
+suffix check, so `.mmd` diagrams are a blind spot the docs ratchet never
+covers). A hand-authored diagram is a
 present-tense component/runtime map; the story of why a box was added or
 moved belongs in git log and the issue, not baked into a node label.
 
@@ -10,7 +9,7 @@ Zero-tolerance, no baseline: unlike the ratchets this repeats the shape
 of, a brand-new `#NNN` in a diagram is always a reword, never a legitimate
 addition to track, so there is nothing to baseline.
 
-A `#RRGGBB` / `#RGB` Mermaid `classDef` colour (`fill:#2a2f3a,stroke:#555`)
+A `#RRGGBB` / `#RGB` Mermaid `classDef` colour (`fill:#2a2f3a,stroke:#5a5f6a`)
 is excluded by requiring the `#` not be immediately preceded by `:` — every
 colour literal in this file's dialect follows a `key:` prefix, an issue
 reference never does.

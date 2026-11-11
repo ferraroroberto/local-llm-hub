@@ -31,8 +31,8 @@ def _icon_sprite() -> str:
     The sprite must ship **in-document** (iOS Safari does not resolve external
     `<use href="file.svg#id">` references). We keep a single source — the
     app-owned ``icons-sprite.html`` partial, trimmed to the hub's glyphs (the
-    vendored ``_vendored/icons/`` copy stays byte-identical to the scaffold,
-    #770) — and inject it at serve time rather than duplicating ~180 lines
+    vendored ``_vendored/icons/`` copy stays byte-identical to the scaffold)
+    — and inject it at serve time rather than duplicating ~180 lines
     into ``index.html``. Cached once per process; a hub restart re-reads it.
     """
     sprite_path = STATIC_DIR / "icons-sprite.html"

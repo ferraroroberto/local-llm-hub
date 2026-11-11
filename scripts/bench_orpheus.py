@@ -1,7 +1,7 @@
 """Benchmark Orpheus token-generation throughput on the loopback llama-server.
 
 Orpheus TTS total synthesis time is bounded by how fast the loopback
-``llama-server`` child generates SNAC audio tokens (issue #105). This script
+``llama-server`` child generates SNAC audio tokens. This script
 measures that floor in isolation so llama-server flags can be tuned without
 bouncing the live hub for every trial, and re-verified after future model /
 GPU swaps.

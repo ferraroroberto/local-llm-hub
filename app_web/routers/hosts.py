@@ -1,4 +1,4 @@
-"""Remote-host lifecycle API — bootstrap/sync a peer's dead hub (#181).
+"""Remote-host lifecycle API — bootstrap/sync a peer's dead hub.
 
   * ``POST /admin/api/hosts/{host_id}/bootstrap`` — bring a *dead* remote
     host's hub back up over SSH (the LaunchAgent isn't guaranteed to have

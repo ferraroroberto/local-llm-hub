@@ -1,7 +1,7 @@
 """Glossary tab API — view/edit the transcription dictionary + mine suggestions.
 
 Backs the inline dictionary editor that opens from a whisper row on the
-Models tab (issue #94). The dictionary itself
+Models tab. The dictionary itself
 (``config/transcription_glossary.json``) is owned by
 ``src.audio.transcription_glossary``; this router is a thin CRUD + mining shell
 over it:

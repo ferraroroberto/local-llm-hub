@@ -61,7 +61,7 @@ def already_installed() -> bool:
 
 
 def _linux_cuda_build_hint() -> str:
-    """Upstream ships **no** prebuilt Linux CUDA llama-server (#368)."""
+    """Upstream ships **no** prebuilt Linux CUDA llama-server."""
     return linux_cuda_build_hint(
         name="llama.cpp",
         git_url="https://github.com/ggml-org/llama.cpp",

@@ -2,7 +2,7 @@
 
 Loopback callers (PC itself) bypass the bearer token. Non-loopback
 callers must present ``Authorization: Bearer <token>``, ``x-api-key:
-<token>`` (the Anthropic SDK's own credential header, #461), or
+<token>`` (the Anthropic SDK's own credential header), or
 ``?token=…`` on the URL (the last is what bookmarked / shared
 URLs use; the SPA strips it from ``window.location`` on first load).
 
@@ -211,7 +211,7 @@ def _caller_is_trusted(
     ``get_token()`` returning ``None`` means the token could not be
     established (the config failed to load) — distinct from ``""``, "no
     token configured". Unknown never takes the no-token rule: loopback and
-    ``extra_allowlist`` still apply, every other caller is refused (#558).
+    ``extra_allowlist`` still apply, every other caller is refused.
     """
     raw_token = get_token()
     token = (raw_token or "").strip()
@@ -250,7 +250,7 @@ def admin_token_from_state(app_state) -> Optional[str]:
 
     ``create_app`` leaves ``webapp_config`` as ``None`` when the config could
     not be loaded, and that maps to ``None`` — *unknown*, which
-    :func:`_caller_is_trusted` never reads as "no token configured" (#585).
+    :func:`_caller_is_trusted` never reads as "no token configured".
     Shared by :class:`BearerTokenMiddleware`'s getter and the terminal
     websocket's, so HTTP and websocket can't disagree about it.
     """
