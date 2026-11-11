@@ -231,8 +231,11 @@ function _syncImageCapabilities() {
   }
 }
 
+// The speech card's data-state: one fetch of the TTS model list, CSS keyed on it.
+const TTS_CARD = Object.freeze({ LOADING: 'loading', READY: 'ready', EMPTY: 'empty', ERROR: 'error' });
+
 export async function fetchTtsModels() {
-  if (els.ttsCard) els.ttsCard.dataset.state = 'loading';
+  if (els.ttsCard) els.ttsCard.dataset.state = TTS_CARD.LOADING;
   try {
     const body = await jsonApi('/admin/api/playground/tts_models');
     const models = body.models || [];
@@ -253,10 +256,10 @@ export async function fetchTtsModels() {
     const firstReachable = models.find(function (m) { return m.reachable; });
     if (firstReachable) els.ttsModel.value = firstReachable.id;
     els.ttsModel.disabled = !firstReachable;
-    if (els.ttsCard) els.ttsCard.dataset.state = models.length ? 'ready' : 'empty';
+    if (els.ttsCard) els.ttsCard.dataset.state = models.length ? TTS_CARD.READY : TTS_CARD.EMPTY;
     _syncTtsCapabilities(true);
   } catch (_) {
-    if (els.ttsCard) els.ttsCard.dataset.state = 'error';
+    if (els.ttsCard) els.ttsCard.dataset.state = TTS_CARD.ERROR;
     if (els.ttsAvailability) els.ttsAvailability.textContent = 'Voice model status could not be loaded.';
   }
 }

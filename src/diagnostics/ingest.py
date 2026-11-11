@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from . import attribution, coverage, rules, store
+from .run_state import RunStatus
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +181,7 @@ def _finalize(run_id: str, *, platform: str, ports_denied: bool) -> None:
     Coverage is written before the verdict so a rule that depends on a blind
     collector declines to score it (#322); GPU-unsupported is keyed off the
     *source* platform, not the ingesting hub's."""
-    store.finish_run(run_id, status="complete")
+    store.finish_run(run_id, status=RunStatus.COMPLETE)
     store.save_coverage(run_id, coverage.compute(run_id, ports_denied=ports_denied,
                                                   platform=platform))
     rules.evaluate_and_save(run_id)

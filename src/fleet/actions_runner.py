@@ -35,12 +35,23 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..host_profile import HostProfile, get_host, resolve
 from ..no_window import NO_WINDOW
 from . import remote_stats
+from .runner_state import (
+    VERBS,
+    GithubState,
+    Headline,
+    RunState,
+    ServiceState,
+    allowed,
+    converged,
+    github_state,
+    headline,
+    run_state,
+)
 from .ssh_exec import SshResult, run_ssh
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_DIR = "~/actions-runner"
-VERBS = ("start", "stop", "install")
 
 # ssh connect budget plus the longest remote command we run (a launchctl load).
 _SSH_STATUS_TIMEOUT_S = 25
@@ -58,12 +69,6 @@ _DIR_RE = re.compile(r"^(~/)?[A-Za-z0-9_.][A-Za-z0-9_./-]*$")
 _REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 _WORKFLOW_RE = re.compile(r"^[A-Za-z0-9_.-]+\.ya?ml$")
-
-SERVICE_RUNNING = "running"
-SERVICE_STOPPED = "stopped"
-SERVICE_LOADED = "loaded"  # registered with launchd but no process (crashed or exited)
-SERVICE_NOT_INSTALLED = "not_installed"
-SERVICE_UNKNOWN = "unknown"
 
 _locks: Dict[str, asyncio.Lock] = {}
 _gh_cache: Dict[str, Tuple[float, Any]] = {}
@@ -147,16 +152,16 @@ def _parse_service(sections: Dict[str, str]) -> Dict[str, Any]:
     rc = sections.get("SVCRC", "")
     low = text.lower()
     if "not installed" in low:
-        return {"state": SERVICE_NOT_INSTALLED, "reason": "The service is not installed."}
+        return {"state": ServiceState.NOT_INSTALLED.value, "reason": "The service is not installed."}
     started = re.search(r"Started:\s*\n\s*(\S+)\s+(\S+)\s+actions\.runner", text)
     if started:
         pid, last_exit = started.group(1), started.group(2)
         if pid.isdigit() and int(pid) > 0:
-            return {"state": SERVICE_RUNNING, "reason": ""}
-        return {"state": SERVICE_LOADED, "reason": f"Loaded but not running (last exit {last_exit})."}
+            return {"state": ServiceState.RUNNING.value, "reason": ""}
+        return {"state": ServiceState.LOADED.value, "reason": f"Loaded but not running (last exit {last_exit})."}
     if re.search(r"^\s*Stopped\s*$", text, re.MULTILINE):
-        return {"state": SERVICE_STOPPED, "reason": ""}
-    return {"state": SERVICE_UNKNOWN, "reason": f"svc.sh status was not understood (exit {rc or '?'})."}
+        return {"state": ServiceState.STOPPED.value, "reason": ""}
+    return {"state": ServiceState.UNKNOWN.value, "reason": f"svc.sh status was not understood (exit {rc or '?'})."}
 
 
 def _parse_runner_file(raw: str) -> Dict[str, Optional[str]]:
@@ -284,7 +289,7 @@ def _gh_cached(path: str, *, fresh: bool) -> Tuple[Optional[Any], Optional[str]]
 
 def _read_github(repo: Optional[str], name: Optional[str], workflow: Optional[str], *, fresh: bool) -> Dict[str, Any]:
     """Blocking: GitHub's view of the runner and the latest workflow result."""
-    github: Dict[str, Any] = {"state": "unknown", "busy": None, "reason": ""}
+    github: Dict[str, Any] = {"state": GithubState.UNKNOWN.value, "busy": None, "reason": ""}
     last_run: Optional[Dict[str, Any]] = None
     if not repo or not name:
         github["reason"] = "The runner's repo or name could not be read."
@@ -295,9 +300,9 @@ def _read_github(repo: Optional[str], name: Optional[str], workflow: Optional[st
     else:
         match = next((r for r in (data or {}).get("runners", []) if r.get("name") == name), None)
         if match is None:
-            github.update(state="not_registered", reason="GitHub does not list this runner.")
+            github.update(state=github_state(None).value, reason="GitHub does not list this runner.")
         else:
-            github.update(state="online" if match.get("status") == "online" else "offline", busy=bool(match.get("busy")))
+            github.update(state=github_state(match).value, busy=bool(match.get("busy")))
     if workflow:
         runs, run_err = _gh_cached(f"repos/{repo}/actions/workflows/{workflow}/runs?per_page=1", fresh=fresh)
         last_run = _summarise_run(runs, run_err)
@@ -306,49 +311,17 @@ def _read_github(repo: Optional[str], name: Optional[str], workflow: Optional[st
 
 def _summarise_run(runs: Optional[Any], err: Optional[str]) -> Dict[str, Any]:
     if err:
-        return {"state": "unknown", "reason": err}
+        return {"state": RunState.UNKNOWN.value, "reason": err}
     items = (runs or {}).get("workflow_runs") or []
     if not items:
-        return {"state": "none", "reason": "The workflow has not run yet."}
+        return {"state": RunState.NONE.value, "reason": "The workflow has not run yet."}
     run = items[0]
-    if run.get("status") != "completed":
-        return {"state": "running" if run.get("status") == "in_progress" else "queued", "at": run.get("created_at")}
-    concl = run.get("conclusion")
-    state = {"success": "passed", "failure": "failed", "cancelled": "cancelled", "timed_out": "failed"}.get(concl, "unknown")
-    return {"state": state, "at": run.get("updated_at")}
+    state = run_state(run)
+    at = run.get("created_at") if state in (RunState.RUNNING, RunState.QUEUED) else run.get("updated_at")
+    return {"state": state.value, "at": at}
 
 
 # ------------------------------------------------------------------- compose
-
-def _headline(service: str, github: str, busy: Optional[bool]) -> str:
-    """One state for the card face, from both readings."""
-    if service == SERVICE_UNKNOWN or github == "unknown":
-        return "unknown"
-    if service == SERVICE_RUNNING and github == "online":
-        return "busy" if busy else "online"
-    if service in (SERVICE_STOPPED, SERVICE_NOT_INSTALLED) and github in ("offline", "not_registered"):
-        return "not_installed" if service == SERVICE_NOT_INSTALLED else "stopped"
-    return "mismatch"
-
-
-def _allowed(service: str, github: Dict[str, Any]) -> Tuple[Dict[str, bool], Dict[str, str]]:
-    """Which verbs the current readings allow, and why the others do not."""
-    can: Dict[str, bool] = {v: False for v in VERBS}
-    why: Dict[str, str] = {}
-    if service in (SERVICE_STOPPED, SERVICE_LOADED):
-        can["start"] = True
-    if service == SERVICE_NOT_INSTALLED:
-        can["install"] = True
-    if service in (SERVICE_RUNNING, SERVICE_LOADED):
-        gstate = github["state"]
-        if github.get("busy") is True:
-            why["stop"] = "A job is running. Stop it once the job has finished."
-        elif gstate in ("online", "offline", "not_registered"):
-            can["stop"] = True
-        else:
-            why["stop"] = "GitHub's view could not be read, so it cannot be confirmed idle."
-    return can, why
-
 
 async def status(host_id: str, *, fresh: bool = False) -> Dict[str, Any]:
     """Both readings of the machine's runner, composed. Raises ``RunnerRefused``
@@ -357,9 +330,9 @@ async def status(host_id: str, *, fresh: bool = False) -> Dict[str, Any]:
     spec = spec_for(host)
     assert spec is not None  # _require_runner_host refused otherwise
     if spec.problem:
-        return {"configured": True, "headline": "unknown", "problem": spec.problem,
-                "service": {"state": SERVICE_UNKNOWN, "reason": spec.problem},
-                "github": {"state": "unknown", "busy": None, "reason": ""},
+        return {"configured": True, "headline": Headline.UNKNOWN.value, "problem": spec.problem,
+                "service": {"state": ServiceState.UNKNOWN.value, "reason": spec.problem},
+                "github": {"state": GithubState.UNKNOWN.value, "busy": None, "reason": ""},
                 "last_run": None, "boot": None, "actions": {v: False for v in VERBS}, "blocked": {}}
     svc = await asyncio.to_thread(_read_service, host, spec)
     runner_file = svc.get("runner_file") or {"name": None, "repo": None}
@@ -368,19 +341,19 @@ async def status(host_id: str, *, fresh: bool = False) -> Dict[str, Any]:
     gh = await asyncio.to_thread(_read_github, repo, name, spec.workflow, fresh=fresh)
 
     if not svc.get("reached"):
-        service = {"state": SERVICE_UNKNOWN, "reason": svc["reason"]}
+        service = {"state": ServiceState.UNKNOWN.value, "reason": svc["reason"]}
         boot = None
     elif svc.get("dir_missing"):
-        service = {"state": SERVICE_UNKNOWN, "reason": svc["reason"]}
+        service = {"state": ServiceState.UNKNOWN.value, "reason": svc["reason"]}
         boot = None
     else:
         service, boot = svc["service"], svc["boot"]
     github = gh["github"]
-    can, why = _allowed(service["state"], github)
+    can, why = allowed(service["state"], github["state"], github.get("busy"))
     return {
         "configured": True,
         "name": name,
-        "headline": _headline(service["state"], github["state"], github.get("busy")),
+        "headline": headline(service["state"], github["state"], github.get("busy")).value,
         "service": service,
         "github": github,
         "last_run": gh["last_run"],
@@ -408,21 +381,13 @@ def _verb_command(directory: str, verb: str) -> str:
     return f"cd {directory} && {inner} 2>&1"
 
 
-def _converged(verb: str, snap: Dict[str, Any]) -> Tuple[bool, bool]:
-    """``(service matches the verb, GitHub matches the verb)``."""
-    service, github = snap["service"]["state"], snap["github"]["state"]
-    if verb == "stop":
-        return service == SERVICE_STOPPED, github == "offline"
-    return service == SERVICE_RUNNING, github == "online"
-
-
 def _outcome_message(verb: str, service_ok: bool, github_ok: bool, snap: Dict[str, Any]) -> str:
     past = {"start": "started", "stop": "stopped", "install": "installed and started"}[verb]
     if service_ok and github_ok:
         return f"Runner {past}. GitHub shows it {snap['github']['state']}."
     if service_ok:
         seen = snap["github"]["state"]
-        word = "could not be read" if seen == "unknown" else f"still shows {seen}"
+        word = "could not be read" if seen == GithubState.UNKNOWN else f"still shows {seen}"
         return f"Runner {past}, but GitHub {word}. It can take a minute."
     return f"Runner did not {verb}: the service reads {snap['service']['state'].replace('_', ' ')}."
 
@@ -463,7 +428,7 @@ async def run_verb(host_id: str, verb: str) -> Dict[str, Any]:
         snap = before
         while True:
             snap = await status(host_id, fresh=True)
-            service_ok, github_ok = _converged(verb, snap)
+            service_ok, github_ok = converged(verb, snap["service"]["state"], snap["github"]["state"])
             if (service_ok and github_ok) or time.monotonic() >= deadline:
                 break
             await asyncio.sleep(_CONVERGE_INTERVAL_S)

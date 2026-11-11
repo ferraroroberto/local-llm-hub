@@ -77,12 +77,13 @@ const HEADLINE = {
   mismatch: ['Service and GitHub disagree', 'attention'],
   unknown: ['Not confirmed', 'attention'],
 };
+// Third entry: the server's reason explains this state, so the card shows it.
 const SERVICE = {
   running: ['Running', ''],
   stopped: ['Stopped', 'attention'],
-  loaded: ['Loaded, not running', 'attention'],
+  loaded: ['Loaded, not running', 'attention', true],
   not_installed: ['Not installed', 'attention'],
-  unknown: ['Not confirmed', 'attention'],
+  unknown: ['Not confirmed', 'attention', true],
 };
 const RUN = {
   passed: ['Passed', ''],
@@ -94,11 +95,17 @@ const RUN = {
   unknown: ['Not confirmed', 'attention'],
 };
 
+// Third entry: the words when the runner is also running a job.
+const GITHUB = {
+  online: ['Online · idle', '', 'Online · busy'],
+  offline: ['Offline', 'attention'],
+  not_registered: ['Not registered', 'attention'],
+  unknown: ['Not confirmed', 'attention'],
+};
+
 function githubWords(g) {
-  if (g.state === 'online') return [g.busy ? 'Online · busy' : 'Online · idle', ''];
-  if (g.state === 'offline') return ['Offline', 'attention'];
-  if (g.state === 'not_registered') return ['Not registered', 'attention'];
-  return ['Not confirmed', 'attention'];
+  const words = GITHUB[g.state] || GITHUB.unknown;
+  return g.busy && words[2] ? [words[2], words[1]] : words;
 }
 
 function ago(iso) {
@@ -148,8 +155,7 @@ export function runnerSection(m) {
   const run = d.last_run ? (RUN[d.last_run.state] || RUN.unknown) : null;
   const notes = [];
   if (d.problem) notes.push(d.problem + '.');
-  if (d.service.state === 'unknown' && d.service.reason) notes.push(d.service.reason);
-  if (d.service.state === 'loaded' && d.service.reason) notes.push(d.service.reason);
+  if (service[2] && d.service.reason) notes.push(d.service.reason);
   if (d.github.state === 'unknown' && d.github.reason) notes.push(d.github.reason);
   if (d.last_run && d.last_run.state === 'unknown' && d.last_run.reason) notes.push(d.last_run.reason);
   const steps = (d.boot && d.boot.owner_steps) || [];

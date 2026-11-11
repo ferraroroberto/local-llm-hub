@@ -54,6 +54,29 @@ class ServingState(str, Enum):
 # States in which the model serves requests — what "running" means to a reader.
 SERVING = frozenset({ServingState.READY, ServingState.ADOPTED})
 
+# The audio health route shows a stopped ``startup: on_demand`` row as ``idle``:
+# unloaded by design (the first real request loads it), not down.
+HEALTH_IDLE = "idle"
+_NOT_AN_OUTAGE = frozenset({HEALTH_IDLE, ServingState.LOADING.value})
+
+
+def health_state(serving: Serving, on_demand: bool) -> str:
+    """A row's state as the audio health route reports it."""
+    if serving.state is ServingState.STOPPED and on_demand:
+        return HEALTH_IDLE
+    return serving.state.value
+
+
+def counts_toward_verdict(health: str) -> bool:
+    """Idle and loading rows are on their way, not an outage; every other row
+    (a failed one included) is judged by the health verdict."""
+    return health not in _NOT_AN_OUTAGE
+
+
+def is_failed(health: str) -> bool:
+    """A failed row is an outage even if something else answers on its port."""
+    return health == ServingState.FAILED.value
+
 
 @dataclass
 class LoadRecord:
@@ -66,6 +89,11 @@ class LoadRecord:
 
     started_at: float
     ready: bool = False
+
+
+def latch_ready(load: LoadRecord) -> None:
+    """Record that this spawn answered; the only writer of ``LoadRecord.ready``."""
+    load.ready = True
 
 
 @dataclass(frozen=True)
@@ -129,7 +157,7 @@ def derive(
         ours = {"ownership": OWNERSHIP_OURS, "pid": obs.pid}
         if obs.reachable:
             if load is not None:
-                load.ready = True
+                latch_ready(load)
             return Serving(ServingState.READY, **ours)
         if load is None or load.ready:
             return Serving(ServingState.FAILED, "process is alive but stopped answering", **ours)

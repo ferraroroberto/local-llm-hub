@@ -195,7 +195,7 @@ def _probe_findings(latest: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [
         {"level": "unknown", "kind": "probe", "metric": probe,
          "reason": f"The {probe} probe failed, so it is not confirmed fine", "fix": None}
-        for probe, state in sorted(latest.get("probes", {}).items()) if state == "failed"
+        for probe, state in sorted(latest.get("probes", {}).items()) if state == "failed"  # state-literal-exempt: one probe's reading from health/sampler.py (ok, failed, denied, unsupported), re-read every sample, never a lifecycle
     ]
 
 

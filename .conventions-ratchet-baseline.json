@@ -1,13 +1,4 @@
 {
   "version": 1,
-  "entries": [
-    {"key": "app_web/static/machines_runner.js", "counts": {"state-literal": 3}},
-    {"key": "app_web/static/playground.js", "counts": {"state-literal": 1}},
-    {"key": "src/audio/server_audio_asr.py", "counts": {"state-literal": 4}},
-    {"key": "src/diagnostics/sampler.py", "counts": {"state-literal": 5}},
-    {"key": "src/fleet/actions_runner.py", "counts": {"state-literal": 3}},
-    {"key": "src/health/classifier.py", "counts": {"state-literal": 1}},
-    {"key": "src/health/resource_watch.py", "counts": {"state-literal": 2}},
-    {"key": "src/process/backend_process.py", "counts": {"state-write": 1}}
-  ]
+  "entries": []
 }

@@ -53,7 +53,7 @@ from .server_process import (
     kill_pid,
     resolve_external_pid,
 )
-from .serving_state import LoadRecord, Observation, Serving, derive
+from .serving_state import LoadRecord, Observation, Serving, derive, latch_ready
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 VENDOR_LLAMA = PROJECT_ROOT / "vendor" / "llama.cpp"
@@ -334,7 +334,7 @@ def mark_ready(model_id: str) -> None:
     """Latch that this model's current spawn answered its readiness probe."""
     load = _state_for(model_id).load
     if load is not None:
-        load.ready = True
+        latch_ready(load)
 
 
 def is_reachable(model: Model, timeout: float = 1.5) -> bool:

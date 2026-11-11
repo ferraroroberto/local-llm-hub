@@ -254,3 +254,46 @@ def test_fleet_placement_does_not_count_a_loading_backend_as_running(monkeypatch
     ids = asyncio.run(fpr._serving_ids({"m_serving": _model(), "m_ready": ready}))
 
     assert ids == ["m_ready"]
+
+
+# ------------------------------------------------------- refused combinations
+
+# state-machine-proof: serving
+def test_a_dead_process_with_a_live_load_record_can_never_read_as_stopped_or_ready(spawned):
+    from src.process.serving_state import Observation, ServingState, derive
+
+    obs = Observation(alive=False, reachable=True, port_known=True, port_foreign=False, exit_code=1)
+    got = derive(obs, spawned.load, now=spawned.load.started_at + 1)
+    assert got.state is ServingState.FAILED
+    assert got.reason == "process exited during load (exit code 1)"
+
+
+# state-machine-proof: serving
+def test_a_port_holder_nobody_confirmed_is_never_adopted():
+    from src.process.serving_state import Observation, ServingState, derive
+
+    for confirmed, reason in ((None, "port holder's identity could not be confirmed"),
+                              (False, "port holder is not this model's server binary")):
+        obs = Observation(alive=False, reachable=True, port_known=True, port_foreign=True,
+                          pid=5151, holder_confirmed=confirmed)
+        got = derive(obs, None, now=0.0)
+        assert (got.state, got.reason) == (ServingState.UNKNOWN, reason)
+
+
+def test_audio_health_names_a_stopped_on_demand_row_idle_and_keeps_failed_an_outage():
+    from src.process.serving_state import (
+        HEALTH_IDLE,
+        Serving,
+        ServingState,
+        counts_toward_verdict,
+        health_state,
+        is_failed,
+    )
+
+    stopped = Serving(ServingState.STOPPED)
+    assert health_state(stopped, on_demand=True) == HEALTH_IDLE
+    assert health_state(stopped, on_demand=False) == "stopped"
+    assert not counts_toward_verdict(HEALTH_IDLE)
+    assert not counts_toward_verdict(ServingState.LOADING.value)
+    assert counts_toward_verdict(ServingState.FAILED.value) and is_failed(ServingState.FAILED.value)
+    assert counts_toward_verdict("stopped") and not is_failed("stopped")
