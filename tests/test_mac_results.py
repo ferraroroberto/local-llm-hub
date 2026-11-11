@@ -17,6 +17,9 @@ from src.fleet.ssh_exec import SshResult
 
 PNG = mr._PNG_MAGIC + b"\x00" * 24
 NOW = 1_000_000
+# What the launcher's Job executor stamps on a Job run's child (read by fleet-config's send_file.py).
+JOB_ID_ENV = "APP_LAUNCHER_JOB_ID"
+JOB_RUN_ID_ENV = "APP_LAUNCHER_JOB_RUN_ID"
 
 
 def _ok(stdout: str) -> SshResult:
@@ -576,19 +579,21 @@ def test_unreadable_mac_exits_one_and_records_it(cli_env, monkeypatch, tmp_path,
 
 class FakeSendFile:
     """Stands in for the send_file.py subprocess: answers from the session id
-    the child actually receives, the way the launcher's outbox route would."""
+    and Job identity the child actually receives, the way the launcher's
+    session and Job outbox routes would."""
 
     def __init__(self) -> None:
         self.sessions_seen: List[Optional[str]] = []
 
     def __call__(self, argv, **kwargs):
         env = kwargs.get("env")
-        sid = (env if env is not None else mr.os.environ).get(mr.SESSION_ENV)
+        source = env if env is not None else mr.os.environ
+        sid = source.get(mr.SESSION_ENV)
         self.sessions_seen.append(sid)
-        if not sid:
-            line = "UNAVAILABLE=no-launcher-session (APP_LAUNCHER_SESSION_ID is not set)"
-        else:
+        if sid or (source.get(JOB_ID_ENV) and source.get(JOB_RUN_ID_ENV)):
             line = "SENT=entry-1"
+        else:
+            line = "UNAVAILABLE=no-launcher-session (neither APP_LAUNCHER_SESSION_ID nor a Job run identity is set)"
         return mr.subprocess.CompletedProcess(argv, 0, stdout=line + "\n", stderr="")
 
 
@@ -598,6 +603,8 @@ def job_cli(cli_env, monkeypatch, tmp_path):
     monkeypatch.setattr(mr, "_ssh_for", lambda host: (mac, ""))
     fake = FakeSendFile()
     monkeypatch.setattr(mr.subprocess, "run", fake)
+    monkeypatch.delenv(JOB_ID_ENV, raising=False)
+    monkeypatch.delenv(JOB_RUN_ID_ENV, raising=False)
     script = tmp_path / "send_file.py"
     script.write_text("", encoding="utf-8")
     return fake, script
@@ -625,11 +632,26 @@ def test_job_without_a_session_keeps_images_in_its_artifacts_and_says_so_once(jo
     assert len(kept) == 2 and all(n.startswith("home-automation-100-") and n.endswith(".png") for n in kept)
     assert all((artifacts / n).read_bytes() == PNG for n in kept)
     lines = capsys.readouterr().out.splitlines()
-    assert sum("not_confirmed: a launcher Job has no launcher session" in ln for ln in lines) == 1
+    assert sum("not_confirmed: a launcher Job could not deliver to the chat (no session id)" in ln for ln in lines) == 1
     assert any("run 100: not_confirmed - 2 not delivered" in ln and "no-launcher-session" in ln for ln in lines)
     with closing(store.connect(tmp_path / "mac_results.sqlite3")) as conn:
         assert not store.run_delivered(conn, "home-automation", "100")
         assert not store.file_sent(conn, "home-automation", "100", "ios/home.png")  # retried by the next pass
+
+
+def test_job_with_its_run_identity_delivers_through_the_job_outbox(job_cli, monkeypatch, tmp_path, capsys):
+    fake, script = job_cli
+    monkeypatch.setenv(mr.SESSION_ENV, "someone-elses-live-session")  # stale; must not be what delivers
+    monkeypatch.setenv(JOB_ID_ENV, "mac-results")
+    monkeypatch.setenv(JOB_RUN_ID_ENV, "run-1")
+    artifacts = tmp_path / "artifacts"
+    monkeypatch.setenv(mr.JOB_ARTIFACT_ENV, str(artifacts))
+    assert mr.main(["--host", "x", "--send-file", str(script)]) == 0
+    assert fake.sessions_seen == [None, None]
+    assert not artifacts.exists()  # nothing kept back: both images were sent
+    assert "could not deliver" not in capsys.readouterr().out
+    with closing(store.connect(tmp_path / "mac_results.sqlite3")) as conn:
+        assert store.run_delivered(conn, "home-automation", "100")
 
 
 def test_hosted_session_outside_a_job_still_sends_with_its_own_id(job_cli, monkeypatch, tmp_path, capsys):

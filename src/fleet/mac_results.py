@@ -325,9 +325,11 @@ def make_send_file_sender(script: Path, env: Optional[Dict[str, str]] = None) ->
 class JobSender:
     """The :data:`Sender` for a pass run by a launcher Job.
 
-    send_file.py runs without the inherited session id, so a Job can only ever
-    deliver through a route meant for Jobs, never into whichever session's chat
-    that id happens to name. An image that is not sent is copied into the Job
+    send_file.py runs without the inherited session id but keeps the Job's own
+    identity (``APP_LAUNCHER_JOB_ID`` / ``APP_LAUNCHER_JOB_RUN_ID``), so a Job
+    delivers through the launcher's Job outbox and never into whichever
+    session's chat an inherited id happens to name. An image that is still not
+    sent (no Job identity, outbox refused or unreachable) is copied into the Job
     run's artifact folder (shown in the Jobs tab) and reported ``kept``: the
     run stays undelivered and the next pass retries it."""
 
@@ -356,8 +358,8 @@ class JobSender:
         if not self.kept:
             return None
         ignored = "inherited session id ignored" if self.inherited_session else "no session id"
-        return (f"⚠️ not_confirmed: a launcher Job has no launcher session ({ignored}); "
-                f"{self.kept} image(s) copied to this Job run's artifacts instead of the chat")
+        return (f"⚠️ not_confirmed: a launcher Job could not deliver to the chat ({ignored}); "
+                f"{self.kept} image(s) copied to this Job run's artifacts instead")
 
 
 def parse_send_result(stdout: str) -> SendOutcome:
