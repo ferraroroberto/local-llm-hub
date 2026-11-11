@@ -1,6 +1,6 @@
 ---
 name: mac-results
-description: Run one pass of the nightly Mac screenshot puller (python -m src.fleet.mac_results), so each undelivered run's images reach the owner's chat (or, from a launcher Job, its artifacts), and relay the per-run outcome lines. Scheduled daily by run-nightly.bat; safe to re-run any time.
+description: Run one pass of the nightly Mac screenshot puller (python -m src.fleet.mac_results), so each undelivered run's images reach the owner's chat (from a launcher Job, via its outbox, else its artifacts), and relay the per-run outcome lines. Scheduled daily by run-nightly.bat; safe to re-run any time.
 ---
 
 Deliver the nightly Mac platform pass's screenshots. This file owns the job's
@@ -8,9 +8,11 @@ procedure; the CLI, its states and the key setup are in `docs/mac-results.md`.
 
 `send_file.py` delivers into a live launcher-hosted session
 (`APP_LAUNCHER_SESSION_ID`). The scheduled Job is not one: under a Job the CLI
-ignores any inherited session id and copies each image it could not send into
-the Job run's artifacts, reporting `not_confirmed` (see "The scheduled job" in
-`docs/mac-results.md`). A session started by hand delivers to its own chat.
+ignores any inherited session id, delivers through the Job's outbox
+(`APP_LAUNCHER_JOB_ID` + `APP_LAUNCHER_JOB_RUN_ID`) and copies each image it
+could not send into the Job run's artifacts, reporting `not_confirmed` (see
+"The scheduled job" in `docs/mac-results.md`). A session started by hand
+delivers to its own chat.
 
 **Unattended constraint (fleet-config#314):** run the pass in the foreground
 and wait for it. A headless `claude -p` session cannot be resumed, so never
