@@ -1,7 +1,7 @@
 """Benchmark voice backends (STT + TTS) on any hub, for placement decisions.
 
 One reusable harness the fleet uses to decide where each voice model should
-live (issue #343) and to re-verify after a ``/swap-model`` or a host/GPU swap.
+live and to re-verify after a ``/swap-model`` or a host/GPU swap.
 It targets a hub by ``--base-url``, so the *same* tool measures any machine:
 
     # STT — whisper on the tower vs the gaming satellite (same clip set)

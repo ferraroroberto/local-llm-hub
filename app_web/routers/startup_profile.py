@@ -1,9 +1,9 @@
-"""Startup profile API — the Models tab's "Startup" card (issue #265).
+"""Startup profile API — the Models tab's "Startup" card.
 
 Backs the declarative "what should be up at launch" control surface:
 ``config/startup_profile.json`` is owned by ``src.startup_profile``; this
 router is a thin CRUD shell over it plus the service labels the card needs
-to render toggles. **Services only** since #430 — the model autostart set is
+to render toggles. **Services only** — the model autostart set is
 derived from ``config/models.yaml`` (``model_registry.desired_model_ids``),
 not toggled here.
 
@@ -41,7 +41,7 @@ _SERVICE_ITEMS = [
 
 def _remote_target(host: Optional[str]) -> Optional[str]:
     """Resolve ``host`` to a peer hub base URL to forward to, or ``None`` when
-    the request targets this (active) host and should be served locally (#352).
+    the request targets this (active) host and should be served locally.
 
     ``host`` absent or naming the active host → ``None`` (local). A known remote
     host with an ``address`` → its hub base URL. An unknown host → 404; a known
@@ -63,7 +63,7 @@ def _remote_target(host: Optional[str]) -> Optional[str]:
 async def get_startup_profile(host: Optional[str] = Query(None)) -> Dict[str, Any]:
     """The addressed host's startup profile + service items.
 
-    ``?host=<id>`` targets a peer hub's profile (forwarded, #352); omitted or
+    ``?host=<id>`` targets a peer hub's profile (forwarded); omitted or
     self → this host's own profile, unchanged.
     """
     remote = _remote_target(host)
@@ -90,7 +90,7 @@ async def patch_startup_profile(
 
     Accepts a partial body — e.g. ``{"docker": false}`` — so a single toggle
     click never has to resend the whole profile. ``?host=`` forwards the write
-    to a peer hub (#352); omitted or self writes locally.
+    to a peer hub; omitted or self writes locally.
     """
     remote = _remote_target(host)
     if remote is not None:

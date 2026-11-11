@@ -102,7 +102,7 @@ def download_one(model_id: str) -> List[Path]:
 
 
 def _download_extra_weights(model: Model) -> List[Path]:
-    """Fetch a split-loader row's companion weights (#498).
+    """Fetch a split-loader row's companion weights.
 
     ``model_path`` is the primary weight; a FLUX.2 row also needs its text
     encoder and VAE, which live in different repos and different subfolders.

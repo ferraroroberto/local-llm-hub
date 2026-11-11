@@ -5,7 +5,7 @@ Endpoints (all under /admin/api/install):
   * POST /fix       — run one fix by fix_id
   * POST /fix-all   — run every currently-fixable check
 
-Split out of ``hub.py`` (issue #533) — that router's own docstring flagged
+Split out of ``hub.py`` — that router's own docstring flagged
 this as "bolted on": these three endpoints wrap ``src/install.py``'s
 check/fix battery and have nothing to do with the hub-process
 status/control/log/request-stream surface the rest of that file owns.
@@ -44,7 +44,7 @@ async def install_status() -> Dict[str, Any]:
 async def install_fix(request: Request) -> Dict[str, Any]:
     """Run a single fix by ``fix_id``.
 
-    Uses the brief use_cache=True report (issue #198): the admin UI always
+    Uses the brief use_cache=True report: the admin UI always
     calls install_status() — which populates that cache — moments before a
     user clicks a fix button, so locating one check by fix_id doesn't need
     to force a second full (expensive) battery run.

@@ -1,6 +1,6 @@
 """Fleet placement API — the fleet's registry-derived desired-state view.
 
-Step 2 of the always-on control plane (#353), re-sourced in #430: the desired
+Step 2 of the always-on control plane: the desired
 placement is **derived from ``config/models.yaml``**
 (``model_registry.desired_placement()`` — ``startup: eager`` rows on their
 preferred chain host), not a separate editable file — the old
@@ -56,17 +56,16 @@ def _display_names() -> Dict[str, str]:
 
 
 def _vram_estimates() -> Dict[str, int]:
-    """``{model_id: est_vram_mb}`` for every model that declares a footprint
-    (#375). A row without ``est_vram_mb`` is absent — the capacity sum treats a
+    """``{model_id: est_vram_mb}`` for every model that declares a footprint. A row without ``est_vram_mb`` is absent — the capacity sum treats a
     missing id as 0, so subscription/virtual/CPU rows contribute nothing."""
     return {m.id: m.est_vram_mb for m in all_models() if m.est_vram_mb is not None}
 
 
 def _device_hints() -> Dict[str, Dict[str, str]]:
     """``{host_id: {model_id: "cpu"}}`` — CPU residency is per *(model, host)*,
-    so the summary can show a small 'cpu' hint per row (#387) — a model
+    so the summary can show a small 'cpu' hint per row — a model
     contributing 0 to the VRAM sum reads as *intentionally exempt*, not as an
-    omission. Thin view over ``model_registry.cpu_resident_map()`` (#431) —
+    omission. Thin view over ``model_registry.cpu_resident_map()`` —
     the same source the capacity sum excludes, so hint and math can't drift.
     """
     return {
@@ -76,7 +75,7 @@ def _device_hints() -> Dict[str, Dict[str, str]]:
 
 
 def _gpu_snapshot(gpus: Optional[List[Dict[str, Any]]]) -> Optional[Dict[str, Any]]:
-    """First GPU's live ``{used_mb, total_mb}`` out of a stats probe (#436) —
+    """First GPU's live ``{used_mb, total_mb}`` out of a stats probe —
     the same figures the Machines tab renders, so the two tabs can never
     disagree while both are live. ``None`` when the host reports no GPU
     metric (no nvidia-smi — the Mac's unified memory, a failed probe), in
@@ -95,14 +94,13 @@ def _capacity(
     vram: Dict[str, int],
     devices: Dict[str, str],
 ) -> Dict[str, Any]:
-    """The host's VRAM headroom against its declared ceiling (#375).
+    """The host's VRAM headroom against its declared ceiling.
 
     Sums ``est_vram_mb`` over the union of *placed* (desired) and *running*
     (live) model ids — a model can be either without the other, and both draw
     VRAM. Rows resident on **CPU on this host** (``devices`` — piper, ``-ng``
     whisper rows, a chain's degraded ``cpu: true`` tier) are excluded: they
-    hold no GPU VRAM, so counting them faked an overcommit on the tower
-    (#431). The result is **advisory**: ``capacity_warning`` is True only when
+    hold no GPU VRAM, so counting them faked an overcommit on the tower. The result is **advisory**: ``capacity_warning`` is True only when
     the host declares a ``vram_mb`` ceiling AND the estimate exceeds it. A
     host with no ceiling (Apple-silicon unified memory, managed-only boxes)
     never warns — ``vram_mb`` is None and the sum is reported for context only.

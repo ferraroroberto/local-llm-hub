@@ -36,13 +36,13 @@ async def code_usage_summary(
     """Return totals, per-model / per-project / per-vendor breakdowns, and
     recent sessions for the requested period and vendor.  Safe to call
     frequently — the built summary is cached per period/vendor (never served
-    older than 25 s, #811) on top of the parsers' per-file mtime caches.  The
+    older than 25 s) on top of the parsers' per-file mtime caches.  The
     ``agentsview`` block carries the optional external
-    AgentsView service's reachability + discovered gap-fill vendors (#280) —
+    AgentsView service's reachability + discovered gap-fill vendors —
     the Code-tab mirror of the Telemetry tab's ``langfuse_reachable``.
 
     A failure to build the summary is **not** a summary: it answers with HTTP
-    503 rather than a 200 carrying empty totals (#580).  The old shape let a
+    503 rather than a 200 carrying empty totals.  The old shape let a
     caller that never read the ``error`` field render "could not load" as a
     zero-usage day — the fleet's recurring defect, an unresolved lookup folded
     into the passing state.  A non-2xx makes that mistake impossible to make
@@ -106,7 +106,7 @@ async def code_usage_history(
 @router.get("/copilot/billing")
 async def copilot_billing_summary() -> dict:
     """Return official per-day x per-model AI Credit spend from the GitHub
-    billing API (issue #231, part B) — authoritative $ totals, no session or
+    billing API — authoritative $ totals, no session or
     project attribution. Degrades to ``{"available": False, "reason": ...}``
     when no PAT is configured or the account isn't on the enhanced billing
     platform; never errors.

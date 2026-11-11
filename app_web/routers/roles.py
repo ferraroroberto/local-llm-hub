@@ -1,9 +1,9 @@
-"""Role → model mapping API (issue #373, broadened by its follow-up comment).
+"""Role → model mapping API.
 
 Exposes ``config/models.yaml``'s ``roles:`` section — previously read only
 server-side by ``src.model_registry.audio_role_chain()`` — as a single, flat,
 general-purpose representation. Built as shared infrastructure rather than a
-card-specific shim: issue #342 (dynamic model fallback) will read the same
+card-specific shim: dynamic model fallback reads the same
 role→model chain data to reason about failover, not just display it, so the
 shape here is a clean role_key → {model_id, display_name, notes, fallback}
 map, not tailored to what the Hub tab's card happens to render.

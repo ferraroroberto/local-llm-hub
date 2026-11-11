@@ -1,4 +1,4 @@
-"""Forward an admin-API call to a peer hub (#178, #352).
+"""Forward an admin-API call to a peer hub.
 
 The single transport that both the model-control forwards (``routers/models.py``)
 and the host-addressed forwards (``routers/startup_profile.py``) share, so every

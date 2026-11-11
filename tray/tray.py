@@ -116,11 +116,8 @@ class HubProcess:
     *is* a child of the tray.
 
     Drives the shared :class:`src.process.process_supervisor.ProcessSupervisor`
-    (#530) rather than a second hand-rolled start/stop, which had already
-    measurably diverged from it — the tray's ``stop`` correctly waited
-    between the graceful signal and the hard kill; ``ProcessSupervisor.
-    stop_popen`` didn't, until #530 folded that fix back into the one
-    shared implementation.
+    rather than a second hand-rolled start/stop, so the wait between the
+    graceful signal and the hard kill lives in one shared implementation.
     """
 
     def __init__(self) -> None:

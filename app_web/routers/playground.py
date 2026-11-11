@@ -1,6 +1,6 @@
 """Playground tab API — model dropdown + send (proxies in-process to /v1/messages).
 
-Also the Decision card (#611): TypeSafe Jev evaluations proxied to the hub's
+Also the Decision card: TypeSafe Jev evaluations proxied to the hub's
 own ``/v1/systemone``.
 """
 
@@ -373,7 +373,7 @@ async def playground_send(
 
 @router.get("/api/playground/systemone_info")
 async def playground_systemone_info() -> Dict[str, Any]:
-    """Aliases + key state for the Decision card (#611). Never the key itself."""
+    """Aliases + key state for the Decision card. Never the key itself."""
     return {
         "models": list(server_systemone.MODEL_ALIASES),
         "key_configured": server_systemone.key_configured(),
@@ -403,7 +403,7 @@ def _systemone_error_detail(r: Any) -> str:
 
 @router.post("/api/playground/systemone")
 async def playground_systemone(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Run one Jev evaluation from the Decision card (#611).
+    """Run one Jev evaluation from the Decision card.
 
     Proxies through the hub's *own* ``/v1/systemone`` over loopback, exactly
     like the chat card does with ``/v1/messages``, so a Playground evaluation

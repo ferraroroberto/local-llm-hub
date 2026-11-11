@@ -12,7 +12,7 @@ Endpoints (all under /admin/api/hub):
   * GET  /counters          — per-backend counters since hub start
 
 The old install tab's endpoints (``/admin/api/install/*``) split into their
-own ``install.py`` router (issue #533) — see that module. The platform
+own ``install.py`` router — see that module. The platform
 process-supervision helpers behind /stop and /restart (self-signal,
 launchd/systemd, respawn-watchdog spawn) likewise moved to
 ``src/process/hub_process_control.py`` — they raise no FastAPI ``HTTPException``, so

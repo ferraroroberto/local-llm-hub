@@ -1,9 +1,9 @@
 """Generate PWA/Stream-Deck icons from the shared fleet icon-brand generator.
 
 Thin caller onto ``project-scaffolding``'s ``brand_gen.render_set()`` — the
-master art is local-llm-hub's vendored Lucide ``hub.svg`` (app-launcher#65: a
+master art is local-llm-hub's vendored Lucide ``hub.svg`` (a
 coherent icon family across the fleet). Replaces the runtime placeholder
-glyph in ``app_web/icons.py`` (issue #209) with real, committed assets.
+glyph in ``app_web/icons.py`` with real, committed assets.
 
 The tray's live state-tinted icon (``tray/icon.py``) renders the same
 ``hub.svg`` shape independently via resvg at runtime, so it isn't part of
