@@ -656,7 +656,7 @@ def audio_health() -> Response:
     from ..model_registry import STARTUP_ON_DEMAND, local_models
     from ..process.backend_process import is_reachable, serving
     from ..process.server_process import snapshot_listening_pids
-    from ..process.serving_state import ServingState
+    from ..process.serving_state import counts_toward_verdict, health_state, is_failed
 
     backends = []
     # Backends this host *currently serves* only — a remote-owned row's
@@ -681,22 +681,16 @@ def audio_health() -> Response:
             "backend": m.backend,
             "port": m.port,
             "reachable": reachable,
-            "state": derived.state.value,
+            "state": health_state(derived, m.startup == STARTUP_ON_DEMAND),
         }
-        # A stopped `startup: on_demand` row is unloaded by design, not down —
-        # the first real request would load it — so it reads "idle".
-        if derived.state is ServingState.STOPPED and m.startup == STARTUP_ON_DEMAND:
-            entry["state"] = "idle"
         if derived.reason:
             entry["reason"] = derived.reason
         backends.append(entry)
 
-    # Idle and loading rows are on their way, not an outage; a failed row is
-    # one, even if something else happens to answer on its port.
-    verdict_backends = [b for b in backends if b["state"] not in ("idle", "loading")]
+    verdict_backends = [b for b in backends if counts_toward_verdict(b["state"])]
     if not backends:
         status, code = "none", 503
-    elif all(b["reachable"] and b["state"] != "failed" for b in verdict_backends):
+    elif all(b["reachable"] and not is_failed(b["state"]) for b in verdict_backends):
         status, code = "ok", 200
     else:
         status, code = "degraded", 503

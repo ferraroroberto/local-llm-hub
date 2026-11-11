@@ -31,6 +31,8 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional
 from src.fsio.runtime_files import connect_sqlite, make_dirs
 from src.runtime_data import runtime_db_path
 
+from .run_state import RunStatus, transition
+
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -269,12 +271,19 @@ def create_run(
     return run_id
 
 
-def finish_run(run_id: str, *, status: str = "complete") -> None:
-    """Mark a run finished. Idempotent — a second call is a no-op update."""
+def finish_run(run_id: str, *, status: RunStatus = RunStatus.COMPLETE) -> None:
+    """Mark a run finished. Idempotent — a second call with the same status is
+    a no-op update. A status that cannot follow the run's current one raises
+    :class:`IllegalRunTransition` and writes nothing; an unknown run id is a
+    no-op."""
     with connect() as conn:
+        row = conn.execute("SELECT status FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+        if row is None:
+            return
+        new = transition(row["status"], status)
         conn.execute(
             "UPDATE runs SET ended_at = ?, status = ? WHERE run_id = ?",
-            (time.time(), status, run_id),
+            (time.time(), new.value, run_id),
         )
 
 
@@ -287,9 +296,9 @@ def close_orphan_runs() -> int:
     minable, and stops a stale row from looking like a live capture."""
     with connect() as conn:
         cur = conn.execute(
-            "UPDATE runs SET ended_at = COALESCE(ended_at, ?), status = 'interrupted'"
-            " WHERE status = 'running'",
-            (time.time(),),
+            "UPDATE runs SET ended_at = COALESCE(ended_at, ?), status = ?"
+            " WHERE status = ?",
+            (time.time(), RunStatus.INTERRUPTED.value, RunStatus.RUNNING.value),
         )
         count = cur.rowcount or 0
     if count:
@@ -609,7 +618,7 @@ def prune(retention_days: int = 90) -> Dict[str, int]:
             conn.execute("DELETE FROM process_samples WHERE run_id = ?", (run_id,))
             conn.execute("DELETE FROM ports WHERE run_id = ?", (run_id,))
             conn.execute("DELETE FROM samples WHERE run_id = ?", (run_id,))
-            conn.execute("UPDATE runs SET status = 'pruned' WHERE run_id = ?", (run_id,))
+            conn.execute("UPDATE runs SET status = ? WHERE run_id = ?", (RunStatus.PRUNED.value, run_id))
     if stale:
         logger.info("🧹 diagnostics: pruned raw samples from %d run(s)", len(stale))
     return {"runs_pruned": len(stale)}

@@ -74,7 +74,7 @@ class ResourceWatch:
             store_state = "ok"
         except (sqlite3.Error, OSError) as exc:
             logger.warning("⚠️ resource watch: history not saved: %s", exc)
-            store_state = "failed"
+            store_state = "failed"  # state-literal-exempt: this tick's history-write outcome (ok or failed), recomputed every tick, never a lifecycle
         with self._lock:
             self._recent.append(sample)
             history = list(self._recent)
@@ -94,7 +94,7 @@ class ResourceWatch:
         except (sqlite3.Error, OSError) as exc:
             logger.warning("⚠️ resource watch: history not readable: %s", exc)
             samples, store_state = [], "failed"
-        if store_state == "failed" or not samples:
+        if store_state == "failed" or not samples:  # state-literal-exempt: this tick's history-write outcome (ok or failed), recomputed every tick, never a lifecycle
             return {"state": "unknown", "window_days": window_days, "drives": [],
                     "line": "stall history not available"}
         drives = [rules.drive_summary(label, series, cfg, now=now, interval_s=float(cfg["interval_s"]),

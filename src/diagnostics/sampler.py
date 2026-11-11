@@ -29,6 +29,7 @@ import psutil
 from src import system_stats
 
 from . import attribution, store
+from .run_state import RunStatus, settle
 
 logger = logging.getLogger(__name__)
 
@@ -299,10 +300,10 @@ async def one_shot(*, retention_days: int = 90, trigger: str = "one-shot") -> Di
         await asyncio.sleep(1.0)
         _n, ports_denied = await asyncio.to_thread(_write_tick, run_id)
         # Same finalize path as a timed run — coverage + verdict together.
-        await asyncio.to_thread(_finalize, run_id, "complete", ports_denied=ports_denied)
+        await asyncio.to_thread(_finalize, run_id, RunStatus.COMPLETE, ports_denied=ports_denied)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️ diagnostics one-shot failed: %s", exc)
-        await asyncio.to_thread(store.finish_run, run_id, status="failed")
+        await asyncio.to_thread(store.finish_run, run_id, status=RunStatus.FAILED)
         raise
 
     logger.info("🔬 diagnostics one-shot captured (run=%s)", run_id)
@@ -352,12 +353,12 @@ async def _run_loop(run: ActiveRun) -> None:
     Every tick runs to completion before the loop can exit, so the store is
     never left mid-write (see :func:`stop_run`)."""
     global _active, _task
-    status = "complete"
+    stopped = failed = False
     try:
         await asyncio.to_thread(attribution.prime_cpu_percent)
         while True:
             if _stop_requested.is_set():
-                status = "stopped"
+                stopped = True
                 break
             tick_started = time.time()
             deadline = run.deadline
@@ -387,17 +388,18 @@ async def _run_loop(run: ActiveRun) -> None:
             # Interruptible: a stop lands within the signal, not a whole
             # interval later, without cancelling a tick that is mid-write.
             if await _sleep_or_stop(sleep_for):
-                status = "stopped"
+                stopped = True
                 break
     except asyncio.CancelledError:
-        status = "stopped"
+        stopped = True
         raise
     except Exception as exc:  # noqa: BLE001
-        status = "failed"
+        failed = True
         logger.warning("⚠️ diagnostics capture aborted (run=%s): %s", run.run_id, exc)
     finally:
         _active = None
         _task = None
+        status = settle(stopped=stopped, failed=failed)
         # Finalize synchronously on this thread rather than through
         # asyncio.to_thread: in the cancellation backstop path every *await*
         # here would re-raise CancelledError and silently skip the finalize,
@@ -415,11 +417,11 @@ async def _run_loop(run: ActiveRun) -> None:
             logger.warning("⚠️ diagnostics finalize failed (run=%s): %s", run.run_id, exc)
         logger.info(
             "🔬 diagnostics capture %s (run=%s, %d samples)",
-            status, run.run_id, run.samples_written,
+            status.value, run.run_id, run.samples_written,
         )
 
 
-def _finalize(run_id: str, status: str, *, ports_denied: bool = False) -> None:
+def _finalize(run_id: str, status: RunStatus, *, ports_denied: bool = False) -> None:
     """Close a run, record its coverage, then judge it. Idempotent —
     ``finish_run`` is an UPDATE, coverage is an UPDATE, and the verdict write is
     INSERT OR REPLACE, so a double call is harmless.

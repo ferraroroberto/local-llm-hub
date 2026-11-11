@@ -35,10 +35,10 @@ A hub that shuts down stops only the backends it spawned (`backend_process.spawn
 
 - `GET /admin/api/models` adds `serving_state` and, for `failed` and `unknown`, `serving_reason` to each controllable row. The older `ownership` and `pid` fields are derived from the same observation and kept for older clients and peers.
 - The Models tab ([`app_web/static/serving_state.js`](../app_web/static/serving_state.js)) uses it for the row chip, the running count, the Start/Stop verb and the on-demand label. A row from a peer on an older build, which has no `serving_state`, falls back to its `ownership`.
-- `GET /v1/audio/health` reports each backend's `state` (`idle` for a stopped on-demand row). `idle` and `loading` stay out of the verdict; `failed` counts as down.
+- `GET /v1/audio/health` reports each backend's `state` (`idle` for a stopped on-demand row, named by `serving_state.health_state()`). `idle` and `loading` stay out of the verdict (`counts_toward_verdict()`); `failed` counts as down (`is_failed()`).
 - The fleet placement summary lists only `ready` and `adopted` models as running, while the VRAM estimate still counts every live process.
 
-A new reader calls `backend_process.serving()`; it never re-derives a mode from the process handle, the port or the probe.
+A new reader calls `backend_process.serving()`; it never re-derives a mode from the process handle, the port or the probe. `LoadRecord.ready` has one writer, `serving_state.latch_ready()`.
 
 ## Finding the next one
 

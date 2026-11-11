@@ -490,3 +490,15 @@ name   = "serving"
 module = "src/process/serving_state.py"
 type   = "ServingState"
 derive = "derive"
+
+[[state_machines]]
+name   = "actions_runner"
+module = "src/fleet/runner_state.py"
+type   = "ServiceState"
+derive = "headline"
+
+[[state_machines]]
+name   = "diagnostics_run"
+module = "src/diagnostics/run_state.py"
+type   = "RunStatus"
+derive = "settle"

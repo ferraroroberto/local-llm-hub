@@ -119,6 +119,7 @@ local-llm-hub/
 │   │   ├── ssh_terminal.py           #   in-browser SSH terminal, reusing app-launcher's session-host PTY
 │   │   ├── ssh_exec.py               #   the one `ssh <user>@<host> <cmd>` builder (remote_stats + remote_bootstrap + actions_runner)
 │   │   ├── actions_runner.py         #   a machine's GitHub Actions runner: service + GitHub readings, start/stop/install
+│   │   ├── runner_state.py           #   the runner's declared states: headline, allowed verbs, convergence (docs/runner-state.md)
 │   │   ├── mac_results.py            #   one pass: pull the Mac runner's new screenshots over the read-only key, send them to the owner's chat
 │   │   ├── mac_results_install.py    #   installs mac/bin/hub-results-pull.sh on the Mac over the general SSH channel: unchanged / installed / not_confirmed
 │   │   ├── mac_results_store.py      #   the pull's own SQLite record of what it delivered, reported and saw flaky (runtime-data path)
@@ -190,6 +191,7 @@ local-llm-hub/
 │   ├── diagnostics/          # on-demand machine diagnostics — no resident process
 │   │   ├── sampler.py            #   in-hub asyncio capture loop + opt-in scheduled snapshot
 │   │   ├── store.py              #   SQLite store (data/diagnostics.db), migrations, retention
+│   │   ├── run_state.py          #   a run's declared status lifecycle and its legal transitions (docs/diagnostics-run-state.md)
 │   │   ├── attribution.py        #   process -> fleet-app mapping + listening-port scan
 │   │   ├── rules.py              #   health-verdict engine over stored rows
 │   │   ├── coverage.py           #   per-collector coverage — measured vs blind
