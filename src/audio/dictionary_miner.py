@@ -1,4 +1,4 @@
-"""Mine recent dictation transcripts for glossary suggestions (issue #94).
+"""Mine recent dictation transcripts for glossary suggestions.
 
 The miner reads the last *N* days of real transcripts from
 voice-transcriber's **session API** over loopback (the canonical corpus

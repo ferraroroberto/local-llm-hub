@@ -1,4 +1,4 @@
-"""Prompt-token counting behind ``POST /v1/messages/count_tokens`` (#463).
+"""Prompt-token counting behind ``POST /v1/messages/count_tokens``.
 
 The honest count differs per backend family, so this module resolves it per
 backend instead of applying one global guess:

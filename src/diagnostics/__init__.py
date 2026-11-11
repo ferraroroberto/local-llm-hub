@@ -1,4 +1,4 @@
-"""On-demand machine diagnostics (issue #315).
+"""On-demand machine diagnostics.
 
 A capture *run* records what this machine is actually doing — system-level
 CPU/RAM/swap/disk/net/GPU plus a full per-process inventory and the listening-

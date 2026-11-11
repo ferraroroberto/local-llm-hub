@@ -1,4 +1,4 @@
-"""Ingest a portable capture into the store as an ordinary run (issue #316).
+"""Ingest a portable capture into the store as an ordinary run.
 
 The counterpart to ``scripts/portable_capture.py``: that script captures raw on
 a hub-less machine and interprets nothing; this module replays the raw samples
@@ -14,8 +14,8 @@ Two things are done *here* rather than trusting the payload, on purpose:
   so the rules stay in one committed config file and editing
   ``config/diagnostics_apps.json`` re-attributes every future ingest with no
   change on any peer. A Linux capture is judged by the Linux path rules even
-  though the hub doing the ingest is Windows (#320's per-OS groups, #316's
-  cross-OS replay).
+  though the hub doing the ingest is Windows (per-OS groups, cross-OS
+  replay).
 * **CPU-count normalization** — ``params.cpu_count`` is taken from the payload,
   so ``report`` normalizes per-process CPU against the **source** machine's core
   count, never the ingesting hub's.
@@ -179,7 +179,7 @@ def _finalize(run_id: str, *, platform: str, ports_denied: bool) -> None:
     """Close, cover, and judge — the ingest twin of ``sampler._finalize``.
 
     Coverage is written before the verdict so a rule that depends on a blind
-    collector declines to score it (#322); GPU-unsupported is keyed off the
+    collector declines to score it; GPU-unsupported is keyed off the
     *source* platform, not the ingesting hub's."""
     store.finish_run(run_id, status=RunStatus.COMPLETE)
     store.save_coverage(run_id, coverage.compute(run_id, ports_denied=ports_denied,

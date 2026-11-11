@@ -1,4 +1,4 @@
-"""Health-verdict engine over a stored capture (issue #315).
+"""Health-verdict engine over a stored capture.
 
 Turns rows into an opinion: ``healthy`` / ``warning`` / ``critical`` plus a
 list of findings, each carrying the evidence behind it so a verdict is never
@@ -314,7 +314,7 @@ def evaluate(run_id: str) -> Dict[str, Any]:
 
 def _coverage_findings(coverage_map: Dict[str, Any], cov) -> List[Dict[str, Any]]:
     """A rule that depends on a blind collector reports 'not evaluated' rather
-    than passing in silence — the whole point of #322. The finding is
+    than passing in silence — the whole point of coverage tracking. The finding is
     ``info``-level so it never moves the health verdict."""
     out: List[Dict[str, Any]] = []
     for rule, collector in cov.RULE_DEPENDS_ON.items():

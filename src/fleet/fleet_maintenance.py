@@ -1,6 +1,6 @@
 """Host-scoped maintenance/drain marker — the contract gap between
-``fleet_reconcile.py`` (#353) and ``model_failover.py`` (#342), closed by
-#411.
+``fleet_reconcile.py`` and ``model_failover.py``, closed by
+this module.
 
 Both loops hold independent opinions about a down peer hub: reconcile treats
 it as drift and SSH-wakes it every ``FLEET_RECONCILE_INTERVAL_S`` (+ a boot
@@ -9,7 +9,7 @@ pass); failover treats it as a dead owner and moves ownership after
 before failover's window is ever satisfied. This module gives an operator an
 explicit, host-scoped way to tell reconcile "leave this host alone for a
 while" — armed/cleared via the ``/admin/api/fleet-maintenance`` router,
-replacing the old workaround of hand-editing
+rather than hand-editing
 ``LOCAL_LLM_HUB_FLEET_RECONCILE_INTERVAL_S``/``..._BOOT_DELAY_S`` in ``.env``.
 
 Mirrors ``src/startup_profile.py``'s conventions: tolerant load (a broken or

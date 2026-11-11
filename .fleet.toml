@@ -223,8 +223,8 @@ exclude  = ["docs/frontier/runs/**"]
 # above .comment-ratchet-baseline.json. Not path-routed: a count needs the
 # whole tree. Procedure + limits: project-scaffolding docs/comment-ratchet.md.
 # history_phrases counts decision-history wording in comments and docstrings. `docstrings`
-# (a `#NNN` inside a docstring) stays off: it finds 404 references in 103 files here, past
-# the point where one PR can burn them without a baseline.
+# (a `#NNN` inside a docstring) stays off until the remaining 105 references in 34 files
+# (`app_web/`, `scripts/`, `tray/`, `docker/`) are reworded; `src/` is already at zero.
 [comment_ratchet]
 enabled         = true
 baseline        = ".comment-ratchet-baseline.json"

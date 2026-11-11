@@ -1,4 +1,4 @@
-"""Remote machine liveness + stats + hub-peer probing (#309, #533).
+"""Remote machine liveness + stats + hub-peer probing.
 
 Answers the questions the Machines console cares about, all **independent of whether the hub runs on the peer** except
 where noted:
@@ -11,7 +11,7 @@ where noted:
     (``ssh <user>@<addr> "<read-only one-liner>"``) — deliberately NOT the
     forced-command key (that key only runs the bootstrap/sync dispatcher).
     This same general-SSH channel also carries the destructive reboot/shutdown
-    power actions (``remote_bootstrap``, #311); the forced-command key is now
+    power actions (``remote_bootstrap``); the forced-command key is
     solely the hub-lifecycle (bootstrap/sync) path.
   * :func:`remote_models` / :func:`peer_health` — the cross-host peer-probe
     pair (what does the peer report, is its hub reachable), here because
@@ -208,11 +208,10 @@ def _probe_port(address: str, port: int) -> bool:
 
 def _probe_liveness_ports(address: str) -> bool:
     """One pass over the liveness ports, probed **concurrently**; True as soon
-    as any accepts. A fully-unreachable peer previously paid the sum of every
-    port's timeout (``len(_LIVENESS_PORTS) * _TCP_TIMEOUT_S`` = 4 s/pass) —
-    probing in parallel bounds one pass at the slowest single port (~2 s), so
-    the #333 two-pass warm-up costs ~4.5 s instead of ~8.5 s for a peer that's
-    genuinely off (#369)."""
+    as any accepts. Probing in parallel bounds one pass at the slowest single
+    port (~2 s) instead of the sum of every port's timeout
+    (``len(_LIVENESS_PORTS) * _TCP_TIMEOUT_S`` = 4 s/pass), so the two-pass
+    warm-up costs ~4.5 s instead of ~8.5 s for a peer that's genuinely off."""
     # Not a ``with`` block: its exit joins every worker, so an up box with one
     # port filtered still waited out that port's timeout after another had
     # already answered. ``wait=False`` lets the straggler finish alone.
@@ -225,7 +224,7 @@ def _probe_liveness_ports(address: str) -> bool:
 
 
 def _candidates(host: HostProfile) -> List[str]:
-    """Ordered addresses to try for ``host`` (#396): the wired LAN ``address:``
+    """Ordered addresses to try for ``host``: the wired LAN ``address:``
     first (no WireGuard hop while the wire is healthy — an explicit
     non-goal of the fallback), then the ``tailscale:`` MagicDNS name, which is
     NIC-independent and survives a wired→Wi-Fi failover onto a DHCP pool
@@ -240,7 +239,7 @@ def _candidates(host: HostProfile) -> List[str]:
 
 def _record_route(host: HostProfile, winner: str) -> None:
     """Log the LAN→tailnet failover — and the recovery back — at info level,
-    once per transition (#396). A silent wired failure must be visible in the
+    once per transition. A silent wired failure must be visible in the
     logs, not masked by the fallback working."""
     prev = _active_route.get(host.id)
     if winner == prev:
@@ -270,13 +269,13 @@ def _locate_once(host: HostProfile) -> Optional[str]:
 def locate(host: HostProfile) -> Optional[str]:
     """TCP-connect liveness probe — *is the machine on, and at which address?*
     Independent of SSH auth or the hub: returns the first candidate address
-    (LAN, then the tailscale name — #396) with an accepting liveness port, or
+    (LAN, then the tailscale name) with an accepting liveness port, or
     ``None`` when the box is genuinely unreachable everywhere.
 
     A peer whose NIC has idled into power-save (C-state / Wake-on-LAN sleep)
     routinely drops the *first* SYN and answers the next — so a single warm-up
     retry (the first attempt has already begun waking the NIC) keeps a live box
-    from flickering to "down" between polls (#333; gaming did exactly this on
+    from flickering to "down" between polls (gaming did exactly this on
     the first probe after idle). A genuinely-off box still returns None, just
     after two passes; probes run concurrently per host, so the extra latency
     never blocks the rest of the fleet."""
@@ -296,8 +295,8 @@ def locate(host: HostProfile) -> Optional[str]:
 
 def connection_flaky(host: HostProfile) -> Optional[bool]:
     """True when the most recent successful liveness probe for ``host`` only
-    answered on the #333 warm-up retry (the first pass missed cleanly) — a
-    simple proxy for a flaky link, surfaced as a card badge (#397). ``None``
+    answered on the warm-up retry (the first pass missed cleanly) — a
+    simple proxy for a flaky link, surfaced as a card badge. ``None``
     when the peer has never been successfully located in this process's
     lifetime (fresh start, or genuinely down since boot)."""
     return _last_needed_retry.get(host.id)
@@ -313,9 +312,8 @@ async def located_address(host: HostProfile) -> Optional[str]:
     same page load and again on every poll tick — each paying an independent
     full TCP liveness fan without this cache. A short TTL (under the 10 s
     Machines poll) collapses that duplication while staying fresh enough that
-    neither surface visibly lags a real state change (#369). The Machines card
-    compares the winner against ``host.tailscale`` to badge "via tailnet"
-    (#396)."""
+    neither surface visibly lags a real state change. The Machines card
+    compares the winner against ``host.tailscale`` to badge "via tailnet"."""
     now = time.monotonic()
     cached = _liveness_cache.get(host.id)
     if cached is not None and cached[0] > now:
@@ -326,7 +324,7 @@ async def located_address(host: HostProfile) -> Optional[str]:
 
 
 async def is_reachable(host: HostProfile) -> bool:
-    """Cached liveness, keyed by host id (#369) — see :func:`located_address`,
+    """Cached liveness, keyed by host id — see :func:`located_address`,
     which this simply booleanizes."""
     return await located_address(host) is not None
 
@@ -359,7 +357,7 @@ def _kick_dormant_refresh(host: HostProfile) -> None:
 
 async def is_answering_cached(host: HostProfile) -> bool:
     """Is a dormant (intentionally off) host answering again? Never waits for a
-    probe (#821).
+    probe.
 
     A box that really is off exhausts every candidate address on both
     :func:`locate` passes (~8.5 s live), and :func:`is_reachable`'s 5 s cache is
@@ -418,7 +416,7 @@ def _kick_refresh(host: HostProfile) -> None:
 
 def dial_address(host: HostProfile, *, wait: bool = False) -> Optional[str]:
     """The address the peer-connect paths (model-proxy upstream, SSH ops,
-    remote stats) should dial right now (#396): the LAN ``address:`` while it
+    remote stats) should dial right now: the LAN ``address:`` while it
     answers, the ``tailscale:`` MagicDNS name when the LAN path is dead.
 
     * A host with no ``tailscale:`` name (or no fallback distinct from its
@@ -428,7 +426,7 @@ def dial_address(host: HostProfile, *, wait: bool = False) -> Optional[str]:
       last-known-good for ``_DIAL_TTL_S``; a fresh :func:`located_address`
       result is reused rather than re-probing.
     * When *both* paths are dead the LAN primary is pinned — callers then fail
-      with exactly the same connect errors as before the fallback existed.
+      with the plain connect errors of the LAN address.
 
     ``wait=False`` (the default) **never blocks**: on a cache miss it returns
     the current best guess (last route, else the LAN primary) immediately and
@@ -473,7 +471,7 @@ async def dial_address_async(host: HostProfile) -> Optional[str]:
 def _run_ssh(host: HostProfile, command: str) -> Optional[str]:
     """Run a read-only command over the hub user's own SSH (not the
     forced-command key). Returns stdout, or None on any failure. Dials the
-    host's currently-live address (LAN, else tailnet — #396)."""
+    host's currently-live address (LAN, else tailnet)."""
     result = run_ssh(
         f"{host.ssh_user}@{dial_address(host, wait=True)}",
         command,
@@ -592,7 +590,7 @@ async def remote_models(
     owner: HostProfile, timeout_s: float = REMOTE_HUB_PROBE_TIMEOUT_S
 ) -> Optional[List[Dict[str, Any]]]:
     """GET ``{owner's hub}/admin/api/models`` — used to merge a remote
-    host's own model rows into this hub's Models tab (#178).
+    host's own model rows into this hub's Models tab.
 
     Returns ``None`` (not ``[]``) on any failure — lets the caller tell
     "peer unreachable" apart from "peer reachable, reports zero models"
@@ -636,16 +634,15 @@ async def remote_models(
 async def peer_health(
     host_id: str, timeout_s: float = REMOTE_HUB_PROBE_TIMEOUT_S
 ) -> Dict[str, Any]:
-    """Probe any hub-running peer host's own hub `/health` endpoint (#179,
-    generalized from the Mac-Mini-only original in #372).
+    """Probe any hub-running peer host's own hub `/health` endpoint.
 
     Clone of ``services.langfuse_health()``'s try/timeout shape, but the
     address comes from :func:`dial_address_async` (the host's LAN
     ``address:``, falling back to its ``tailscale:`` name when the LAN path
-    is dead — #396) + ``hub_port()`` — the same single source of truth
-    #178's remote proxy already resolves against, not a new env var. When
+    is dead) + ``hub_port()`` — the same single source of truth
+    the remote proxy already resolves against, not a new env var. When
     reachable, also compares build identity against the peer's
-    ``/admin/api/version`` (#181) — its own try/except so a
+    ``/admin/api/version`` — its own try/except so a
     reachable-but-erroring version fetch never flips ``reachable`` back to
     ``False``.
     """

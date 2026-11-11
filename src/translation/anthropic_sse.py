@@ -26,7 +26,7 @@ class AnthropicStreamState:
     allocation. Anthropic keeps exactly one block open at a time and numbers
     them in emission order, so indices are handed out as blocks are opened
     rather than fixed in advance — a text-only stream still gets a single
-    block at index 0, unchanged from before tool support (#552).
+    block at index 0, unchanged from before tool support.
     """
 
     requested_model: str

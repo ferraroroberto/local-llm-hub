@@ -3,7 +3,7 @@
 Reads the rollout JSONL session logs Codex writes under
 ``~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`` and emits usage records in
 the shared ``UsageRecord`` shape (tagged ``vendor="codex"``), so they flow
-through the same Code-tab summary builder as Claude data (issue #71).
+through the same Code-tab summary builder as Claude data.
 
 Design constraints mirror ``code_usage.py``:
 - **Read-only** — we never modify the rollout files.

@@ -17,7 +17,7 @@ shove it in an ``X-Trace-Id`` header. This middleware bridges:
   feedback / scores later via ``POST /admin/api/trace/{id}/feedback``.
 
 On top of that contract this middleware also speaks Anthropic's header
-vocabulary (#461), because it is the one layer that sees every response —
+vocabulary, because it is the one layer that sees every response —
 including the 401s and 4xx envelopes raised before any route runs:
 
 - **``request-id``** on every non-static response, aliased to the same

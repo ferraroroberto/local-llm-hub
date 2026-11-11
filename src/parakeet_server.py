@@ -14,7 +14,7 @@ darwin-only: keeps one long-lived ``mac/parakeet-worker`` Swift subprocess
 warm (the CoreML model loads once) and serializes requests through its
 stdin/stdout — see ``mac/parakeet-worker/Sources/ParakeetWorker/main.swift``
 for the worker side of this protocol (one JSON result per line). Spike
-origin + benchmark results: #138, docs/parakeet-asr-evaluation.md.
+origin + benchmark results: docs/parakeet-asr-evaluation.md.
 """
 
 from __future__ import annotations

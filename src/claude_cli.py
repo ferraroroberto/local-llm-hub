@@ -3,8 +3,8 @@
 Shells out to the Claude Code CLI in headless JSON mode and returns the
 parsed envelope. Uses the user's local Claude auth — no API key required.
 
-Every invocation runs *isolated* from the operator's own Claude Code setup
-(#603): no user/project/local settings (hooks, MCP servers, plugins), no
+Every invocation runs *isolated* from the operator's own Claude Code setup:
+no user/project/local settings (hooks, MCP servers, plugins), no
 CLAUDE.md auto-discovery, no auto-memory, no skills, and no built-in agent
 tools beyond ``Read`` when attachments need it. Without this, each hub call
 carried ~26k tokens of the operator's agent context and ~1.2 s of extra

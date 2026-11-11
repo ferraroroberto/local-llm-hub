@@ -5,8 +5,7 @@ each construction builds an SSL context and a fresh connection pool. On the
 reference Windows box that measured ~0.26 s *per construction*, independent of
 the request itself (a reused client answers a loopback call in ~1 ms). The hub
 used to build a new client on every proxied / upstream call, so every request
-paid that ~0.26 s tax on top of the actual work (issue #165; #163 fixed the
-TTS-speech path first).
+paid that ~0.26 s tax on top of the actual work.
 
 These module-level singletons are built once and reused for the lifetime of
 the process, so each call pays ~1 ms instead. Both are created lazily — the

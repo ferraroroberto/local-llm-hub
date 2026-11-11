@@ -1,4 +1,4 @@
-"""Claude Code OTel metrics receiver — data layer (issue #68).
+"""Claude Code OTel metrics receiver — data layer.
 
 Claude Code (any host session, including sub-agents spawned via the Task
 tool) can export ``claude_code.token.usage`` / ``claude_code.cost.usage``
@@ -8,7 +8,7 @@ the receive side: parse what Claude Code pushes at ``POST /v1/metrics``
 (``src/routes/server_otel_receiver.py``), persist it, and roll it up for the OTel
 tab's "Claude Code (host CLI)" panel.
 
-This closes the gap documented in #66: the Code tab's JSONL parser
+This closes a gap: the Code tab's JSONL parser
 (``code_usage.py``) never sees sub-agent API calls (Claude Code doesn't write
 them to session transcripts), so per-model totals there silently undercount
 whenever sub-agents run. OTel is the only channel that carries them.
@@ -28,7 +28,7 @@ Design notes:
   ``query_source``, (for the token metric) ``type``, and (when the sending
   session set it) ``project.name`` are persisted.
 - **Project attribution is automatic, via fleet-config, not this repo**
-  (issue #234, automated by ``fleet-config``#310). Unlike the Code tab's
+  (automated by ``fleet-config``). Unlike the Code tab's
   JSONL source — where "project" is trivially the session file's own
   directory — Claude Code's OTel metrics carry no cwd/project attribute by
   default. Verified empirically that setting ``OTEL_RESOURCE_ATTRIBUTES``
@@ -236,11 +236,11 @@ def get_usage_summary(period: str = "today") -> Dict[str, Any]:
 
     ``period`` is one of ``today | week | month | all``; unrecognised values
     fall back to ``all`` (unbounded) rather than raising. Rows are broken out
-    by day (issue #233) — each ingested point already carries a timestamp, so
+    by day — each ingested point already carries a timestamp, so
     this attributes cost/usage to the day it actually happened rather than
     collapsing the whole selected window into one aggregate row per model.
     ``project`` is ``None`` (rendered "—" by the SPA) for the vast majority of
-    sessions, which never set ``OTEL_RESOURCE_ATTRIBUTES`` — see #234.
+    sessions, which never set ``OTEL_RESOURCE_ATTRIBUTES``.
     """
     if period not in _PERIODS:
         period = "all"

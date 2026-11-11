@@ -154,14 +154,14 @@ class Model:
 
 
 def _parse_host_chain(row: Dict) -> Tuple[List[str], List[str]]:
-    """Normalize a YAML row's host declaration into ``(hosts, cpu_hosts)`` (#342).
+    """Normalize a YAML row's host declaration into ``(hosts, cpu_hosts)``.
 
     Accepted shapes, in precedence order:
 
     * ``hosts: [a, b, {id: c, cpu: true}]`` — the ordered preference chain;
       entries are bare host-id strings or ``{id: <host>, cpu: true}`` dicts
       (``cpu`` flags a degraded CPU-offload tier, e.g. the tower last resort).
-    * ``host: a`` — the pre-#342 single owner, parsed as a one-element chain
+    * ``host: a`` — the single-owner form, parsed as a one-element chain
       so every existing row behaves exactly as before.
     * neither — an unowned row: empty chain, local everywhere.
 
@@ -194,7 +194,7 @@ def _parse_host_chain(row: Dict) -> Tuple[List[str], List[str]]:
 
 
 def _parse_startup(row: Dict) -> str:
-    """Normalize a row's ``startup:`` to a known policy (#422).
+    """Normalize a row's ``startup:`` to a known policy.
 
     Anything other than the literal ``on_demand`` reads as ``eager`` — a
     typo'd value must degrade to today's always-on behavior, never to a
@@ -250,7 +250,7 @@ _LLAMA_GPU_LAYER_FLAGS = ("-ngl", "--n-gpu-layers", "--gpu-layers")
 
 
 def cpu_offload_args(engine: Optional[str], args: List[str]) -> List[str]:
-    """Rewrite launch ``args`` so the backend runs CPU-only (#342)."""
+    """Rewrite launch ``args`` so the backend runs CPU-only."""
     out = list(args or [])
     if engine == "llama-server":
         for i, a in enumerate(out):
@@ -278,8 +278,8 @@ def all_models(*, apply_cpu_offload: bool = True) -> List[Model]:
     arg rewrite in — what every *spawn/args* consumer wants. Pass False to get
     the rows exactly as declared in YAML, for callers that must reason about
     other hosts: the rewrite is active-host-only, so rewritten args describe
-    this box and must not be attributed fleet-wide (#405 — the placement grid
-    read ``-ng`` off the rewritten row and labelled whisper "cpu" on *every*
+    this box and must not be attributed fleet-wide (the placement grid would
+    read ``-ng`` off the rewritten row and label whisper "cpu" on *every*
     chain member, not just the flagged degraded tier).
     """
     cfg = _load_config()
@@ -328,11 +328,11 @@ def local_models(host: Optional[HostProfile] = None) -> List[Model]:
     would otherwise be mistaken for a local one: install checks,
     port-liveness checks, spawn/inherit loops, tray menus.
 
-    Since #342 membership is chain-based: a host anywhere in a model's
+    Membership is chain-based: a host anywhere in a model's
     ``hosts:`` preference list is a *candidate* runner — it must pre-stage
     the weights (install), may spawn the process (failover), and must be
     able to inherit/stop it. For a bare single-``host:`` row the chain is
-    exactly ``[host]``, so this is byte-identical to the pre-#342 filter.
+    exactly ``[host]``, so this is identical to a plain single-owner filter.
     Whether the model is *currently served* here is a different, dynamic
     question — ``src.model_failover.effective_owner``.
     """
@@ -372,7 +372,7 @@ def launchable_local_ids(host: Optional[HostProfile] = None) -> List[str]:
 
 def hub_peer_ids(active_id: Optional[str] = None) -> List[str]:
     """Ids of every declared host — other than ``active_id`` — that runs its
-    own hub (issue #372).
+    own hub.
 
     "Runs a hub" reuses the exact same test ``app_web/routers/fleet_placement.py``
     already applies per host row (``runs_hub = bool(launchable_local_ids(profile))``)
@@ -381,8 +381,8 @@ def hub_peer_ids(active_id: Optional[str] = None) -> List[str]:
     ``enabled:`` list (e.g. ``openclaw``) is correctly excluded. This is the
     peer set the sync fan-out and the drift loop enumerate — mac-mini-m4 and
     gaming today, any future hub-running satellite automatically once it
-    declares a non-empty ``enabled:``. A dormant host (intentionally off,
-    #765) is not a peer: neither of them may reach for it.
+    declares a non-empty ``enabled:``. A dormant host (intentionally off)
+    is not a peer: neither of them may reach for it.
     """
     active = active_id if active_id is not None else resolve_host().id
     return [
@@ -393,9 +393,9 @@ def hub_peer_ids(active_id: Optional[str] = None) -> List[str]:
 
 def preferred_owner(model: Model) -> Optional[str]:
     """The first chain host that exists and enables ``model`` — the static
-    preferred owner (#342), independent of live reachability. ``None`` for an
+    preferred owner, independent of live reachability. ``None`` for an
     unowned row (empty chain) or a chain with no eligible member. A dormant
-    host (intentionally off, #765) is passed over, so its models are placed
+    host (intentionally off) is passed over, so its models are placed
     on the next member instead of waking it. The dynamic counterpart (where
     the model is *currently* served after a failover) is
     ``src.model_failover.effective_owner``.
@@ -411,14 +411,14 @@ def preferred_owner(model: Model) -> Optional[str]:
 
 def desired_model_ids(host: Optional[HostProfile] = None) -> List[str]:
     """The models ``host`` should be running right now, derived from the
-    registry (#430) — no separate desired-state file.
+    registry — no separate desired-state file.
 
     A model belongs to a host's desired running set when it is launchable
     there (enabled ∧ chain-member ∧ spawnable ∧ non-virtual, exactly
-    ``launchable_local_ids``), declares ``startup: eager`` (#422 —
-    ``on_demand`` rows are never desired; ``src.on_demand`` owns their
+    ``launchable_local_ids``), declares ``startup: eager``
+    (``on_demand`` rows are never desired; ``src.on_demand`` owns their
     lifecycle), and is either unowned (an empty chain means "local
-    everywhere", the pre-#178 behavior) or preferred-owned by this host
+    everywhere", the single-host behavior) or preferred-owned by this host
     (``preferred_owner`` — the first *eligible* chain member, so a chain
     whose head names an unknown/non-enabling host falls through to the next
     member). A degraded ``cpu: true`` tier deeper in a chain is just a
@@ -431,7 +431,7 @@ def desired_model_ids(host: Optional[HostProfile] = None) -> List[str]:
     reconcile loop (``fleet_reconcile.reconcile_once`` via
     :func:`desired_placement`), replacing the retired
     ``config/fleet_placement.json`` + ``startup_profile.json`` ``models``
-    lists (#430) — the registry's ``hosts:`` chains + ``startup:`` policy
+    lists — the registry's ``hosts:`` chains + ``startup:`` policy
     are the sole source of placement truth.
     """
     profile = host or resolve_host()
@@ -448,7 +448,7 @@ def desired_model_ids(host: Optional[HostProfile] = None) -> List[str]:
 
 def desired_placement() -> Dict[str, List[str]]:
     """Fleet-wide ``{host_id: [model_id, ...]}`` desired state, derived from
-    the registry (#430) — :func:`desired_model_ids` per declared host. Hosts
+    the registry — :func:`desired_model_ids` per declared host. Hosts
     with an empty desired set are omitted (nothing to run means no reason for
     the reconcile loop to probe or wake them)."""
     placement: Dict[str, List[str]] = {}
@@ -461,23 +461,23 @@ def desired_placement() -> Dict[str, List[str]]:
 
 def cpu_resident_map() -> Dict[str, set]:
     """``{host_id: {model_id, ...}}`` — rows that hold **no GPU VRAM** on that
-    host (#431). The single source every VRAM-capacity sum keys off (the fleet
+    host. The single source every VRAM-capacity sum keys off (the fleet
     summary card, the per-row host budgets, the on-demand headroom check): a
     CPU-resident row must never count against a GPU ceiling.
 
     Two independent ways a row lands on CPU:
 
     * **Always, on every host** — piper's shim hardcodes CPU unconditionally
-      (``src/tts_engines/piper.py``, #371) and a ``whisper-server`` row that
+      (``src/tts_engines/piper.py``) and a ``whisper-server`` row that
       *declares* ``-ng`` never touches the GPU (see ``whisper_translate``).
     * **On one host only** — a failover chain's degraded last-resort tier
-      (``{id: tower, cpu: true}``, #342): GPU on the preferred members,
+      (``{id: tower, cpu: true}``): GPU on the preferred members,
       CPU-offloaded on the flagged one.
 
     Reads ``all_models(apply_cpu_offload=False)`` deliberately: the registry
     bakes the CPU rewrite in for the *active* host, so the default view would
     show ``-ng`` on this box's row and smear that verdict across every other
-    chain member (#405). Deliberately **not** keyed on ``est_vram_mb`` —
+    chain member. Deliberately **not** keyed on ``est_vram_mb`` —
     ``parakeet`` runs on the Mac's ANE via CoreML, a real (if
     non-discrete-VRAM) device, not "cpu".
     """
@@ -515,7 +515,7 @@ def resolve_any(name: str) -> Optional[Model]:
     The host-blind companion to :func:`resolve`. Answers a different question:
     not "can I serve this here?" but "is this name one of *our* model ids at
     all?". The audio proxy needs exactly that distinction to keep an explicit
-    ``model=`` strict (issue #412): a configured id that can't be served here
+    ``model=`` strict: a configured id that can't be served here
     must fail loudly rather than fall through to the role chain and be
     answered by a different model, while a name the registry has never heard
     of (a client-side placeholder like OpenAI's ``whisper-1``) is not a model
@@ -526,7 +526,7 @@ def resolve_any(name: str) -> Optional[Model]:
     the caller *name* one of our models?", and someone who typed ``Whisper``
     named whisper — treating it as an unknown id would drop them onto the role
     chain and hand back a 200 produced by a different model, exactly the
-    silence #412 abolishes. :func:`resolve` stays exact because its callers
+    silence strict resolution abolishes. :func:`resolve` stays exact because its callers
     (dispatch, ``/v1/models``, the admin model control) key off the canonical
     name; pair the two by resolving *this* row's ``id`` there.
     """
@@ -540,7 +540,7 @@ def resolve_any(name: str) -> Optional[Model]:
 
 
 def audio_role_chain(role_key: str) -> List[str]:
-    """Ordered model-id chain for an audio role (issue #348).
+    """Ordered model-id chain for an audio role.
 
     Reads ``roles.audio.<role_key>`` from models.yaml and returns
     ``[model_id, *fallback]`` — the primary followed by the ordered failover
@@ -548,7 +548,7 @@ def audio_role_chain(role_key: str) -> List[str]:
     unavailable. ``role_key`` is ``"transcribe"`` / ``"translate"`` / ``"speech"``.
 
     A role with only ``model_id`` (no ``fallback``) yields a one-element chain —
-    identical to the pre-#348 single-target behaviour. Returns ``[]`` when the
+    identical to a single-target lookup. Returns ``[]`` when the
     role is not configured, so the caller can fall back to its own heuristic.
     Duplicate ids are collapsed (order-preserving) so a config that repeats the
     primary in ``fallback`` never makes the proxy retry the same dead backend.

@@ -64,7 +64,7 @@ def _delayed_shutdown(delay: float = 0.4) -> None:
 
 def _delayed_darwin_bootout(label: str, delay: float = 0.4) -> None:
     """Unload the LaunchAgent job entirely, so a deliberate stop actually
-    stays stopped (#181).
+    stays stopped.
 
     Confirmed empirically on this machine: launchd's ``KeepAlive`` respawns
     the job after *any* signal-terminated exit — a plain self-SIGTERM
@@ -91,7 +91,7 @@ def _delayed_darwin_bootout(label: str, delay: float = 0.4) -> None:
 
 
 def _under_systemd() -> bool:
-    """Are we running as a systemd unit? (#341/#368)
+    """Are we running as a systemd unit?
 
     systemd sets ``INVOCATION_ID`` in every unit's environment — the standard
     "am I supervised by systemd" signal. Only then do the stop/restart
@@ -104,7 +104,7 @@ def _under_systemd() -> bool:
 
 def _delayed_systemctl(verb: str, delay: float = 0.4, on_failure: Optional[Callable[[], None]] = None) -> None:
     """Run ``sudo -n systemctl <verb> local-llm-hub`` after a short delay so the
-    HTTP response flushes first (#368).
+    HTTP response flushes first.
 
     ``stop``/``restart`` SIGTERM this very process (it lives in the unit's
     cgroup) — which is the point: unlike the plain self-SIGTERM path,
@@ -162,10 +162,10 @@ def _spawn_respawn_watchdog() -> None:
     """Spawn a detached Python that waits for our PID to die then re-launches us.
 
     The relaunch never uses a bare ``pythonw`` with no stdout. The actual
-    wait/relaunch logic lives in ``src/_respawn_watchdog.py`` (issue #198
-    — a ~60-line string literal fed to ``python -c`` would be invisible to
-    lint/type-check and one quoting slip away from a silently-failed
-    restart). That module is deliberately
+    wait/relaunch logic lives in ``src/_respawn_watchdog.py``
+    rather than in a ~60-line string literal fed to ``python -c``, which would
+    be invisible to lint/type-check and one quoting slip away from a
+    silently-failed restart. That module is deliberately
     stdlib-only with no import from any other ``src.*`` module: it's the
     thing recovering *from* a broken deploy, so it can't assume the rest
     of the hub's package still imports cleanly — only its own module and

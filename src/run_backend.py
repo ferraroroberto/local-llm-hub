@@ -5,8 +5,8 @@
     python -m src.run_backend glm    # run llama-server with the glm entry
 
 ``launchers/run_model.bat`` / ``run_model.sh`` are the sole entry point for
-every per-model launcher (#448 dedup — 22 near-identical hand-rolled scripts
-used to each hardcode their own title/port/banner, with nothing to catch a
+every per-model launcher (near-identical hand-rolled scripts would
+each hardcode their own title/port/banner, with nothing to catch a
 copy-paste port typo). ``--banner <id>`` below is what the ``.bat`` pulls its
 window title + console banner from, live off ``config/models.yaml``, so
 there is exactly one place a model's port/name can come from.
@@ -51,7 +51,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _self_contain() -> None:
-    """Bind every backend this hub spawns to this process's own lifetime (#507).
+    """Bind every backend this hub spawns to this process's own lifetime.
 
     ``python -m src.run_backend hub`` is the manual/verification launch
     surface — a developer or a build/verification agent running a worktree's
@@ -70,7 +70,7 @@ def _self_contain() -> None:
     entirely, and any backend it spawned on demand — deliberately started
     with ``CREATE_NEW_PROCESS_GROUP`` so a restart's CTRL_BREAK doesn't hit
     it — survives as an orphan, pinning whatever worktree it's rooted in
-    (the exact incident #507 reports twice). Assigning this process to a
+    (the failure mode this guards against). Assigning this process to a
     kill-on-close Job Object *before* any backend is spawned means every
     future ``backend_process.start()`` child inherits job membership
     automatically (job membership propagates to descendants unless a child

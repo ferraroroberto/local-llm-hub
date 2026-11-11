@@ -62,7 +62,7 @@ class WebappConfigError(Exception):
 
     Deliberately not folded into ``WebappConfig()``: defaults are what an
     *unset* field means (``auth_token=""`` is "enforcement off"), so a caller
-    handed defaults for a broken file acts on settings nobody chose (#585).
+    handed defaults for a broken file acts on settings nobody chose.
     Each caller decides what "unknown" means for it.
     """
 
@@ -121,7 +121,7 @@ def ensure_auth_token(cfg: Optional[WebappConfig] = None) -> WebappConfig:
 
     Lets :class:`WebappConfigError` propagate: minting a token over an
     unreadable file would overwrite it, losing its password, allowlist and
-    CORS origins (#585).
+    CORS origins.
     """
     cfg = cfg if cfg is not None else load_webapp_config()
     if cfg.auth_token:

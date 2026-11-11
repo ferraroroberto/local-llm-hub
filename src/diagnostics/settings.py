@@ -1,4 +1,4 @@
-"""Diagnostics settings — retention + the opt-in scheduled snapshot (#315).
+"""Diagnostics settings — retention + the opt-in scheduled snapshot.
 
 A tiny gitignored JSON file beside the startup profile, with the same tolerant
 load / atomic save contract: a broken settings file must never stop a capture

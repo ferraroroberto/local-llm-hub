@@ -104,7 +104,7 @@ def whisper_server_binary() -> Path:
 
 
 def comfyui_python() -> Path:
-    """ComfyUI's own venv interpreter (#492).
+    """ComfyUI's own venv interpreter.
 
     ComfyUI is a Python app, not a prebuilt binary, and gets an isolated venv
     so its wide dependency pin set can't resolve into the hub's — see
@@ -195,7 +195,7 @@ def is_running(model_id: str) -> bool:
 def inherited_foreign(model_id: str) -> bool:
     """True iff this model is alive via an inherited PID whose process has
     **no tie to this repo** — an external sibling's server on a mutex-shared
-    port, adopted for control but never spawned by the hub (#431). The
+    port, adopted for control but never spawned by the hub. The
     canonical case: voice-transcriber's own ``whisper-server`` holding :8090
     on the tower — the hub can route to it, but the fleet summary must not
     claim the hub runs it.
@@ -426,13 +426,13 @@ def log_lines(model_id: str, limit: int = LOG_TAIL_LINES) -> list[str]:
 
 
 def _whisper_boost_args(existing_args: list[str]) -> list[str]:
-    """Return extra whisper-server args to enable vocabulary boosting (#91).
+    """Return extra whisper-server args to enable vocabulary boosting.
 
     When a whisper row opts into ``--carry-initial-prompt`` (which is only
     honoured with ``--max-context > 0`` — proven on v1.8.6), source the
     initial prompt from the committed dictionary's ``boost_terms`` so the
     boosting vocabulary lives in one place
-    (``config/transcription_glossary.json``, shared with the #90
+    (``config/transcription_glossary.json``, shared with the
     replacement rules). The vocabulary is ranked and capped to a token
     budget, and any dropped terms are logged. No-op if boosting isn't
     requested or the row already supplies its own ``--prompt``.

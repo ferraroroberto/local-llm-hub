@@ -1,7 +1,7 @@
 """Post-process whisper transcripts through a committed glossary.
 
 This implements the **replacement-rules half** of a Wispr-Flow-style
-dictionary (issue #90). The two-part dictionary lives in one committed
+dictionary. The two-part dictionary lives in one committed
 file, ``config/transcription_glossary.json``:
 
   * ``replacements`` — an *ordered* list of literal ``{"from", "to"}``
@@ -10,7 +10,7 @@ file, ``config/transcription_glossary.json``:
     recognition-level biasing cannot (e.g. "cloud code" → "Claude Code",
     where whisper hears "Claude" as "Cloud" regardless of any prompt).
   * ``boost_terms`` — vocabulary fed to whisper as an initial prompt to
-    *bias recognition* (issue #91). Consumed at backend-launch time, not
+    *bias recognition*. Consumed at backend-launch time, not
     here; listed in the same file so the dictionary has one source of
     truth.
 
@@ -149,13 +149,13 @@ def load_boost_terms(
     local_path: Optional[str] = None,
     alias_path: Optional[str] = None,
 ) -> List[str]:
-    """Return the ``boost_terms`` vocabulary list (issue #91).
+    """Return the ``boost_terms`` vocabulary list.
 
     Kept here so the dictionary has a single loader; empty list if the
     file is missing, unparseable, or has no terms.
 
     Also merges an optional gitignored local overlay
-    (``config/transcription_glossary.local.json`` by default, issue #290) —
+    (``config/transcription_glossary.local.json`` by default) —
     same ``{"boost_terms": [...]}`` shape, for vocabulary that must never
     land in this public repo (e.g. a caller's private proper nouns).
     Missing overlay file is a silent no-op. The overlay is **not** visible

@@ -3,16 +3,16 @@
 AgentsView (``kenn-io/agentsview``) is an **optional, external** local service
 — its own install (pipx / separate venv, never this repo's ``.venv``), its own
 process (``agentsview serve``, default ``http://127.0.0.1:8080``), never
-started or managed by the hub (issue #280).  It indexes 40+ coding-agent
-session formats (including Gemini/``agy``, whose protobuf storage #279
-declined to reverse-engineer) and exposes a REST API; this module polls that
+started or managed by the hub.  It indexes 40+ coding-agent
+session formats (including Gemini/``agy``, whose protobuf storage the hub
+does not reverse-engineer) and exposes a REST API; this module polls that
 API and emits records in the shared ``UsageRecord`` shape so they flow
 through the same Code-tab summary builder as native data.
 
 Scope guard: only the agents in the curated ``_AGENT_VENDOR_MAP`` are fetched
 (the ``agy`` pair today) — natives (claude/codex/copilot) and unwanted slugs
 (cursor/cowork/pi/…) are never touched, so AgentsView can neither override a
-native source (#152 found its Claude totals run low) nor spam the vendor
+native source (its Claude totals run low) nor spam the vendor
 selector.
 
 Design constraints (mirroring the Langfuse pattern in
@@ -397,7 +397,7 @@ def _records_for_session(
 
     Preferred: one record per breakdown row (per-call granularity).  Fallback
     when breakdown rows are absent or carry no model: a single session-level
-    record with whatever fields exist — partial data beats dropped data (#280).
+    record with whatever fields exist — partial data beats dropped data.
     Timestamps are session-granular (``startedAt``), same precedent as the
     Copilot CLI parser.  Session-level ``cost_usd`` rides ``credits_usd`` on
     the first record only, so totals are exact and never double-counted.

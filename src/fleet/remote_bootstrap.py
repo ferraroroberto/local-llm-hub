@@ -1,15 +1,15 @@
-"""SSH-triggered remote hub bootstrap/sync (#181) + machine power (#309/#311).
+"""SSH-triggered remote hub bootstrap/sync + machine power.
 
 Two distinct SSH channels, deliberately kept apart:
 
-  * **bootstrap / sync** (#181) — brings a *dead* remote host's hub back up,
+  * **bootstrap / sync** — brings a *dead* remote host's hub back up,
     or syncs it to the latest ``main`` + restarts. These ride the
     forced-command-restricted key (``mac/bin/hub-remote-ctl.sh``), never a
     general shell: the verb sent over SSH (``bootstrap`` / ``sync``) becomes
     ``$SSH_ORIGINAL_COMMAND`` on the remote end and the forced command there —
     not anything sent here — decides what runs. Gated on
     ``LOCAL_LLM_HUB_SSH_KEY``.
-  * **reboot / shutdown** (#309, transport decided in #311) — the Machines
+  * **reboot / shutdown** — the Machines
     console's destructive power actions run over the hub user's **own general
     SSH**, the same passwordless channel ``remote_stats`` already uses for
     read-only snapshots (``ssh <user>@<addr> "<cmd>"``, no ``-i`` key). The
@@ -70,7 +70,7 @@ def _run_ssh(owner: Any, address: str, payload: str, *, use_key: bool) -> Dict[s
     remote command) vs. the hub user's own general passwordless channel —
     the only two differences between ``bootstrap``/``sync`` and the
     reboot/shutdown power actions. The invocation itself is
-    ``ssh_exec.run_ssh`` (shared with ``remote_stats``, #470); only the
+    ``ssh_exec.run_ssh`` (shared with ``remote_stats``); only the
     ``{ok, error}`` shape below is this layer's own."""
     key_path = None
     if use_key:
@@ -147,7 +147,7 @@ async def sync_host(host_id: str) -> Dict[str, Any]:
 
 
 def _run_power_command(host_id: str, flag: str) -> Dict[str, Any]:
-    """Run reboot/shutdown over the hub user's **own** general SSH (#311).
+    """Run reboot/shutdown over the hub user's **own** general SSH.
 
     The same passwordless channel ``remote_stats`` uses for read-only
     snapshots — ``ssh <user>@<addr> "<cmd>"`` with no ``-i`` forced-command
@@ -169,7 +169,7 @@ def _run_power_command(host_id: str, flag: str) -> Dict[str, Any]:
 
 
 async def _trigger_power(host_id: str, flag: str, verb: str, emoji: str) -> Dict[str, Any]:
-    """Send a ``reboot``/``shutdown`` over the general-SSH power channel (#311).
+    """Send a ``reboot``/``shutdown`` over the general-SSH power channel.
 
     Unlike ``bootstrap``/``sync`` there is **no** ``/health`` poll — the
     machine is going *down*, so "reachable" is the wrong success signal. A
@@ -186,12 +186,12 @@ async def _trigger_power(host_id: str, flag: str, verb: str, emoji: str) -> Dict
 
 
 async def reboot_host(host_id: str) -> Dict[str, Any]:
-    """Reboot a peer over the general-SSH power channel (#309/#311). Destructive
+    """Reboot a peer over the general-SSH power channel. Destructive
     — the caller must exclude the active hub host before invoking this."""
     return await _trigger_power(host_id, "-r", "reboot", "♻️")
 
 
 async def shutdown_host(host_id: str) -> Dict[str, Any]:
-    """Power off a peer over the general-SSH power channel (#309/#311).
+    """Power off a peer over the general-SSH power channel.
     Destructive — the caller must exclude the active hub host."""
     return await _trigger_power(host_id, "-h", "shutdown", "⏻")

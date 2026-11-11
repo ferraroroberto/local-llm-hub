@@ -1,4 +1,4 @@
-"""Host-side service helpers — Docker engine + Langfuse stack (issue #27).
+"""Host-side service helpers — Docker engine + Langfuse stack.
 
 The hub depends on a running Docker engine for the Langfuse observability
 stack, but Docker Desktop is user-managed and silently down after a reboot
@@ -102,7 +102,7 @@ def _docker_info_sync(timeout_s: float) -> Dict[str, Any]:
 
     ``asyncio.create_subprocess_exec`` has no Windows implementation
     under ``SelectorEventLoop`` (only ``ProactorEventLoop`` supports
-    subprocess pipes there) — since #223 wired the hub's uvicorn to the
+    subprocess pipes there) — the hub's uvicorn runs on the
     selector loop, spawning ``docker info`` via the async subprocess API
     raises ``NotImplementedError`` on every call. A blocking
     ``subprocess.run`` in a worker thread sidesteps the event loop's
@@ -319,7 +319,7 @@ async def start_docker_desktop() -> Dict[str, Any]:
     Returns ``{ok, steps}`` with a single ``docker_engine`` step — same
     contract as :func:`launch_stack` / ``agentsview_service.launch_agentsview``
     so the SPA renders all three identically. Factored out of :func:`launch_stack`
-    (issue #284) so the Services card's individual Docker Start button can
+    so the Services card's individual Docker Start button can
     drive just this step without also touching Langfuse.
     """
     steps: List[Dict[str, str]] = []
@@ -382,7 +382,7 @@ async def start_langfuse() -> Dict[str, Any]:
     Returns ``{ok, steps}`` with a single ``langfuse_stack`` step. Does
     not start Docker itself — the start script fails fast with an
     actionable message if the engine is down. Factored out of
-    :func:`launch_stack` (issue #284); see :func:`start_docker_desktop`.
+    :func:`launch_stack`; see :func:`start_docker_desktop`.
     """
     steps: List[Dict[str, str]] = []
     health = await langfuse_health()

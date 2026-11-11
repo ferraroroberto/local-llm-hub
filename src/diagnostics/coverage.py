@@ -1,4 +1,4 @@
-"""Per-collector coverage — did we actually get to measure this? (issue #322)
+"""Per-collector coverage — did we actually get to measure this?
 
 A health tool must never let *"we couldn't measure this"* read as *"this is
 fine."* Two collectors degrade silently on macOS, where the hub lacks the
@@ -15,7 +15,7 @@ The result is a small map persisted on the run and surfaced in the report and
 the verdict. Health and coverage are **orthogonal axes**: the verdict ``level``
 stays the health of what we *could* measure; coverage rides alongside it. That
 keeps a blind macOS run from being pinned at ``warning`` forever (the cry-wolf
-failure #315 fought) while still refusing to call it a clean ``healthy``.
+failure) while still refusing to call it a clean ``healthy``.
 
 This module is the single source of the coverage vocabulary and of which
 verdict rules depend on which collector, so the report, the rules, and the
@@ -68,7 +68,7 @@ def compute(run_id: str, *, ports_denied: bool, platform: Optional[str] = None) 
 
     ``platform`` (``windows``/``darwin``/``linux``) names the machine the run
     came *from*; it defaults to this host and is passed explicitly only for a
-    foreign run ingested from another OS (#316), so a macOS capture is marked
+    foreign run ingested from another OS, so a macOS capture is marked
     GPU-unsupported even when it is ingested on the Windows hub."""
     read = store.proc_readability(run_id)
     total = read["total"]

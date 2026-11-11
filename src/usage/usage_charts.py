@@ -1,6 +1,6 @@
 """Time-series bucketing and period-over-period comparison for the Cld tab.
 
-Extracted out of ``code_usage.py`` (#451) — chart bucketing (weekly/monthly
+Extracted out of ``code_usage.py`` — chart bucketing (weekly/monthly
 rollups, the previous-period comparison) was one of five unrelated concerns
 that module mixed together. ``code_usage.py`` imports :func:`build_time_series`
 and :func:`build_prev_totals` for its ``get_summary`` aggregation; nothing
@@ -114,7 +114,7 @@ def build_prev_totals(
     For a non-"all" period the dict is always returned (zero-filled when the
     preceding window had no activity), so the SPA can show a "new" badge for a
     metric whose prior value was 0 instead of hiding the comparison entirely —
-    e.g. a vendor like Codex that has no data in the previous week (issue #71).
+    e.g. a vendor like Codex that has no data in the previous week.
     """
     if period == "all":
         return None

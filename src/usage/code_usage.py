@@ -4,7 +4,7 @@ Reads the JSONL session logs that Claude Code writes under
 ``~/.claude/projects/<encoded-path>/*.jsonl`` and aggregates them into
 summaries suitable for the admin SPA's ``Cld`` tab.
 
-Design constraints (from issue #20):
+Design constraints:
 - **Read-only** — we never modify the JSONL files.
 - **Zero subprocesses** — we parse the files ourselves rather than
   shelling out to ``bunx ccusage``.
@@ -12,7 +12,7 @@ Design constraints (from issue #20):
   polls this module on its own 30 s interval.
 - **Mtime cache** — each file is only re-parsed when its mtime changes.
 - **Summary cache** — the built summary is cached per ``(period, vendor)``
-  and refreshed ahead while polled (#811), so a poll doesn't pay the
+  and refreshed ahead while polled, so a poll doesn't pay the
   several-second walk over every record.
 
 Token fields used from each ``assistant`` entry::
@@ -27,7 +27,7 @@ Token fields used from each ``assistant`` entry::
 separately so the SPA can show it with a visual distinction.
 
 This module owns Claude JSONL parsing and the cross-vendor ``get_summary``
-orchestration API only (#451). The record shape and small parsing helpers
+orchestration API only. The record shape and small parsing helpers
 shared with the Codex/Copilot/AgentsView parsers live in ``usage_common.py``;
 the per-vendor $/Mtok pricing tables in ``usage_pricing.py``; the chart
 time-series/period-comparison bucketing in ``usage_charts.py``.
@@ -159,7 +159,7 @@ _VALID_VENDORS = {"claude", "codex", "copilot", "all"}  # native set + "all"
 
 
 def is_valid_vendor(vendor: str) -> bool:
-    """Native vendors/"all" plus the curated AgentsView vendors (#280).
+    """Native vendors/"all" plus the curated AgentsView vendors.
 
     ``KNOWN_VENDORS`` (e.g. ``agy``) stay valid even while AgentsView is
     down or absent — their history rollups remain queryable.  Snapshot-only
@@ -178,7 +178,7 @@ def _gather_records(vendor: str = "all") -> List[UsageRecord]:
     """Return usage records for the requested vendor(s).
 
     ``vendor`` is ``claude | codex | copilot | all`` or an AgentsView-sourced
-    agent slug (issue #280).  Vendor modules are imported lazily so they can
+    agent slug.  Vendor modules are imported lazily so they can
     import shared helpers from this module without a cycle.
     """
     records: List[UsageRecord] = []
@@ -219,9 +219,9 @@ _OTEL_FIELD_MAP = {
 
 
 def _otel_delta_records(records: List[UsageRecord]) -> List[UsageRecord]:
-    """Claude usage the transcript sources never saw (#280 follow-up).
+    """Claude usage the transcript sources never saw.
 
-    Sessions bridged through claude.ai/code export OTel metrics (#68) but
+    Sessions bridged through claude.ai/code export OTel metrics but
     write no usage records to the local JSONL transcripts, so the OTel store
     is a superset of the transcript view whenever telemetry is enabled.  Per
     ``(day, model family)``, any per-field OTel excess over the claude
@@ -402,8 +402,8 @@ def get_summary(period: str = "today", vendor: str = "all") -> dict:
     """Return a summary dict consumed by the Cld tab.
 
     ``period`` is one of ``today | week | month | all``.
-    ``vendor`` is ``claude | codex | copilot | all`` (issues #71, #231) or a
-    dynamically-discovered AgentsView agent slug, e.g. ``gemini`` (#280).
+    ``vendor`` is ``claude | codex | copilot | all`` or a
+    dynamically-discovered AgentsView agent slug, e.g. ``gemini``.
 
     Keys returned:
       period     — echoed back
@@ -578,12 +578,12 @@ def get_summary_cached(period: str = "today", vendor: str = "all") -> dict:
 
 def prewarm_default_summary() -> bool:
     """Build the key the Code tab opens with, so the first request after a
-    restart is a cache hit instead of a cold build (#826).
+    restart is a cache hit instead of a cold build.
 
     Blocking — the hub runs it on a worker thread at start. It goes through
     :func:`get_summary_cached`, so the key then counts as polled for
     ``_SUMMARY_WATCH_S`` and refresh-ahead keeps it warm for that one window;
-    a key nobody opens stops being rebuilt after it, as before. A fresh process
+    a key nobody opens stops being rebuilt after it. A fresh process
     parses every transcript once (~50 s on the tower), which is older than
     ``_SUMMARY_MAX_AGE_S`` the moment it lands — so one more build, off the
     now-warm parser caches (a few seconds), leaves the entry actually fresh.

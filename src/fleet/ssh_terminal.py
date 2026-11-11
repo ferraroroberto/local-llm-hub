@@ -1,4 +1,4 @@
-"""In-browser SSH terminal via app-launcher's session-host (#309, Step 3).
+"""In-browser SSH terminal via app-launcher's session-host.
 
 We deliberately **reuse** app-launcher's PTY/xterm engine rather than
 rebuilding a ConPTY/WebSocket/xterm stack in the hub. app-launcher already

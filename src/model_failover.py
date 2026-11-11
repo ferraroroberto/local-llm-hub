@@ -1,4 +1,4 @@
-"""Dynamic model fallback across an ordered host chain (#342).
+"""Dynamic model fallback across an ordered host chain.
 
 A model row may declare ``hosts: [a, b, c]`` — an ordered preference list
 (``src.model_registry._parse_host_chain``). This module turns that static
@@ -8,7 +8,7 @@ right now" — and keeps it true as hosts die and return:
 * **Ownership resolution** — the model's owner is the first chain candidate
   that is reachable and has the model in its ``enabled:`` list. Every hub
   resolves requests against that owner (``effective_owner`` feeds
-  ``remote_proxy.remote_base_url``) and proxies there via the existing #178
+  ``remote_proxy.remote_base_url``) and proxies there via the existing
   cross-host path.
 * **Failover** — when the current owner stays unreachable past
   ``fail_after_s``, ownership moves to the next reachable candidate.
@@ -35,7 +35,7 @@ bare ``host:`` row) never consults the tracker — ``effective_owner`` returns
 multi-host chain the background loop exits immediately, so existing
 deployments gain zero probes, zero tasks, zero behavior change.
 
-**Contract with fleet_reconcile.py (#411):** this engine's ``fail_after_s``
+**Contract with fleet_reconcile.py:** this engine's ``fail_after_s``
 window competes with ``fleet_reconcile.py``'s own always-on convergence, which
 used to SSH-resurrect a deliberately-stopped peer within seconds — well inside
 this window — so failover could never observe a real outage. That race is
@@ -165,7 +165,7 @@ class OwnershipTracker:
 
         * first call → the first candidate observed up; with no observations
           yet, the first candidate — i.e. the static preferred owner, so
-          behavior before the first probe cycle equals the pre-#342 world.
+          behavior before the first probe cycle equals the static single-owner world.
         * owner down ≥ ``fail_after_s`` → the first candidate currently up
           (may be up- or down-chain of the dead owner). Nothing up → owner
           unchanged (there is nowhere better to point).
@@ -352,9 +352,9 @@ def _spawned_by(recorded: Optional[int], current: Optional[int]) -> bool:
 def eligible_chain(model: Model) -> List[str]:
     """``model.host_chain`` filtered to hosts that actually list the model in
     their ``enabled:`` — a chain entry that never enabled the model can't
-    serve it, so it is skipped at resolution time (issue #342's "(b) has the
-    model installed/enabled"). Unknown host ids are dropped too, and so is a
-    dormant host (intentionally off, #765): it is never probed or chosen.
+    serve it, so it is skipped at resolution time (a candidate has the
+    model installed/enabled). Unknown host ids are dropped too, and so is a
+    dormant host (intentionally off): it is never probed or chosen.
     """
     from .host_profile import get_host
 
@@ -374,7 +374,7 @@ def effective_owner(model: Model) -> Optional[str]:
     static ``model.host``.
 
     Fast path: a single-host or unowned row returns ``model.host`` with no
-    tracker involvement at all — pre-#342 rows keep pre-#342 cost and
+    tracker involvement at all — single-host rows keep their single-host cost and
     behavior. A multi-host row returns the tracker's current owner, falling
     back to the preferred (first) candidate until the loop has observed.
     """
@@ -402,7 +402,7 @@ def multi_host_models() -> List[Model]:
 async def _default_probe(host_id: str) -> bool:
     """Reachability of a chain candidate — the active host is trivially up
     (this code is running on it); peers reuse ``remote_stats.peer_health``
-    (the Machines-tab prober — LAN address with tailnet fallback, #396)."""
+    (the Machines-tab prober — LAN address with tailnet fallback)."""
     from .host_profile import resolve as resolve_host
 
     if host_id == resolve_host().id:

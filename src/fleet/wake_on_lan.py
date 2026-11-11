@@ -1,4 +1,4 @@
-"""Wake-on-LAN magic packet builder + sender (#356).
+"""Wake-on-LAN magic packet builder + sender.
 
 Builds the standard 102-byte magic packet (6 bytes of ``0xFF`` followed by
 the target MAC repeated 16 times) and fires it as a UDP broadcast. Stdlib

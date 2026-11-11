@@ -1,4 +1,4 @@
-"""SQLite persistence for diagnostics captures (issue #315).
+"""SQLite persistence for diagnostics captures.
 
 The repo's first SQLite store. The database lives in the fleet runtime-data
 root (``<root>/local-llm-hub/diagnostics.db`` — see
@@ -95,7 +95,7 @@ def connect() -> Iterator[sqlite3.Connection]:
 def _open_migrated(target: Path) -> sqlite3.Connection:
     """Open a WAL-mode, migrated connection, retrying the transient "database is
     locked" a concurrent first-open can raise on the journal-mode change or the
-    migration (#326 — SQLite skips the busy handler for a journal-mode change,
+    migration (SQLite skips the busy handler for a journal-mode change,
     so ``busy_timeout`` alone does not cover it). The migration is committed in
     its own transaction so concurrent openers see the new schema and stop
     racing it."""
@@ -394,7 +394,7 @@ def save_verdict(run_id: str, level: str, findings: List[Dict[str, Any]]) -> Non
 
 
 def save_coverage(run_id: str, coverage: Dict[str, Any]) -> None:
-    """Persist the per-collector coverage map for a run (#322)."""
+    """Persist the per-collector coverage map for a run."""
     with connect() as conn:
         conn.execute(
             "UPDATE runs SET coverage_json = ? WHERE run_id = ?",
@@ -409,7 +409,7 @@ def proc_readability(run_id: str) -> Dict[str, int]:
     so a process is readable or not for the whole run, and counting rows would
     just weight it by how many ticks it survived. ``rss_bytes``/``cpu_percent``
     are stored NULL (never 0) when psutil is denied, which is exactly what lets
-    this distinguish 'unreadable' from a genuine zero (#322)."""
+    this distinguish 'unreadable' from a genuine zero."""
     with connect() as conn:
         row = conn.execute(
             "SELECT COUNT(DISTINCT pid) AS total,"
