@@ -76,10 +76,9 @@ def current_otel_span():
 def get_tracer(name: str):
     """Return the named OTel tracer, or ``None`` when the SDK is unavailable.
 
-    Shared by ``claude_cli.py`` / ``gemini_cli.py`` (each used to carry its
-    own near-identical ``_tracer()`` behind a bare ``try/except``) so a CLI
-    wrapper that starts its own span for the subprocess call doesn't
-    re-import ``opentelemetry.trace`` inline.
+    Shared by ``claude_cli.py`` / ``gemini_cli.py`` so a CLI wrapper that
+    starts its own span for the subprocess call doesn't re-import
+    ``opentelemetry.trace`` inline.
     """
     try:
         from opentelemetry import trace as _trace
@@ -94,10 +93,10 @@ def start_span(tracer_name: str, span_name: str) -> Iterator[Any]:
     """Start ``span_name`` on the named tracer, or a no-op context when the
     OTel SDK is unavailable.
 
-    Shared by ``claude_cli.py`` / ``gemini_cli.py`` (each used to carry its
-    own copy of the ``get_tracer(...)`` + ``start_as_current_span(...) if
-    tracer is not None else contextlib.nullcontext(None)`` boilerplate)
-    so a CLI wrapper that wants to time its own subprocess call just does
+    Shared by ``claude_cli.py`` / ``gemini_cli.py``; it wraps the
+    ``get_tracer(...)`` + ``start_as_current_span(...) if tracer is not None
+    else contextlib.nullcontext(None)`` boilerplate so a CLI wrapper that
+    wants to time its own subprocess call just does
     ``with start_span(...) as span:``.
     """
     tracer = get_tracer(tracer_name)

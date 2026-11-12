@@ -53,9 +53,9 @@ def _load_priced_table(
 ) -> Dict[str, Dict[str, float]]:
     """Return a per-family/per-model price table, loaded once from config and cached.
 
-    Shared loader for the Claude/OpenAI/Gemini pricing tables (each used to
-    carry its own near-identical ~35-line copy differing only in the config
-    path, the JSON top-level key, and which cache slot to memoize into).
+    Shared loader for the Claude/OpenAI/Gemini pricing tables, which differ
+    only in the config path, the JSON top-level key, and which cache slot to
+    memoize into.
     When ``path`` is missing or malformed the table is empty (a warning is
     logged): every model then prices at zero rather than at a stale copy of
     the rates, so the cost display never hard-fails and never lies.

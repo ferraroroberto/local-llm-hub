@@ -347,11 +347,10 @@ def local_models(host: Optional[HostProfile] = None) -> List[Model]:
 #
 # Public because this set is the definition of "the hub can start/stop/inherit
 # this row", and a dozen call sites across the process manager, installer,
-# admin Models tab, tray and downloader need exactly it. They each used to
-# hand-repeat the literal, so adding `comfyui` would have left the new
-# backend half-registered — startable but never inherited after a hub restart,
-# invisible to the VRAM accounting, uncontrollable from the admin UI. Import
-# this instead of retyping the tuple.
+# admin Models tab, tray and downloader need exactly it. A hand-repeated
+# literal would leave a newly added backend half-registered — startable but
+# never inherited after a hub restart, invisible to the VRAM accounting,
+# uncontrollable from the admin UI. Import this instead of retyping the tuple.
 SPAWNABLE_BACKENDS = ("openai", "whisper", "tts", "comfyui")
 
 
