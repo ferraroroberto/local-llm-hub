@@ -196,8 +196,8 @@ LAN access: [docs/running.md](docs/running.md).
 
 ## Test
 
-The verification gate runs byte-compile, unit tests and the Chromium e2e suite
-(same steps as CI, except that locally the e2e stage is routed by the diff: a
+The verification gate runs byte-compile, the ratchets, unit tests and the Chromium e2e suite
+(the CI steps plus the ratchets, except that locally the e2e stage is routed by the diff: a
 docs-only change skips it and prints why, and anything the router cannot read
 runs the full suite):
 
@@ -213,67 +213,7 @@ Unit tests alone (fast, no real `claude` / GPU calls):
 .venv\Scripts\python -m pytest -q --ignore=tests/e2e
 ```
 
-Static ratchet (new duplicate blocks and unused imports/variables; needs
-Node for `npx jscpd` and `ruff` from `requirements-dev.txt`). Existing debt
-lives in `.static-ratchet-baseline.json` and can only shrink; run
-`.venv\Scripts\python scripts\static_ratchet.py --update-baseline` in the
-PR that removes some:
-
-```bat
-.venv\Scripts\python -m scripts.static_ratchet_gate
-```
-
-Docs ratchet (the history-free docs convention: `README.md` stays under
-40 KiB, and `README.md` plus `docs/**/*.md` gain no issue reference, dated
-heading or changelog heading). Existing markers live in
-`.docs-ratchet-baseline.json` and can only shrink; run
-`.venv\Scripts\python scripts\docs_ratchet.py --update-baseline` in the PR
-that rewrites some as present-tense prose:
-
-```bat
-.venv\Scripts\python -m scripts.docs_ratchet_gate
-```
-
-Structure ratchet (file size, function length, flat directories and the root
-layout; see [docs/layout.md](docs/layout.md)). Existing offenders live in
-`.structure-ratchet-baseline.json` and can only shrink; run
-`.venv\Scripts\python scripts\structure_ratchet.py --update-baseline` in the
-PR that splits some:
-
-```bat
-.venv\Scripts\python scripts\structure_ratchet.py
-```
-
-Instruction ratchet (the fleet's prompt-audit lint rules over `CLAUDE.md`,
-`AGENTS.md` and the skills under `.claude/skills`: no new rule hit, no file past
-its size cap). Existing hits live in `.instruction-ratchet-baseline.json` and
-can only shrink; run
-`.venv\Scripts\python scripts\instruction_ratchet.py --update-baseline` in the
-PR that fixes some:
-
-```bat
-.venv\Scripts\python scripts\instruction_ratchet.py
-```
-
-Doc-refs ratchet (`README.md`, `CLAUDE.md` and `docs/**/*.md` name no repo
-path, `python -m` module, relative link or loopback port that does not exist).
-Other services' ports and other repos' paths named on purpose are listed in
-`allow_refs` under `[doc_refs_ratchet]` in `.fleet.toml`; the baseline
-`.doc-refs-ratchet-baseline.json` is empty and can only shrink:
-
-```bat
-.venv\Scripts\python scripts\doc_refs_ratchet.py
-```
-
-Dead-code ratchet (no Python function, class or method that nothing in the repo
-refers to; route handlers, `__all__` exports, tests and decorated hooks are never
-reported). Existing debt lives in `.dead-code-ratchet-baseline.json` and can only
-shrink; run `.venv\Scripts\python scripts\dead_code_ratchet.py --update-baseline`
-in the PR that removes some:
-
-```bat
-.venv\Scripts\python scripts\dead_code_ratchet.py
-```
+The gate also runs the repo's ratchets (baselines that only shrink, so debt never grows). [CLAUDE.md](CLAUDE.md#verification-gate) is the one list of what each ratchet fails on, how to run one alone and how to shrink its baseline; static needs Node for `npx jscpd` and `ruff` from `requirements-dev.txt`.
 
 End-to-end smoke test (requires hub + whichever backends you care
 about running):
