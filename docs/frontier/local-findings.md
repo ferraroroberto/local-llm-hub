@@ -172,3 +172,62 @@ re-tested, update its **Status** line instead of deleting history.
 - **Status:** resolved — `agentic_light` stays `qwen35_4b`. Future runs should
   still **source** Nemotron as a candidate (the sourcing gap was real) but can
   cite this entry rather than re-measuring the full set.
+
+---
+
+## Canary-1b-v2 (NVIDIA, via FluidAudio ANE) for `audio_translate` — TESTED, not a swap
+
+- **Date:** 2026-11-07.
+- **Candidate:** NVIDIA Canary-1b-v2, int4 on the Mac Mini M4's Apple Neural
+  Engine via a scratch `CanaryWorker.swift` build (FluidAudio 0.18), Spanish
+  audio in, English text out — the single-model native-translate architecture
+  proposed as this report's headline `upgrade` finding on 2026-10-29.
+- **Verdict it disproves:** `upgrade` (proposed 2026-10-29, carried into the
+  2026-11-12 run's draft before this entry corrected it — report §0, "best
+  alternative: Canary-1b-v2").
+- **Measured:** `python scripts/canary_preflight.py`, 16 Spanish FLEURS
+  clips (12 ≤15s, 4 long at 16.6–30.3s to exercise Canary's VAD
+  pause-splitting), corpus BLEU + unigram F1, 2,000-sample paired bootstrap.
+
+  | Path | BLEU (16) | Median latency | Median RTFx |
+  |---|---|---|---|
+  | Canary-1b-v2 (Mac ANE) | 25.4 | 1.2 s | 8.3 |
+  | `whisper_translate` (CPU, the configured role) | 21.5 | 8.7 s | 1.3 |
+  | Two-stage (`whisper` → `gemma4_26b`, the de facto quality default) | 32.6 | 3.0 s | 3.7 |
+
+  **Swap candidate: yes against `whisper_translate`** (the literal
+  `audio_translate` role model) — ~7x faster, never answered in the wrong
+  language (`whisper_translate` did on 2/16 clips), +3.9 BLEU though the gap
+  is inside the noise of 16 clips. **No against the two-stage default** —
+  two-stage leads by +7.1 BLEU (25.4 vs 32.6), a gap that is probably real
+  but not firmly established at this sample size; two-stage's edge comes
+  largely from paraphrasing toward natural English, a stylistic rather than
+  proven fidelity gain. Canary's own failure modes: one meaning flip, one
+  dropped mid-sentence clause on a 22s clip, stray punctuation at two of four
+  long-clip VAD joins — the same long-form chunking weakness the model's own
+  HF benchmark card documents independently.
+- **Why no swap:** even where Canary wins (vs. `whisper_translate`), nothing
+  in the hub can serve it yet — no Python wrapper, backend row, or
+  `/v1/audio/translations` route branch exists for
+  `CanaryWorker.swift` (`src/parakeet_server.py` is the pattern to follow).
+  Building that integration for a model that still loses to the two-stage
+  default on quality was judged not worth it; the issue closed with no
+  hub-side Canary server planned. A swap, if revisited, gets its own issue.
+- **Record:** [pre-flight write-up](https://github.com/ferraroroberto/local-llm-hub/blob/main/docs/canary-translate-preflight.md),
+  issue [#920](https://github.com/ferraroroberto/local-llm-hub/issues/920),
+  shipped via [PR #990](https://github.com/ferraroroberto/local-llm-hub/pull/990)
+  (merged 2026-11-07). Harness: `scripts/canary_preflight.py`.
+- **Re-open trigger:** a full-ES-test-set re-run (~350 FLEURS sentences —
+  16 clips cannot settle a 4-point BLEU gap) that confirms or narrows the
+  two-stage quality edge, **or** a decision that the role's actual use
+  (short Spanish dictation) tolerates `whisper_translate`-level quality
+  today, which would make Canary's speed/reliability win over the
+  *configured* role model actionable even without unseating two-stage. Also
+  open: Canary has not been tested on spontaneous dictation (FLEURS is read,
+  fluent speech with no fillers/false starts) — a dictation-style test is a
+  separate, unclosed question.
+- **Status:** resolved — `audio_translate` stays on the pre-2026-10-29
+  pattern: the configured role model (`whisper_translate`) is weak but the
+  de facto quality default (two-stage) is unseated by nothing tested so far,
+  Canary included. Future runs should cite this entry rather than
+  re-recommending Canary as an `upgrade` from published numbers alone.
