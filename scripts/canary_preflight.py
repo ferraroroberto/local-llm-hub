@@ -31,6 +31,7 @@ import logging
 import math
 import random
 import re
+import statistics
 import sys
 import tarfile
 import time
@@ -245,8 +246,7 @@ def unigram_f1(hyp: str, ref: str) -> float:
 
 
 def _median(values: List[float]) -> Optional[float]:
-    s = sorted(values)
-    return s[len(s) // 2] if s else None
+    return statistics.median(values) if values else None
 
 
 def build_report(out: Path, canary_path: Path) -> int:

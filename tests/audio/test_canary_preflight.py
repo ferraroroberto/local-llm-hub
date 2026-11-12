@@ -8,6 +8,15 @@ import pytest
 from scripts import canary_preflight as pf
 
 
+def test_median_averages_the_two_middle_values_of_an_even_list():
+    assert pf._median([1.0, 2.0, 3.0, 10.0]) == pytest.approx(2.5)
+
+
+def test_median_of_odd_list_is_the_middle_value_and_empty_is_none():
+    assert pf._median([9.0, 1.0, 5.0]) == pytest.approx(5.0)
+    assert pf._median([]) is None
+
+
 def test_identical_text_scores_100():
     refs = ["The cabbage juice changes color depending on acidity.", "Madagascar is by far the biggest."]
     assert pf.corpus_bleu(refs, refs) == pytest.approx(100.0)
