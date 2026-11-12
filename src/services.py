@@ -209,10 +209,10 @@ async def poll_until(
 
     Shared "poll until ready" loop for ``wait_for_docker`` /
     ``wait_for_langfuse`` (here) and ``agentsview_service.wait_for_agentsview``
-    — each used to carry its own near-identical copy differing only in which
-    status coroutine to await and which readiness key to check; that
-    difference now lives in the caller's closure. Public (no leading
-    underscore) because it is shared across module boundaries.
+    — the callers differ only in which status coroutine to await and which
+    readiness key to check, and that difference lives in the caller's
+    closure. Public (no leading underscore) because it is shared across
+    module boundaries.
     """
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:

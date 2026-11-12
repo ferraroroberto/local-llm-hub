@@ -89,10 +89,10 @@ def load_cached(
     """Return cached records for ``path``, re-parsing via ``parse_fn`` only
     when the file's mtime has changed since the last call.
 
-    Shared by the Claude/Codex/Copilot(CLI)/Copilot(VS Code) usage parsers —
-    each used to carry its own copy of this "stat mtime -> compare to cached
-    FileStats.mtime -> reparse if changed -> store -> return" wrapper,
-    differing only in which cache dict and parse function to use.
+    Shared by the Claude/Codex/Copilot(CLI)/Copilot(VS Code) usage parsers.
+    It is the "stat mtime -> compare to cached FileStats.mtime -> reparse if
+    changed -> store -> return" wrapper; the parsers differ only in which
+    cache dict and parse function they pass.
     """
     try:
         mtime = path.stat().st_mtime
@@ -113,10 +113,9 @@ def parse_iso_ts(raw: Optional[str]) -> datetime:
     """Parse an ISO-8601 timestamp (bare, ``Z``-suffixed, or offset-aware);
     fall back to ``now()`` on any failure.
 
-    Shared by the Claude/Codex/Copilot/AgentsView usage parsers — each used
-    to hand-roll its own copy of this with a *different* exception set and a
-    different ``Z`` normalization, so the same malformed timestamp was
-    handled differently depending on which vendor wrote it. ``replace("Z",
+    Shared by the Claude/Codex/Copilot/AgentsView usage parsers so one exception
+    set and one ``Z`` normalization apply, and the same malformed timestamp is
+    handled identically whichever vendor wrote it. ``replace("Z",
     "+00:00")`` (rather than ``rstrip("Z")``) also correctly preserves a
     non-UTC offset already present in the string instead of overwriting it.
     """
