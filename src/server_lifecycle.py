@@ -369,6 +369,11 @@ async def _on_demand_idle_loop() -> None:
         logger.warning("on-demand idle loop exited abnormally: %s", exc)
 
 
+# Sampler cadence: fine enough that the Hub tab's sparklines look live, coarse
+# enough that the nvidia-smi shell-out behind gpu_stats() stays a light load.
+_RESOURCE_SAMPLE_INTERVAL_S = 2.0
+
+
 async def _resource_sampler() -> None:
     """Background task that samples RAM + CPU + GPU usage every 2 s.
 
@@ -389,6 +394,7 @@ async def _resource_sampler() -> None:
             system_stats.gpu_stats(),
         )
 
+    last_failure: str | None = None
     while True:
         try:
             ram, cpu, gpus = await asyncio.to_thread(_sample_sync)
@@ -407,9 +413,17 @@ async def _resource_sampler() -> None:
                     gpu0_util_percent=gpu0_util,
                 )
             )
-        except Exception:  # noqa: BLE001 — sampler must not die
-            pass
-        await asyncio.sleep(2.0)
+            last_failure = None
+        except Exception as exc:  # noqa: BLE001 — sampler must not die
+            # Logged once per distinct failure (cleared on the next good tick)
+            # so a persistently broken probe does not flood the log every tick.
+            failure = f"{type(exc).__name__}: {exc}"
+            if failure != last_failure:
+                logger.warning(
+                    "⚠️ resource sampler tick failed (Hub sparklines will "
+                    "stall until it recovers): %s", failure)
+                last_failure = failure
+        await asyncio.sleep(_RESOURCE_SAMPLE_INTERVAL_S)
 
 
 def register(app) -> None:

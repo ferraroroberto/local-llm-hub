@@ -46,6 +46,9 @@ _PAT_ENV = "GITHUB_COPILOT_BILLING_PAT"
 _API_BASE = "https://api.github.com"
 _TODAY_REFRESH_SECS = 300  # re-fetch "today" if the cached copy is older than this
 _UNAVAILABLE_TTL_SECS = 300  # don't hammer a broken PAT/endpoint every poll
+# GitHub's AI Credits billing model prices 1 credit at $0.01; same rate
+# ``copilot_usage.py`` applies to the locally-parsed sessions (credits / 100).
+_USD_PER_CREDIT = 0.01
 
 _username_cache: Optional[str] = None
 
@@ -225,6 +228,6 @@ def _aggregate_day(d: date, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]
         except (TypeError, ValueError):
             continue
     return [
-        {"date": d.isoformat(), "model": model, "credits": credits, "usd": credits * 0.01}
+        {"date": d.isoformat(), "model": model, "credits": credits, "usd": credits * _USD_PER_CREDIT}
         for model, credits in by_model.items()
     ]
