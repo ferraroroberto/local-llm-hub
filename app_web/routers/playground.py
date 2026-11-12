@@ -29,6 +29,21 @@ from ._helpers import IDENTITY_ENCODING
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Per-request ceilings (seconds) on the loopback calls into the hub itself. They
+# are deliberately generous upper bounds, not measured latencies: the hub (not
+# this proxy) owns the real per-backend limits, so the proxy only has to avoid
+# cutting off a legitimately slow answer, and a cut-off at one of these means
+# raise the constant rather than assume the backend hung.
+# Speech: a long text through a slow TTS engine synthesises well past a chat turn.
+_SPEECH_TIMEOUT_S = 300.0
+# Chat: a long Claude/Gemini CLI reply (cold start + generation) can run for minutes.
+_CHAT_TIMEOUT_S = 120.0
+# Image edit: editing is procedural-agentic, so it is far slower than a plain generation.
+_IMAGE_EDIT_TIMEOUT_S = 900.0
+# Image generation: an upscale + refine pass at 4K is the longest job this card
+# can start; it must not be cut off by the proxy's own clock.
+_IMAGE_GEN_TIMEOUT_S = 1800.0
+
 _IMAGE_MEDIA_TYPES = {
     "png": "image/png",
     "jpg": "image/jpeg",
@@ -248,7 +263,7 @@ async def playground_speak(
 
     if stream:
         client = get_async_client()
-        stream_cm = client.stream("POST", url, json=payload, timeout=300.0)
+        stream_cm = client.stream("POST", url, json=payload, timeout=_SPEECH_TIMEOUT_S)
         try:
             upstream = await stream_cm.__aenter__()
         except httpx.HTTPError as exc:
@@ -277,7 +292,7 @@ async def playground_speak(
             headers=out_headers,
         )
 
-    r = await _loopback_post(url, json=payload, timeout=300.0)
+    r = await _loopback_post(url, json=payload, timeout=_SPEECH_TIMEOUT_S)
     if not r.is_success:
         raise HTTPException(status_code=r.status_code, detail=_upstream_detail(r))
     return Response(
@@ -348,7 +363,7 @@ async def playground_send(
         payload["system"] = system
 
     url = f"http://127.0.0.1:{hub_port()}/v1/messages"
-    r = await _loopback_post(url, json=payload, timeout=120.0)
+    r = await _loopback_post(url, json=payload, timeout=_CHAT_TIMEOUT_S)
     if not r.is_success:
         raise HTTPException(status_code=r.status_code, detail=_upstream_detail(r))
     body: Dict[str, Any] = {}
@@ -479,7 +494,8 @@ async def playground_generate_image(
         }
         data = {"model": model, "prompt": prompt}
         r = await _loopback_post(
-            base + "/v1/images/edits", files=files, data=data, timeout=900.0)
+            base + "/v1/images/edits", files=files, data=data,
+            timeout=_IMAGE_EDIT_TIMEOUT_S)
     else:
         payload: Dict[str, Any] = {"model": model, "prompt": prompt}
         # Only forward when set, so the hub's own default stays the single
@@ -491,9 +507,7 @@ async def playground_generate_image(
         r = await _loopback_post(
             base + "/v1/images/generations",
             json=payload,
-            # An upscale + refine pass at 4K is the longest job this card
-            # can start; it must not be cut off by the proxy's own clock.
-            timeout=1800.0,
+            timeout=_IMAGE_GEN_TIMEOUT_S,
         )
 
     if not r.is_success:
