@@ -19,7 +19,7 @@ import pytest
 from src import server_lifecycle
 from src.usage import copilot_billing
 
-_PLAYGROUND = Path(__file__).resolve().parents[1] / "app_web" / "routers" / "playground.py"
+_PLAYGROUND = Path(__file__).resolve().parents[2] / "app_web" / "routers" / "playground.py"
 
 
 def test_playground_timeouts_are_named_constants() -> None:
