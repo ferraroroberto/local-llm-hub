@@ -87,7 +87,7 @@ restrict,command="$HOME/bin/hub-results-pull.sh" ssh-ed25519 AAAA...your-public-
 `restrict` turns off the pty, agent, X11 and port forwarding and `~/.ssh/rc`; `command=` pins every login of this key to the script. Install the script, and re-run the same command whenever the repo's copy changes, from the hub box:
 
 ```sh
-python -m src.fleet.mac_results_install --host <machine id>
+.venv/Scripts/python.exe -m src.fleet.mac_results_install --host <machine id>
 ```
 
 It compares the SHA-256 and mode of `~/bin/hub-results-pull.sh` on the Mac with the repo's `mac/bin/hub-results-pull.sh` and, when they differ, writes the repo's copy with mode 755 (to a temporary name, then a rename, so a pull never meets a half-written script). The results key is read-only and cannot write, so this uses the hub user's own general passwordless SSH to the same machine row, the channel the Machines tab's power actions use. It ends on one state, each with its own exit code: `unchanged` (0, the Mac already holds the repo's bytes at mode 755), `installed` (0, it differed, was written and read back equal), `not_confirmed` (1, the Mac could not be read, the write failed or the read-back differs: nothing is claimed) and, with `--check` (compare only, writes nothing), `would_install` (3). A configuration problem (no host, no address or login) is exit 2. The output carries only the state, a hash prefix and the mode, never the Mac's stderr. Until the Mac has the `ready` and `text` verbs, every night reads `ci_unknown`.
