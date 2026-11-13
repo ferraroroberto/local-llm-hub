@@ -272,9 +272,13 @@ Single long lines, no hard wraps (rendered markdown).
    turn** — in a headless scheduled run nothing resumes you
    (fleet-config#314); never fire-and-forget. Include the filed (or
    deduped) issue numbers in the step-10 summary.
-9. **Commit the run** — scoped to the artifacts only:
+9. **Commit the run** — scoped to the artifacts only. Run each of these as
+   **its own shell command**, in order, and confirm the `grant` succeeded
+   before the commit call:
    ```
    E:/automation/fleet-config/.venv/Scripts/python.exe E:/automation/fleet-config/skills/_lib/commit_guard/marker.py grant . --reason frontier-refresh --path docs/frontier/runs/
+   ```
+   ```
    git add docs/frontier/runs/
    git commit -m "docs: frontier refresh run (<YYYY-MM-DD>)"
    ```
@@ -284,10 +288,16 @@ Single long lines, no hard wraps (rendered markdown).
    `E:/automation/fleet-config/.venv/Scripts/python.exe E:/automation/fleet-config/skills/_lib/commit_guard/marker.py revoke .`
    whether or not the commit happened.
 
-   The `grant` is what lets this commit land on `main`:
-   `hooks/main_commit_guard.py` refuses a commit on the default branch
-   unless the repo holds a marker covering every staged path (15 minutes,
-   then it lapses). Grant exactly `docs/frontier/runs/`, never wider.
+   **Never chain the `grant` and the commit into one command** (`&&`, `;`, a
+   single script block). `hooks/main_commit_guard.py` is a `PreToolUse` hook:
+   it judges the whole command line before any part of it runs, so it sees
+   no marker yet and refuses the commit, and the run loses its commit. The
+   `grant` has to be on disk before the commit command starts.
+
+   The `grant` is what lets this commit land on `main`: the hook refuses a
+   commit on the default branch unless the repo holds a marker covering every
+   staged path (15 minutes, then it lapses). Grant exactly
+   `docs/frontier/runs/`, never wider.
 10. **Stop.** Print a one-paragraph summary of the four role verdicts, the
     diff vs. last run, and any issues filed in step 8. Do **not** edit
     `config/models.yaml`, write launchers, download weights, or touch
