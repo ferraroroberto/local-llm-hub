@@ -1,7 +1,7 @@
 """Audio role failover (#348) and the strict-explicit-model contract (#412).
 
 The audio proxy resolves the ``roles.audio.<role>`` chain (primary + fallback)
-and, when a candidate's backend is *unavailable* (connection error / 502-503-504),
+and, when a candidate's backend is *unavailable* (connection error / any 5xx),
 transparently retries the next model instead of erroring. An explicit concrete
 ``model=`` is honoured single-shot (no failover, preserving #128) and is never
 answered by a *different* model (#412) — it 503s instead, and every request
@@ -147,6 +147,53 @@ def test_failover_on_503(monkeypatch, write_config):
     monkeypatch.setattr(server_audio_asr, "get_async_client", lambda: _FakeClient(handler))
     resp = _proxy(_FakeReq())
     assert resp.status_code == 200 and b"wb" in resp.body
+
+
+def test_failover_on_500_serves_from_fallback_and_warns(monkeypatch, write_config, caplog):
+    """A primary that answers 500 for every request must not take the role down."""
+    _two_whisper_config(write_config, monkeypatch, transcribe={"model_id": "wa", "fallback": ["wb"]})
+
+    def handler(url, kwargs):
+        if ":9001" in url:
+            return _FakeResp(500, b'{"error":"worker crashed"}')
+        return _FakeResp(200, b'{"text":"wb"}')
+
+    monkeypatch.setattr(server_audio_asr, "get_async_client", lambda: _FakeClient(handler))
+    with caplog.at_level("WARNING", logger=server_audio_asr.logger.name):
+        resp = _proxy(_FakeReq())
+    assert resp.status_code == 200 and b"wb" in resp.body
+    assert resp.headers["x-hub-served-model"] == "wb"
+    assert any("wa" in r.getMessage() and "500" in r.getMessage() for r in caplog.records)
+
+
+def test_explicit_model_500_is_returned_not_substituted(monkeypatch, write_config):
+    _two_whisper_config(write_config, monkeypatch, transcribe={"model_id": "wa", "fallback": ["wb"]})
+    calls = []
+
+    def handler(url, kwargs):
+        calls.append(url)
+        return _FakeResp(500, b'{"error":"worker crashed"}')
+
+    monkeypatch.setattr(server_audio_asr, "get_async_client", lambda: _FakeClient(handler))
+    resp = _proxy(_FakeReq(body=_model_body("wa")))
+    assert resp.status_code == 500 and b"worker crashed" in resp.body
+    assert all(":9001" in u for u in calls) and len(calls) == 1
+
+
+def test_last_candidate_500_is_passed_through(monkeypatch, write_config):
+    """When every candidate answers 500 the caller sees the upstream error body."""
+    _two_whisper_config(write_config, monkeypatch, transcribe={"model_id": "wa", "fallback": ["wb"]})
+    calls = []
+
+    def handler(url, kwargs):
+        calls.append(url)
+        return _FakeResp(500, b'{"error":"boom"}')
+
+    monkeypatch.setattr(server_audio_asr, "get_async_client", lambda: _FakeClient(handler))
+    resp = _proxy(_FakeReq())
+    assert resp.status_code == 500 and b"boom" in resp.body
+    assert len(calls) == 2
+    assert resp.headers["x-hub-served-model"] == "wb"
 
 
 def test_happy_path_no_second_call(monkeypatch, write_config):
