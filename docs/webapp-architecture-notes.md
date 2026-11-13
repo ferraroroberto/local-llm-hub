@@ -174,7 +174,7 @@ last week on gemini-pro?", you want the telemetry layer, not this ring.
   proxy header forces enforcement.
 - Tailscale serve: not in this repo — the user runs
   `tailscale serve --bg --https=443 http://127.0.0.1:8000` once and
-  it persists. The tray reads `webapp/cloudflared.yml` for the
+  it persists. The tray reads `config/cloudflared.yml` for the
   Cloudflare hostname (if configured) to surface "Copy Cloudflare URL".
 
 ## Where to add the next feature

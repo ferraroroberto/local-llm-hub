@@ -84,12 +84,11 @@ config/fleet_maintenance.json
 # Tray single-instance lock
 .tray.pid
 
-# /admin webapp runtime data — bearer token, auth.log,
-# user cloudflared config.
+# /admin webapp machine-local config — bearer token, user cloudflared config.
 config/webapp_config.json
 # TTS voice-cloning reference clips (config/tts_voices/<voice>.wav) — local audio
 config/tts_voices/
-webapp/cloudflared.yml
+config/cloudflared.yml
 
 # Local-only transcription boost_terms overlay (issue #290) — private
 # vocabulary (e.g. a caller's proper nouns) that must never be committed.
@@ -99,9 +98,6 @@ config/transcription_glossary.local.json
 # Shared alias file (proper nouns + known mishearings) — personal vocabulary,
 # local only. Sample file is committed as config/aliases.local.sample.json.
 config/aliases.local.json
-webapp/auth.log
-webapp/last_tunnel_url.txt
-webapp/certificates/
 
 # Playwright autoboot log + caches
 tests/e2e/autoboot-hub.log
