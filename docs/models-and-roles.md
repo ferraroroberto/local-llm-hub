@@ -296,7 +296,7 @@ is the authority; this table is a snapshot of it:
 |---|---|---|
 | `agentic_light` | `qwen35_4b_nothink` | OpenClaw fast lane / classify / edge — no-think by default; reasoning via `agentic_light_think` |
 | `agentic_heavy` | `gemma4_26b` | Deep agentic, transcripts, docs, ES↔EN↔CA |
-| `audio_transcribe` | `parakeet` (fallback: `whisper`) | EN/ES audio → text — parakeet on the Mac ANE is primary; whisper-turbo takes over if it is down |
+| `audio_transcribe` | `parakeet` (fallback: `whisper`) | EN/ES audio → text — parakeet on the Mac ANE is primary; whisper-turbo takes over if it is down or answers a 5xx |
 | `audio_translate` | `whisper_translate` | ES audio → English (on-demand CPU sibling) |
 | `audio_speech` | `piper` | text → speech (Piper fast default; Orpheus/Kokoro/Chatterbox on demand) |
 

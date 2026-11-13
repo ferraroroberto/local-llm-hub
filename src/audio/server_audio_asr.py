@@ -95,7 +95,7 @@ def _whisper_model_for_request(model_name: str, *, default_role: str) -> Optiona
 
 class _BackendUnavailable(Exception):
     """Raised inside a single candidate attempt when that backend is *down* —
-    a connection error/timeout or an upstream 502/503/504 — so ``_proxy_audio``
+    a connection error/timeout or an upstream 5xx — so ``_proxy_audio``
     can fail over to the next model in the role chain. Carries the
     HTTPException to surface if this turns out to be the last candidate."""
 
@@ -286,7 +286,7 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
     forward the bytes/form and pass the response back — the point of going
     through the hub (vs hitting :8090/:8091/:8098 directly) is the observability
     ring. When a *role-addressed* request's primary backend is unavailable (a
-    connection error/timeout or a 502/503/504), it transparently retries the
+    connection error/timeout or any 5xx), it transparently retries the
     next model in ``roles.audio.<role>`` instead of erroring — so a dead
     ``parakeet@mac`` falls through to whisper, never a failed dictation. That
     fallback is never *silent*: who served, and on which host, is stamped
@@ -415,14 +415,14 @@ async def _dispatch_audio(
         try:
             response = await _forward_to_candidate(
                 target, send, upstream_path, default_role, requested,
-                ctx, span, client, connect_fast=not is_last,
+                ctx, span, client, is_last=is_last,
             )
         except _BackendUnavailable as bu:
             last_http_exc = bu.http_exc
             if not is_last:
                 logger.warning(
-                    "🔁 audio failover: %s unavailable (%s) — trying next in chain",
-                    target.id, bu.http_exc.status_code,
+                    "🔁 audio failover: %s on host %s unavailable (%s) — trying next in chain",
+                    target.id, _served_host_for(target), bu.http_exc.status_code,
                 )
             continue
         # Say who answered whenever it is not who this hub dispatched to: a
@@ -519,9 +519,30 @@ def _passthrough_headers(
     return out_headers
 
 
+def _raise_if_unavailable(target: Model, upstream: Any, is_last: bool) -> None:
+    """Raise :class:`_BackendUnavailable` when ``upstream`` is an availability
+    failure the role chain should fail over from.
+
+    A 502/503/504 always is: the backend answered, so it is up but refusing
+    work, an upstream error rather than the "down" a refused socket means. Any
+    other 5xx (a crashed worker answers 500 for every request) fails over too,
+    or a broken primary takes the whole role down while a healthy fallback sits
+    idle. The last candidate's other 5xx is returned as the upstream sent it,
+    so an explicit one-model request keeps its error.
+    """
+    status = upstream.status_code
+    if status in (502, 503, 504):
+        detail = f"whisper backend {target.id} unavailable ({status})"
+    elif status >= 500 and not is_last:
+        detail = f"whisper backend {target.id} answered {status}"
+    else:
+        return
+    raise _BackendUnavailable(tag_error(HTTPException(status_code=status, detail=detail), ERROR_UPSTREAM))
+
+
 async def _forward_to_candidate(
     target: Model, send: dict, upstream_path: str, default_role: str,
-    requested: str, ctx, span, client, *, connect_fast: bool,
+    requested: str, ctx, span, client, *, is_last: bool,
 ) -> Response:
     """POST the prepared payload to one candidate backend and return its
     Response, or raise :class:`_BackendUnavailable` when the backend is down so
@@ -555,7 +576,7 @@ async def _forward_to_candidate(
     })
     stash_trace_id_on_ctx(ctx, span)
 
-    url, post_kwargs = _candidate_request(target, send, upstream_path, remote, connect_fast)
+    url, post_kwargs = _candidate_request(target, send, upstream_path, remote, not is_last)
 
     # On-demand lifecycle: a cold ``startup: on_demand`` local
     # whisper row (e.g. ``whisper_vanilla``, which has no
@@ -576,13 +597,7 @@ async def _forward_to_candidate(
             upstream = await client.post(url, **post_kwargs)
         except _httpx.HTTPError as exc:
             raise _BackendUnavailable(_audio_upstream_error(exc, backend="whisper-server", port=port))
-    if upstream.status_code in (502, 503, 504):
-        # The backend answered, so it is up but refusing work: an upstream
-        # error, not the "down" a refused socket means.
-        raise _BackendUnavailable(tag_error(HTTPException(
-            status_code=upstream.status_code,
-            detail=f"whisper backend {target.id} unavailable ({upstream.status_code})",
-        ), ERROR_UPSTREAM))
+    _raise_if_unavailable(target, upstream, is_last)
 
     # A model has now genuinely answered — only here is it honest to say who
     # served. Before this point every candidate may still fail over.
