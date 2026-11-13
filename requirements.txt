@@ -30,7 +30,7 @@ pywinpty>=2.0; platform_system == "Windows"
 
 # Observability — OpenTelemetry + Langfuse (issue #4). The hub emits
 # traces + metrics via OTLP/gRPC to a local Langfuse stack
-# (docker/langfuse/docker-compose.yml). The langfuse SDK is used only
+# (assets/deploy/docker/langfuse/docker-compose.yml). The langfuse SDK is used only
 # by the feedback endpoint + the admin Telemetry tab — never on the
 # request hot path.
 python-dotenv>=1.0

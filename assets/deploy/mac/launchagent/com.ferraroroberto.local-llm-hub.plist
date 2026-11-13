@@ -14,7 +14,7 @@
   darwin runs `launchctl bootout` instead, which unloads the job entirely
   (nothing left to respawn). `/admin/api/hub/restart` uses
   `launchctl kickstart -k` (job still loaded, just needs restarting); the
-  bootstrap/sync SSH actions (`mac/bin/hub-remote-ctl.sh`) do
+  bootstrap/sync SSH actions (`assets/deploy/mac/bin/hub-remote-ctl.sh`) do
   bootout-then-bootstrap since they must also cover a *fully unloaded*
   job. This LaunchAgent is the only thing that ever spawns
   `python -m src.server` here.

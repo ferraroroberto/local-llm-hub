@@ -1,4 +1,4 @@
-"""Install the repo's ``mac/bin/hub-results-pull.sh`` on the Mac runner host.
+"""Install the repo's ``assets/deploy/mac/bin/hub-results-pull.sh`` on the Mac runner host.
 
 ``python -m src.fleet.mac_results_install --host <machine id>`` compares the
 SHA-256 and mode of ``~/bin/hub-results-pull.sh`` on the Mac with the repo's
@@ -43,7 +43,7 @@ WOULD_INSTALL = "would_install"
 WANT_MODE = "755"
 _PROBE_TIMEOUT_S = 20
 _INSTALL_TIMEOUT_S = 30
-_SCRIPT_REL = Path("mac") / "bin" / "hub-results-pull.sh"
+_SCRIPT_REL = Path("assets") / "deploy" / "mac" / "bin" / "hub-results-pull.sh"
 
 # Both commands run in the Mac user's login shell (zsh): POSIX constructs only.
 # `shasum`/`stat -f` are macOS, `stat -c` the Linux fallback.

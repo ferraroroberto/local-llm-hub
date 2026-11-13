@@ -8,7 +8,7 @@ REM /admin Telemetry tab can talk back to Langfuse.
 
 setlocal
 cd /d "%~dp0"
-docker compose -f docker\langfuse\docker-compose.yml up -d
+docker compose -f assets\deploy\docker\langfuse\docker-compose.yml up -d
 if errorlevel 1 (
   echo.
   echo Langfuse stack failed to start. Is Docker Desktop running?

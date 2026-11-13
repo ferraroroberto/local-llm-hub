@@ -17,7 +17,7 @@ not what is deployed.
 - **Checkpoint:** the worker's pinned checkpoint is FluidInference's
   `.ultra` derivative (`FluidInference/parakeet-ultra-coreml`,
   post-trained by Moondream from NVIDIA's `parakeet-tdt-0.6b-v3`), not
-  the original `.v3`. `mac/parakeet-worker/` (Swift, FluidAudio) and
+  the original `.v3`. `assets/deploy/mac/parakeet-worker/` (Swift, FluidAudio) and
   `src/parakeet_server.py` are committed to the repo; install builds the
   worker via `swift build -c release`.
 - **Windows+CUDA:** no viable Parakeet path exists there (see

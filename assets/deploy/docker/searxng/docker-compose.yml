@@ -1,8 +1,8 @@
 # Self-hosted SearXNG for the voice assistant's Tier-3 web-search function
 # (home-automation). A meta-search engine — no API key, no per-query cost.
 #
-# Start:  start_searxng.bat   (or `docker compose -f docker/searxng/docker-compose.yml up -d`)
-# Stop:   stop_searxng.bat    (or `docker compose -f docker/searxng/docker-compose.yml down`)
+# Start:  start_searxng.bat   (or `docker compose -f assets/deploy/docker/searxng/docker-compose.yml up -d`)
+# Stop:   stop_searxng.bat    (or `docker compose -f assets/deploy/docker/searxng/docker-compose.yml down`)
 #
 # Ports exposed to the host:
 #   8085 -> searxng (container listens on :8080 internally)

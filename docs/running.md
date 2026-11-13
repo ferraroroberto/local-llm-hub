@@ -11,7 +11,7 @@ launchers\run_all.bat                      :: start every backend in `enabled:` 
 
 (macOS / Linux: `./run_hub.sh`, `./launchers/run_all.sh`, etc. For
 boot-time start + keep-alive on a headless Linux satellite, install the
-systemd unit at `linux/systemd/local-llm-hub.service` instead — see
+systemd unit at `assets/deploy/linux/systemd/local-llm-hub.service` instead — see
 [model-lifecycle.md](model-lifecycle.md).)
 
 Once the hub is running, open `http://127.0.0.1:8000/admin/` for the

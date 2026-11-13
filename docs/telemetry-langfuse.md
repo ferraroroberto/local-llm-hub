@@ -17,7 +17,7 @@ gives the memory back to Windows. Almost all of it is Linux page cache and
 kernel slab, not memory the containers use. On the reference machine it grew to
 35 GB and then 62 GB while the containers' anonymous memory was about 3 GB. MinIO
 holds most of it, because Langfuse writes many small event objects to it
-(`LANGFUSE_S3_EVENT_UPLOAD_*` in `docker/langfuse/docker-compose.yml`).
+(`LANGFUSE_S3_EVENT_UPLOAD_*` in `assets/deploy/docker/langfuse/docker-compose.yml`).
 
 Cap the VM with `%USERPROFILE%\.wslconfig`:
 
@@ -513,7 +513,7 @@ Sessions that hit neither path show "—" in the panel's Project column.
 
 | Path | Role |
 |---|---|
-| `docker/langfuse/docker-compose.yml` | Local Langfuse v3 stack |
+| `assets/deploy/docker/langfuse/docker-compose.yml` | Local Langfuse v3 stack |
 | `start_langfuse.bat` / `.sh` | Idempotent stack-start shortcut |
 | `.env.example` | Schema for OTel + Langfuse env vars |
 | `src/observability.py` | OTel bootstrap, GenAI helpers, metric instruments |

@@ -4,7 +4,7 @@ REM Container stops but config\settings.yml (and its secret key) is kept.
 
 setlocal
 cd /d "%~dp0"
-docker compose -f docker\searxng\docker-compose.yml down
+docker compose -f assets\deploy\docker\searxng\docker-compose.yml down
 if errorlevel 1 (
   echo.
   echo SearXNG failed to stop. Is Docker Desktop running?

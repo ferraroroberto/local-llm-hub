@@ -32,7 +32,7 @@ All non-host machines carry a `sudoers.d/99-<user>-nopasswd` drop-in
 (passwordless sudo), so reboot/shutdown and read-only stat probes run over the
 hub user's own SSH with no key deploy. On the systemd satellite (`gaming`) the
 same passwordless sudo also covers `systemctl` — the Linux hub-lifecycle
-dispatcher (`linux/bin/hub-remote-ctl.sh`) and the
+dispatcher (`assets/deploy/linux/bin/hub-remote-ctl.sh`) and the
 `POST /admin/api/hub/{stop,restart}` endpoints run `sudo -n systemctl
 {start,stop,restart} local-llm-hub`, and `python -m src.install --fix` writes
 the unit via `sudo -n tee`. All use `sudo -n`, so a missing/incorrect drop-in

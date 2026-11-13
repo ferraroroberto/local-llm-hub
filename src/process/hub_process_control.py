@@ -72,7 +72,7 @@ def _delayed_darwin_bootout(label: str, delay: float = 0.4) -> None:
     immediately relaunched. ``launchctl bootout`` is the only thing that
     actually removes the job from launchd's active registry, so nothing is
     left to respawn. Bringing it back requires ``launchctl bootstrap``
-    again — the ``bootstrap`` action in ``mac/bin/hub-remote-ctl.sh`` and
+    again — the ``bootstrap`` action in ``assets/deploy/mac/bin/hub-remote-ctl.sh`` and
     ``src/install.py``'s ``_fix_launchagent()`` both already do this.
     """
 

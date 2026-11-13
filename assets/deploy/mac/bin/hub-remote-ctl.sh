@@ -2,7 +2,7 @@
 # Forced-command dispatcher for the local-llm-hub-remote-ctl SSH key (#181).
 #
 # Installed on the Mac Mini and referenced from ~/.ssh/authorized_keys via a
-# `command="~/local-llm-hub/mac/bin/hub-remote-ctl.sh"` restriction on the
+# `command="~/local-llm-hub/assets/deploy/mac/bin/hub-remote-ctl.sh"` restriction on the
 # dedicated automation-only key — that key has no shell access beyond what
 # this script explicitly allows. OpenSSH preserves whatever command the
 # client tried to run in $SSH_ORIGINAL_COMMAND even though it's never

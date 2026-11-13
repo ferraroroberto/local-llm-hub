@@ -2,7 +2,7 @@
 
 Initialises tracing + metrics + log-record correlation, exporting via
 OTLP/gRPC to a local Langfuse stack (see
-``docker/langfuse/docker-compose.yml``).
+``assets/deploy/docker/langfuse/docker-compose.yml``).
 
 Design points:
 

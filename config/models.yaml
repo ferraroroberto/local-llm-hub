@@ -873,13 +873,13 @@ models:
   # post-trained, drop-in derivative of NVIDIA's parakeet-tdt-0.6b-v3 (same
   # API/tokenizer/languages/speed, better published WER; no regression on the
   # jargon axis). Pinned in one place: the AsrModels version in
-  # mac/parakeet-worker/Sources/ParakeetWorker/main.swift (was .v3). The
+  # assets/deploy/mac/parakeet-worker/Sources/ParakeetWorker/main.swift (was .v3). The
   # model id and display_name below are unchanged — this is a checkpoint swap
   # inside the same engine, not a new row. Licence CC-BY-4.0 (NVIDIA original,
   # Moondream derivative) — attribution in README "License".
   #
   # engine: parakeet-server (not whisper-server) — src/parakeet_server.py
-  # owns a persistent mac/parakeet-worker Swift subprocess (FluidAudio),
+  # owns a persistent assets/deploy/mac/parakeet-worker Swift subprocess (FluidAudio),
   # not whisper.cpp. backend: whisper reuses the hub's existing
   # audio_transcribe dispatch/role-resolution unchanged (its API is
   # already OpenAI-transcription-shaped) — see backend_process.py's

@@ -3,7 +3,7 @@
 Three paths run on the same public FLEURS Spanish clips, each scored against
 FLEURS' own English text for the same sentence:
 
-  * Canary-1b-v2 on the Mac ANE (``mac/parakeet-worker`` ``CanaryWorker``).
+  * Canary-1b-v2 on the Mac ANE (``assets/deploy/mac/parakeet-worker`` ``CanaryWorker``).
   * ``whisper_translate`` through the hub (``POST /v1/audio/translations``).
   * The two-stage default through the hub: whisper transcribes Spanish, then
     ``gemma4_26b`` translates and polishes the transcript.

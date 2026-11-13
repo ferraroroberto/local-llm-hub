@@ -53,12 +53,12 @@ models/
 .env.local
 
 # Langfuse local stack secrets (issue #4) — schema in .env.example.
-docker/langfuse/.env
+assets/deploy/docker/langfuse/.env
 
 # SearXNG's generated settings.yml (home-automation#321) — the container
 # writes a fresh random secret_key into this on first run; instance-specific,
 # never committed.
-docker/searxng/config/
+assets/deploy/docker/searxng/config/
 
 # Host-specific machine specs (real values; example file is committed)
 config/machine_specs.yaml
@@ -114,11 +114,11 @@ test-results/
 # needs is committed elsewhere; this is working material, per-machine.
 .scratch/
 
-# Swift build artifacts (mac/parakeet-worker/) — rebuilt by `swift build`,
+# Swift build artifacts (assets/deploy/mac/parakeet-worker/) — rebuilt by `swift build`,
 # analogous to .venv/ for the Python side. Source (Package.swift, Sources/)
 # is committed; the resolved dependency lockfile is not (SPM re-resolves
 # against FluidAudio's version constraint on next build).
-mac/*/.build/
-mac/*/.swiftpm/
-mac/*/Package.resolved
+assets/deploy/mac/*/.build/
+assets/deploy/mac/*/.swiftpm/
+assets/deploy/mac/*/Package.resolved
 .proof/

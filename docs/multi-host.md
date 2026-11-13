@@ -28,7 +28,7 @@ This powers the `mac-mini-m4` host (Apple M4; address in
   runs it.
 - **`parakeet-tdt-0.6b-v3`** — NVIDIA Parakeet TDT 0.6B v3 (running the
   Parakeet Ultra checkpoint) on the Apple Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio)
-  (CoreML), served by the vendored Swift worker in `mac/parakeet-worker/`
+  (CoreML), served by the vendored Swift worker in `assets/deploy/mac/parakeet-worker/`
   + `src/parakeet_server.py`. Fills the **`audio_transcribe` role** on hosts
   that set it primary (a latency call, not an accuracy one): a plain
   `/v1/audio/transcriptions` call with no `model` lands here when it is, and
@@ -66,7 +66,7 @@ The Mac Mini's hub has no tray-equivalent process supervisor — a
 `~/Library/LaunchAgents/<label>.local-llm-hub.plist`
 LaunchAgent fills that role instead (`RunAtLoad` + `KeepAlive`, installed
 by `python -m src.install --fix` on the Mac itself — see
-`mac/launchagent/`). A **deliberate** stop (`POST /admin/api/hub/stop`)
+`assets/deploy/mac/launchagent/`). A **deliberate** stop (`POST /admin/api/hub/stop`)
 `launchctl bootout`s the job so it stays down; a restart
 (`POST /admin/api/hub/restart`) uses `launchctl kickstart -k`. (macOS
 detail worth knowing if you touch this: launchd respawns a job under
@@ -79,12 +79,12 @@ For the case where the Mac's hub is fully dead (crashed before
 **dedicated, forced-command-restricted** SSH key
 (`~/.ssh/local-llm-hub-remote-ctl`, path in `.env`'s
 `LOCAL_LLM_HUB_SSH_KEY`) — the Mac's `authorized_keys` restricts that key
-to `mac/bin/hub-remote-ctl.sh`, which only allows two verbs
+to `assets/deploy/mac/bin/hub-remote-ctl.sh`, which only allows two verbs
 (`bootstrap` / `sync`), no general shell. The Machines tab renders one row
 per machine; each hub-running peer gets a **Wake** button (visible when unreachable →
 `POST /admin/api/hosts/<host-id>/bootstrap`) and a **Sync** button (visible
 when reachable → `.../sync`, which `git pull --ff-only`s that peer's
-checkout before restarting it — the Linux dispatcher, `linux/bin/hub-remote-ctl.sh`,
+checkout before restarting it — the Linux dispatcher, `assets/deploy/linux/bin/hub-remote-ctl.sh`,
 gives `gaming` the same two verbs). An **out-of-sync** badge
 appears on a peer's row when the two hubs' `git_sha` (from
 `/admin/api/version`) differ. The sheet then says *why*, because `sync` only
