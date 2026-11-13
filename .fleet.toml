@@ -9,10 +9,10 @@ description = "Shared LLM gateway — routes to local models or claude -p."
 chips       = ["claude -p", "agy gemini", "qwen35-4b :8088", "gemma-26b :8087", "voice → gaming+mac", "tts :8092+", "flux1-dev :8188", "flux2-klein :8190", "typesafe jev (egress)"]
 # Root layout for the structure ratchet (project-scaffolding docs/repo-layout.md):
 # the `service` shape requires src/, tests/, app_web/ and tray/. extra_roots are the
-# per-platform deploy trees (docker compose stacks, linux, mac) and webapp/, the web
-# tunnel's runtime config folder. docs/layout.md gives each one a line.
+# per-platform deploy trees (docker compose stacks, linux, mac). docs/layout.md gives
+# each one a line.
 shape       = "service"
-extra_roots = ["docker", "linux", "mac", "webapp"]
+extra_roots = ["docker", "linux", "mac"]
 # Contracts with the rest of the fleet (schema: fleet-config architecture/README.md).
 # whisper :8090 is voice-transcriber's server, shared as a lock with the automation repo.
 interfaces = [

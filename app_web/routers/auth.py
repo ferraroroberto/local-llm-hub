@@ -2,8 +2,8 @@
 
 The bearer token in ``webapp_config.json`` is never sent to the client
 until a correct password is presented. Failed attempts and successful
-logins both land in ``webapp/auth.log`` (separate from the main hub log
-so a phone-side review is easy).
+logins both land in ``auth.log`` under the runtime-data root (separate from the
+main hub log so a phone-side review is easy).
 """
 
 from __future__ import annotations
@@ -20,14 +20,15 @@ from fastapi import APIRouter, HTTPException, Request
 from src.fsio.runtime_files import file_handler, make_dirs
 from src.health.resource_alert import send_via_notify_script
 from src.login_lockout import LockoutAlert, LoginLockout, retry_after_header
+from src.runtime_data import runtime_data_dir
 from src.webapp_config import WebappConfig
 
 from ..middleware import LOOPBACK_HOSTS, is_pc_itself
-from ._helpers import PROJECT_ROOT, client_ip, loaded_webapp_config, maybe_json
+from ._helpers import client_ip, loaded_webapp_config, maybe_json
 
 logger = logging.getLogger(__name__)
 auth_logger = logging.getLogger("llmhub.auth")
-_AUTH_LOG_PATH = PROJECT_ROOT / "webapp" / "auth.log"
+_AUTH_LOG_PATH = runtime_data_dir("local-llm-hub") / "auth.log"
 
 
 def ensure_log_handler() -> None:

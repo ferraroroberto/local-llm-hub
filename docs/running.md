@@ -79,8 +79,8 @@ mechanics. One-line restart matrix:
 ## Cloudflare tunnel (optional)
 
 For phone-side access from outside the LAN, run cloudflared with a
-named tunnel. The repo ships `webapp/cloudflared.sample.yml` — copy it
-to `webapp/cloudflared.yml`, fill in your tunnel UUID + hostname, and
+named tunnel. The repo ships `config/cloudflared.sample.yml` — copy it
+to `config/cloudflared.yml`, fill in your tunnel UUID + hostname, and
 the tray will pick the hostname up automatically and surface
 **📋 Copy Cloudflare URL** in its menu. The hub itself doesn't spawn
 cloudflared (you own its lifecycle); the tray only *reads* the config.
@@ -89,6 +89,8 @@ The admin webapp's bearer token is generated on first tray boot and
 persisted to `config/webapp_config.json`. Loopback callers bypass it;
 anyone reaching the hub over the tunnel must present
 `Authorization: Bearer <token>` or `?token=…` on the URL.
+
+Login attempts are logged to `auth.log` in the app's runtime-data directory (`C:\sqlite\local-llm-hub` on Windows, see `src/runtime_data.py`), not in the checkout.
 
 The password route is rate-limited per client address by the vendored
 `src/login_lockout.py`: the first five wrong passwords are free, each further

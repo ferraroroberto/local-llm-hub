@@ -58,6 +58,11 @@ def pytest_configure(config) -> None:
     # The admin sub-app mounts the usage log on create_app(); keep its SQLite
     # file in the temp dir, never the real runtime-data store (#777).
     os.environ["LLM_HUB_USAGE_DB_PATH"] = str(_PINNED_CONFIG_DIR / "usage.sqlite3")
+    # The admin sub-app's auth.log resolves under the app's runtime-data dir at
+    # import; pin it to the temp dir so no test writes the real runtime root.
+    from src.runtime_data import app_dir_env_var
+
+    os.environ[app_dir_env_var("local-llm-hub")] = str(_PINNED_CONFIG_DIR / "runtime-data")
 
 
 def pytest_unconfigure(config) -> None:

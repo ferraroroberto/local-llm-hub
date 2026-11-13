@@ -67,10 +67,10 @@ except ImportError:
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# Webapp/cloudflared.yml is the canonical place a cloudflared
-# config lives — see app-launcher for the same convention. We don't
-# write it for the user; we only read the first ingress hostname.
-TUNNEL_CONFIG_PATH = PROJECT_ROOT / "webapp" / "cloudflared.yml"
+# config/cloudflared.yml (gitignored; the sample sits beside it) is the canonical
+# place a cloudflared config lives. We don't write it for the user; we only read
+# the first ingress hostname.
+TUNNEL_CONFIG_PATH = PROJECT_ROOT / "config" / "cloudflared.yml"
 
 # How long a tray-started model gets to open its port before the toast gives up
 # on it, seconds: room for a large GGUF to load from disk (not measured; the

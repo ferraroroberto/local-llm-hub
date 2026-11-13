@@ -23,7 +23,6 @@ Extra roots declared in `.fleet.toml` `extra_roots`, each an exception the shape
 | `docker/` | Compose stacks for the sidecar services (Langfuse, SearXNG). |
 | `linux/` | Linux-satellite process supervision: the systemd unit and the SSH forced-command dispatcher. |
 | `mac/` | macOS-host process supervision and the Swift Parakeet ASR worker. |
-| `webapp/` | Runtime config folder of the web tunnel (the sample `cloudflared` config; the live one is gitignored). Not the SPA, which is `app_web/`. |
 
 The full annotated tree:
 
@@ -71,6 +70,8 @@ local-llm-hub/
 │   ├── fleet_maintenance.json        # live {host: {until, reason}} reconcile drain markers (gitignored)
 │   ├── webapp_config.json            # admin auth: bearer token, optional password, tailnet allowlist, CORS origins (gitignored)
 │   ├── webapp_config.sample.json     # committed template + fresh-clone default for the above
+│   ├── cloudflared.sample.yml        # sample named-tunnel config (copy to cloudflared.yml)
+│   ├── cloudflared.yml               # your own tunnel config, read by the tray (gitignored)
 │   ├── machine_specs_example.yaml    # template for scripts/detect_machine_specs.py's real output
 │   ├── claude_pricing.json / gemini_pricing.json / openai_pricing.json  # per-model $/token
 │   │                                  #   tables for the Code-tab usage/cost parsers
@@ -79,10 +80,6 @@ local-llm-hub/
 │   │                                  #   (canonical + variants; feeds boost terms and rules)
 │   └── transcription_glossary.json / transcription_glossary.local.sample.json  # whisper
 │                                      #   replacement-rules dictionary
-├── webapp/                   # runtime data dir written by the /admin webapp
-│   ├── cloudflared.sample.yml  # sample named-tunnel config (copy to cloudflared.yml)
-│   ├── cloudflared.yml         # your own tunnel config — gitignored
-│   └── auth.log                # /admin/api/login attempts (gitignored)
 ├── data/                     # runtime artefacts (gitignored)
 │   ├── logs/                    # per-backend stdout/stderr: backend-<id>.log (+ one .log.1 backup)
 │   └── diagnostics.db           # SQLite capture store
