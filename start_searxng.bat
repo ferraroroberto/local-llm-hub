@@ -8,14 +8,14 @@ REM actually changes the file.
 
 setlocal
 cd /d "%~dp0"
-docker compose -f docker\searxng\docker-compose.yml up -d
+docker compose -f assets\deploy\docker\searxng\docker-compose.yml up -d
 if errorlevel 1 (
   echo.
   echo SearXNG failed to start. Is Docker Desktop running?
   exit /b 1
 )
 
-".venv\Scripts\python.exe" docker\searxng\ensure_json_format.py docker\searxng\config\settings.yml
+".venv\Scripts\python.exe" assets\deploy\docker\searxng\ensure_json_format.py assets\deploy\docker\searxng\config\settings.yml
 if errorlevel 2 (
   echo.
   echo Failed to verify/patch SearXNG's settings.yml for json output.
@@ -23,7 +23,7 @@ if errorlevel 2 (
 )
 if errorlevel 1 (
   echo Enabling json output - restarting SearXNG to apply...
-  docker compose -f docker\searxng\docker-compose.yml restart searxng
+  docker compose -f assets\deploy\docker\searxng\docker-compose.yml restart searxng
   if errorlevel 1 (
     echo SearXNG restart failed.
     exit /b 1

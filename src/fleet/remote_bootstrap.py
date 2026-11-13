@@ -4,7 +4,7 @@ Two distinct SSH channels, deliberately kept apart:
 
   * **bootstrap / sync** — brings a *dead* remote host's hub back up,
     or syncs it to the latest ``main`` + restarts. These ride the
-    forced-command-restricted key (``mac/bin/hub-remote-ctl.sh``), never a
+    forced-command-restricted key (``assets/deploy/mac/bin/hub-remote-ctl.sh``), never a
     general shell: the verb sent over SSH (``bootstrap`` / ``sync``) becomes
     ``$SSH_ORIGINAL_COMMAND`` on the remote end and the forced command there —
     not anything sent here — decides what runs. Gated on

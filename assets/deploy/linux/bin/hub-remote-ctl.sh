@@ -1,10 +1,10 @@
 #!/bin/bash
 # Forced-command dispatcher for the local-llm-hub-remote-ctl SSH key (#181, #368).
 #
-# The Linux/systemd counterpart to mac/bin/hub-remote-ctl.sh. Installed on a
+# The Linux/systemd counterpart to assets/deploy/mac/bin/hub-remote-ctl.sh. Installed on a
 # systemd satellite (gaming, later openclaw) and referenced from
 # ~/.ssh/authorized_keys via a
-#   command="/home/<user>/local-llm-hub/linux/bin/hub-remote-ctl.sh"
+#   command="/home/<user>/local-llm-hub/assets/deploy/linux/bin/hub-remote-ctl.sh"
 # restriction on the dedicated automation-only key — that key has no shell
 # access beyond the two verbs this script allows. OpenSSH preserves whatever
 # command the client tried to run in $SSH_ORIGINAL_COMMAND even though it is
@@ -55,7 +55,7 @@ restart_hub() {
 # starts a loaded-but-stopped unit, so this only diverges when restart itself
 # fails — then fall back to a plain `start`. A genuinely missing unit file (the
 # box was never `systemctl enable`d — install it via `python -m src.install
-# --fix`, see linux/systemd/local-llm-hub.service) is a real error surfaced by
+# --fix`, see assets/deploy/linux/systemd/local-llm-hub.service) is a real error surfaced by
 # both branches, not silently swallowed.
 ensure_hub_up() {
   if sudo -n systemctl restart "$SERVICE"; then

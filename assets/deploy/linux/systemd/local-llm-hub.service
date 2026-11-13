@@ -1,5 +1,5 @@
 # Template — not installed as-is. This is the Linux counterpart to
-# mac/launchagent/com.ferraroroberto.local-llm-hub.plist: boot-time start +
+# assets/deploy/mac/launchagent/com.ferraroroberto.local-llm-hub.plist: boot-time start +
 # keep-alive for the hub on a headless Linux satellite (gaming, later
 # openclaw), filling the process-supervision role that tray.bat plays on
 # Windows and the LaunchAgent plays on macOS (#323).
@@ -13,7 +13,7 @@
 #      writing the result to the system unit dir. From the repo root
 #      ($PWD/$USER expand in your shell; only the tee into /etc needs root):
 #        sed -e "s|__PROJECT_ROOT__|$PWD|g" -e "s|__USER__|$USER|g" \
-#          linux/systemd/local-llm-hub.service \
+#          assets/deploy/linux/systemd/local-llm-hub.service \
 #          | sudo tee /etc/systemd/system/local-llm-hub.service >/dev/null
 #   2. Enable + start at boot (no login required — this is why it is a
 #      system unit, not a `--user` one):

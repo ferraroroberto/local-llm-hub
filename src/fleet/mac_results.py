@@ -2,7 +2,7 @@
 
 The Mac runner writes ``~/mac-nightly-results/<repo>/<run id>/`` (a ``READY``
 file marks a complete run). One pass of this module lists those runs over the
-read-only forced-command SSH key (``mac/bin/hub-results-pull.sh``), copies the
+read-only forced-command SSH key (``assets/deploy/mac/bin/hub-results-pull.sh``), copies the
 ``*.png`` files of each new run, hands them to fleet-config's send-file script and records the
 run as delivered only after every send is confirmed. A run whose ``READY`` says
 ``audit=miss`` also has its ``audit.json`` copied and handed to project-scaffolding's

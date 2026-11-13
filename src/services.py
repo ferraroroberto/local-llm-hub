@@ -405,7 +405,7 @@ async def start_langfuse() -> Dict[str, Any]:
             "detail": (
                 f"containers started but /api/public/health unreachable after "
                 f"{LANGFUSE_READY_TIMEOUT_S:.0f}s — check `docker compose -f "
-                "docker/langfuse/docker-compose.yml ps` for container errors"
+                "assets/deploy/docker/langfuse/docker-compose.yml ps` for container errors"
             ),
         })
         return {"ok": False, "steps": steps}

@@ -10,9 +10,9 @@ parakeet-server`` row as ``python -m src.parakeet_server --model-id
 ``/v1/audio/transcriptions`` to this port so requests land in the
 observability ring (``src/audio/server_audio_asr.py``).
 
-darwin-only: keeps one long-lived ``mac/parakeet-worker`` Swift subprocess
+darwin-only: keeps one long-lived ``assets/deploy/mac/parakeet-worker`` Swift subprocess
 warm (the CoreML model loads once) and serializes requests through its
-stdin/stdout — see ``mac/parakeet-worker/Sources/ParakeetWorker/main.swift``
+stdin/stdout — see ``assets/deploy/mac/parakeet-worker/Sources/ParakeetWorker/main.swift``
 for the worker side of this protocol (one JSON result per line). Spike
 origin + benchmark results: docs/parakeet-asr-evaluation.md.
 """
@@ -45,7 +45,7 @@ from .process.backend_process import resolve_model_for_engine
 log = logging.getLogger("parakeet_server")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-WORKER_BIN = PROJECT_ROOT / "mac" / "parakeet-worker" / ".build" / "release" / "ParakeetWorker"
+WORKER_BIN = PROJECT_ROOT / "assets" / "deploy" / "mac" / "parakeet-worker" / ".build" / "release" / "ParakeetWorker"
 
 DEFAULT_MODEL_ID = "parakeet"
 # Mirrors orpheus.LLAMA_READY_DEADLINE_S — this worker's sibling
@@ -73,7 +73,7 @@ def _start_worker() -> "tuple[subprocess.Popen, queue.Queue[str]]":
     if not WORKER_BIN.exists():
         raise RuntimeError(
             f"ParakeetWorker binary missing at {WORKER_BIN} — "
-            f"run `swift build -c release` in mac/parakeet-worker/ "
+            f"run `swift build -c release` in assets/deploy/mac/parakeet-worker/ "
             f"(the admin Health & install panel's Fix-all does this too)"
         )
     proc = subprocess.Popen(

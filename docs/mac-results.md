@@ -70,7 +70,7 @@ The runner user's own code can edit that user's `~/.ssh` and the dispatcher, so 
 
 ## Forced-command key setup
 
-The key is dedicated and read-only. Its dispatcher, [`mac/bin/hub-results-pull.sh`](../mac/bin/hub-results-pull.sh), allows exactly six verbs (`list`, `files <repo> <run id>`, `get <repo> <run id> <file>`, `audit <repo> <run id>`, `ready <repo> <run id>` and `text <repo> <run id> <name>`, the last reading only the six junit and flaky-list names the workflow writes, under a 4 MiB cap), reads only under `~/mac-nightly-results`, writes nothing and refuses a link anywhere on a path.
+The key is dedicated and read-only. Its dispatcher, [`assets/deploy/mac/bin/hub-results-pull.sh`](../assets/deploy/mac/bin/hub-results-pull.sh), allows exactly six verbs (`list`, `files <repo> <run id>`, `get <repo> <run id> <file>`, `audit <repo> <run id>`, `ready <repo> <run id>` and `text <repo> <run id> <name>`, the last reading only the six junit and flaky-list names the workflow writes, under a 4 MiB cap), reads only under `~/mac-nightly-results`, writes nothing and refuses a link anywhere on a path.
 
 On the hub box, generate a passphrase-less key outside the repo:
 
@@ -90,7 +90,7 @@ restrict,command="$HOME/bin/hub-results-pull.sh" ssh-ed25519 AAAA...your-public-
 .venv/Scripts/python.exe -m src.fleet.mac_results_install --host <machine id>
 ```
 
-It compares the SHA-256 and mode of `~/bin/hub-results-pull.sh` on the Mac with the repo's `mac/bin/hub-results-pull.sh` and, when they differ, writes the repo's copy with mode 755 (to a temporary name, then a rename, so a pull never meets a half-written script). The results key is read-only and cannot write, so this uses the hub user's own general passwordless SSH to the same machine row, the channel the Machines tab's power actions use. It ends on one state, each with its own exit code: `unchanged` (0, the Mac already holds the repo's bytes at mode 755), `installed` (0, it differed, was written and read back equal), `not_confirmed` (1, the Mac could not be read, the write failed or the read-back differs: nothing is claimed) and, with `--check` (compare only, writes nothing), `would_install` (3). A configuration problem (no host, no address or login) is exit 2. The output carries only the state, a hash prefix and the mode, never the Mac's stderr. Until the Mac has the `ready` and `text` verbs, every night reads `ci_unknown`.
+It compares the SHA-256 and mode of `~/bin/hub-results-pull.sh` on the Mac with the repo's `assets/deploy/mac/bin/hub-results-pull.sh` and, when they differ, writes the repo's copy with mode 755 (to a temporary name, then a rename, so a pull never meets a half-written script). The results key is read-only and cannot write, so this uses the hub user's own general passwordless SSH to the same machine row, the channel the Machines tab's power actions use. It ends on one state, each with its own exit code: `unchanged` (0, the Mac already holds the repo's bytes at mode 755), `installed` (0, it differed, was written and read back equal), `not_confirmed` (1, the Mac could not be read, the write failed or the read-back differs: nothing is claimed) and, with `--check` (compare only, writes nothing), `would_install` (3). A configuration problem (no host, no address or login) is exit 2. The output carries only the state, a hash prefix and the mode, never the Mac's stderr. Until the Mac has the `ready` and `text` verbs, every night reads `ci_unknown`.
 
 In the hub's `.env` (never committed), point the puller at the private key:
 

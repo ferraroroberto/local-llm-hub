@@ -300,7 +300,7 @@ def _parakeet_enabled() -> bool:
 
 
 def _check_parakeet_worker() -> Check:
-    """Is the FluidAudio Swift binary (mac/parakeet-worker) built?
+    """Is the FluidAudio Swift binary (assets/deploy/mac/parakeet-worker) built?
 
     darwin-only in practice — gated on a `engine: parakeet-server` row
     being locally enabled, which only ever happens on mac-mini-m4. No
@@ -308,14 +308,14 @@ def _check_parakeet_worker() -> Check:
     it blocks on stdin waiting for a request — existence is all we can
     check without actually spinning up the CoreML model.
     """
-    bin_path = PROJECT_ROOT / "mac" / "parakeet-worker" / ".build" / "release" / "ParakeetWorker"
+    bin_path = PROJECT_ROOT / "assets" / "deploy" / "mac" / "parakeet-worker" / ".build" / "release" / "ParakeetWorker"
     if bin_path.exists():
         return Check("parakeet_worker", "ParakeetWorker binary built", "ok", str(bin_path))
     return Check(
         "parakeet_worker", "ParakeetWorker binary built", "missing",
         f"expected at {bin_path}",
         fix_id="parakeet_worker",
-        fix_label="swift build -c release in mac/parakeet-worker/ (downloads FluidAudio + builds, first run also fetches the CoreML model on first request)",
+        fix_label="swift build -c release in assets/deploy/mac/parakeet-worker/ (downloads FluidAudio + builds, first run also fetches the CoreML model on first request)",
     )
 
 
@@ -385,7 +385,7 @@ def _check_systemd_unit() -> Check:
             "systemd_unit", "Boot-time systemd unit installed", "missing",
             f"expected at {unit_path}",
             fix_id="systemd_unit",
-            fix_label="renders linux/systemd/local-llm-hub.service + `systemctl enable --now` (boot autostart + crash respawn)",
+            fix_label="renders assets/deploy/linux/systemd/local-llm-hub.service + `systemctl enable --now` (boot autostart + crash respawn)",
         )
     try:
         active = subprocess.run(
@@ -627,7 +627,7 @@ def _fix_parakeet_worker() -> None:
         )
     subprocess.run(
         [swift, "build", "-c", "release"],
-        cwd=str(PROJECT_ROOT / "mac" / "parakeet-worker"),
+        cwd=str(PROJECT_ROOT / "assets" / "deploy" / "mac" / "parakeet-worker"),
         check=True,
         creationflags=NO_WINDOW,
         timeout=_BUILD_TIMEOUT_S,
@@ -637,7 +637,7 @@ def _fix_parakeet_worker() -> None:
 def _fix_launchagent() -> None:
     if sys.platform != "darwin":
         raise RuntimeError("LaunchAgent install only applies on macOS")
-    template_path = PROJECT_ROOT / "mac" / "launchagent" / f"{LAUNCHAGENT_LABEL}.plist"
+    template_path = PROJECT_ROOT / "assets" / "deploy" / "mac" / "launchagent" / f"{LAUNCHAGENT_LABEL}.plist"
     rendered = (
         template_path.read_text(encoding="utf-8")
         .replace("__PYTHON__", sys.executable)
@@ -674,7 +674,7 @@ def _fix_systemd_unit() -> None:
     """Render + install the boot-time systemd unit on a Linux satellite.
 
     The Linux counterpart to ``_fix_launchagent``. Substitutes the two
-    placeholders in ``linux/systemd/local-llm-hub.service`` with this box's
+    placeholders in ``assets/deploy/linux/systemd/local-llm-hub.service`` with this box's
     concrete values, writes it into the root-owned system unit dir via
     ``sudo -n tee``, then ``daemon-reload`` + ``enable --now``. ``sudo -n`` so a
     missing passwordless-sudo drop-in (see docs/machines.md) fails fast with a
@@ -682,7 +682,7 @@ def _fix_systemd_unit() -> None:
     """
     if not sys.platform.startswith("linux"):
         raise RuntimeError("systemd unit install only applies on Linux")
-    template_path = PROJECT_ROOT / "linux" / "systemd" / SYSTEMD_UNIT_NAME
+    template_path = PROJECT_ROOT / "assets" / "deploy" / "linux" / "systemd" / SYSTEMD_UNIT_NAME
     rendered = (
         template_path.read_text(encoding="utf-8")
         .replace("__PROJECT_ROOT__", str(PROJECT_ROOT))

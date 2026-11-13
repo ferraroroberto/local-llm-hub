@@ -18,7 +18,7 @@ Run `python scripts/canary_preflight.py` (`prepare`, `hub`, `report`; its docstr
 - **Audio:** 16 Spanish clips from the public FLEURS test set (`es_419`, CC-BY-4.0): 12 of at most 15 s and 4 longer (16.6 to 30.3 s), picked with a fixed seed, one speaker per sentence. Canary's decode window is 15 s, so the long clips exercise its VAD pause-splitting path.
 - **Reference:** FLEURS' own English text for the same sentence id. One human reference per clip.
 - **Paths:**
-  1. Canary-1b-v2, `mac/parakeet-worker/Sources/CanaryWorker/CanaryWorker.swift`, int4 on the ANE, Spanish to English, run in a scratch build beside the live Parakeet worker. Latency is the second of two passes over the clips.
+  1. Canary-1b-v2, `assets/deploy/mac/parakeet-worker/Sources/CanaryWorker/CanaryWorker.swift`, int4 on the ANE, Spanish to English, run in a scratch build beside the live Parakeet worker. Latency is the second of two passes over the clips.
   2. `whisper_translate` through the hub's `POST /v1/audio/translations`, unmodified.
   3. Two-stage: `whisper` with `language=es`, then `gemma4_26b` with a one-sentence translate-and-polish prompt, thinking off, temperature 0.
 - **Score:** corpus BLEU with 13a tokenisation (close to sacreBLEU's default, not byte-identical) and a unigram F1 per clip. Intervals are a 2,000-sample paired bootstrap over clips.
@@ -73,6 +73,6 @@ Only the last gap excludes zero. With the two clips where `whisper_translate` an
 
 ## What a swap needs
 
-- **A hub-side server for Canary.** `mac/parakeet-worker/Sources/CanaryWorker/CanaryWorker.swift` speaks the same line protocol as the Parakeet worker, but no Python wrapper, backend row or `POST /v1/audio/translations` route handler reaches it. `src/parakeet_server.py` is the pattern to follow. Today the translate route rewrites to a whisper-server call, so Canary needs its own branch there.
+- **A hub-side server for Canary.** `assets/deploy/mac/parakeet-worker/Sources/CanaryWorker/CanaryWorker.swift` speaks the same line protocol as the Parakeet worker, but no Python wrapper, backend row or `POST /v1/audio/translations` route handler reaches it. `src/parakeet_server.py` is the pattern to follow. Today the translate route rewrites to a whisper-server call, so Canary needs its own branch there.
 - **A host decision.** The Mac has 16 GB shared with Parakeet and the other models placed there; Canary's 2.2 GB peak is small but real.
 - **The package bump.** `Package.swift` now asks for FluidAudio 0.18.0 or later, for both targets. The scratch build compiled `ParakeetWorker` against it without changes, but the live Parakeet worker has not been run on 0.18, so rebuild and check `audio_transcribe` before relying on it. Plain `swift build -c release` now builds both binaries; `src/parakeet_server.py` only reads the Parakeet one.

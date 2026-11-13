@@ -5,7 +5,7 @@ REM `start_langfuse.bat` picks up right where this left off.
 
 setlocal
 cd /d "%~dp0"
-docker compose -f docker\langfuse\docker-compose.yml down
+docker compose -f assets\deploy\docker\langfuse\docker-compose.yml down
 if errorlevel 1 (
   echo.
   echo Langfuse stack failed to stop. Is Docker Desktop running?

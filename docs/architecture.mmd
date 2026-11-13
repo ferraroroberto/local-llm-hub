@@ -81,7 +81,7 @@ unchanged, no retries, opt-in only"]
 
   subgraph multihost["Multi-host (Mac Mini + gaming peers)"]
     REMOTEPROXY["fleet/remote_proxy.py\nresolve owning host's own base_url\nfor a model this host doesn't own"]
-    REMOTEBOOT["fleet/remote_bootstrap.py\nSSH forced-command verbs: bootstrap/sync\n(dead peer hub; OS-agnostic tower side —\nmac/ + linux/ bin/hub-remote-ctl.sh dispatchers)\n+ general-SSH reboot/shutdown"]
+    REMOTEBOOT["fleet/remote_bootstrap.py\nSSH forced-command verbs: bootstrap/sync\n(dead peer hub; OS-agnostic tower side —\nassets/deploy/{mac,linux}/bin/hub-remote-ctl.sh dispatchers)\n+ general-SSH reboot/shutdown"]
     MACHINECON["fleet/machine_console.py\nMachines-tab console: host inventory\n+ per-machine card assembly + RDP gen"]
     REMOTESTATS["fleet/remote_stats.py\nTCP liveness (is the box on?) + general-SSH\nCPU/RAM/GPU/disk/uptime snapshot;\npeer-probe pair: remote_models/peer_health"]
     RUNNER["fleet/actions_runner.py
@@ -90,7 +90,7 @@ boot facts over SSH, gh api for online/busy + last run;
 start/stop/install, then a re-read"]
     MACRESULTS["fleet/mac_results.py
 one CLI pass: list the Mac runner's result runs over a
-read-only forced-command key (mac/bin/hub-results-pull.sh),
+read-only forced-command key (assets/deploy/mac/bin/hub-results-pull.sh),
 copy new *.png, send_file.py to the chat, file the routing
 audit for a miss run, record in SQLite"]
     SSHTERM["fleet/ssh_terminal.py\nin-browser SSH terminal: drives\napp-launcher's session-host over loopback"]
@@ -184,7 +184,7 @@ running the fleet notify_send.py)"]
     COMFY["ComfyUI (vendor/comfyui, own .venv)\n:8188 FLUX.1 [dev] fp8 · :8190 FLUX.2 [klein] 4B\nloopback-bound · on_demand · one process per row\n(the process layer keys state by model id)\nFLUX.2 [dev] 32B removed — ~4 h/image on 16 GB"]
     CCHOST["Any host Claude Code CLI session\n(incl. sub-agents — CLAUDE_CODE_ENABLE_TELEMETRY)"]
     MACMINI["Mac Mini (mac-mini-m4)\npeer local-llm-hub install :8000"]
-    PARAKEETWORKER["mac/parakeet-worker/ (Swift, ANE)\nFluidAudio Parakeet TDT 0.6B v3\nvia CoreML"]
+    PARAKEETWORKER["assets/deploy/mac/parakeet-worker/ (Swift, ANE)\nFluidAudio Parakeet TDT 0.6B v3\nvia CoreML"]
     AGENTSVIEW["AgentsView server (optional, external)\nkenn-io/agentsview · :8080"]
     SESSIONHOST["app-launcher session-host (:8446)\nloopback ConPTY/WS engine reused for the\nSSH terminal"]
     TYPESAFE["TypeSafe API (third-party, US-hosted)

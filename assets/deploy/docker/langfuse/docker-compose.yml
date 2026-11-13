@@ -3,9 +3,9 @@
 # Brings up: langfuse-web (UI + API + OTLP receiver), langfuse-worker,
 # postgres, clickhouse, redis, minio.
 #
-# Start:   start_langfuse.bat   (or `docker compose -f docker/langfuse/docker-compose.yml up -d`)
-# Stop:    docker compose -f docker/langfuse/docker-compose.yml down
-# Reset:   docker compose -f docker/langfuse/docker-compose.yml down -v   (drops volumes)
+# Start:   start_langfuse.bat   (or `docker compose -f assets/deploy/docker/langfuse/docker-compose.yml up -d`)
+# Stop:    docker compose -f assets/deploy/docker/langfuse/docker-compose.yml down
+# Reset:   docker compose -f assets/deploy/docker/langfuse/docker-compose.yml down -v   (drops volumes)
 #
 # Ports exposed to the host:
 #   3000 -> langfuse-web      (UI + API + OTLP/HTTP receiver)

@@ -35,7 +35,7 @@ explicitly `on_demand` so the derived desired set matches what actually runs.
 A headless Linux satellite (`gaming`, later `openclaw`) has no
 tray-equivalent and no LaunchAgent — a **systemd unit** fills that role,
 the counterpart to `tray.bat` on Windows and the LaunchAgent on macOS. The
-template lives at `linux/systemd/local-llm-hub.service`: it runs the
+template lives at `assets/deploy/linux/systemd/local-llm-hub.service`: it runs the
 existing `run_hub.sh` under `Restart=always` and enables at boot with no
 login required (`WantedBy=multi-user.target`).
 
@@ -48,8 +48,8 @@ The Linux peer has **full lifecycle parity** with the Mac:
   `enable --now` (the systemd analogue of `_fix_launchagent`). Passwordless
   sudo is a prerequisite (see `docs/machines.md`); `sudo -n` fails fast with a
   clear message if it is missing rather than hanging on a prompt.
-- **Remote bootstrap/sync** — `linux/bin/hub-remote-ctl.sh` is the systemd
-  counterpart to `mac/bin/hub-remote-ctl.sh`, wired to the **same
+- **Remote bootstrap/sync** — `assets/deploy/linux/bin/hub-remote-ctl.sh` is the systemd
+  counterpart to `assets/deploy/mac/bin/hub-remote-ctl.sh`, wired to the **same
   forced-command SSH key** (see [multi-host.md](multi-host.md)). `sync` = `git pull --ff-only` +
   `./.venv/bin/python -m pip install -q -r requirements.txt` +
   `systemctl restart`; `bootstrap` = the same, tolerant of a
@@ -68,11 +68,11 @@ command exactly as the Mac's does — the key can only run the dispatcher, never
 a shell:
 
 ```
-command="/home/<user>/local-llm-hub/linux/bin/hub-remote-ctl.sh",no-port-forwarding,no-x11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... local-llm-hub-remote-ctl
+command="/home/<user>/local-llm-hub/assets/deploy/linux/bin/hub-remote-ctl.sh",no-port-forwarding,no-x11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... local-llm-hub-remote-ctl
 ```
 
 (On `gaming` the checkout is at `/home/gaming/local-llm-hub`, so the path is
-`/home/gaming/local-llm-hub/linux/bin/hub-remote-ctl.sh`.) The script assumes
+`/home/gaming/local-llm-hub/assets/deploy/linux/bin/hub-remote-ctl.sh`.) The script assumes
 the repo lives at `~/local-llm-hub` — the same convention the Mac dispatcher
 uses.
 
