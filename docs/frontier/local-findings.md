@@ -13,6 +13,8 @@ re-disproven in a loop.
   `upgrade` / `runtime_upgrade` — unless the entry's **re-open trigger** is
   demonstrably met (cite the evidence in the report if so).
 - `watch` is not actionable, so step 8 files no issue for it: no repeat work.
+- Entries cite files and dates, never issue or PR numbers: the docs ratchet fails on a
+  history marker, and git history carries the rest.
 - Whoever disproves (or re-proves) a candidate locally appends/updates the
   entry **in the same PR** as the disproof — same anti-staleness contract as
   `.fleet.toml`.
@@ -213,10 +215,8 @@ re-tested, update its **Status** line instead of deleting history.
   Building that integration for a model that still loses to the two-stage
   default on quality was judged not worth it; the issue closed with no
   hub-side Canary server planned. A swap, if revisited, gets its own issue.
-- **Record:** [pre-flight write-up](https://github.com/ferraroroberto/local-llm-hub/blob/main/docs/canary-translate-preflight.md),
-  issue [#920](https://github.com/ferraroroberto/local-llm-hub/issues/920),
-  shipped via [PR #990](https://github.com/ferraroroberto/local-llm-hub/pull/990)
-  (merged 2026-11-07). Harness: `scripts/canary_preflight.py`.
+- **Record:** the pre-flight write-up is `docs/canary-translate-preflight.md`;
+  the harness is `scripts/canary_preflight.py`.
 - **Re-open trigger:** a full-ES-test-set re-run (~350 FLEURS sentences —
   16 clips cannot settle a 4-point BLEU gap) that confirms or narrows the
   two-stage quality edge, **or** a decision that the role's actual use
