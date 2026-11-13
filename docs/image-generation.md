@@ -139,8 +139,8 @@ never ComfyUI's port.
 ### Install
 
 ```powershell
-python scripts/install_comfyui.py                    # clone + isolated venv + torch cu130
-python scripts/download_models.py --only flux1_local  # 17.25 GB checkpoint
+.venv/Scripts/python.exe scripts/install_comfyui.py                     # clone + isolated venv + torch cu130
+.venv/Scripts/python.exe scripts/download_models.py --only flux1_local  # 17.25 GB checkpoint
 ```
 
 The installer gives ComfyUI **its own venv** at `vendor/comfyui/.venv`. ComfyUI

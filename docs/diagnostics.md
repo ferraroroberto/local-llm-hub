@@ -64,7 +64,7 @@ exists to avoid, so instead there is a **zero-install** path:
 ```bash
 ssh user@host "python3 - --duration-s 3600 --interval-s 15 --machine openclaw" \
     < scripts/portable_capture.py > openclaw.json
-python -m src.diagnostics.ingest openclaw.json          # or --machine openclaw
+.venv/Scripts/python.exe -m src.diagnostics.ingest openclaw.json          # or --machine openclaw
 ```
 
 The design rule that keeps this cheap: **`scripts/portable_capture.py` captures
