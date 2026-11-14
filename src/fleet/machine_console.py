@@ -27,7 +27,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from src import system_stats
-from src.fleet import remote_stats, sync_diagnosis
+from src.fleet import peer_health, remote_stats, sync_diagnosis
 from src.health import resource_watch
 from src.health import watch as health_watch
 from src.host_profile import HostProfile, all_hosts, resolve
@@ -219,8 +219,13 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
         located = await remote_stats.located_address(host)
         reachable = located is not None
         card = _card_base(host, is_host=False, reachable=reachable)
+        health = None
         if reachable:
             stats, hub = await asyncio.gather(remote_stats.collect(host), _hub_facts(host))
+            # Only a peer whose hub answers has a health watch to ask; a hub
+            # that is down is already its own exception on the row.
+            if hub and hub["reachable"]:
+                health = await peer_health.peer_health_summary(host)
         else:
             stats, hub = None, _hub_facts_down(host)
         card.update(
@@ -242,6 +247,7 @@ async def _probe_machine(host: HostProfile, active_id: str) -> Dict[str, Any]:
             flaky=remote_stats.connection_flaky(host) if reachable else None,
             detail="" if reachable else "Offline",
             hub=hub,
+            health=health,
         )
         return card
 

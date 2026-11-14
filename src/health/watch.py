@@ -91,10 +91,17 @@ class HealthWatch:
 
     def card_summary(self) -> Dict[str, Any]:
         """The few fields the Machines card shows."""
-        v = self.current()
-        summary = {k: v[k] for k in ("verdict", "reason", "fix", "sampled_at", "enabled")}
-        summary["findings"] = [{k: f.get(k) for k in ("level", "kind", "reason", "fix")} for f in v["findings"][:5]]
-        return summary
+        return card_fields(self.current())
+
+
+def card_fields(verdict: Dict[str, Any]) -> Dict[str, Any]:
+    """The few verdict fields a Machines row shows, from a full ``current()``
+    payload: this machine's own, or the one a peer hub serves."""
+    summary = {k: verdict[k] for k in ("verdict", "reason", "fix", "sampled_at", "enabled")}
+    summary["findings"] = [
+        {k: f.get(k) for k in ("level", "kind", "reason", "fix")} for f in verdict["findings"][:5]
+    ]
+    return summary
 
 
 WATCH = HealthWatch()

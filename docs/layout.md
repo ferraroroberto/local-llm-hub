@@ -116,6 +116,7 @@ local-llm-hub/
 │   │   ├── nightly_ci_issues.py      #   the gh calls behind it: open/update/close ci-red-main, file flaky-test (deduped)
 │   │   ├── wake_on_lan.py            #   Wake-on-LAN magic-packet builder/sender
 │   │   ├── sync_diagnosis.py         #   why a peer hub is out of sync with this one + whether Sync can fix it
+│   │   ├── peer_health.py            #   a peer hub's own health-watch verdict for its Machines row (cached, never "fine" on a failed read)
 │   │   ├── fleet_reconcile.py        #   additive reconcile loop: wake + start registry-desired models
 │   │   └── fleet_maintenance.py      #   config/fleet_maintenance.json load/save — reconcile drain markers
 │   ├── process/              # backend + hub process management

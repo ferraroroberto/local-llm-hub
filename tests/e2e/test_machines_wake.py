@@ -15,6 +15,10 @@ its own browser context.
   Sync, the health and resource sections, and Reboot / Shut down last behind the
   confirm dialog; a down hub peer offers Start hub instead; addresses render as
   code; on a wide window the same body fills the detail pane.
+* A machine's own health verdict (this one, or a peer's hub) closes its row as
+  a chip and is counted in the header line; the row's kebab repeats it with the
+  fix and offers Reboot behind the confirm, disabled with its reason on the
+  hub's own machine.
 * Sync is offered only when it can help and reports the outcome; a long reason
   wraps inside the phone sheet.
 * A dormant machine is a neutral row sorted after the live ones, raises no alert
@@ -22,6 +26,8 @@ its own browser context.
 """
 
 from __future__ import annotations
+
+import copy
 
 from tests.e2e._flow import PHONE, fresh_page, fulfil_json
 from tests.e2e._surface import surface
@@ -184,6 +190,48 @@ def _an_up_machine_opens_its_sheet(page):
     page.click("#machineSheetCloseBtn")
 
 
+def _the_row_menu_offers_the_health_fix(page, admin_url, mark):
+    """A peer's own verdict closes its row with a chip and the header counts it;
+    the kebab repeats the verdict and fix and offers Reboot behind the confirm.
+    The hub's own machine cannot be rebooted from here, so its Reboot stays
+    visible, disabled, with the reason; a machine with nothing to say or do has
+    no kebab."""
+    body = copy.deepcopy(FAKE_STATUS)
+    desktop = next(m for m in body["machines"] if m["id"] == "desktop")
+    desktop["health"] = {"enabled": True, "verdict": "watch", "sampled_at": 0,
+                         "reason": "leaky.exe at 300 k handles", "fix": "Restart leaky.exe", "findings": []}
+    reboots = []
+    page.route("**/admin/api/machines/*/reboot", lambda route: (
+        reboots.append(route.request.url), fulfil_json(route, {"ok": True}))[-1])
+    _open_machines(page, admin_url, body)
+
+    assert page.locator("#machinesHeadLine").inner_text() == "2 offline · 1 to fix"
+    assert _row(page, "desktop").locator(".chip").inner_text() == "health watch"
+    assert _row(page, "laptop").locator(".row-kebab").count() == 0, "nothing to say or do: no kebab"
+
+    kebab = _row(page, "desktop").locator(".row-kebab")
+    assert kebab.get_attribute("data-track") == "machine-menu"
+    kebab.click()
+    menu = page.locator('[role="menu"]')
+    menu.wait_for(state="visible", timeout=5000)
+    assert "leaky.exe at 300 k handles. Suggested: Restart leaky.exe." in " ".join(menu.inner_text().split())
+    reboot = menu.locator('[role="menuitem"][data-track="machine-menu-reboot"]')
+    assert reboot.get_attribute("aria-disabled") != "true"
+    mark("machines.row-menu")
+
+    reboot.click()
+    page.wait_for_selector("#confirmDialog[open]", timeout=5000)
+    assert "Reboot" in page.locator("#confirmDialog").inner_text()
+    page.click("#confirmDialogCloseBtn")
+    assert not reboots, "cancelling the confirm must not reboot"
+
+    _row(page, "tower").locator(".row-kebab").click()
+    own = page.locator('[role="menu"]:visible [role="menuitem"][data-track="machine-menu-reboot"]')
+    own.wait_for(state="visible", timeout=5000)
+    assert own.get_attribute("aria-disabled") == "true"
+    assert "from the machine itself" in (own.get_attribute("title") or "")
+
+
 def _this_machines_sheet_lists_its_health_and_resources(page):
     host = _row(page, "tower")
     assert host.locator(".chip").inner_text() == "needs action"  # a danger chip on the row
@@ -336,6 +384,8 @@ def test_machine_rows_and_sheet(browser, admin_url):
         _an_up_machine_opens_its_sheet(page)
         _this_machines_sheet_lists_its_health_and_resources(page)
         _wake_posts_without_a_confirm_and_toasts(page)
+    with fresh_page(browser, viewport=PHONE, has_touch=True) as page:
+        _the_row_menu_offers_the_health_fix(page, admin_url, lambda name: surface(page, name))
     with fresh_page(browser, viewport=WIDE_VIEWPORT) as page:
         _a_wide_window_fills_the_detail_pane(page, admin_url)
     with fresh_page(browser, viewport=PHONE, has_touch=True) as page:

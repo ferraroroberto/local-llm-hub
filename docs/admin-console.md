@@ -66,8 +66,8 @@ alongside `tower` and `mac-mini-m4`: **OpenClaw**, a Linux laptop, and
 
 **Layout.** Each row answers *is it up?* from its face: the avatar's
 corner badge (alive or down), the uptime, and an exception chip only when
-something is wrong (*hub down*, *out of sync*, *via tailnet*, *flaky link*, and on this machine the health watch's *needs action*, *health watch*, *health not confirmed*, *resource alert* or *resources not confirmed*: [health-watch.md](health-watch.md)).
-A down machine with a MAC shows a **Wake** (power) icon-button on the row; a reachable machine whose
+something is wrong (*hub down*, *out of sync*, *via tailnet*, *flaky link*, and, on this machine and on each peer running its own hub, the health watch's *needs action*, *health watch*, *health not confirmed*, *resource alert* or *resources not confirmed*: [health-watch.md](health-watch.md)).
+The row's kebab menu repeats the health verdict and fix and offers **Reboot** behind the confirm dialog. A down machine with a MAC shows a **Wake** (power) icon-button on the row; a reachable machine whose
 own hub is down shows **Start hub**. Tapping a row opens the machine's sheet on
 a phone, or fills the detail pane beside the list on a wide window (1100px+,
 mouse): the gauges, this machine's **Health** (verdict, findings, suggested fix) and **Resources** (RAM, free space, and the weekly stall count per drive), **Terminal** and **Remote**, the **Connection** row, the
