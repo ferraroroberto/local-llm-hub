@@ -2,11 +2,12 @@
 
 A machine that runs for weeks without a reboot fails slowly: one process leaks handles or memory for days until the whole box is short of a resource. The health watch is the hub's early warning for that. Every hub samples its own machine on a slow cadence, keeps a rolling history, and answers one question: **is anything leaking or under pressure, and is restarting one process enough, or does the machine need a reboot?**
 
-It is read-only. It never kills, restarts or closes a process and never reboots a machine; the fix it names is advice.
+It is read-only. It never kills, restarts or closes a process and never reboots a machine on its own; the fix it names is advice, and the one action it leads to (Reboot in the Machines row menu) is the owner's tap behind a confirm.
 
 ## Where it shows
 
-- **Machines tab**, this machine's row and sheet: an exception chip (*needs action*, *health watch*, *health not confirmed*) and a **Health** section with the verdict, every finding and the suggested fix. A healthy machine carries no chip.
+- **Machines tab**, every row whose machine samples itself: this machine, and each peer that runs its own hub (the hub reads the peer's `GET /admin/api/machines/health`, cached for a minute). An exception chip (*needs action*, *health watch*, *health not confirmed*) closes the row's meta line, the header line counts the machines that need action or are on watch, and the sheet's **Health** section lists the verdict, every finding and the suggested fix. A healthy machine carries no chip. A peer whose verdict could not be read (an older build, a timeout) shows *health not confirmed*, never fine.
+- **The row menu** (the row's kebab) repeats the verdict and fix in its header and offers **Reboot**, the one fix the hub can carry out for a machine, behind the confirm dialog. Restarting a single process stays advice: the hub holds no scoped way to restart a process on another machine. Reboot is disabled, with the reason on its hint, on the machine the hub runs on (the hub refuses to power-cycle its own host), on an unreachable machine, and while the data is stale or an action is in flight.
 - **`GET /admin/api/machines/health`**: the full verdict for the launcher and other readers. It is served from memory, so it is cheap to poll.
 
 | Field | Meaning |

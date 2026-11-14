@@ -10,9 +10,9 @@
  * most one verb (Wake on a down machine, Start hub on a machine whose own hub
  * is down). Tapping a row opens the machine's sheet on a phone, or fills the
  * detail pane beside the list on a wide window; both render machineBody():
- * gauges, the health watch (this machine), Terminal and Remote, connection, the machine's own hub (Sync, the
+ * gauges, the health watch (this machine and every peer running its own hub), Terminal and Remote, connection, the machine's own hub (Sync, the
  * out-of-sync state, Start hub), its Actions runner (machines_runner.js), then Reboot and Shut down last, behind the
- * confirm dialog. The pane header line names "N offline" or the stale age,
+ * confirm dialog. A row's kebab menu carries the health fix (Reboot, confirm-gated). The pane header line names "N offline", the stale age or "N need action",
  * else the machine count (plus how many are dormant). A dormant machine
  * (intentionally off, switched in Settings › Machines) is a neutral row
  * sorted after the live ones and never counts as offline.
@@ -26,8 +26,13 @@ import { row, chip, setHeadLine, infoButton, defineInfo, isWide, onWideChange } 
 import { openMachinesTerminal, wireMachinesTerminal } from './machines_terminal.js';
 import { initRunner, runnerSection, runnerVerb, refreshRunnerIfDue } from './machines_runner.js';
 import { openDiagnostics, wireDiagnostics, refreshDiagnosticsChip } from './diagnostics.js';
+import { createRowMenu } from './_vendored/row-menu/row-menu.js';
 
 let pollHandle = null;
+
+// One controller for the list: at most one row's menu is open, and it reopens
+// on its rebuilt kebab when the poll repaints the rows.
+const rowMenu = createRowMenu();
 
 defineInfo('peer-hub', 'Its own hub',
   '<p>This machine runs its own copy of the hub. Its diagnostics capture runs inside that hub, '
@@ -148,7 +153,8 @@ function hubOutOfSync(m) { return !!(m.hub && m.hub.reachable && m.hub.git_sha_m
  * A status without a diagnosis keeps the old rule: offered whenever out of sync. */
 function syncHelps(h) { return h.sync ? !!h.sync.sync_helps : h.git_sha_match === false; }
 
-/* The health watch reports on this machine only; a disabled watch says nothing. */
+/* The health watch verdict of a machine that samples itself (this one, or a peer
+ * running its own hub); a disabled watch says nothing. */
 function healthOf(m) { return m.health && m.health.enabled ? m.health : null; }
 /* The resource watch (RAM, free space, disk latency); a disabled watch says nothing. */
 function resourcesOf(m) { return m.resources && m.resources.enabled ? m.resources : null; }
@@ -210,6 +216,53 @@ function rowVerb(m) {
   return null;
 }
 
+/* The menu's one header line: the health verdict and its suggested fix, for a
+ * machine whose watch is not fine. A healthy machine has nothing to say. */
+function menuHeader(m) {
+  const h = healthOf(m);
+  if (!h || (!HEALTH_TONES[h.verdict] && h.verdict !== 'unknown')) return '';
+  return HEALTH_WORDS[h.verdict] + ': ' + (h.reason || '') + (h.fix ? ' Suggested: ' + h.fix + '.' : '');
+}
+
+/* Reboot is the one fix the hub can carry out for a machine; restarting a
+ * single process stays advice (docs/health-watch.md). Same gate as the sheet's
+ * Reboot: never against stale data, an action in flight or a recheck. */
+function menuItems(m) {
+  const a = m.actions || {};
+  const blocked = state.machinesDataState === 'stale' || !!state.machinesBusyIds[m.id] || !!state.machinesRecheckIds[m.id];
+  let hint = '';
+  if (!a.reboot) hint = m.is_host ? 'The hub runs here; reboot this machine from the machine itself' : 'Not available while this machine is unreachable';
+  else if (blocked) hint = 'Wait for the current action or fresh data';
+  return [{
+    label: 'Reboot', glyph: 'rotate-ccw', danger: true, disabled: !a.reboot || blocked, hint: hint,
+    dataset: { track: 'machine-menu-reboot' },
+    onTap: function () {
+      const live = findMachine(m.id);
+      if (live) confirmPowerAction(live.id, live.display_name || live.id, 'reboot');
+    },
+  }];
+}
+
+/* A kebab only where the menu has something to say or do: a reboot this
+ * machine can take, or a health verdict worth a header. */
+function kebabHtml(m) {
+  if (!(m.actions && m.actions.reboot) && !menuHeader(m)) return '';
+  return '<button type="button" class="icon-button row-kebab" data-track="machine-menu"'
+    + ' title="More actions" aria-label="More actions for ' + escapeHtml(m.display_name || m.id) + '">'
+    + icon('ellipsis-vertical') + '</button>';
+}
+
+/* Hand each painted kebab to the vendored row-menu; every poll repaints the
+ * rows, so every render re-attaches (an open menu reopens on its new kebab). */
+function attachRowMenus(root) {
+  root.querySelectorAll('.machine-row').forEach(function (li) {
+    const kebab = li.querySelector('.row-kebab');
+    const m = findMachine(li.dataset.machineId);
+    if (kebab && m) rowMenu.attach(m.id, kebab, menuItems(m), { header: menuHeader(m) });
+  });
+  rowMenu.endRender();
+}
+
 function machineRow(m) {
   const wide = isWide();
   return row({
@@ -226,6 +279,7 @@ function machineRow(m) {
     selected: wide && state.machinesSelectedId === m.id,
     mainAttrs: ' data-machine-action="open"' + (wide ? '' : ' aria-haspopup="dialog"'),
     verb: rowVerb(m),
+    trail: kebabHtml(m),
   });
 }
 
@@ -371,8 +425,8 @@ function hubSection(m) {
 const HEALTH_WORDS = { ok: 'Fine', watch: 'Watch', act: 'Act', unknown: 'Not confirmed' };
 const HEALTH_TONES = { watch: 'attention', act: 'danger' };
 
-/* The health watch's verdict, every finding, and the suggested fix. Read-only:
- * the fix is advice, never a button. */
+/* The health watch's verdict, every finding, and the suggested fix. The fix is
+ * advice here; the row menu carries the one action the hub can take (Reboot). */
 function healthSection(m) {
   const h = healthOf(m);
   if (!h) return '';
@@ -480,6 +534,13 @@ function renderHeadLine(machines) {
     parts.push({ text: 'stale ' + fmtDuration((Date.now() - state.machinesLastUpdated) / 1000) });
     title = 'Last updated ' + fmtClock(state.machinesLastUpdated / 1000) + ' · live data unavailable';
   }
+  // A health verdict is an exception only when it is not fine; the worse level
+  // wins the one part so the line stays inside its two-part budget.
+  const verdicts = machines.map(function (m) { const h = healthOf(m); return h && h.verdict; });
+  const act = verdicts.filter(function (v) { return v === 'act'; }).length;
+  const watch = verdicts.filter(function (v) { return v === 'watch'; }).length;
+  if (act) parts.push({ text: act + ' need action', tone: 'danger' });
+  else if (watch) parts.push({ text: watch + ' on watch', tone: 'attention' });
   let fact = machines.length ? machines.length + (machines.length === 1 ? ' machine' : ' machines') : 'No machines';
   // Intentionally off is a plain fact, never a toned part.
   const dormant = machines.filter(isDormant).length;
@@ -558,6 +619,7 @@ function renderMachines() {
   els.machinesList.hidden = !showList;
   if (!showList) {
     els.machinesList.innerHTML = '';
+    rowMenu.endRender();
     if (els.machinesDiagCard) els.machinesDiagCard.hidden = true;
     return;
   }
@@ -565,6 +627,7 @@ function renderMachines() {
     els.machinesList.classList.remove('action-list');
     els.machinesList.innerHTML = '<div class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-server"></use></svg>'
       + '<p class="empty-state-message">No machines configured.</p></div>';
+    rowMenu.endRender();
     renderDiagCard(machines);
     renderDetail(false);
     return;
@@ -575,6 +638,7 @@ function renderMachines() {
   els.machinesList.classList.toggle('is-stale', isStale);
   els.machinesList.innerHTML = '<ul class="action-rows" aria-label="Machines">'
     + machines.map(machineRow).join('') + '</ul>';
+  attachRowMenus(els.machinesList);
   renderDiagCard(machines);
   renderDetail(isStale);
   renderSheet(isStale);
