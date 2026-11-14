@@ -204,6 +204,7 @@ local-llm-hub/
 │   ├── install.py            # first-run checks + --fix
 │   ├── usage_log.py          # vendored usage-log router (admin UI view/tap log)
 │   ├── login_lockout.py      # vendored per-client lock-out + guessing alert for the /admin password route
+│   ├── password.py           # vendored app password: hash in config/app_password.json, `python -m src.password set`
 │   ├── run_backend.py        # hub|qwen35_4b|gemma4_26b|whisper|… dispatcher
 │   ├── parakeet_server.py    # OpenAI-shape ASR server wrapping the FluidAudio Parakeet CoreML worker
 │   ├── tts_server.py            # FastAPI shim for /v1/audio/speech (engine: tts-server)

@@ -15,6 +15,7 @@ os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 from fastapi.testclient import TestClient
 
 from app_web import server as admin_server
+from src import password
 from src.webapp_config import WebappConfig
 
 _PROXY_HEADERS = {"X-Forwarded-For": "203.0.113.5"}  # forces is_loopback=False
@@ -68,3 +69,11 @@ def test_non_ascii_credential_on_foreign_origin_request_is_401_not_500():
         headers={"Origin": "https://evil.example"},
     )
     assert r.status_code == 401
+
+
+def test_stored_hash_replaces_the_legacy_password(tmp_path, monkeypatch):
+    monkeypatch.setenv(password.ENV_VAR, str(tmp_path / "app_password.json"))
+    password.set_password("4321")
+    client = _client(auth_password="plain-secret", auth_token="tok-abc")
+    assert client.post("/api/login", json={"password": "4321"}).json() == {"token": "tok-abc"}
+    assert client.post("/api/login", json={"password": "plain-secret"}).status_code == 401

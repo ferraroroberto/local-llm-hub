@@ -122,3 +122,6 @@ assets/deploy/mac/*/.build/
 assets/deploy/mac/*/.swiftpm/
 assets/deploy/mac/*/Package.resolved
 .proof/
+
+# The app password hash (src/password.py)
+config/app_password.json

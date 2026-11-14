@@ -12,6 +12,7 @@ their own unit tests against the disabled-mode no-ops.
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
 os.environ.setdefault("OTEL_SDK_DISABLED", "true")
@@ -20,8 +21,13 @@ os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 # box that has a real AgentsView serving on :8080.
 os.environ.setdefault("AGENTSVIEW_BASE_URL", "")
 
+# The login password hash (src/password.py) is read on every login, so a run
+# must never see the live config/app_password.json: point it at a file that
+# does not exist. Assigned, not defaulted, so no outer value reaches the live
+# file; servers the suite spawns inherit it.
+os.environ["APP_PASSWORD_FILE"] = str(Path(tempfile.mkdtemp(prefix="local-llm-hub-password-")) / "app_password.json")
+
 import shutil  # noqa: E402
-import tempfile  # noqa: E402
 
 import pytest  # noqa: E402
 import yaml  # noqa: E402
