@@ -12,7 +12,7 @@
  * detail pane beside the list on a wide window; both render machineBody():
  * gauges, the health watch (this machine and every peer running its own hub), Terminal and Remote, connection, the machine's own hub (Sync, the
  * out-of-sync state, Start hub), its Actions runner (machines_runner.js), then Reboot and Shut down last, behind the
- * confirm dialog. A row's kebab menu carries the health fix (Reboot, confirm-gated). The pane header line names "N offline", the stale age or "N need action",
+ * confirm dialog. A row's kebab menu carries the health fix (Reboot, confirm-gated). The pane header line names "N offline", the stale age or "N to fix",
  * else the machine count (plus how many are dormant). A dormant machine
  * (intentionally off, switched in Settings › Machines) is a neutral row
  * sorted after the live ones and never counts as offline.
@@ -221,7 +221,8 @@ function rowVerb(m) {
 function menuHeader(m) {
   const h = healthOf(m);
   if (!h || (!HEALTH_TONES[h.verdict] && h.verdict !== 'unknown')) return '';
-  return HEALTH_WORDS[h.verdict] + ': ' + (h.reason || '') + (h.fix ? ' Suggested: ' + h.fix + '.' : '');
+  const reason = (h.reason || '').replace(/[.\s]+$/, '');
+  return HEALTH_WORDS[h.verdict] + ': ' + reason + '.' + (h.fix ? ' Suggested: ' + h.fix.replace(/[.\s]+$/, '') + '.' : '');
 }
 
 /* Reboot is the one fix the hub can carry out for a machine; restarting a
@@ -539,8 +540,9 @@ function renderHeadLine(machines) {
   const verdicts = machines.map(function (m) { const h = healthOf(m); return h && h.verdict; });
   const act = verdicts.filter(function (v) { return v === 'act'; }).length;
   const watch = verdicts.filter(function (v) { return v === 'watch'; }).length;
-  if (act) parts.push({ text: act + ' need action', tone: 'danger' });
-  else if (watch) parts.push({ text: watch + ' on watch', tone: 'attention' });
+  // Short words: the line holds about 22 characters at 390px before an ellipsis cuts a part.
+  if (act) parts.push({ text: act + ' to fix', tone: 'danger' });
+  else if (watch) parts.push({ text: watch + ' watch', tone: 'attention' });
   let fact = machines.length ? machines.length + (machines.length === 1 ? ' machine' : ' machines') : 'No machines';
   // Intentionally off is a plain fact, never a toned part.
   const dormant = machines.filter(isDormant).length;

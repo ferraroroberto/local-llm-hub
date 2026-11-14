@@ -205,7 +205,7 @@ def _the_row_menu_offers_the_health_fix(page, admin_url, mark):
         reboots.append(route.request.url), fulfil_json(route, {"ok": True}))[-1])
     _open_machines(page, admin_url, body)
 
-    assert page.locator("#machinesHeadLine").inner_text() == "2 offline · 1 need action"
+    assert page.locator("#machinesHeadLine").inner_text() == "2 offline · 1 to fix"
     assert _row(page, "desktop").locator(".chip").inner_text() == "health watch"
     assert _row(page, "laptop").locator(".row-kebab").count() == 0, "nothing to say or do: no kebab"
 
@@ -214,7 +214,7 @@ def _the_row_menu_offers_the_health_fix(page, admin_url, mark):
     kebab.click()
     menu = page.locator('[role="menu"]')
     menu.wait_for(state="visible", timeout=5000)
-    assert "Suggested: Restart leaky.exe" in menu.inner_text()
+    assert "leaky.exe at 300 k handles. Suggested: Restart leaky.exe." in " ".join(menu.inner_text().split())
     reboot = menu.locator('[role="menuitem"][data-track="machine-menu-reboot"]')
     assert reboot.get_attribute("aria-disabled") != "true"
     mark("machines.row-menu")
