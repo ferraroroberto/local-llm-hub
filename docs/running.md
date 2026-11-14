@@ -100,10 +100,11 @@ no proxy header and no foreign `Origin`) is never limited. Behind a tunnel
 every public request arrives over loopback, so a request is keyed on
 `cf-connecting-ip` (else the first `X-Forwarded-For` hop), believed only when
 the socket is loopback. Three wrong passwords in a row from one client send one
-message to the fleet's `attention` Telegram chat through `notify_send`, the
-same transport as the resource watch, so this repo holds no bot token or chat
-id. The message names the app, the address and the count, never a password or
-token. State is in memory and a restart clears it.
+message, built by the vendored `src/login_alert.py`, to the fleet's `attention`
+Telegram chat through `notify_send`, the same transport as the resource watch,
+so this repo holds no bot token or chat id. The message names the app, the
+address and the count, never a password or token. Without the transport script
+the alert is logged as `unconfigured` at warning level, never dropped silently. State is in memory and a restart clears it.
 
 A missing `config/webapp_config.json` means "nothing configured yet"
 (defaults). An **unreadable or malformed** one is a different state and
