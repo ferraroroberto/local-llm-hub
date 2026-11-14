@@ -177,7 +177,7 @@ structure_ratchet = { src = "scripts/structure_ratchet.py", sha = "4a06ca84fc9c5
 structure_layout = { src = "scripts/structure_layout.py", sha = "dae6225912362ecb165cf0e02d7698fad9789bba", dest = "scripts/structure_layout.py" }
 structure_band = { src = "scripts/structure_band.py", sha = "3b708fd3c54ab7b93b08d489406c405762c83c41", dest = "scripts/structure_band.py" }
 instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "scripts/instruction_ratchet.py" }
-doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "scripts/doc_refs_ratchet.py" }
+doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "a68f6e49393f0ef0b94ab3c79f4338a50d89fa49", dest = "scripts/doc_refs_ratchet.py" }
 dead_code_ratchet = { src = "scripts/dead_code_ratchet.py", sha = "4d0b0ff30e23eb95c73c4b0b1517ec6a43d3a836", dest = "scripts/dead_code_ratchet.py" }
 conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "ab06ad732591d4edab00774ee93a455189c14577", dest = "scripts/conventions_ratchet.py" }
 conventions_readers = { src = "scripts/conventions_readers.py", sha = "ab06ad732591d4edab00774ee93a455189c14577", dest = "scripts/conventions_readers.py" }
@@ -274,6 +274,7 @@ repeated_text_words = 12
 # Procedure + limits: project-scaffolding docs/doc-refs-ratchet.md.
 [doc_refs_ratchet]
 enabled    = true
+trees      = true
 baseline   = ".doc-refs-ratchet-baseline.json"
 exclude    = ["docs/frontier/runs/**"]
 allow_refs = [
@@ -282,6 +283,8 @@ allow_refs = [
   ":162",
   "src/python/llm/**", "src/model-client.js", "src/hub_gemini_backend.py", "src/voice_command.py",
   "docs/mac-runner.md",
+  # docs/layout.md lists the runtime folder data/ (its children are gitignored); a clean checkout has none.
+  "data",
 ]
 # Names of removed modules: a doc that names one sends the next reader to code that is gone.
 retired = [
