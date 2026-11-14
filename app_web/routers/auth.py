@@ -8,7 +8,6 @@ main hub log so a phone-side review is easy).
 
 from __future__ import annotations
 
-import hmac
 import ipaddress
 import logging
 import threading
@@ -17,6 +16,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Request
 
+from src import password
 from src.fsio.runtime_files import file_handler, make_dirs
 from src.health.resource_alert import send_via_notify_script
 from src.login_lockout import LockoutAlert, LoginLockout, retry_after_header
@@ -129,9 +129,9 @@ async def login(request: Request) -> Dict[str, Any]:
             f"⚠️  Login attempt from {who} but webapp config could not be loaded"
         )
     cfg: WebappConfig = loaded_webapp_config(request)
-    if not cfg.auth_password:
+    if not password.is_configured(legacy=cfg.auth_password):
         auth_logger.info(
-            f"⚠️  Login attempt from {who} but no auth_password configured"
+            f"⚠️  Login attempt from {who} but no password configured"
         )
         raise HTTPException(
             status_code=503, detail="password auth not configured"
@@ -145,10 +145,7 @@ async def login(request: Request) -> Dict[str, Any]:
         )
     body = await maybe_json(request)
     presented = str(body.get("password") or "")
-    # Bytes, not str: compare_digest raises TypeError on a non-ASCII str.
-    if not presented or not hmac.compare_digest(
-        presented.encode(), cfg.auth_password.encode()
-    ):
+    if not password.check_password(presented, legacy=cfg.auth_password):
         auth_logger.warning(
             f"🚨 Failed password attempt from {who} "
             f"(presented: {len(presented)} chars)"

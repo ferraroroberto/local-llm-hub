@@ -40,6 +40,7 @@
 /src/compression.py
 /src/login_lockout.py
 /src/no_window.py
+/src/password.py
 /src/runtime_data.py
 /src/usage_log.py
 /tests/e2e/_surface.py

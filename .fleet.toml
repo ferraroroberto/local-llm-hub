@@ -185,6 +185,7 @@ conventions_state = { src = "scripts/conventions_state.py", sha = "4d0b0ff30e23e
 runtime_write_ratchet = { src = "scripts/runtime_write_ratchet.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "scripts/runtime_write_ratchet.py" }
 runtime_write_resolve = { src = "scripts/runtime_write_resolve.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/runtime_write_resolve.py" }
 login_lockout = { src = "src/login_lockout.py", sha = "93208ab08bdc8591c678a08f55a0f46b3fc8a525", dest = "src/login_lockout.py" }
+password = { src = "src/password.py", sha = "1fab1b600964581c3df51a9f916f1fb4795ac286", dest = "src/password.py" }
 no_window = { src = "src/no_window.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "src/no_window.py" }
 single_instance = { src = "app/tray/single_instance.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "tray/single_instance.py" }
 
