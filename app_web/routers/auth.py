@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import ipaddress
 import logging
-import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -18,8 +17,9 @@ from fastapi import APIRouter, HTTPException, Request
 
 from src import password
 from src.fsio.runtime_files import file_handler, make_dirs
-from src.health.resource_alert import send_via_notify_script
-from src.login_lockout import LockoutAlert, LoginLockout, retry_after_header
+from src.health.resource_alert import DEFAULT_SCRIPT, send_via_notify_script
+from src.login_alert import build_login_alert
+from src.login_lockout import LoginLockout, retry_after_header
 from src.runtime_data import runtime_data_dir
 from src.webapp_config import WebappConfig
 
@@ -63,29 +63,35 @@ APP_NAME = "local-llm-hub"
 AlertSender = Callable[[str, Dict[str, Any]], Tuple[bool, Optional[str]]]
 
 
-def build_lockout(
-    send: AlertSender = send_via_notify_script, **kwargs: Any
-) -> LoginLockout:
-    """The one lock-out for the login route; ``kwargs`` tune the policy in tests."""
+class _NotifyTransport:
+    """``send_text`` over the fleet transport, raising when it reports no delivery."""
 
-    def alert_owner(alert: LockoutAlert) -> None:
-        held = f" (+{alert.suppressed} more held back)" if alert.suppressed else ""
-        text = (
-            f"🚨 {APP_NAME}: {alert.failures} wrong passwords in a row "
-            f"from {alert.key}{held}"
+    def __init__(self, send: AlertSender) -> None:
+        self._send = send
+
+    def send_text(self, text: str) -> None:
+        delivered, error = self._send(
+            text, {"category": ALERT_CATEGORY, "timeout_s": ALERT_TIMEOUT_S}
         )
+        if not delivered:
+            raise RuntimeError(error or "notify transport reported no delivery")
 
-        def deliver() -> None:
-            delivered, error = send(
-                text, {"category": ALERT_CATEGORY, "timeout_s": ALERT_TIMEOUT_S}
-            )
-            if not delivered:
-                logger.warning(f"⚠️  login alert not delivered: {error}")
 
-        # The login request must not wait on Telegram.
-        threading.Thread(target=deliver, daemon=True).start()
+def build_lockout(
+    send: AlertSender = send_via_notify_script,
+    transport_script: Path = DEFAULT_SCRIPT,
+    **kwargs: Any,
+) -> LoginLockout:
+    """The one lock-out for the login route; ``kwargs`` tune the policy in tests.
 
-    return LoginLockout(on_alert=alert_owner, **kwargs)
+    A machine without the fleet transport has no alert channel, which the
+    vendored alert reports as ``unconfigured``.
+    """
+
+    def notifier() -> Optional[_NotifyTransport]:
+        return _NotifyTransport(send) if transport_script.is_file() else None
+
+    return LoginLockout(on_alert=build_login_alert(APP_NAME, notifier), **kwargs)
 
 
 def login_client(request: Request) -> str:
