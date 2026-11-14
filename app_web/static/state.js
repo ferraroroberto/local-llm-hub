@@ -386,6 +386,5 @@ export const els = {
   diagBody: document.getElementById('diagBody'),
 
   // Misc
-  toast: document.getElementById('toast'),
   buildReadout: document.getElementById('buildReadout'),
 };

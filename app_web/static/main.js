@@ -8,6 +8,7 @@ import { jsonApi, tokenFromUrl, writeToken, setSignInHandler, toast } from './ap
 import { wireTabs, onTabChange, setTab } from './tabs.js';
 import { wireUsageLog } from './usage.js';
 import { buildReadoutText, fmtBuildTime } from './_vendored/page-foot/page-foot.js';
+import { initBuildWatch } from './_vendored/build-watch/build-watch.js';
 import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams, fetchServicesStatus, renderSparklines } from './hub.js';
 import { wireModels, fetchModels, fetchRoles } from './models.js';
 import { wireStartupProfile, fetchStartupProfile } from './startup.js';
@@ -160,6 +161,9 @@ async function boot() {
   setInterval(function () {
     if (state.tab === 'models') fetchModels().catch(function () {});
   }, MODELS_POLL_MS);
+  // "New version available · Reload" when a deploy lands under an open page;
+  // the version route is auth-exempt, so the default same-origin read serves it.
+  initBuildWatch({ endpoint: '/admin/api/version' });
 }
 
 async function resumeAfterLogin() {
