@@ -2,6 +2,7 @@
 
 import { els, state, TOKEN_KEY } from './state.js';
 import { requestSignIn } from './_vendored/sign-in/sign-in.js';
+import { showToast, hideToast } from './_vendored/toast/toast.js';
 
 // --------------------------------------------------------------- tokens
 export function tokenFromUrl() {
@@ -145,19 +146,12 @@ export function setSignInHandler(onLoginSuccess) {
 }
 
 // --------------------------------------------------------------- toast
-let toastTimer = null;
+// The fleet's vendored toast; only 'error' tints, every other kind renders neutral.
 // The live pending toast (toastPending), if any — a plain toast supersedes it.
 let pendingToast = null;
 export function toast(msg, kind) {
-  if (!els.toast) return;
   pendingToast = null;
-  els.toast.textContent = msg;
-  els.toast.className = 'toast ' + (kind || '');
-  els.toast.hidden = false;
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(function () {
-    els.toast.hidden = true;
-  }, kind === 'error' ? 4500 : 2200);
+  showToast(msg, kind);
 }
 
 /* A toast that stays up while a user-started load runs: no auto-hide.
@@ -166,19 +160,14 @@ export function toast(msg, kind) {
  * one, and its `done` then does nothing, so a stale load can never hide the
  * message of the load that replaced it. */
 export function toastPending(msg) {
-  if (!els.toast) return function () {};
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = null;
-  els.toast.textContent = msg;
-  els.toast.className = 'toast';
-  els.toast.hidden = false;
+  showToast(msg, undefined, { ms: 0 });
   const mine = {};
   pendingToast = mine;
   return function done(errorMsg) {
     if (pendingToast !== mine) return;
     pendingToast = null;
     if (errorMsg) toast(errorMsg, 'error');
-    else els.toast.hidden = true;
+    else hideToast();
   };
 }
 

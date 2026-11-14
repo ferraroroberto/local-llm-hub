@@ -1,5 +1,5 @@
 /* Local LLM Hub admin: the tab panels and shared widgets (Playground, Models
- * and its editors, badges, services, startup, fleet summary, install, toast,
+ * and its editors, badges, services, startup, fleet summary, install,
  * login). The second half of styles.css, linked directly after it so every
  * rule keeps its place in the cascade; the design tokens live in styles.css.
  */
@@ -678,43 +678,4 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
  * The canonical zero-items block is the vendored component
  * (_vendored/empty-state) — no app-side .empty style anymore. */
 
-/* ---------- toast ---------- */
-/* The fleet's neutral frosted toast (design.md `toast`): the floating nav's
- * glass, centred, one line whenever the message fits. Only a real error tints;
- * success and info stay neutral. */
-.toast {
-  position: fixed;
-  left: 50%;
-  bottom: calc(env(safe-area-inset-bottom, 0) + 20px);
-  transform: translateX(-50%);
-  background: var(--tabbar-bg);
-  color: var(--ink);
-  border: 1px solid var(--tabbar-border);
-  border-radius: var(--radius-md);
-  padding: 12px 18px;
-  font-size: var(--font-label);
-  font-weight: 700;
-  line-height: 1.5;
-  text-align: center;
-  width: max-content;
-  max-width: min(calc(100vw - 24px), 560px);
-  text-wrap: balance;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(20px) saturate(1.25);
-  -webkit-backdrop-filter: blur(20px) saturate(1.25);
-  /* Clear the vendored floating mobile nav (z-index: 120) so command
-   * progress and results remain readable after the nav migration. */
-  z-index: 130;
-}
-/* Phone: sit 8px above the floating bottom-tab pill rather than behind it. */
-@media (pointer: coarse) and (max-width: 520px) {
-  .toast {
-    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bottom-tabs-margin) * 2 + var(--bottom-tabs-height) + 8px);
-  }
-}
-.toast.error {
-  background: color-mix(in srgb, var(--danger) 75%, transparent);
-  border-color: var(--danger);
-  color: var(--accent-fg);
-}
 
