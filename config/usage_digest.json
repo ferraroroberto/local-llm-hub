@@ -1,0 +1,21 @@
+{
+  "_comment": [
+    "Weekly coding-agent usage digest and per-agent budget alert (docs/coding-agent-usage.md). Re-read every tick, so a retune needs no restart.",
+    "digest: sent once a week at weekday (0 = Monday) and hour, hub-local time. Covers the last seven complete UTC days against the seven before. The first run after install waits for the next scheduled moment.",
+    "budget.tokens_per_week: agent -> token budget over the trailing seven UTC days (net input + cache writes + output, cache reads left out). An agent not listed is not watched; empty = no budget alerts.",
+    "Agent ids: claude, codex, copilot, pi, agy, claude_bridged. Categories are notify_send routing categories. script null = ~/.claude/hooks/notify_send.py."
+  ],
+  "enabled": true,
+  "digest": {
+    "enabled": true,
+    "weekday": 0,
+    "hour": 8,
+    "category": "log"
+  },
+  "budget": {
+    "tokens_per_week": {},
+    "check_interval_hours": 6,
+    "cooldown_hours": 24,
+    "category": "attention"
+  }
+}

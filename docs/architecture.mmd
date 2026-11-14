@@ -249,6 +249,9 @@ the hub's only internet egress"]
     USAGEHIST[("data/code_usage_history.json\ndaily usage rollups — outlive\ntranscript pruning")]
     USAGETOK[("data/code_token_history.json\nlast computed per-day per-agent\ntoken history (served as-is, rebuilt on demand)")]
     DIAGCFG[("config/diagnostics_apps.json + _rules.json (committed)\nprocess->app attribution + health thresholds;\nconfig/diagnostics_settings.json (gitignored)\nretention + scheduled snapshot")]
+    DIGESTCFG[("config/usage_digest.json (committed)
+weekly digest schedule + per-agent token budgets;
+state in data/usage_digest_state.json")]
     HEALTHCFG[("config/health_watch.json (committed)
 health-watch thresholds + cadence")]
     DIAGDB[("data/diagnostics.db (gitignored)\nSQLite capture store: runs · samples ·\nprocess_samples · ports · verdicts")]
@@ -262,6 +265,12 @@ health-watch thresholds + cadence")]
   WROUT -.reads/writes.-> STARTUPCFG
   WROUT -.reads/writes.-> USAGEHIST
   WROUT -.reads/writes.-> USAGETOK
+  USAGEDIGEST["usage/digest.py
+weekly per-agent digest + budget alert
+(in-hub asyncio task; Telegram via notify_send.py)"]
+  LIFECYCLE -->|start usage digest loop| USAGEDIGEST
+  USAGEDIGEST -.reads.-> USAGETOK
+  USAGEDIGEST -.reads.-> DIGESTCFG
 
   subgraph tests["tests/ + scripts/"]
     UNITTESTS["tests/*.py\npytest, TestClient + monkeypatched CLIs"]

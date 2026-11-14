@@ -57,6 +57,7 @@ local-llm-hub/
 │   ├── diagnostics_rules.json        # health-verdict thresholds (committed)
 │   ├── diagnostics_settings.json     # retention + scheduled snapshot (gitignored)
 │   ├── health_watch.json             # health-watch + resource-watch thresholds and cadence (committed)
+│   ├── usage_digest.json             # weekly usage digest schedule + per-agent token budgets (committed)
 │   ├── startup_profile.example.json  # template + fresh-clone default for service autostart (services-only)
 │   ├── startup_profile.json          # live service-autostart profile, rewritten by the admin UI (gitignored)
 │   ├── fleet_maintenance.json        # live {host: {until, reason}} reconcile drain markers (gitignored)
@@ -140,6 +141,7 @@ local-llm-hub/
 │   │   ├── codex_usage.py            #   host-side Codex (OpenAI) usage parser (~/.codex/sessions/*.jsonl)
 │   │   ├── pi_usage.py               #   host-side Pi usage parser (~/.pi/agent/sessions/*/*.jsonl)
 │   │   ├── token_history.py          #   cached per-day per-agent token history behind GET /admin/api/code/usage/history
+│   │   ├── digest.py                 #   weekly usage digest + per-agent budget alert to Telegram (loop + `python -m src.usage.digest`)
 │   │   ├── copilot_usage.py          #   host-side GitHub Copilot usage parser
 │   │   ├── copilot_billing.py        #   GitHub Copilot billing-API daily credits poller
 │   │   └── agentsview_usage.py       #   usage records from the optional external AgentsView service

@@ -261,3 +261,13 @@ def test_default_range_is_the_last_30_days(sources):
     start, end = token_history.parse_range(None, None)
     assert end.isoformat() == "2026-06-10"
     assert (end - start).days + 1 == 30
+
+
+def test_refresh_blocking_replaces_the_cache_before_returning(sources):
+    sources.native = [_rec("claude", "2026-06-09", i=5)]
+
+    assert token_history.refresh_blocking(5.0) is True
+
+    body = token_history.get_history("2026-06-09", "2026-06-10")
+    assert body["cache"]["state"] == "ok"
+    assert _cell(body, "2026-06-09", "claude")["input_tokens"] == 5

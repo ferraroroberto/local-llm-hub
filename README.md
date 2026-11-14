@@ -29,7 +29,7 @@ mechanisms.
 - **Mac results** — the nightly Mac screenshots pulled over a read-only SSH key and sent to the owner's chat, once per run, plus a red `main` filed as an issue, a flake ledger and a morning digest line: [docs/mac-results.md](docs/mac-results.md).
 - **Running** — launchers, tray, Cloudflare tunnel, server adoption, LAN access: [docs/running.md](docs/running.md).
 - **API usage** — Python/curl examples, token counting, audio and image calls, headers, CORS, the TypeSafe passthrough: [docs/api-usage.md](docs/api-usage.md).
-- **Coding-agent usage** — the Code tab's usage accounting and the cached per-day, per-agent `GET /admin/api/code/usage/history`: [docs/coding-agent-usage.md](docs/coding-agent-usage.md).
+- **Coding-agent usage** — the Code tab's usage accounting and the cached per-day, per-agent `GET /admin/api/code/usage/history`: [docs/coding-agent-usage.md](docs/coding-agent-usage.md). The same history feeds a weekly per-agent digest and a token-budget alert on Telegram (`config/usage_digest.json`).
 - **Telemetry** — Langfuse stack and client trace contract: [docs/telemetry-langfuse.md](docs/telemetry-langfuse.md), [docs/clients-telemetry-contract.md](docs/clients-telemetry-contract.md).
 - **Speech and images** — [docs/whisper-asr.md](docs/whisper-asr.md), [docs/add-tts.md](docs/add-tts.md), [docs/image-generation.md](docs/image-generation.md).
 - **Translate pre-flight** — Canary-1b-v2 on the Mac ANE vs `whisper_translate` vs the two-stage default, on public Spanish clips: [docs/canary-translate-preflight.md](docs/canary-translate-preflight.md).
