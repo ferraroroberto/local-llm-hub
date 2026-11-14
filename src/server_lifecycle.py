@@ -176,6 +176,8 @@ async def wire_observatory_loop() -> None:
     # Code-tab summary: build the opening view once so the first tab
     # open after a restart is a cache hit, not a multi-second cold build.
     _BACKGROUND_TASKS.append(loop.create_task(_prewarm_code_usage()))
+    # Weekly coding-agent usage digest + per-agent budget alert to Telegram.
+    _BACKGROUND_TASKS.append(loop.create_task(_usage_digest_loop()))
 
 
 async def _prewarm_code_usage() -> None:
@@ -257,6 +259,18 @@ async def _resource_watch_loop() -> None:
         raise
     except Exception as exc:  # noqa: BLE001
         logger.warning("resource watch stopped: %s", exc)
+
+
+async def _usage_digest_loop() -> None:
+    """Run the usage digest; a failure to start it must never keep the hub down."""
+    try:
+        from .usage import digest
+
+        await digest.run_loop()
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("usage digest stopped: %s", exc)
 
 
 async def _autostart_services() -> None:

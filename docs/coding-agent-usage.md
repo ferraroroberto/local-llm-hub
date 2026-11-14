@@ -164,6 +164,40 @@ returns one entry per UTC day in the range (default: the last 30 days, at most
   already pruned from an agent's logs cannot be recovered. Days a source has
   since pruned keep their earlier, larger cell.
 
+## Weekly digest and budget alert
+
+The hub sends a weekly per-agent summary and an optional per-agent budget
+alert to Telegram, read from the cached token history above
+(`src/usage/digest.py`, an in-hub loop that ticks every 15 minutes). Delivery
+goes through the fleet `notify_send.py` transport, so the hub holds no bot token
+or chat id. Settings live in `config/usage_digest.json` and are re-read each
+tick, so a retune needs no restart; state (what was sent, when) is in
+`data/usage_digest_state.json`.
+
+- **Digest.** Once a week at the configured hub-local `weekday` (0 is Monday)
+  and `hour`: each agent's tokens and requests over the last seven complete UTC
+  days, with the percent change against the seven before. The first run after
+  install waits for the next scheduled moment rather than sending a stale one;
+  a hub that was down at the scheduled hour sends it on the next tick.
+- **Tokens** are net input + cache writes + output. Cache reads are left out:
+  they dominate every agent's count and cost a fraction of the rest.
+- **Budget alert.** `budget.tokens_per_week` maps an agent id (`claude`,
+  `codex`, `copilot`, `pi`, `agy`, `claude_bridged`) to a token budget. Every
+  `check_interval_hours` an agent whose tokens over the trailing seven UTC days
+  (today included) pass its budget sends one alert, then stays quiet for
+  `cooldown_hours`. An agent not listed is not watched; the shipped file lists
+  none, so only the digest is on until a budget is set.
+- **Unknown is not zero.** An agent with no measured day in the week reads
+  "unknown this week" (or is left out when it never had data), an agent without
+  token counts is named as such, and a history that was never computed sends
+  nothing and is retried. A history older than `max_cache_age_s` is rebuilt
+  first (one blocking rebuild on the loop's worker thread); one that could not
+  be rebuilt is sent with a warning line giving its age.
+- **A failed send is not a sent one.** Neither the weekly slot nor an alert's
+  cooldown is consumed; the send is retried after `retry_after_s`.
+- **Preview.** `python -m src.usage.digest` prints the digest for now and sends
+  nothing; `--send` also delivers it.
+
 See [telemetry-langfuse.md](telemetry-langfuse.md) for the
 full architecture, what's captured, the X-Trace-Id contract, and
 limitations. For client-side trace correlation + feedback posting see

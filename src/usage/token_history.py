@@ -262,6 +262,18 @@ def request_refresh() -> bool:
     return True
 
 
+def refresh_blocking(timeout_s: float) -> bool:
+    """Recalculate now, on the calling thread, for a caller that needs a fresh
+    result (the weekly digest). A recalculation already running is waited for
+    instead, up to ``timeout_s``. Returns True when the cache was replaced."""
+    if _refresh_body():
+        return True
+    deadline = time.monotonic() + timeout_s
+    while _refresh_lock.locked() and time.monotonic() < deadline:
+        time.sleep(0.5)
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Read path
 # ---------------------------------------------------------------------------
