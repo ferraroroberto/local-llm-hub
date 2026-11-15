@@ -382,6 +382,16 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .hub-live-status.danger .dot { background: var(--danger); }
 
 /* ---------- buttons ---------- */
+/* The vendored tiers paint a button but do not lay out its content: a glyph
+   beside a label centres with a gap, as .launch-btn does at full width. */
+.button-primary,
+.button-tint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 /* Primary per-card action layout — fill, border, radius, weight, and the
    48px min-height come from the vendored .button-primary
    (_vendored/button/button.css); this rule only owns the icon+label flex

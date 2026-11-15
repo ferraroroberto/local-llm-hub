@@ -216,6 +216,7 @@ def _a_phone_edits_in_the_sheet_and_the_dictionary_takes_its_slot(page, admin_ur
     _item(page, "whisper").locator(".action-row-main").click()
     page.wait_for_selector("#modelSheet[open] .placement-edit-btn", state="visible", timeout=5000)
     assert page.locator("#modelSheet .placement-edit-btn.icon-button").count() == 1
+    assert page.evaluate("!!document.querySelector('#i-pencil')"), "the pencil glyph is in the sprite"
     assert page.locator('#modelSheet .sheet-buttons [data-act="edit-placement"]').count() == 0
     page.click("#modelSheet .placement-edit-btn")
     page.wait_for_selector("#modelSheet[open] .placement-editor", state="visible", timeout=5000)
