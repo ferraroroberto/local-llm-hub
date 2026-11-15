@@ -59,7 +59,7 @@ async function fetchVersion() {
     const sha = body.git_sha || 'unknown';
     const ts = fmtBuildTime(body.built_at || '');
     if (els.buildReadout) els.buildReadout.textContent = buildReadoutText(sha, body.built_at || '');
-    if (els.aboutBuild) els.aboutBuild.textContent = ts ? sha + ' · ' + ts : sha;
+    if (els.aboutBuild) els.aboutBuild.title = els.aboutBuild.textContent = ts ? sha + ' · ' + ts : sha;
   } catch (_) { /* ignore */ }
 }
 

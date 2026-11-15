@@ -47,7 +47,7 @@ function renderSummary() {
   const profile = data.profile || {};
   const services = data.services || [];
   const on = services.filter(function (svc) { return !!profile[svc.id]; }).length;
-  els.startupSummary.textContent = on + ' of ' + services.length + ' start with the hub';
+  els.startupSummary.textContent = on + ' of ' + services.length + ' on';
 }
 
 function buildRow(label, on, apply) {

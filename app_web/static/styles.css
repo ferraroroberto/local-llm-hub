@@ -631,28 +631,13 @@ h2 { display: flex; align-items: center; gap: 8px; }
 }
 
 /* ---------- Settings ----------
- * The design system's settings groups in the gear's dialog: overline headers,
- * rows with a lead glyph, a label and the current value. A row with a body
+ * The gear's dialog is the vendored settings-group (overline + inset card per
+ * group); only the in-place body pages and the list : detail layout are this
+ * app's own. A row with a body
  * opens it in place of the list on a phone (with a back row) and beside the
  * list on a wide window (list : detail = 1 : 1.5). */
-.settings-groups { margin: 0 -18px; }
-.settings-row {
-  display: flex;
-  align-items: center;
-  gap: var(--gap);
-  min-height: var(--row-md);
-  padding: 6px 14px;
-  border-top: 1px solid var(--line-muted);
-}
-.settings-row-label { flex: 1; min-width: 0; font-weight: 600; }
-.settings-row-value { color: var(--muted); font-size: var(--font-body-sm); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }
-.settings-inline { flex-wrap: wrap; }
-.settings-inline .settings-row-label { flex: 1 0 auto; }
-.settings-inline .segmented { flex: none; }
-.group-overline + .settings-row, .group-overline + .action-row { border-top: 0; }
-.settings-link .action-row-main { align-items: center; }
-.settings-chevron { flex: none; margin-left: auto; color: var(--muted); width: var(--icon-title); height: var(--icon-title); }
-.settings-groups .settings-link .action-row-meta[data-tone] { color: var(--tone-text); font-weight: 600; }
+/* The vendored segmented control, placed as a row's one trailing item. */
+.settings-row > .segmented { flex: 0 1 auto; margin-left: auto; }
 .settings-detail h3 { margin: 0 0 8px; font-size: var(--font-body); font-weight: 700; }
 .settings-note { margin: 0 0 10px; font-size: var(--font-body-sm); }
 .settings-back {

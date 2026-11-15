@@ -33,12 +33,8 @@ function openPage(key) {
   });
   document.querySelectorAll('#settingsDialog .settings-link').forEach(function (row) {
     const on = row.dataset.settings === key;
-    row.classList.toggle('is-selected', on);
-    const main = row.querySelector('.action-row-main');
-    if (main) {
-      if (on) main.setAttribute('aria-current', 'true');
-      else main.removeAttribute('aria-current');
-    }
+    if (on) row.setAttribute('aria-current', 'true');
+    else row.removeAttribute('aria-current');
   });
   if (key === 'machines') fetchDormant();
   if (key === 'health' && !state.installChecked) {
@@ -56,7 +52,7 @@ function syncAbout() {
   const v = state.version || {};
   const sha = v.git_sha || '—';
   const ts = (v.built_at || '').replace('T', ' ').slice(0, 16);
-  if (els.aboutBuild) els.aboutBuild.textContent = ts ? sha + ' · ' + ts : sha;
+  if (els.aboutBuild) els.aboutBuild.title = els.aboutBuild.textContent = ts ? sha + ' · ' + ts : sha;
   if (els.aboutLangfuse) els.aboutLangfuse.dataset.href = langfuseUiBase();
 }
 
@@ -171,9 +167,9 @@ export function wireSettings() {
   dialog.addEventListener('click', function (ev) {
     const link = ev.target.closest('.settings-link');
     if (link) { openPage(link.dataset.settings); return; }
-    // A row that leaves the app is still the action-row button; the address
+    // A row that leaves the app is a button row; the address
     // rides in data-href and opens in its own tab, as a link row would.
-    const out = ev.target.closest('.action-row-main[data-href]');
+    const out = ev.target.closest('.settings-row[data-href]');
     if (out && out.dataset.href) {
       window.open(out.dataset.href, '_blank', 'noopener');
       return;
