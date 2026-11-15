@@ -24,7 +24,7 @@ import { mountGlossaryEditor } from './glossary.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createRowMenu } from './_vendored/row-menu/row-menu.js';
 import { confirmDialog } from './confirm_dialog.js';
-import { row, chip, setHeadLine, defineInfo, isWide, onWideChange } from './rows.js';
+import { row, chip, setHeadLine, defineInfo, isWide, onWideChange, iconVerb } from './rows.js';
 import { fetchFleetPlacement, renderMemory, hostBodyEl, hostLabel, overCapacityHosts, onFleetPlacement } from './fleet_placement.js';
 
 defineInfo('models-about', 'Models and memory',
@@ -429,13 +429,6 @@ function actionButton(act, glyph, label, opts) {
     + (o.disabled ? ' disabled' : '') + '>' + icon(glyph) + '<span>' + escapeHtml(label) + '</span></button>';
 }
 
-function editPlacementButton(m) {
-  const label = 'Edit placement for ' + m.display_name;
-  return '<button type="button" class="icon-button placement-edit-btn" data-act="edit-placement"'
-    + ' data-track="model-edit-placement" title="' + escapeHtml(label) + '" aria-label="' + escapeHtml(label) + '">'
-    + icon('pencil') + '</button>';
-}
-
 function modelInfoHtml(m) {
   const chips = exceptionChips(m);
   const roles = rolesFor(m);
@@ -456,7 +449,8 @@ function modelInfoHtml(m) {
       return '<dt>' + escapeHtml(p[0]) + '</dt><dd>' + value + '</dd>';
     }).join('') + '</dl></div>'
     + (m.placement ? '<div class="sheet-section"><div class="sheet-label-row"><p class="sheet-label">Placement</p>'
-      + (canEditPlacement(m) ? editPlacementButton(m) : '') + '</div>' + placementHtml(m) + '</div>' : '')
+      + (canEditPlacement(m) ? iconVerb('pencil', 'Edit placement for ' + m.display_name,
+        ' class="icon-button placement-edit-btn" data-act="edit-placement" data-track="model-edit-placement"') : '') + '</div>' + placementHtml(m) + '</div>' : '')
     + (buttons ? '<div class="sheet-section"><div class="sheet-buttons sheet-buttons--flow">' + buttons + '</div></div>' : '')
     + force;
 }

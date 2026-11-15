@@ -136,6 +136,13 @@ export function defineInfo(key, title, html) {
   infoRegistry[key] = { title: title, html: html };
 }
 
+/* A glyph-only verb: the vendored icon-button, named by its label (the tooltip
+ * and the accessible name). attrs carries the class and data-* (already escaped). */
+export function iconVerb(glyph, label, attrs) {
+  return '<button type="button"' + attrs + ' title="' + escapeHtml(label) + '" aria-label="'
+    + escapeHtml(label) + '">' + icon(glyph) + '</button>';
+}
+
 export function infoButton(key, label) {
   return '<button type="button" class="icon-button info-button" data-info="' + escapeHtml(key) + '"'
     + ' aria-haspopup="dialog" aria-label="' + escapeHtml(label) + '" title="' + escapeHtml(label) + '">'
