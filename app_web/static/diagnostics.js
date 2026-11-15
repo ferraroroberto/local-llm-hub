@@ -114,7 +114,7 @@ function renderCapture(status) {
       + escapeHtml(remaining) + '</span></p>'
       + '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct.toFixed(0) + '%"></div></div>'
       + '<div class="diag-capture-actions">'
-      + '<button type="button" class="ghost-btn danger" data-track="diag-stop" data-diag-action="stop">'
+      + '<button type="button" class="button-tint danger" data-track="diag-stop" data-diag-action="stop">'
       + icon('square') + '<span>Stop capture</span></button>'
       + '</div></div>';
   }
@@ -313,7 +313,7 @@ function renderSummary(summary, drift) {
     + icon('scroll-text') + '<span>Health report</span></button>'
     + '<button type="button" class="ghost-btn" data-track="diag-export" data-diag-action="export">'
     + icon('download') + '<span>Export JSON</span></button>'
-    + '<button type="button" class="ghost-btn danger" data-track="diag-delete" data-diag-action="delete">'
+    + '<button type="button" class="button-tint danger" data-track="diag-delete" data-diag-action="delete">'
     + icon('circle-x') + '<span>Delete</span></button>'
     + '</div>');
 

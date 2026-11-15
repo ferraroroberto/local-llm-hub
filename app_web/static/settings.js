@@ -57,7 +57,7 @@ function syncAbout() {
   const sha = v.git_sha || '—';
   const ts = (v.built_at || '').replace('T', ' ').slice(0, 16);
   if (els.aboutBuild) els.aboutBuild.textContent = ts ? sha + ' · ' + ts : sha;
-  if (els.aboutLangfuse) els.aboutLangfuse.href = langfuseUiBase();
+  if (els.aboutLangfuse) els.aboutLangfuse.dataset.href = langfuseUiBase();
 }
 
 // --------------------------------------------------------- Health & install
@@ -171,6 +171,13 @@ export function wireSettings() {
   dialog.addEventListener('click', function (ev) {
     const link = ev.target.closest('.settings-link');
     if (link) { openPage(link.dataset.settings); return; }
+    // A row that leaves the app is still the action-row button; the address
+    // rides in data-href and opens in its own tab, as a link row would.
+    const out = ev.target.closest('.action-row-main[data-href]');
+    if (out && out.dataset.href) {
+      window.open(out.dataset.href, '_blank', 'noopener');
+      return;
+    }
     if (ev.target.closest('[data-settings-back]')) openPage('');
   });
   onWideChange(function () {

@@ -76,6 +76,7 @@
 .meter-pct { min-width: 3.2em; text-align: right; }
 /* The sheet's own bits: a label over a block, the editor slot, the log tail. */
 .sheet-label { margin: 0; color: var(--muted); font-size: var(--font-body-sm); font-weight: 600; }
+.sheet-label-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
 .model-editor:empty { display: none; }
 .model-editor { margin-top: var(--space-sm); }
 .model-log-tail {

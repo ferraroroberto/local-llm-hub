@@ -96,13 +96,22 @@ Primary nav is the **vendored fleet component** at `app_web/static/_vendored/nav
   `class="button-primary extract-btn"` pattern. Exactly one per view: the
   Services card, the Health & install disclosure, and the sign-in sheet
   each hold their own. Use for: Launch Docker + Langfuse, Fix all, Sign in.
-- **`.ghost-btn`** — secondary text-style button, `min-height: 36 px`,
-  border + transparent background. Use for: Re-check, Clear, Pause
-  log, Choose file, the individual install-row fixers.
-- **`.ghost-btn.primary`** — the in-form primary (Playground Send /
-  Generate / Speak / Download): an accent *tint*, never a solid fill —
-  home-automation's ghost recipe (`--accent-soft` background, accent text,
-  `--accent-border-strong` border.
+- **`.button-primary`** — the commit of a form or editor (Playground Send /
+  Generate / Speak / Evaluate, the glossary Save, the placement editor's
+  Save & commit): one per view, never a second solid fill. A secondary
+  action beside it (the generated image's Download) is `.button-tint`.
+- **`.button-tint.danger`** — every destructive verb (diagnostics Stop and
+  Delete, the playground's Reset sample, the confirm dialog's Confirm): the
+  outlined recipe, never a fill.
+- **`.ghost-btn`** — the local quiet text button for actions the vendored
+  mapping does not name, `min-height: 36 px`, border + transparent
+  background. Use for: Re-check, Clear, Pause log, Choose file, Add host,
+  the individual install-row fixers.
+- **`icon-button`** — a glyph-only control: the pencil that opens Edit
+  placement in a model's Placement section, the row kebab, the close X.
+- **Row open** — an `action-row-main` button, also for a row that leaves the
+  app (Frontier report, Open Langfuse UI): the address rides in `data-href`
+  and opens in a tab of its own.
 - **`.icon-btn`** — row-level button, `52 × 60 px`, lives inside a
   `.row-actions` column on the right of an `.app-item`. Use for:
   Start / Stop / Log / Ping on the Models tab.

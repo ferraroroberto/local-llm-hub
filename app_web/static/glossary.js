@@ -78,7 +78,7 @@ export function mountGlossaryEditor(container) {
   ed.saveBtn = document.createElement('button');
   ed.saveBtn.type = 'button';
   ed.saveBtn.dataset.track = 'glossary-save';
-  ed.saveBtn.className = 'ghost-btn primary';
+  ed.saveBtn.className = 'button-primary';
   ed.saveBtn.innerHTML = icon('save') + 'Save';
   ed.saveBtn.addEventListener('click', function () { onSave(ed); });
   actions.append(ed.mineBtn, ed.saveBtn);

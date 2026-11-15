@@ -210,6 +210,17 @@ def _about_carries_the_models_config_version(page, admin_url, mark):
     assert page.locator("#settingsDialog #modelsConfigSha").inner_text() == "abc1234"
     mark("settings.about")
 
+    # The two rows that leave the app are action-row buttons, each opening its
+    # address in a tab of its own; window.open is recorded, not followed.
+    page.evaluate("window.__opened = []; window.open = (...a) => { window.__opened.push(a); return null; }; true")
+    for row_id in ("aboutFrontier", "aboutLangfuse"):
+        row = page.locator(f"#settingsDialog button.action-row-main#{row_id}")
+        assert row.count() == 1, f"{row_id} is a button, not a link"
+        row.click()
+    opened = page.evaluate("window.__opened")
+    assert opened[0][0].endswith("/admin/frontier") and opened[0][1:] == ["_blank", "noopener"], opened
+    assert opened[1][0].startswith("http") and opened[1][1:] == ["_blank", "noopener"], opened
+
 
 def test_settings_dialog(browser, admin_url):
     with fresh_page(browser, viewport=PHONE) as page:
