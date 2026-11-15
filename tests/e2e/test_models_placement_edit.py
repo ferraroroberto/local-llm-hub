@@ -210,6 +210,16 @@ def _a_phone_edits_in_the_sheet_and_the_dictionary_takes_its_slot(page, admin_ur
     page.wait_for_selector("#modelSheet[open] .model-editor .glossary-panel", timeout=5000)
     assert page.locator(".placement-editor").count() == 0
 
+    # The pencil in the sheet's Placement header is the same entry as the menu
+    # item: a glyph-only icon-button, not a labelled tint in the button grid.
+    page.click("#modelSheetCloseBtn")
+    _item(page, "whisper").locator(".action-row-main").click()
+    page.wait_for_selector("#modelSheet[open] .placement-edit-btn", state="visible", timeout=5000)
+    assert page.locator("#modelSheet .placement-edit-btn.icon-button").count() == 1
+    assert page.locator('#modelSheet .sheet-buttons [data-act="edit-placement"]').count() == 0
+    page.click("#modelSheet .placement-edit-btn")
+    page.wait_for_selector("#modelSheet[open] .placement-editor", state="visible", timeout=5000)
+
 
 def test_models_placement_editor(browser, admin_url):
     with fresh_page(browser) as page:

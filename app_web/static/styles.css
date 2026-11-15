@@ -416,25 +416,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
 }
 .ghost-btn:hover { color: var(--ink); }
 .ghost-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
-.ghost-btn.danger { color: var(--danger); border-color: var(--danger-border); }
-.ghost-btn.danger:hover { background: var(--danger-soft); }
-/* Accent-tint variant — same size as .ghost-btn but the primary action
- * (Playground Send / Generate / Speak / Download). Transparent accent tint,
- * never a solid fill. */
-.ghost-btn.primary {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-border-strong);
-  font-weight: 600;
-  min-height: 48px;   /* components.button-primary.height */
-}
-.ghost-btn.primary:hover {
-  color: var(--accent-text);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-}
-.ghost-btn.primary:active {
-  background: color-mix(in srgb, var(--accent) 24%, transparent);
-}
 
 /* ---------- key/value grid ---------- */
 .kv-grid {

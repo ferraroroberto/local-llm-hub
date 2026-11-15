@@ -266,7 +266,7 @@
             </details>
 
             <div class="playground-send-row">
-              <button id="playgroundSendBtn" data-track="play-send" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Send</button>
+              <button id="playgroundSendBtn" data-track="play-send" type="button" class="button-primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Send</button>
               <button data-track="playground-clear" id="playgroundClearBtn" type="button" class="ghost-btn">Clear</button>
             </div>
           </section>
@@ -313,7 +313,7 @@
             </details>
 
             <div class="playground-send-row">
-              <button id="imageGenBtn" data-track="play-generate" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Generate</button>
+              <button id="imageGenBtn" data-track="play-generate" type="button" class="button-primary"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Generate</button>
               <button data-track="image-clear" id="imageClearBtn" type="button" class="ghost-btn">Clear</button>
             </div>
           </section>
@@ -380,7 +380,7 @@
             </details>
 
             <div class="playground-send-row">
-              <button id="ttsSpeakBtn" data-track="play-speak" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Speak</button>
+              <button id="ttsSpeakBtn" data-track="play-speak" type="button" class="button-primary"><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Speak</button>
             </div>
           </section>
           <section class="card play-composer" id="jevCard" data-mode="decide" aria-label="Decide" hidden>
@@ -406,8 +406,8 @@
             </div>
 
             <div class="playground-send-row">
-              <button id="jevEvalBtn" data-track="play-evaluate" type="button" class="ghost-btn primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Evaluate</button>
-              <button data-track="jev-reset" id="jevResetBtn" type="button" class="ghost-btn">Reset sample</button>
+              <button id="jevEvalBtn" data-track="play-evaluate" type="button" class="button-primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Evaluate</button>
+              <button data-track="jev-reset" id="jevResetBtn" type="button" class="button-tint danger">Reset sample</button>
             </div>
           </section>
         </div>
@@ -427,7 +427,7 @@
 
             <img id="imagePreview" alt="Generated image" style="max-width: 100%; margin-top: 10px; border-radius: 8px;" hidden>
             <div class="playground-send-row" id="imageDownloadRow" hidden style="margin-top: 10px;">
-              <a data-track="image-download" id="imageDownload" class="ghost-btn primary" download="generated.png" role="button"><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Download</a>
+              <a data-track="image-download" id="imageDownload" class="button-tint" download="generated.png" role="button"><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Download</a>
             </div>
           </section>
           <section class="card play-result" id="ttsResult" data-mode="speech" aria-label="Speech result" aria-live="polite" hidden>
@@ -812,8 +812,8 @@
             <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-tag"></use></svg></span><span class="settings-row-label">Build</span><span class="settings-row-value"><span id="aboutBuild">—</span></span></li>
             <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-layers"></use></svg></span><span class="settings-row-label">Config version</span><span class="settings-row-value"><span id="modelsConfigSha">—</span></span></li>
             <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-cpu"></use></svg></span><span class="settings-row-label">Process</span><span class="settings-row-value"><code id="aboutPid">—</code></span></li>
-            <li class="action-row"><a data-track="about-langfuse" class="action-row-main" id="aboutLangfuse" href="#" target="_blank" rel="noopener"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-external-link"></use></svg></span><span class="action-row-text"><span class="action-row-title">Open Langfuse UI</span><span class="action-row-meta">Traces and long-window analytics</span></span></a></li>
-            <li class="action-row"><a class="action-row-main" id="aboutFrontier" href="/admin/frontier" target="_blank" rel="noopener"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-line"></use></svg></span><span class="action-row-text"><span class="action-row-title">Frontier report</span><span class="action-row-meta">The latest model comparison run</span></span></a></li>
+            <li class="action-row"><button data-track="about-langfuse" type="button" class="action-row-main" id="aboutLangfuse"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-external-link"></use></svg></span><span class="action-row-text"><span class="action-row-title">Open Langfuse UI</span><span class="action-row-meta">Traces and long-window analytics</span></span></button></li>
+            <li class="action-row"><button data-track="about-frontier" type="button" class="action-row-main" id="aboutFrontier" data-href="/admin/frontier"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-line"></use></svg></span><span class="action-row-text"><span class="action-row-title">Frontier report</span><span class="action-row-meta">The latest model comparison run</span></span></button></li>
           </ul>
         </div>
         <div class="settings-detail">

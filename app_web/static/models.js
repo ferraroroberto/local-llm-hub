@@ -429,12 +429,19 @@ function actionButton(act, glyph, label, opts) {
     + (o.disabled ? ' disabled' : '') + '>' + icon(glyph) + '<span>' + escapeHtml(label) + '</span></button>';
 }
 
+function editPlacementButton(m) {
+  const label = 'Edit placement for ' + m.display_name;
+  return '<button type="button" class="icon-button placement-edit-btn" data-act="edit-placement"'
+    + ' data-track="model-edit-placement" title="' + escapeHtml(label) + '" aria-label="' + escapeHtml(label) + '">'
+    + icon('pencil') + '</button>';
+}
+
 function modelInfoHtml(m) {
   const chips = exceptionChips(m);
   const roles = rolesFor(m);
   const pairs = fullMetaPairs(m);
   if (roles.length) pairs.push(['Roles', roles.join(', ')]);
-  const items = menuItems(m).filter(function (it) { return !it.danger; });
+  const items = menuItems(m).filter(function (it) { return !it.danger && it.act !== 'edit-placement'; });
   const buttons = items.map(function (it) {
     return actionButton(it.act, it.glyph, it.label, { disabled: it.disabled, cls: it.cls });
   }).join('');
@@ -448,7 +455,8 @@ function modelInfoHtml(m) {
       const value = Array.isArray(p[1]) ? p[1].map(codeHtml).join(', ') : escapeHtml(p[1]);
       return '<dt>' + escapeHtml(p[0]) + '</dt><dd>' + value + '</dd>';
     }).join('') + '</dl></div>'
-    + (m.placement ? '<div class="sheet-section"><p class="sheet-label">Placement</p>' + placementHtml(m) + '</div>' : '')
+    + (m.placement ? '<div class="sheet-section"><div class="sheet-label-row"><p class="sheet-label">Placement</p>'
+      + (canEditPlacement(m) ? editPlacementButton(m) : '') + '</div>' + placementHtml(m) + '</div>' : '')
     + (buttons ? '<div class="sheet-section"><div class="sheet-buttons sheet-buttons--flow">' + buttons + '</div></div>' : '')
     + force;
 }
@@ -695,7 +703,7 @@ function renderPlacementEditor(ed) {
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
   saveBtn.dataset.track = 'placement-save';
-  saveBtn.className = 'ghost-btn primary pe-save';
+  saveBtn.className = 'button-primary pe-save';
   saveBtn.innerHTML = icon('save') + (ed.saving ? 'Saving…' : 'Save & commit');
   saveBtn.disabled = ed.saving;
   saveBtn.addEventListener('click', function () { savePlacement(ed); });
