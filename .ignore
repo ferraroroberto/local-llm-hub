@@ -1,5 +1,6 @@
 # BEGIN vendored-copies (generated from .fleet.toml [vendored]; edit the manifest, not this block)
 /app_web/static/_vendored/action-row
+/app_web/static/_vendored/build-watch
 /app_web/static/_vendored/button
 /app_web/static/_vendored/card
 /app_web/static/_vendored/disclosure
@@ -16,6 +17,7 @@
 /app_web/static/_vendored/sign-in
 /app_web/static/_vendored/switch
 /app_web/static/_vendored/text-size
+/app_web/static/_vendored/toast
 /app_web/static/_vendored/usage-log
 /scripts/classify_e2e.py
 /scripts/comment_ratchet.py

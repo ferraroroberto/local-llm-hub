@@ -34,7 +34,7 @@ function toastEl() {
   return el;
 }
 
-/** The vendored `icons` markup (`<svg class="icon"><use href="#i-NAME">`), built as nodes. */
+/** The vendored `icons` markup (an `.icon` svg whose `<use>` points at the glyph), built as nodes. */
 function glyph(name) {
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('class', 'icon');
