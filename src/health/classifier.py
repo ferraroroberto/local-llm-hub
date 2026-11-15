@@ -70,7 +70,7 @@ def growth_per_hour(series: Sequence[Tuple[float, float]], leak: Dict[str, Any])
     return slope if slope > 0 else None
 
 
-def _restart_fix(name: str, cfg: Dict[str, Any]) -> str:
+def restart_fix(name: str, cfg: Dict[str, Any]) -> str:
     reboot_only = {n.lower() for n in cfg.get("reboot_only_processes", [])}
     if name.lower() in reboot_only:
         return f"Reboot: {name} cannot be restarted on its own"
@@ -137,7 +137,7 @@ def _process_findings(history: Sequence[Dict[str, Any]], cfg: Dict[str, Any]) ->
                 "level": level, "kind": "process", "metric": metric,
                 "process": proc["name"], "pid": proc["pid"], "value": value,
                 "rate_per_hour": rate, "eta_hours": eta,
-                "reason": reason, "fix": _restart_fix(proc["name"], cfg),
+                "reason": reason, "fix": restart_fix(proc["name"], cfg),
             })
     return findings, tracked
 
@@ -154,13 +154,13 @@ def _system_fix(metric: str, latest: Dict[str, Any], cfg: Dict[str, Any]) -> Tup
     if metric == "total_handles":
         top = _top(latest, "handles")
         if top and system.get("total_handles") and top["handles"] / system["total_handles"] >= share:
-            return _restart_fix(top["name"], cfg), top["name"]
+            return restart_fix(top["name"], cfg), top["name"]
         return "Reboot: no single process holds most of the handles", None
     if metric in ("commit_percent", "ram_available_percent"):
         top = _top(latest, "memory_mb")
         commit_gb = system.get("commit_gb")
         if top and commit_gb and top["memory_mb"] / 1024 / commit_gb >= share:
-            return _restart_fix(top["name"], cfg), top["name"]
+            return restart_fix(top["name"], cfg), top["name"]
         if metric == "ram_available_percent":
             return "Close or restart the largest memory users", None
         return "Reboot: no single process holds most of the commit charge", None
@@ -218,6 +218,30 @@ def _unknown(reason: str, latest: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def summarize(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """``verdict``, ``reason``, ``fix`` and the sorted ``findings`` from a list of findings."""
+    findings = sorted(findings, key=lambda f: LEVEL_RANK[f["level"]], reverse=True)
+    verdict = findings[0]["level"] if findings else "ok"
+    if verdict == "ok":
+        reason, fix = "No leak or pressure found", None
+    else:
+        worst = [f for f in findings if f["level"] == verdict]
+        reason = worst[0]["reason"] + (f" (+{len(findings) - 1} more)" if len(findings) > 1 else "")
+        fixes = [f["fix"] for f in worst if f["fix"]]
+        restarts = [f for f in fixes if f.startswith("Restart ")]
+        fix = (restarts or fixes or [None])[0]
+    return {"verdict": verdict, "reason": reason, "fix": fix, "findings": findings}
+
+
+def merge(verdict: Dict[str, Any], extra: List[Dict[str, Any]], drop_metrics: Sequence[str] = ()) -> Dict[str, Any]:
+    """``verdict`` re-judged with ``extra`` findings added and ``drop_metrics`` findings removed
+    (the port watch's fresher reading replaces the slow sample's port findings)."""
+    kept = [f for f in verdict["findings"] if f.get("metric") not in drop_metrics]
+    if not extra and len(kept) == len(verdict["findings"]):
+        return dict(verdict)
+    return {**verdict, **summarize(kept + list(extra))}
+
+
 def classify(history: Sequence[Dict[str, Any]], cfg: Dict[str, Any], now: float) -> Dict[str, Any]:
     """The verdict over ``history`` (oldest first) as of ``now``."""
     if not history:
@@ -229,19 +253,8 @@ def classify(history: Sequence[Dict[str, Any]], cfg: Dict[str, Any], now: float)
 
     process_findings, tracked = _process_findings(history, cfg)
     findings = _probe_findings(latest) + _system_findings(latest, cfg) + process_findings
-    findings.sort(key=lambda f: LEVEL_RANK[f["level"]], reverse=True)
-
-    verdict = findings[0]["level"] if findings else "ok"
-    if verdict == "ok":
-        reason, fix = "No leak or pressure found", None
-    else:
-        worst = [f for f in findings if f["level"] == verdict]
-        reason = worst[0]["reason"] + (f" (+{len(findings) - 1} more)" if len(findings) > 1 else "")
-        fixes = [f["fix"] for f in worst if f["fix"]]
-        restarts = [f for f in fixes if f.startswith("Restart ")]
-        fix = (restarts or fixes or [None])[0]
     return {
-        "verdict": verdict, "reason": reason, "fix": fix, "findings": findings,
+        **summarize(findings),
         "offenders": _offenders(tracked), "system": latest.get("system", {}),
         "coverage": latest.get("probes", {}),
         "sampled_at": latest["ts"], "sample_ms": latest.get("sample_ms"),

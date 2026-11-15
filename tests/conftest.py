@@ -155,6 +155,17 @@ def _isolate_resource_watch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
                         lambda text, cfg: (False, "Telegram is blocked in tests"))
 
 
+@pytest.fixture(autouse=True)
+def _isolate_port_watch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Keep the port watch off the real history, and its readings out of other tests' verdicts."""
+    from src.health import port_store, port_watch
+
+    monkeypatch.setattr(port_store, "DEFAULT_DB_PATH", tmp_path / "port_watch.sqlite3")
+    port_watch.WATCH.reset()
+    yield
+    port_watch.WATCH.reset()
+
+
 def pytest_collection_modifyitems(items: list) -> None:
     """Run ``tests/e2e`` last in a combined run (issue #493).
 

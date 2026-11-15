@@ -5,7 +5,8 @@
     "memory_mb has no absolute limit: a model server legitimately holds tens of GB; only steady growth is judged.",
     "System rules: watch/act limits; below=true means a low value is the bad one.",
     "Handles are file descriptors on macOS/Linux; commit and pool counters exist only on Windows.",
-    "resource: the one-minute RAM / free-disk / per-disk latency watch with Telegram alerts (docs/health-watch.md). A sample is one minute, so sustain_samples is minutes. alert_below / alert_above_ms are the limits; min_ios is the fewest operations a window must complete to be judged for latency. alert.script null = ~/.claude/hooks/notify_send.py."
+    "resource: the one-minute RAM / free-disk / per-disk latency watch with Telegram alerts (docs/health-watch.md). A sample is one minute, so sustain_samples is minutes. alert_below / alert_above_ms are the limits; min_ios is the fewest operations a window must complete to be judged for latency. alert.script null = ~/.claude/hooks/notify_send.py.",
+    "ports: the 30 s port watch (docs/health-watch.md). tcp_percent / udp_percent are the share of each protocol's dynamic range in use, judged on the worst sample in hold_minutes. A Tcpip 4227/4231/4266 event in the System log is act for event_hold_hours."
   ],
   "enabled": true,
   "interval_s": 600,
@@ -98,6 +99,31 @@
       "category": "attention",
       "script": null,
       "timeout_s": 30
+    }
+  },
+  "ports": {
+    "enabled": true,
+    "interval_s": 30,
+    "boot_delay_s": 10,
+    "history_hours": 24,
+    "stale_after_intervals": 4,
+    "hold_minutes": 15,
+    "top_n": 10,
+    "events_interval_s": 60,
+    "events_lookback_hours": 24,
+    "event_hold_hours": 1,
+    "event_keep_days": 30,
+    "tcp_percent": {
+      "watch": 50,
+      "act": 80
+    },
+    "udp_percent": {
+      "watch": 50,
+      "act": 80
+    },
+    "tcp_time_wait": {
+      "watch": 4000,
+      "act": 10000
     }
   },
   "system": {
