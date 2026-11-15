@@ -16,10 +16,11 @@ It is read-only. It never kills, restarts or closes a process and never reboots 
 | `reason` | The worst finding in one line, with a count of the rest |
 | `fix` | The suggested fix for the worst level, a process restart preferred over a reboot; `null` when nothing is wrong |
 | `findings` | Every finding: `level`, `kind` (`process`, `system`, `probe`), `metric`, `value`, `reason`, `fix`; process findings add `process`, `pid`, `rate_per_hour`, `eta_hours` |
-| `offenders` | The top three processes per metric with their value and growth per hour |
+| `offenders` | The top three processes per metric with their value and growth per hour; `ports` lists the top port holders (see [Port watch](#port-watch)) |
 | `system` | The latest system counters (commit, RAM, pools, handles, TIME_WAIT, ephemeral ports, disk, uptime) |
 | `coverage` | Each probe's state: `ok`, `failed`, `denied`, `unsupported` |
 | `alerts` | The last 20 act and cleared events |
+| `ports` | The port watch's block: current and worst-in-the-last-hour percent per protocol, TIME_WAIT, top holders, the last exhaustion event (see [Port watch](#port-watch)) |
 | `sampled_at`, `sample_ms`, `samples`, `interval_s`, `enabled`, `host_id` | When, how long the sample took, history depth, cadence |
 
 ## Verdict
@@ -57,6 +58,8 @@ A process is tracked by PID and creation time, so a restarted process starts a n
 | `total_handles` | 2 M / 4 M | Restart the process holding at least `attribution_share` of all handles, else reboot |
 | `tcp_time_wait` | 4,000 / 10,000 | No reboot: TIME_WAIT drains in minutes; find the burst (`fleet-config`'s port-exhaustion runbook) |
 | `ephemeral_ports_percent` (local ports in use within the dynamic range) | 50 / 80 | Same as TIME_WAIT |
+
+The two port rows are this slow sample's backstop. While the port watch has a fresh sample its findings replace them, because a 10-minute sample misses a burst that drains in minutes.
 | `disk_free_percent` (OS drive, low is bad) | 15 / 5 | Free space on the system disk |
 
 A process in `reboot_only_processes` (`System`, `csrss.exe`, …) cannot be restarted on its own, so its fix is a reboot.
@@ -74,6 +77,45 @@ The sampler runs in a worker thread every `interval_s` (600 s), never on the eve
 ## Configuration
 
 `config/health_watch.json` (committed) holds every threshold and the cadence. It is re-read on every sample, so a retune needs no hub restart, and it is merged over the built-in defaults, so a partial file only overrides what it names. `"enabled": false` stops the watch; the Machines tab then shows nothing for it. `null` disables any single limit.
+
+## Port watch
+
+Ephemeral-port exhaustion builds and drains in minutes, and every fleet web app fails at once when it happens. A 10-minute sample falls between bursts, so a third loop samples ports every `ports.interval_s` (30 s) and adds its findings to the health verdict. The diagnosis runbook is `fleet-config`'s `docs/recurring-gotchas.md` (port exhaustion); this watch is the detector, never the fix. It never closes a socket, stops a process or changes a machine setting: `TcpTimedWaitDelay` and the dynamic range are the owner's call.
+
+### What it reads
+
+- **Ports in use per protocol**: the distinct local ports inside each protocol's dynamic range that a TCP or UDP endpoint holds, as a percent of the range. The range is read from the OS once per hub start (`netsh int ipv4 show dynamicport tcp|udp` on Windows, `/proc/sys/net/ipv4/ip_local_port_range` on Linux); 49152-65535 stands in only when it cannot be read. UDP is counted on its own, because a UDP exhaustion leaves TCP untouched.
+- **TCP TIME_WAIT** sockets. They have no owning process, so they count toward the TCP percent but never toward a holder.
+- **Holders**: the `top_n` processes by endpoints held in the dynamic ranges, split TCP / UDP.
+- **Exhaustion events**: the System log's Tcpip 4227 (a local port still in TIME_WAIT could not be reused), 4231 (TCP ran out of ephemeral ports) and 4266 (UDP ran out), read with `wevtutil` every `events_interval_s` (60 s) over a window that overlaps the previous read; the record id stops an event being counted twice. Windows writes these the moment an allocation fails, so they are ground truth even when no sample landed in the burst. Off Windows the event probe is `unsupported`.
+
+### Findings
+
+| Metric | Default watch / act | Judged on |
+| --- | --- | --- |
+| `tcp_percent`, `udp_percent` | 50 / 80 | The worst sample in the last `hold_minutes` (15) |
+| `tcp_time_wait` | 4,000 / 10,000 | The same |
+| `tcpip_4227`, `tcpip_4231`, `tcpip_4266` | always `act` | For `event_hold_hours` (1) after the event, with its time |
+
+Judging on the worst recent sample keeps a burst that lasted one tick at `act` for whoever looks a few minutes later; the reason then says when it peaked and where it is now (`TCP dynamic ports peaked at 85% in use at 14:02 (now 3% in use), mostly app.exe (8 k ports)`). When one process holds at least `attribution_share` of the ports in use, the fix is restarting it; otherwise it points at the runbook. A failed table read or event-log read is an `unknown` finding, and a port sample older than `stale_after_intervals` × `interval_s` makes ports `unknown`, never fine.
+
+The act and cleared alerts are the health watch's own: each port tick re-judges the verdict, so an `act` from a burst is logged within one port interval rather than at the next 10-minute sample.
+
+### The `ports` block
+
+`GET /admin/api/machines/health` carries `ports`: `tcp` and `udp` each with `percent`, `used`, `total`, `range`, `worst_hour_percent` and `worst_hour_at` (TCP adds `time_wait` and `worst_hour_time_wait`); `top_holders` (name, pid, endpoints held, TCP / UDP split, growth per hour over the last hour, `null` until five minutes of history); `last_event` (the newest stored exhaustion event, kept for `event_keep_days` whether or not it still holds the verdict); `coverage`, `stale`, `sampled_at`, `sample_ms`, `cpu_ms`, `samples`, `interval_s`. `offenders.ports` repeats `top_holders`. The block is absent until the port watch has started.
+
+### History
+
+Samples are kept for `history_hours` (24) and events for `event_keep_days` (30) in SQLite under the runtime-data root (`port_watch.sqlite3`; override with `LLM_HUB_PORT_WATCH_DB_PATH`) and reloaded at hub start, so the incident before a restart or a reboot is still judged and shown.
+
+### Cost
+
+Measured on the tower (about 760 TCP and 160 UDP endpoints): a port sample is one `psutil.net_connections` call per protocol, **about 5 ms of CPU** every 30 s; the event-log read is **about 75 ms** of wall time for a 24-hour window, once a minute. Together that is under 0.2 % of one core. Each sample's own cost is in `sample_ms` and `cpu_ms`.
+
+### Configuration
+
+The `ports` section of `config/health_watch.json`, re-read every tick. Every threshold and cadence above is a key there; `"ports": {"enabled": false}` stops the port watch and the slow sample's port rows judge ports again.
 
 ## Resource watch: RAM, free space and disk latency
 
@@ -134,6 +176,11 @@ The `resource` section of `config/health_watch.json`, re-read every sample like 
 | `src/health/classifier.py` | The verdict: a pure function of the history and the config |
 | `src/health/settings.py` | Config loading and defaults |
 | `src/health/watch.py` | The loop, the rolling history and the act/cleared alerts |
+| `src/health/port_probe.py` | One port sample from the endpoint tables, and the Tcpip exhaustion events from the System log |
+| `src/health/port_rules.py` | Port findings, holders with growth, the `ports` block (pure) |
+| `src/health/sample_store.py` | The JSON-row sample history both stores build on |
+| `src/health/port_store.py` | Port sample and event history in SQLite |
+| `src/health/port_watch.py` | The 30-second port loop and its state |
 | `src/health/resource_probe.py` | One resource sample: RAM, free space per drive, latency from counter deltas |
 | `src/health/resource_rules.py` | Sustained-breach conditions, stall episodes, the weekly summary (pure) |
 | `src/health/resource_store.py` | Rolling sample history and alert debounce state in SQLite |

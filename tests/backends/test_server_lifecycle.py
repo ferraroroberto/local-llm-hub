@@ -38,7 +38,7 @@ def test_wire_observatory_loop_tracks_its_tasks(monkeypatch):
 
     async def _run():
         await sl.wire_observatory_loop()
-        assert len(sl._BACKGROUND_TASKS) == 12
+        assert len(sl._BACKGROUND_TASKS) == 13
         await sl.stop_background_tasks()
 
     asyncio.run(_run())

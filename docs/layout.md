@@ -203,7 +203,12 @@ local-llm-hub/
 │   │   ├── resource_rules.py     #   pure thresholds (sustained breach), stall episodes, weekly per-drive summary
 │   │   ├── resource_store.py     #   14-day sample history + alert debounce state (SQLite under the runtime-data root)
 │   │   ├── resource_alert.py     #   Telegram delivery via the fleet notify_send.py + one-per-6h debounce
-│   │   └── resource_watch.py     #   the one-minute loop that ties them together
+│   │   ├── resource_watch.py     #   the one-minute loop that ties them together
+│   │   ├── port_probe.py         #   one port sample (TCP + UDP endpoints per process in each dynamic range) + Tcpip exhaustion events from the System log
+│   │   ├── port_rules.py         #   pure port findings, holders with growth, the endpoint's ports block
+│   │   ├── sample_store.py       #   shared JSON-row sample history in SQLite (resource + port stores build on it)
+│   │   ├── port_store.py         #   24 h port history + exhaustion events (SQLite under the runtime-data root)
+│   │   └── port_watch.py         #   the 30 s port loop; its findings join the health verdict
 │   ├── install.py            # first-run checks + --fix
 │   ├── usage_log.py          # vendored usage-log router (admin UI view/tap log)
 │   ├── login_lockout.py      # vendored per-client lock-out + guessing alert for the /admin password route

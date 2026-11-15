@@ -12,57 +12,31 @@ re-send an alert that is still inside its cooldown.
 
 from __future__ import annotations
 
-import json
 import logging
-import sqlite3
 from contextlib import closing
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from ..fsio.runtime_files import connect_sqlite, make_dirs
 from ..runtime_data import runtime_db_path
+from .sample_store import SampleStore
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_DB_PATH = runtime_db_path("local-llm-hub", "resource_watch.sqlite3", env_var="LLM_HUB_RESOURCE_WATCH_DB_PATH")
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS samples (ts REAL PRIMARY KEY, body TEXT NOT NULL);
+
+class ResourceStore(SampleStore):
+    EXTRA_SCHEMA = """
 CREATE TABLE IF NOT EXISTS alert_state (
     key TEXT PRIMARY KEY, last_sent REAL, last_attempt REAL, last_error TEXT
 );
 """
 
-
-class ResourceStore:
-    """Thread-safe by construction: every call opens its own short connection."""
-
-    def __init__(self, path: Optional[Path] = None) -> None:
-        self._path = Path(path) if path else None
-
-    @property
-    def path(self) -> Path:
-        # Resolved per call so a test (or env override) can redirect the module default.
-        return self._path or DEFAULT_DB_PATH
-
-    def _connect(self) -> sqlite3.Connection:
-        make_dirs(self.path.parent)
-        conn = connect_sqlite(self.path, timeout=5)
-        conn.executescript(_SCHEMA)
-        return conn
+    def _default_path(self) -> Path:
+        return DEFAULT_DB_PATH
 
     def add_sample(self, sample: Dict[str, Any], keep_days: float) -> None:
-        """Append one sample and drop everything older than ``keep_days``."""
-        with closing(self._connect()) as conn, conn:
-            conn.execute("INSERT OR REPLACE INTO samples (ts, body) VALUES (?, ?)",
-                         (sample["ts"], json.dumps(sample, separators=(",", ":"))))
-            conn.execute("DELETE FROM samples WHERE ts < ?", (sample["ts"] - keep_days * 86400.0,))
-
-    def samples_since(self, since_ts: float) -> List[Dict[str, Any]]:
-        """Samples at or after ``since_ts``, oldest first."""
-        with closing(self._connect()) as conn:
-            rows = conn.execute("SELECT body FROM samples WHERE ts >= ? ORDER BY ts", (since_ts,)).fetchall()
-        return [json.loads(body) for (body,) in rows]
+        self._add_sample(sample, keep_days * 86400.0)
 
     def alert_state(self, key: str) -> Dict[str, Optional[float]]:
         with closing(self._connect()) as conn:

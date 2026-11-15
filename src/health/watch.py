@@ -16,11 +16,13 @@ import time
 from collections import deque
 from typing import Any, Deque, Dict, Optional
 
-from . import classifier, sampler, settings
+from . import classifier, port_watch, sampler, settings
 
 logger = logging.getLogger(__name__)
 
 _MAX_ALERTS = 20
+# The slow sample's port findings, replaced by the port watch's fresher ones while it runs.
+_SLOW_PORT_METRICS = ("tcp_time_wait", "ephemeral_ports_percent")
 
 
 class HealthWatch:
@@ -55,20 +57,27 @@ class HealthWatch:
             cutoff = sample["ts"] - float(cfg["history_hours"]) * 3600
             while self._history and self._history[0]["ts"] < cutoff:
                 self._history.popleft()
-            verdict = classifier.classify(list(self._history), cfg, now=sample["ts"])
-            self._verdict = verdict
-            self._alert_on_transition(verdict)
-            return verdict
+            self._verdict = classifier.classify(list(self._history), cfg, now=sample["ts"])
+        return self.refresh_alerts(now=sample["ts"])
 
-    def _alert_on_transition(self, verdict: Dict[str, Any]) -> None:
+    def refresh_alerts(self, now: Optional[float] = None) -> Dict[str, Any]:
+        """Re-judge with the latest port findings and alert on a move into or out of
+        ``act``; the port watch calls it every port tick."""
+        now = time.time() if now is None else now
+        verdict = self.current(now)
+        with self._lock:
+            self._alert_on_transition(verdict, now)
+        return verdict
+
+    def _alert_on_transition(self, verdict: Dict[str, Any], now: float) -> None:
         if verdict["verdict"] == "act" and not self._in_act:
             self._in_act = True
-            self._alerts.append({"ts": verdict["sampled_at"], "kind": "act",
+            self._alerts.append({"ts": now, "kind": "act",
                                  "reason": verdict["reason"], "fix": verdict["fix"]})
             logger.warning("🚨 health watch: act: %s. Suggested: %s", verdict["reason"], verdict["fix"])
         elif verdict["verdict"] != "act" and self._in_act:
             self._in_act = False
-            self._alerts.append({"ts": verdict["sampled_at"], "kind": "cleared",
+            self._alerts.append({"ts": now, "kind": "cleared",
                                  "reason": verdict["reason"], "fix": None})
             logger.info("✅ health watch: cleared, now %s: %s", verdict["verdict"], verdict["reason"])
 
@@ -85,6 +94,11 @@ class HealthWatch:
             out = classifier.classify(history[-1:], cfg, now)
         else:
             out = dict(verdict)
+        ports = port_watch.WATCH.current(now)
+        if ports is not None:
+            out = classifier.merge(out, ports["findings"], _SLOW_PORT_METRICS if ports["fresh"] else ())
+            out["offenders"] = {**out.get("offenders", {}), "ports": ports["offenders"]}
+            out["ports"] = ports["block"]
         out.update(enabled=bool(cfg.get("enabled", True)), interval_s=cfg["interval_s"],
                    samples=len(history), alerts=alerts)
         return out

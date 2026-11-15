@@ -195,14 +195,15 @@ def volume_disk_number(letter: str) -> int:
         kernel32.CloseHandle(handle)
 
 
-def dynamic_port_range() -> Optional[Tuple[int, int]]:
-    """The IPv4 TCP dynamic (ephemeral) port range as ``(start, end)``, or ``None``.
+def dynamic_port_range(protocol: str = "tcp") -> Optional[Tuple[int, int]]:
+    """The IPv4 dynamic (ephemeral) port range of ``protocol`` (``tcp`` or ``udp``)
+    as ``(start, end)``, or ``None``.
 
     Read from ``netsh`` because the range is a machine setting the owner may
     have changed from the 49152-65535 default."""
     try:
         out = subprocess.run(
-            ["netsh", "int", "ipv4", "show", "dynamicport", "tcp"],
+            ["netsh", "int", "ipv4", "show", "dynamicport", protocol],
             capture_output=True, text=True, encoding="oem", errors="replace",
             timeout=10, creationflags=NO_WINDOW,
         ).stdout

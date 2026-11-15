@@ -160,6 +160,9 @@ async def wire_observatory_loop() -> None:
     # Machine health watch: one cheap sample every 10 min (handles, commit,
     # pools, ports) so a slow leak is flagged before it forces a reboot.
     _BACKGROUND_TASKS.append(loop.create_task(_health_watch_loop()))
+    # Port watch: ports in use per protocol and per process every 30 s, plus
+    # the System log's exhaustion events, since a port burst drains in minutes.
+    _BACKGROUND_TASKS.append(loop.create_task(_port_watch_loop()))
     # Resource watch: free RAM, free disk and per-disk latency every minute,
     # with a Telegram alert on a sustained breach.
     _BACKGROUND_TASKS.append(loop.create_task(_resource_watch_loop()))
@@ -247,6 +250,18 @@ async def _health_watch_loop() -> None:
         raise
     except Exception as exc:  # noqa: BLE001
         logger.warning("health watch stopped: %s", exc)
+
+
+async def _port_watch_loop() -> None:
+    """Run the port watch; a failure to start it must never keep the hub down."""
+    try:
+        from .health import port_watch, watch
+
+        await port_watch.run_loop(on_tick=watch.WATCH.refresh_alerts)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("port watch stopped: %s", exc)
 
 
 async def _resource_watch_loop() -> None:

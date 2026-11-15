@@ -11,4 +11,6 @@ anything.
   * ``sampler``    — one sample: system pressure + the top processes per metric.
   * ``classifier`` — pure verdict over the history; thresholds from config.
   * ``watch``      — the loop, the history, and the act/cleared alerts.
+  * ``port_watch`` — a 30 s port sampler + Tcpip exhaustion events; its
+    findings join the verdict.
 """
