@@ -189,7 +189,7 @@ login_alert = { src = "src/login_alert.py", sha = "fb7591e8a80afb39ccbff994563f9
 password = { src = "src/password.py", sha = "1fab1b600964581c3df51a9f916f1fb4795ac286", dest = "src/password.py" }
 no_window = { src = "src/no_window.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "src/no_window.py" }
 single_instance = { src = "app/tray/single_instance.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "tray/single_instance.py" }
-toast = { src = "app/webapp/static/_vendored/toast", sha = "241d2fde53645497376a19c073bb2b6c4e540f86", dest = "app_web/static/_vendored/toast" }
+toast = { src = "app/webapp/static/_vendored/toast", sha = "e56c8330f8500b83635773033a09de6fc3cba342", dest = "app_web/static/_vendored/toast" }
 build-watch = { src = "app/webapp/static/_vendored/build-watch", sha = "241d2fde53645497376a19c073bb2b6c4e540f86", dest = "app_web/static/_vendored/build-watch" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
