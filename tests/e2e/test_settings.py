@@ -94,7 +94,7 @@ def _open_health(page, admin_url, body):
     page.goto(admin_url, wait_until="load")
     # The battery runs when its row opens.
     page.click("#paneHub .home-settings")
-    page.click('#settingsDialog .settings-link[data-settings="health"] .action-row-main')
+    page.click('#settingsDialog .settings-link[data-settings="health"]')
     page.wait_for_selector("#installRows .install-row", state="attached", timeout=10000)
 
 
@@ -146,7 +146,7 @@ def _failed_startup_toggle_reverts_to_the_saved_value(page, admin_url):
     page.route("**/admin/api/startup-profile", _patch)
     page.goto(admin_url, wait_until="load")
     page.click("#paneHub .home-settings")
-    page.click('#settingsDialog .settings-link[data-settings="startup"] .action-row-main')
+    page.click('#settingsDialog .settings-link[data-settings="startup"]')
 
     switch = page.locator("#startupList button[role='switch']").first
     assert switch.get_attribute("aria-checked") == "false"
@@ -179,8 +179,8 @@ def _a_switch_marks_a_machine_dormant(page, admin_url, mark):
     page.route("**/admin/api/machines/attic/dormant", _dormant)
     page.goto(admin_url, wait_until="load")
     page.click("#paneHub .home-settings")
-    assert page.inner_text("#dormantSummary") == "None dormant"
-    page.click('#settingsDialog .settings-link[data-settings="machines"] .action-row-main')
+    assert page.inner_text("#dormantSummary") == "None"
+    page.click('#settingsDialog .settings-link[data-settings="machines"]')
 
     items = page.locator("#dormantList .startup-row")
     assert items.count() == 2 and "Attic" in items.first.inner_text()
@@ -193,7 +193,7 @@ def _a_switch_marks_a_machine_dormant(page, admin_url, mark):
         "() => document.querySelector('#dormantList button[role=switch]').getAttribute('aria-checked') === 'true'"
     )
     assert puts == [("attic", {"dormant": True})], puts
-    assert page.inner_text("#dormantSummary") == "1 of 2 dormant"
+    assert page.inner_text("#dormantSummary") == "1 of 2"
     mark("settings.machines-dormant")
 
 
@@ -210,11 +210,11 @@ def _about_carries_the_models_config_version(page, admin_url, mark):
     assert page.locator("#settingsDialog #modelsConfigSha").inner_text() == "abc1234"
     mark("settings.about")
 
-    # The two rows that leave the app are action-row buttons, each opening its
+    # The two rows that leave the app are settings-row buttons, each opening its
     # address in a tab of its own; window.open is recorded, not followed.
     page.evaluate("window.__opened = []; window.open = (...a) => { window.__opened.push(a); return null; }; true")
     for row_id in ("aboutFrontier", "aboutLangfuse"):
-        row = page.locator(f"#settingsDialog button.action-row-main#{row_id}")
+        row = page.locator(f"#settingsDialog button.settings-row#{row_id}")
         assert row.count() == 1, f"{row_id} is a button, not a link"
         row.click()
     opened = page.evaluate("window.__opened")

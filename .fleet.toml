@@ -158,6 +158,7 @@ sign-in       = { src = "app/webapp/static/_vendored/sign-in", sha = "fb7591e8a8
 nav           = { src = "app/webapp/static/_vendored/nav", sha = "cb9fff9130453c781146f2cdf5083d83fb43b0df", dest = "app_web/static/_vendored/nav" }
 row-menu      = { src = "app/webapp/static/_vendored/row-menu", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "app_web/static/_vendored/row-menu" }
 select-native = { src = "app/webapp/static/_vendored/select-native", sha = "6c8ae06472edc4c7448a767656060cd2b79cefe9", dest = "app_web/static/_vendored/select-native" }
+settings-group = { src = "app/webapp/static/_vendored/settings-group", sha = "072d7355da45001255c3d53db00f80c3a3393900", dest = "app_web/static/_vendored/settings-group" }
 switch        = { src = "app/webapp/static/_vendored/switch", sha = "8f15c49560adbc076d24a8a63dd671868ffa7a4e", dest = "app_web/static/_vendored/switch" }
 text-size     = { src = "app/webapp/static/_vendored/text-size", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app_web/static/_vendored/text-size" }
 icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app_web/static/_vendored/icon-button" }

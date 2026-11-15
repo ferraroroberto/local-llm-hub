@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="/admin/static/_vendored/home-head/home-head.css">
   <link rel="stylesheet" href="/admin/static/_vendored/disclosure/disclosure.css">
   <link rel="stylesheet" href="/admin/static/_vendored/switch/switch.css">
+  <link rel="stylesheet" href="/admin/static/_vendored/settings-group/settings-group.css">
   <link rel="stylesheet" href="/admin/static/_vendored/empty-state/empty-state.css">
   <link rel="stylesheet" href="/admin/static/_vendored/nav/nav-tabs.css">
   <link rel="stylesheet" href="/admin/static/_vendored/page-foot/page-foot.css">
@@ -786,35 +787,86 @@
       </div>
       <div class="settings-layout" id="settingsLayout">
         <div class="settings-list">
-          <ul class="action-rows settings-groups">
-            <li class="group-overline">Display</li>
-            <li class="settings-row settings-inline"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-monitor"></use></svg></span><span class="settings-row-label">Text size</span>
+          <h3 class="settings-overline" id="settingsGroupDisplay">Display</h3>
+          <section class="card settings-group" aria-labelledby="settingsGroupDisplay">
+            <div class="settings-row">
+              <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-monitor"></use></svg>
+              <span class="settings-row-label">Text size</span>
               <div class="segmented" id="textSizeControl" role="group" aria-label="Text size">
                 <button type="button" class="segmented-item" aria-pressed="false" data-textsize="small" data-track="text-size-small">Small</button>
                 <button type="button" class="segmented-item" aria-pressed="true" data-textsize="default" data-track="text-size-default">Default</button>
                 <button type="button" class="segmented-item" aria-pressed="false" data-textsize="large" data-track="text-size-large">Large</button>
               </div>
-            </li>
-            <li class="settings-row settings-inline"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-sun"></use></svg></span><span class="settings-row-label">Theme</span>
+            </div>
+            <div class="settings-row">
+              <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
+              <span class="settings-row-label">Theme</span>
               <div class="segmented" id="themeSeg" role="group" aria-label="Theme">
                 <button type="button" class="segmented-item" data-theme-pref="system" aria-pressed="false" data-track="theme-system">System</button>
                 <button type="button" class="segmented-item" data-theme-pref="light" aria-pressed="false" data-track="theme-light">Light</button>
                 <button type="button" class="segmented-item" data-theme-pref="dark" aria-pressed="false" data-track="theme-dark">Dark</button>
               </div>
-            </li>
-            <li class="group-overline">Startup</li>
-            <li class="action-row settings-link" data-settings="startup"><button type="button" class="action-row-main" aria-controls="settingsPage-startup" data-track="settings-startup"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-rocket"></use></svg></span><span class="action-row-text"><span class="action-row-title">Service startup</span><span class="action-row-meta" id="startupSummary">—</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
-            <li class="group-overline">Machines</li>
-            <li class="action-row settings-link" data-settings="machines"><button type="button" class="action-row-main" aria-controls="settingsPage-machines" data-track="settings-machines"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-server"></use></svg></span><span class="action-row-text"><span class="action-row-title">Dormant machines</span><span class="action-row-meta" id="dormantSummary">—</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
-            <li class="group-overline">Health</li>
-            <li class="action-row settings-link" data-settings="health"><button type="button" class="action-row-main" aria-controls="settingsPage-health" data-track="settings-health"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-stethoscope"></use></svg></span><span class="action-row-text"><span class="action-row-title">Health &amp; install</span><span class="action-row-meta" id="installSummary">not checked</span></span><svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></li>
-            <li class="group-overline">About</li>
-            <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-tag"></use></svg></span><span class="settings-row-label">Build</span><span class="settings-row-value"><span id="aboutBuild">—</span></span></li>
-            <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-layers"></use></svg></span><span class="settings-row-label">Config version</span><span class="settings-row-value"><span id="modelsConfigSha">—</span></span></li>
-            <li class="settings-row"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-cpu"></use></svg></span><span class="settings-row-label">Process</span><span class="settings-row-value"><code id="aboutPid">—</code></span></li>
-            <li class="action-row"><button data-track="about-langfuse" type="button" class="action-row-main" id="aboutLangfuse"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-external-link"></use></svg></span><span class="action-row-text"><span class="action-row-title">Open Langfuse UI</span><span class="action-row-meta">Traces and long-window analytics</span></span></button></li>
-            <li class="action-row"><button data-track="about-frontier" type="button" class="action-row-main" id="aboutFrontier" data-href="/admin/frontier"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-line"></use></svg></span><span class="action-row-text"><span class="action-row-title">Frontier report</span><span class="action-row-meta">The latest model comparison run</span></span></button></li>
-          </ul>
+            </div>
+          </section>
+          <h3 class="settings-overline" id="settingsGroupStartup">Startup</h3>
+          <section class="card settings-group" aria-labelledby="settingsGroupStartup">
+            <button type="button" class="settings-row settings-link" data-settings="startup" aria-controls="settingsPage-startup" data-track="settings-startup">
+              <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-rocket"></use></svg>
+              <span class="settings-row-label">Service startup</span>
+              <span class="settings-row-value" id="startupSummary">—</span>
+              <svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </section>
+          <h3 class="settings-overline" id="settingsGroupMachines">Machines</h3>
+          <section class="card settings-group" aria-labelledby="settingsGroupMachines">
+            <button type="button" class="settings-row settings-link" data-settings="machines" aria-controls="settingsPage-machines" data-track="settings-machines">
+              <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-server"></use></svg>
+              <span class="settings-row-label">Dormant machines</span>
+              <span class="settings-row-value" id="dormantSummary">—</span>
+              <svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </section>
+          <h3 class="settings-overline" id="settingsGroupHealth">Health</h3>
+          <section class="card settings-group" aria-labelledby="settingsGroupHealth">
+            <button type="button" class="settings-row settings-link" data-settings="health" aria-controls="settingsPage-health" data-track="settings-health">
+              <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-stethoscope"></use></svg>
+              <span class="settings-row-label">Health &amp; install</span>
+              <span class="settings-row-value" id="installSummary">not checked</span>
+              <svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </section>
+          <h3 class="settings-overline" id="settingsGroupAbout">About</h3>
+          <section class="card settings-group" aria-labelledby="settingsGroupAbout">
+            <div class="settings-row">
+              <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-tag"></use></svg>
+              <span class="settings-row-label">Build</span>
+              <span class="settings-row-value" id="aboutBuild">—</span>
+            </div>
+            <div class="settings-row">
+              <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-layers"></use></svg>
+              <span class="settings-row-label">Config version</span>
+              <span class="settings-row-value" id="modelsConfigSha">—</span>
+            </div>
+            <div class="settings-row">
+              <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-cpu"></use></svg>
+              <span class="settings-row-label">Process</span>
+              <span class="settings-row-value" id="aboutPid">—</span>
+            </div>
+            <button data-track="about-langfuse" type="button" class="settings-row" id="aboutLangfuse">
+              <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-external-link"></use></svg>
+              <span class="settings-row-text">
+                <span class="settings-row-label">Open Langfuse UI</span>
+                <span class="settings-row-hint">Traces and long-window analytics</span>
+              </span>
+            </button>
+            <button data-track="about-frontier" type="button" class="settings-row" id="aboutFrontier" data-href="/admin/frontier">
+              <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>
+              <span class="settings-row-text">
+                <span class="settings-row-label">Frontier report</span>
+                <span class="settings-row-hint">The latest model comparison run</span>
+              </span>
+            </button>
+          </section>
         </div>
         <div class="settings-detail">
           <section class="settings-page" id="settingsPage-startup" data-page="startup" hidden aria-labelledby="settingsStartupTitle">

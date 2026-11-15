@@ -44,7 +44,7 @@ function renderSummary() {
   const list = state.dormantMachines;
   if (!els.dormantSummary || !list) return;
   const n = list.filter(function (m) { return m.dormant; }).length;
-  els.dormantSummary.textContent = n ? n + ' of ' + list.length + ' dormant' : 'None dormant';
+  els.dormantSummary.textContent = n ? n + ' of ' + list.length : 'None';
 }
 
 function buildRow(m) {
