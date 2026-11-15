@@ -178,6 +178,7 @@ The `resource` section of `config/health_watch.json`, re-read every sample like 
 | `src/health/watch.py` | The loop, the rolling history and the act/cleared alerts |
 | `src/health/port_probe.py` | One port sample from the endpoint tables, and the Tcpip exhaustion events from the System log |
 | `src/health/port_rules.py` | Port findings, holders with growth, the `ports` block (pure) |
+| `src/health/sample_store.py` | The JSON-row sample history both stores build on |
 | `src/health/port_store.py` | Port sample and event history in SQLite |
 | `src/health/port_watch.py` | The 30-second port loop and its state |
 | `src/health/resource_probe.py` | One resource sample: RAM, free space per drive, latency from counter deltas |

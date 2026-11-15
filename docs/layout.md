@@ -206,6 +206,7 @@ local-llm-hub/
 │   │   ├── resource_watch.py     #   the one-minute loop that ties them together
 │   │   ├── port_probe.py         #   one port sample (TCP + UDP endpoints per process in each dynamic range) + Tcpip exhaustion events from the System log
 │   │   ├── port_rules.py         #   pure port findings, holders with growth, the endpoint's ports block
+│   │   ├── sample_store.py       #   shared JSON-row sample history in SQLite (resource + port stores build on it)
 │   │   ├── port_store.py         #   24 h port history + exhaustion events (SQLite under the runtime-data root)
 │   │   └── port_watch.py         #   the 30 s port loop; its findings join the health verdict
 │   ├── install.py            # first-run checks + --fix
