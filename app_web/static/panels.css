@@ -330,7 +330,8 @@
   font-size: var(--font-caption);
   color: var(--muted);
 }
-.opt-stack > select { width: 100%; }
+/* An explicit height, not min-height: iOS ignores min-height on a bare select. */
+.opt-stack > select { width: 100%; height: var(--hit-min); }
 .opt-stack > textarea,
 .opt-stack > input {
   background: var(--input-bg);
