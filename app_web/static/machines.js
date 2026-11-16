@@ -276,8 +276,10 @@ function machineRow(m) {
     // an exception); the sheet lists every one.
     chips: exceptionChips(m).slice(0, 1),
     // "This machine" marks the host in the words, which truncate, so the tail
-    // stays the short state figure.
-    meta: m.state === 'self' ? ['This machine', m.role].filter(Boolean).join(' · ') : m.role,
+    // stays the short state figure. The words carry only the role's first
+    // phrase: a later one holds figures ("8 GB VRAM") an ellipsis would cut;
+    // the sheet lists the whole role.
+    meta: [m.state === 'self' ? 'This machine' : '', (m.role || '').split(' · ')[0]].filter(Boolean).join(' · '),
     selected: wide && state.machinesSelectedId === m.id,
     mainAttrs: ' data-machine-action="open"' + (wide ? '' : ' aria-haspopup="dialog"'),
     verb: rowVerb(m),
