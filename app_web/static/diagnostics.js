@@ -15,7 +15,7 @@ import { els, state } from './state.js';
 import { jsonApi, postJson, putJson, api, toast, escapeHtml, fmtDuration, isAuthError } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { setSwitch } from './_vendored/switch/switch.js';
-import { chip } from './rows.js';
+import { metaLine } from './rows.js';
 import { confirmDialog } from './confirm_dialog.js';
 
 const POLL_MS = 5000;
@@ -450,17 +450,17 @@ function updateCardChip() {
   if (!line) return;
   const status = state.diagStatus;
   const active = status && status.active;
-  const parts = ['<span class="row-meta-lead">This machine</span>'];
+  const opts = { lead: 'This machine' };
   if (active) {
-    parts.push(chip('capturing · ' + fmtDuration(active.elapsed_s), 'accent'));
+    opts.chips = [{ text: 'capturing · ' + fmtDuration(active.elapsed_s), tone: 'accent' }];
   } else {
     const latest = (state.diagRuns || [])[0];
     const level = latest && latest.verdict_level;
     const v = verdictMeta(level);
-    if (VERDICT_TONE[level]) parts.push(chip(v.label.toLowerCase(), VERDICT_TONE[level]));
-    else parts.push('<span class="row-meta-text">' + escapeHtml(level === 'healthy' ? 'Last capture healthy' : v.label) + '</span>');
+    if (VERDICT_TONE[level]) opts.chips = [{ text: v.label.toLowerCase(), tone: VERDICT_TONE[level] }];
+    else opts.meta = level === 'healthy' ? 'Last capture healthy' : v.label;
   }
-  line.innerHTML = parts.join('');
+  line.innerHTML = metaLine(opts);
 }
 
 // ----------------------------------------------------------------- actions

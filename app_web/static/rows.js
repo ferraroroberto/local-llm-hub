@@ -5,9 +5,9 @@
  *   row(opts)            One list row on the vendored action-row
  *                        (_vendored/action-row): a leading avatar whose corner
  *                        badge means alive ('up') or down ('down') and nothing
- *                        else, a one-line title, a budgeted meta line (a lead
- *                        that never shrinks, exception chips, then one context
- *                        string that ellipsizes), at most one visible verb and
+ *                        else, a one-line title, a budgeted meta line (one context
+ *                        string that ellipsizes, exception chips, then a lead
+ *                        figure that never shrinks), at most one visible verb and
  *                        one optional trailing item. Tapping the row is its
  *                        primary action (open the sheet / detail pane).
  *                        Destructive actions never go on a row: they live in
@@ -62,9 +62,10 @@ export function chip(text, tone) {
  *   glyph      avatar glyph (sprite name); omit for no avatar
  *   badge      'up' | 'down' | null — the avatar's alive badge
  *   title      one-line title
- *   lead       meta text that never shrinks (a state, an uptime)
- *   chips      [{ text, tone }] exception chips, after the lead
- *   meta       the context string, last, the only part that ellipsizes
+ *   lead       the figure or status (a state, an uptime, a count); drawn as the
+ *              vendored meta tail, last on the line, and never ellipsized
+ *   chips      [{ text, tone }] exception chips, after the context string
+ *   meta       the context string, first, the only part that ellipsizes
  *   selected   the row whose detail is open in the wide detail pane
  *   mainAttrs  extra attributes on the row's main button (already escaped)
  *   mainCls    extra classes on the row's main button
@@ -75,13 +76,20 @@ export function chip(text, tone) {
  *              (also naming the row); track is its usage-log control id.
  *   trail      raw HTML for the one trailing item (an ⓘ, a value)
  */
+export function metaLine(opts) {
+  const chips = (opts.chips || []).map(function (c) { return chip(c.text, c.tone); }).join('');
+  if (!opts.meta && !chips && !opts.lead) return '';
+  // The text wrapper is always emitted (empty is hidden by the vendored sheet) so
+  // the meta stays the split flex line the tail's separator and truncation need.
+  return '<span class="action-row-meta-text">' + escapeHtml(opts.meta || '') + '</span>'
+    + chips
+    + (opts.lead ? '<span class="action-row-meta-tail">' + escapeHtml(opts.lead) + '</span>' : '');
+}
+
 export function row(opts) {
-  const metaParts = [];
-  if (opts.lead) metaParts.push('<span class="row-meta-lead">' + escapeHtml(opts.lead) + '</span>');
-  (opts.chips || []).forEach(function (c) { metaParts.push(chip(c.text, c.tone)); });
-  if (opts.meta) metaParts.push('<span class="row-meta-text">' + escapeHtml(opts.meta) + '</span>');
-  const meta = metaParts.length || opts.metaAttrs
-    ? '<span class="action-row-meta"' + (opts.metaAttrs || '') + '>' + metaParts.join('') + '</span>'
+  const metaInner = metaLine(opts);
+  const meta = metaInner || opts.metaAttrs
+    ? '<span class="action-row-meta"' + (opts.metaAttrs || '') + '>' + metaInner + '</span>'
     : '';
   const avatar = opts.glyph
     ? '<span class="action-row-avatar"' + (opts.badge ? ' data-badge="' + opts.badge + '"' : '')
