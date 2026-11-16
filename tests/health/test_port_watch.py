@@ -34,8 +34,10 @@ class FakeTable:
         self.rows = {"tcp": list(tcp), "udp": list(udp)}
 
     def __call__(self, protocol: str):
-        return [SimpleNamespace(pid=pid, laddr=SimpleNamespace(port=port), status=status)
-                for pid, port, status in self.rows[protocol]]
+        """A row is ``(pid, port, status)`` or ``(pid, port, status, remote_port)``."""
+        return [SimpleNamespace(pid=row[0], laddr=SimpleNamespace(port=row[1]), status=row[2],
+                                raddr=SimpleNamespace(port=row[3]) if len(row) > 3 else ())
+                for row in self.rows[protocol]]
 
 
 def _endpoints(pid: int, count: int, start: int = LO, status: str = psutil.CONN_ESTABLISHED):
@@ -248,3 +250,134 @@ def test_disabled_port_watch_never_samples(rig, monkeypatch):
     monkeypatch.setattr(rig.pw, "tick", lambda *a, **k: pytest.fail("sampled while disabled"))
     asyncio.run(port_watch.run_loop())
     assert rig.pw.current() is None
+
+
+# --- the holder snapshot taken the moment a 4231 / 4266 lands ---
+
+HUB_PORT, WEB_PORT = 8000, 8445
+LISTENERS = [(404, HUB_PORT, psutil.CONN_LISTEN), (505, WEB_PORT, psutil.CONN_LISTEN)]
+
+
+def _time_wait_to(server_port: int, count: int, start: int = LO):
+    """Client sockets in TIME_WAIT toward a local server: no pid, the server port is the remote one."""
+    return [(0, start + i, psutil.CONN_TIME_WAIT, server_port) for i in range(count)]
+
+
+def _gate_burst(rig) -> None:
+    rig.table.set(tcp=LISTENERS + _time_wait_to(HUB_PORT, 60) + _time_wait_to(WEB_PORT, 5, start=LO + 60)
+                  + _endpoints(101, 3, start=LO + 70))
+
+
+def test_a_new_4231_snapshots_time_wait_by_port_and_listener_at_once(rig):
+    rig.events.append(_event(20, T0 - 4, 4231))
+    _gate_burst(rig)
+    rig.pw._probe._name_of = {404: "hub.exe", 505: "web.exe", **NAMES}.get
+    rig.pw.tick(_cfg(), now=T0)
+    (event,) = rig.store.events_since(T0 - 60)
+    snap = event["snapshot"]
+    assert snap["delay_s"] == 4.0
+    assert [(g["port"], g["listener"], g["count"]) for g in snap["time_wait_groups"]] == [
+        (HUB_PORT, "hub.exe", 60), (WEB_PORT, "web.exe", 5)]
+    assert snap["holders"][0]["name"] == "burst.exe" and snap["holders"][0]["tcp"] == 3
+    assert snap["probes"] == {"tcp": "ok", "udp": "ok"}
+
+
+def test_the_verdict_shows_the_snapshot_and_its_delay(rig):
+    rig.events.append(_event(21, T0 - 9, 4231))
+    _gate_burst(rig)
+    rig.pw._probe._name_of = {404: "hub.exe", 505: "web.exe", **NAMES}.get
+    rig.pw.tick(_cfg(), now=T0)
+    verdict = watch.WATCH.current(now=T0)
+    (found,) = [f for f in verdict["findings"] if f["metric"] == "tcpip_4231"]
+    assert "snapshot 9 s after the event" in found["reason"]
+    assert f"port {HUB_PORT} (hub.exe, 60 sockets)" in found["reason"]
+    assert "burst.exe" in found["reason"]
+    assert "not confirmed" not in found["reason"]
+    assert found["snapshot"]["delay_s"] == 9.0
+    assert verdict["ports"]["last_event"]["snapshot"]["delay_s"] == 9.0
+    assert "hub.exe" in verdict["ports"]["last_event"]["snapshot_summary"]
+
+
+def test_a_snapshot_that_found_nothing_reads_not_confirmed_with_its_delay(rig):
+    rig.events.append(_event(22, T0 - 240, 4266))
+    rig.table.set()  # the burst drained long before the read
+    rig.pw.tick(_cfg(), now=T0)
+    (found,) = [f for f in watch.WATCH.current(now=T0)["findings"] if f["metric"] == "tcpip_4266"]
+    assert found["level"] == "act"
+    assert "240 s after the event found no holders: not confirmed" in found["reason"]
+    assert "nothing held" not in found["reason"]
+
+
+def test_a_snapshot_with_an_unreadable_table_is_not_confirmed_for_it(rig):
+    def half_broken(protocol):
+        if protocol == "udp":
+            raise psutil.AccessDenied()
+        return rig.table(protocol)
+
+    pw = port_watch.PortWatch(port_probe.PortProbe(half_broken, NAMES.get, RANGES), rig.store,
+                              read_events=lambda lookback: [_event(23, T0 - 5, 4231)])
+    rig.table.set(tcp=_endpoints(101, 4))
+    pw.tick(_cfg(), now=T0)
+    (found,) = [f for f in pw.current(now=T0)["findings"] if f["metric"] == "tcpip_4231"]
+    assert "burst.exe" in found["reason"] and "udp table not read, not confirmed for it" in found["reason"]
+
+
+def test_time_wait_without_a_local_listener_groups_by_remote_port_and_names_no_process(rig):
+    rig.table.set(tcp=[(0, LO + i, psutil.CONN_TIME_WAIT, 443) for i in range(7)]
+                  + [(0, LO + 20, psutil.CONN_TIME_WAIT)])
+    snap = rig.pw._probe.snapshot(now=T0)
+    assert snap["time_wait_groups"] == [{"port": 443, "listener": None, "pid": None, "count": 7}]
+    assert snap["time_wait_unplaced"] == 1
+
+
+def test_server_side_time_wait_groups_on_the_local_listening_port(rig):
+    rig.table.set(tcp=LISTENERS + [(0, HUB_PORT, psutil.CONN_TIME_WAIT, LO + i) for i in range(3)])
+    (group,) = rig.pw._probe.snapshot(now=T0)["time_wait_groups"]
+    assert (group["port"], group["pid"], group["count"]) == (HUB_PORT, 404, 3)
+
+
+def test_only_a_new_range_exhaustion_event_triggers_a_snapshot(rig):
+    taken: List[float] = []
+    real = rig.pw._probe.snapshot
+    rig.pw._probe.snapshot = lambda **kw: taken.append(kw["now"]) or real(**kw)
+    cfg = _cfg()
+    rig.table.set(tcp=_endpoints(202, 2))
+    rig.pw.tick(cfg, now=T0)
+    assert taken == []  # no event
+    rig.events.append(_event(30, T0 + 10, 4227))
+    rig.pw.tick(cfg, now=T0 + 60)
+    assert taken == []  # connection churn is not a range exhaustion
+    rig.events.append(_event(31, T0 + 70, 4231))
+    rig.pw.tick(cfg, now=T0 + 120)
+    assert taken == [T0 + 120]
+    rig.pw.tick(cfg, now=T0 + 180)  # the overlapping re-read returns the same event
+    assert taken == [T0 + 120]
+
+
+def test_the_snapshot_survives_a_re_read_and_a_restart(rig):
+    cfg = _cfg()
+    rig.events.append(_event(40, T0 - 3, 4231))
+    _gate_burst(rig)
+    rig.pw.tick(cfg, now=T0)
+    rig.events[:] = [_event(40, T0 - 3, 4231)]  # the next read returns the event without a snapshot
+    rig.pw.tick(cfg, now=T0 + 60)
+    assert rig.pw.current(now=T0 + 60)["block"]["last_event"]["snapshot"]["delay_s"] == 3.0
+
+    reborn = port_watch.PortWatch(port_probe.PortProbe(FakeTable(), NAMES.get, RANGES), rig.store,
+                                  read_events=lambda lookback: [_event(40, T0 - 3, 4231)])
+    reborn.load(cfg, now=T0 + 120)
+    reborn.tick(cfg, now=T0 + 120)
+    last = reborn.current(now=T0 + 120)["block"]["last_event"]
+    assert last["snapshot"]["delay_s"] == 3.0  # not replaced by a late, drained re-snapshot
+
+
+def test_a_4231_stored_before_snapshots_existed_says_the_holder_is_not_confirmed(rig):
+    rig.store.add_events([_event(50, T0 - 60, 4231)], now=T0, keep_days=30)
+    pw = port_watch.PortWatch(port_probe.PortProbe(FakeTable(), NAMES.get, RANGES), rig.store,
+                              read_events=lambda lookback: [])
+    cfg = _cfg()
+    pw.load(cfg, now=T0)
+    pw.tick(cfg, now=T0)
+    (found,) = [f for f in pw.current(now=T0)["findings"] if f["metric"] == "tcpip_4231"]
+    assert "no holder snapshot, so the holder is not confirmed" in found["reason"]
+    assert "snapshot" not in found

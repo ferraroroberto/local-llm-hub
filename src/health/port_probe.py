@@ -8,7 +8,10 @@ changed it; the 49152-65535 default stands in only when it cannot be read.
 
 The System log's Tcpip events are ground truth: Windows writes 4227, 4231 or
 4266 the moment an allocation fails, so a burst that drains between two
-samples still leaves its trace there.
+samples still leaves its trace there. A new 4231 or 4266 also takes an
+immediate snapshot (``PortProbe.snapshot``) that attributes TIME_WAIT sockets,
+which have no owning pid, to the local server port they point at and its
+listening process.
 """
 
 from __future__ import annotations
@@ -38,7 +41,9 @@ EXHAUSTION_EVENTS: Dict[int, Tuple[str, str]] = {
     4231: ("tcp", "TCP ran out of ephemeral ports"),
     4266: ("udp", "UDP ran out of ephemeral ports"),
 }
-_EVENT_NS = "{http://schemas.microsoft.com/win/2004/08/events/event}"
+# The events whose holder the watch snapshots at once: the dynamic range ran out.
+SNAPSHOT_EVENTS = (4231, 4266)
+_EVENT_NS ="{http://schemas.microsoft.com/win/2004/08/events/event}"
 _MAX_EVENTS_PER_READ = 50
 
 Connections = Callable[[str], Iterable[Any]]
@@ -89,7 +94,46 @@ class PortProbe:
             self._names[pid] = self._name_of(pid)
         return self._names[pid]
 
-    def sample(self, *, top_n: int = 10, now: Optional[float] = None) -> Dict[str, Any]:
+    def _time_wait_groups(self, rows: List[Any], top_n: int) -> Tuple[List[Dict[str, Any]], int]:
+        """TIME_WAIT sockets grouped by the local server port they belong to, each with its
+        listening process, plus how many sockets no port could place. A TIME_WAIT socket has
+        no owning pid, but its burst is visible as many sockets pointing at one server port."""
+        listeners = {int(r.laddr.port): int(r.pid) for r in rows
+                     if r.status == psutil.CONN_LISTEN and r.laddr and r.pid}
+        counts: Dict[Tuple[int, bool], int] = {}
+        unplaced = 0
+        for row in rows:
+            if row.status != psutil.CONN_TIME_WAIT:
+                continue
+            local = int(row.laddr.port) if row.laddr else None
+            remote_addr = getattr(row, "raddr", None)
+            remote = int(remote_addr.port) if remote_addr else None
+            if local in listeners:
+                key = (local, True)
+            elif remote in listeners:
+                key = (remote, True)
+            elif remote is not None:
+                key = (remote, False)
+            else:
+                unplaced += 1
+                continue
+            counts[key] = counts.get(key, 0) + 1
+        ranked = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:top_n]
+        groups = []
+        for (port, is_local), count in ranked:
+            pid = listeners.get(port) if is_local else None
+            groups.append({"port": port, "listener": self._name(pid) if pid else None, "pid": pid, "count": count})
+        return groups, unplaced
+
+    def snapshot(self, *, top_n: int = 10, now: Optional[float] = None) -> Dict[str, Any]:
+        """A sample that also attributes TIME_WAIT by port and listener: the moment an
+        exhaustion event lands, this names who held the ports. Blocking."""
+        sample = self.sample(top_n=top_n, now=now, with_time_wait=True)
+        return {key: sample[key] for key in ("ts", "probes", "tcp", "udp", "holders", "time_wait_groups",
+                                              "time_wait_unplaced") if key in sample}
+
+    def sample(self, *, top_n: int = 10, now: Optional[float] = None,
+               with_time_wait: bool = False) -> Dict[str, Any]:
         """One sample. Blocking: call it off the event loop."""
         started, cpu_started = time.perf_counter(), time.process_time()
         ranges = self.ranges()
@@ -123,6 +167,8 @@ class PortProbe:
                              "percent": round(100.0 * len(used) / total, 1)}
             if protocol == "tcp":
                 out[protocol]["time_wait"] = time_wait
+                if with_time_wait:
+                    out["time_wait_groups"], out["time_wait_unplaced"] = self._time_wait_groups(rows, top_n)
             out["probes"][protocol] = "ok"
         live = set(per_pid)
         self._names = {pid: name for pid, name in self._names.items() if pid in live}

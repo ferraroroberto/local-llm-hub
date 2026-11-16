@@ -16,6 +16,7 @@ import time
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .classifier import fmt_count, restart_fix
+from .port_probe import SNAPSHOT_EVENTS
 
 LABELS = {"tcp": "TCP", "udp": "UDP"}
 RUNBOOK_FIX = ("No reboot: ports drain in minutes once the burst stops; find the client opening "
@@ -100,6 +101,32 @@ def _churn_at_act_line(history: Sequence[Dict[str, Any]], cfg: Dict[str, Any], t
     return False
 
 
+def snapshot_text(event: Dict[str, Any]) -> str:
+    """What the immediate snapshot of an exhaustion event found, with its delay after the event.
+    A snapshot that held nothing, or could not read a table, is "not confirmed": a drained
+    burst is not proof that nothing held the ports."""
+    snap = event.get("snapshot")
+    if not snap:
+        return "no holder snapshot, so the holder is not confirmed"
+    delay = f"{fmt_count(snap['delay_s'])} s after the event"
+    parts = []
+    groups = snap.get("time_wait_groups") or []
+    if groups:
+        parts.append("TIME_WAIT mostly " + ", ".join(
+            f"port {g['port']} ({g['listener'] or 'not a local listener'}, {fmt_count(g['count'])} sockets)"
+            for g in groups[:3]))
+    holders = snap.get("holders") or []
+    if holders:
+        parts.append("top holders " + ", ".join(f"{h['name']} ({fmt_count(h['ports'])} ports)" for h in holders[:3]))
+    unread = sorted(p for p, state in (snap.get("probes") or {}).items() if state != "ok")
+    if not parts:
+        return f"snapshot {delay} found no holders: not confirmed (the burst may have drained)"
+    text = f"snapshot {delay}: " + "; ".join(parts)
+    if unread:
+        text += f"; {'/'.join(unread)} table not read, not confirmed for it"
+    return text
+
+
 def _event_findings(events: Sequence[Dict[str, Any]], history: Sequence[Dict[str, Any]],
                     cfg: Dict[str, Any], now: float) -> List[Dict[str, Any]]:
     since = now - float(cfg["event_hold_hours"]) * _HOUR
@@ -109,8 +136,9 @@ def _event_findings(events: Sequence[Dict[str, Any]], history: Sequence[Dict[str
                  else "act",
          "kind": "system", "metric": f"tcpip_{e['event_id']}", "value": e["event_id"],
          "process": None, "ts": e["ts"],
-         "reason": f"Windows logged {e['reason']} (Tcpip {e['event_id']}) at {_clock(e['ts'])}",
-         "fix": RUNBOOK_FIX}
+         "reason": f"Windows logged {e['reason']} (Tcpip {e['event_id']}) at {_clock(e['ts'])}"
+                   + (f"; {snapshot_text(e)}" if e["event_id"] in SNAPSHOT_EVENTS else ""),
+         "fix": RUNBOOK_FIX, **({"snapshot": e["snapshot"]} if e.get("snapshot") else {})}
         for e in recent
     ]
 
@@ -202,4 +230,7 @@ def block(history: Sequence[Dict[str, Any]], events: Sequence[Dict[str, Any]], c
     out["top_holders"] = offenders(history, now)
     last = max(events, key=lambda e: e["ts"]) if events else None
     out["last_event"] = ({k: last[k] for k in ("ts", "event_id", "protocol", "reason")} if last else None)
+    if last and last["event_id"] in SNAPSHOT_EVENTS:
+        out["last_event"]["snapshot"] = last.get("snapshot")
+        out["last_event"]["snapshot_summary"] = snapshot_text(last)
     return out
