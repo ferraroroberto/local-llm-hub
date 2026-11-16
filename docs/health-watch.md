@@ -87,7 +87,7 @@ Ephemeral-port exhaustion builds and drains in minutes, and every fleet web app 
 - **Ports in use per protocol**: the distinct local ports inside each protocol's dynamic range that a TCP or UDP endpoint holds, as a percent of the range. The range is read from the OS once per hub start (`netsh int ipv4 show dynamicport tcp|udp` on Windows, `/proc/sys/net/ipv4/ip_local_port_range` on Linux); 49152-65535 stands in only when it cannot be read. UDP is counted on its own, because a UDP exhaustion leaves TCP untouched.
 - **TCP TIME_WAIT** sockets. They have no owning process, so they count toward the TCP percent but never toward a holder.
 - **Holders**: the `top_n` processes by endpoints held in the dynamic ranges, split TCP / UDP.
-- **Exhaustion events**: the System log's Tcpip 4227 (a local port still in TIME_WAIT could not be reused), 4231 (TCP ran out of ephemeral ports) and 4266 (UDP ran out), read with `wevtutil` every `events_interval_s` (60 s) over a window that overlaps the previous read; the record id stops an event being counted twice. Windows writes these the moment an allocation fails, so they are ground truth even when no sample landed in the burst. Off Windows the event probe is `unsupported`.
+- **Exhaustion events**: the System log's Tcpip 4227 (a local port still in TIME_WAIT could not be reused: connection churn, not exhaustion), 4231 (TCP ran out of ephemeral ports) and 4266 (UDP ran out), read with `wevtutil` every `events_interval_s` (60 s) over a window that overlaps the previous read; the record id stops an event being counted twice. Windows writes these the moment an allocation fails, so they are ground truth even when no sample landed in the burst. Off Windows the event probe is `unsupported`.
 
 ### Findings
 
@@ -95,7 +95,8 @@ Ephemeral-port exhaustion builds and drains in minutes, and every fleet web app 
 | --- | --- | --- |
 | `tcp_percent`, `udp_percent` | 50 / 80 | The worst sample in the last `hold_minutes` (15) |
 | `tcp_time_wait` | 4,000 / 10,000 | The same |
-| `tcpip_4227`, `tcpip_4231`, `tcpip_4266` | always `act` | For `event_hold_hours` (1) after the event, with its time |
+| `tcpip_4231`, `tcpip_4266` | always `act` | For `event_hold_hours` (1) after the event, with its time |
+| `tcpip_4227` | `watch`; `act` when a sample within `hold_minutes` of the event had `tcp_percent` or `tcp_time_wait` at its `act` line | The same hold, with the event's time |
 
 Judging on the worst recent sample keeps a burst that lasted one tick at `act` for whoever looks a few minutes later; the reason then says when it peaked and where it is now (`TCP dynamic ports peaked at 85% in use at 14:02 (now 3% in use), mostly app.exe (8 k ports)`). When one process holds at least `attribution_share` of the ports in use, the fix is restarting it; otherwise it points at the runbook. A failed table read or event-log read is an `unknown` finding, and a port sample older than `stale_after_intervals` × `interval_s` makes ports `unknown`, never fine.
 
