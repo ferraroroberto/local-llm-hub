@@ -638,6 +638,9 @@ h2 { display: flex; align-items: center; gap: 8px; }
  * list on a wide window (list : detail = 1 : 1.5). */
 /* The vendored segmented control, placed as a row's one trailing item. */
 .settings-row > .segmented { flex: 0 1 auto; margin-left: auto; }
+/* A short fact (the build id and time) keeps its whole width: the vendored
+ * value would cap it at 55% of the row and cut the time with an ellipsis. */
+.settings-row-value.settings-row-value-whole { flex: none; max-width: none; }
 .settings-detail h3 { margin: 0 0 8px; font-size: var(--font-body); font-weight: 700; }
 .settings-note { margin: 0 0 10px; font-size: var(--font-body-sm); }
 .settings-back {
