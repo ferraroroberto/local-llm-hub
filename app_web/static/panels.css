@@ -198,17 +198,7 @@
 /* Up / down / remove sit side by side: real 44px geometry, not an expansion. */
 .pe-host-row { --icon-btn-box: var(--hit-min); }
 .pe-add-row { display: flex; gap: 8px; align-items: stretch; }
-.pe-add-row select {
-  flex: 1 1 0;
-  min-width: 0;
-  background: var(--input-bg);
-  color: var(--ink);
-  border: 1px solid var(--control-border);
-  border-radius: var(--radius-sm);
-  padding: 7px 9px;
-  font: inherit;
-  font-size: var(--font-label);
-}
+.pe-add-row select { flex: 1 1 0; min-width: 0; }
 .pe-add-row .ghost-btn { flex-shrink: 0; }
 .pe-policy { display: flex; gap: 10px; flex-wrap: wrap; }
 .pe-field {
@@ -218,7 +208,6 @@
   font-size: var(--font-caption);
   color: var(--muted);
 }
-.pe-field select,
 .pe-field input {
   background: var(--input-bg);
   color: var(--ink);
@@ -341,9 +330,9 @@
   font-size: var(--font-caption);
   color: var(--muted);
 }
+.opt-stack > select { width: 100%; }
 .opt-stack > textarea,
-.opt-stack > input,
-.opt-stack > select {
+.opt-stack > input {
   background: var(--input-bg);
   color: var(--ink);
   border: 1px solid var(--control-border);

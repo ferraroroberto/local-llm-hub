@@ -766,7 +766,7 @@ function placementAddRow(ed) {
   const addRow = document.createElement('div');
   addRow.className = 'pe-add-row';
   const sel = document.createElement('select');
-  sel.className = 'pe-add-select';
+  sel.className = 'select-native pe-add-select';
   sel.dataset.track = 'placement-add-host-select';
   sel.setAttribute('aria-label', 'Host to add to the chain');
   addable.forEach(function (h) {
@@ -799,7 +799,7 @@ function placementPolicy(ed) {
   startupLabel.className = 'pe-field';
   startupLabel.appendChild(document.createTextNode('Startup'));
   const startupSel = document.createElement('select');
-  startupSel.className = 'pe-startup';
+  startupSel.className = 'select-native pe-startup';
   startupSel.dataset.track = 'placement-startup';
   [
     { v: 'eager', t: 'always on — load at startup' },
