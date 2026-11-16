@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import re
 
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
 from src.fleet import actions_runner as ar
 from tests._runner_fakes import CONFIG, OVERLAY, install_fakes
 from tests._worker_loop import run_on_worker_thread
@@ -41,6 +43,10 @@ FAKE_STATUS = {
         },
     ]
 }
+
+# A runner read starts as the sheet opens, so it lands in well under the 10 s
+# status poll. A wait longer than the poll would pass on a read the poll started.
+_READ_TIMEOUT_MS = 6000
 
 _RUNNER_URL = re.compile(r".*/admin/api/machines/mini/runner(/[a-z]+)?(\?.*)?$")
 
@@ -67,6 +73,7 @@ def _serve(page):
 
 def _open_mini(page, admin_url, *, detail="#machineSheetBody"):
     _serve(page)
+    page.add_init_script(_RECORD_TOASTS)
     page.goto(admin_url, wait_until="load")
     page.click("#tabMachines")
     page.wait_for_selector(".machine-row", state="visible", timeout=15000)
@@ -79,16 +86,47 @@ def _open_mini(page, admin_url, *, detail="#machineSheetBody"):
 
 
 def _wait_headline(section, headline, selector="#machineSheetBody .machine-runner"):
-    section.page.wait_for_function(
-        "([sel, h]) => { const e = document.querySelector(sel); return e && e.dataset.runnerHeadline === h; }",
-        arg=[selector, headline], timeout=10000,
-    )
+    page = section.page
+    try:
+        page.wait_for_function(
+            "([sel, h]) => { const e = document.querySelector(sel); return e && e.dataset.runnerHeadline === h; }",
+            arg=[selector, headline], timeout=_READ_TIMEOUT_MS,
+        )
+    except PlaywrightTimeoutError:
+        got = page.evaluate("sel => { const e = document.querySelector(sel); return e ? e.dataset.runnerHeadline : null; }", selector)
+        raise AssertionError(f"headline {headline!r} never showed; it was {got!r}") from None
 
 
-def _toast_text(page):
-    toast = page.locator("#toast")
-    toast.wait_for(state="visible", timeout=10000)
-    return toast.inner_text()
+# Records every message the toast shows. A toast hides after ~2 s, so polling
+# the element can miss a transient one on a loaded box, and a read of whichever
+# toast is up can return the previous step's message.
+_RECORD_TOASTS = """
+window.__toasts = []; window.__toastCursor = 0;
+new MutationObserver(() => {
+  const e = document.getElementById('toast');
+  if (!e || e.hidden) return;
+  const t = e.textContent;
+  if (t && window.__toasts[window.__toasts.length - 1] !== t) window.__toasts.push(t);
+}).observe(document, {subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden']});
+"""
+
+
+def _wait_toast(page, text):
+    """Wait for a toast carrying ``text`` that was shown after the previous one
+    this waited for."""
+    try:
+        page.wait_for_function(
+            """t => {
+              const i = window.__toasts.findIndex((m, n) => n >= window.__toastCursor && m.includes(t));
+              if (i < 0) return false;
+              window.__toastCursor = i + 1;
+              return true;
+            }""",
+            arg=text, timeout=10000,
+        )
+    except PlaywrightTimeoutError:
+        seen = page.evaluate("() => window.__toasts.slice(window.__toastCursor)")
+        raise AssertionError(f"toast {text!r} never showed; toasts since the last wait: {seen!r}") from None
 
 
 def _the_section_runs_stops_and_refuses(page, admin_url, fakes, mark):
@@ -112,7 +150,7 @@ def _the_section_runs_stops_and_refuses(page, admin_url, fakes, mark):
 
     # Stop then Start toast the outcome of the re-read, not of the request.
     section.locator('[data-machine-action="runner-stop"]').click()
-    assert "Runner stopped. GitHub shows it offline." in _toast_text(page)
+    _wait_toast(page, "Runner stopped. GitHub shows it offline.")
     _wait_headline(section, "stopped")
     assert section.locator("[data-runner-service]").inner_text() == "Stopped"
     assert section.locator("[data-runner-github]").inner_text() == "Offline"
@@ -121,15 +159,15 @@ def _the_section_runs_stops_and_refuses(page, admin_url, fakes, mark):
     assert any("./svc.sh stop" in c for c in mac.commands)
 
     section.locator('[data-machine-action="runner-start"]').click()
+    _wait_toast(page, "Runner started. GitHub shows it online.")
     _wait_headline(section, "online")
-    assert "Runner started. GitHub shows it online." in page.locator("#toast").inner_text()
     assert section.locator("[data-machine-runner-state]").inner_text() == "Online · idle"
 
     # Stop is refused with its reason while a job runs.
     gh.busy = True  # a job started after the sheet last read the runner
     mac.commands.clear()
     section.locator('[data-machine-action="runner-stop"]').click()
-    assert "A job is running" in _toast_text(page)
+    _wait_toast(page, "A job is running")
     assert not any("svc.sh stop" in c for c in mac.commands), "nothing may be sent while busy"
     # The refusal re-reads: the section now says so and Stop is off.
     _wait_headline(section, "busy")
@@ -176,7 +214,7 @@ def _install_is_offered_when_the_service_is_missing(page, admin_url, fakes):
 
     assert section.locator('[data-machine-action="runner-start"]').count() == 0
     section.locator('[data-machine-action="runner-install"]').click()
-    assert "Runner installed and started." in _toast_text(page)
+    _wait_toast(page, "Runner installed and started.")
     _wait_headline(section, "online")
 
 

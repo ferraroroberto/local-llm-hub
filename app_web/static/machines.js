@@ -662,6 +662,9 @@ function openMachine(id) {
   els.machineSheetBody.innerHTML = '';
   if (!els.machineSheet.open) els.machineSheet.showModal();
   renderSheet(state.machinesDataState === 'stale');
+  // The wide path repaints the whole tab, which reads the runner; the sheet path
+  // must ask itself, or the section waits for the next status poll.
+  refreshOpenRunner();
 }
 
 // --------------------------------------------------------- destructive confirm
