@@ -9,7 +9,7 @@ The structure ratchet (`scripts/structure_ratchet.py`, configured in `.fleet.tom
 | `src/` | The hub: FastAPI routing, backend wrappers, process managers, usage parsers. A new module goes in the subpackage of its domain (`routes/`, `audio/`, `images/`, `fleet/`, `process/`, `usage/`, `diagnostics/`, `fsio/`, …), because the flat directory sits just under its 40-module limit. |
 | `app_web/` | The `/admin` sub-app: routers and the static SPA (no bundler). Declared by the shape instead of the scaffold's `app/webapp/`. |
 | `tray/` | The Windows system-tray launcher. Declared by the shape instead of the scaffold's `app/tray/`. |
-| `tests/` | Unit and integration tests, grouped by domain into subfolders (`chat/`, `audio/`, `backends/`, `routers/`, `usage/`, `diagnostics/`, `health/`, `ratchets/`), with `tests/e2e/` for the Playwright suite. A new test goes in the subfolder of its domain. |
+| `tests/` | Unit and integration tests, grouped by domain into subfolders (`chat/`, `audio/`, `backends/`, `routers/`, `usage/`, `diagnostics/`, `health/`, `ratchets/`, `e2e_harness/`), with `tests/e2e/` for the Playwright suite. A new test goes in the subfolder of its domain. |
 | `scripts/` | Gate, ratchets, installers, benchmarks and one-off tools. |
 | `config/` | Committed config, samples and pricing tables. |
 | `launchers/` | Per-model backend launchers (`.bat` and `.sh`). |
@@ -307,6 +307,7 @@ local-llm-hub/
 │   ├── diagnostics/          # machine diagnostics capture, rules, report
 │   ├── health/               # health-watch classifier, leaking-process probe, endpoint
 │   ├── ratchets/             # pre-ship gate stages, e2e routing, static JS lints
+│   ├── e2e_harness/          # unit tests of the e2e harness itself (the port-pool failure label)
 │   └── e2e/                  # Playwright smoke tests (Chromium): tab-level coverage
 │                             #   for Code Usage, Fleet Placement, Machines, Roles, Telemetry;
 │                             #   the test hub boots via _isolated_hub.py — cut off from live
@@ -352,6 +353,7 @@ local-llm-hub/
     ├── telemetry-langfuse.md     # Langfuse OTel stack setup
     ├── fleet-maintenance.md      # reconcile drain markers
     ├── ci-e2e-decision.md        # why CI runs pytest + Playwright on windows-latest
+    ├── e2e-loopback-ports.md     # how the e2e suite avoids draining the loopback port pool
     ├── frontier-workflow.md      # bi-weekly refresh + /swap-model workflow
     ├── webapp-architecture-notes.md / webapp-design-language.md  # admin SPA structure + design notes
     ├── playbook-cli-backend-migration.md  # reusable method when a vendor CLI changes

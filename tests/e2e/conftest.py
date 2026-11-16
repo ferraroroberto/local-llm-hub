@@ -26,7 +26,12 @@ import httpx
 import pytest
 
 from src.process import win_job
+from tests.e2e._flow import close_shared_contexts
 from tests.e2e._isolated_hub import VIOLATIONS_FILE
+from tests.e2e._port_pool import (  # noqa: F401 - port-pool report hooks
+    pytest_runtest_makereport,
+    pytest_terminal_summary,
+)
 from tests.e2e._surface import pytest_collection_modifyitems  # noqa: F401
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -39,10 +44,24 @@ _DEFAULT_TIMEOUT_MS = int(os.environ.get("E2E_DEFAULT_TIMEOUT_MS", "15000"))
 
 
 @pytest.fixture(autouse=True)
-def _bound_default_timeouts(page):
-    """Set a bounded action + navigation timeout on every Playwright page (#100)."""
-    page.set_default_timeout(_DEFAULT_TIMEOUT_MS)
-    page.set_default_navigation_timeout(_DEFAULT_TIMEOUT_MS)
+def _bound_default_timeouts(request: pytest.FixtureRequest) -> None:
+    """Set a bounded action + navigation timeout on a test's own Playwright page.
+
+    Only when the test asks for ``page``: an autouse dependency on it would open
+    a fresh browser context for every test, which is the connection churn
+    ``fresh_page``'s shared contexts exist to avoid (see ``_port_pool.py``).
+    """
+    if "page" in request.fixturenames:
+        page = request.getfixturevalue("page")
+        page.set_default_timeout(_DEFAULT_TIMEOUT_MS)
+        page.set_default_navigation_timeout(_DEFAULT_TIMEOUT_MS)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _close_shared_contexts() -> Iterator[None]:
+    """Close the browser contexts ``fresh_page`` kept open for the whole run."""
+    yield
+    close_shared_contexts()
 
 
 def _free_tcp_port() -> int:
@@ -151,21 +170,27 @@ def hub_url(hub_state_dir: Path, hub_egress_log: EgressLog) -> Iterator[str]:
 
     deadline = time.time() + 30.0
     last_err = "timed out"
+    # One client, so the readiness polls reuse a connection instead of opening
+    # (and leaving in TIME_WAIT) a socket per attempt.
+    poll = httpx.Client(timeout=1.0)
     while time.time() < deadline:
         if proc.poll() is not None:
+            poll.close()
             log_fp.close()
             if job:
                 win_job.terminate_and_close(job)
             tail = log_path.read_text(encoding="utf-8")[-1500:]
             pytest.fail(f"hub exited before becoming reachable. Log tail:\n{tail}")
         try:
-            r = httpx.get(f"{url}/health", timeout=1.0)
+            r = poll.get(f"{url}/health")
             if r.status_code == 200:
+                poll.close()
                 break
         except httpx.HTTPError as exc:
             last_err = repr(exc)
         time.sleep(0.3)
     else:
+        poll.close()
         proc.terminate()
         log_fp.close()
         if job:

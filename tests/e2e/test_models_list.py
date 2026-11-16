@@ -1,7 +1,7 @@
 """The Models tab's list: what it opens on, what a row's actions do, how they look.
 
 Invented models over route interception, so no real backend is started or
-stopped. Each phase runs in its own browser context.
+stopped. Each phase gets its own page, with its cookies and storage reset after.
 
 * The tab opens on the memory glance, then the list; Running · All follows the
   stored filter and survives a reload.

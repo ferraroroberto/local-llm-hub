@@ -2,8 +2,8 @@
 
 Boots the hub with OTel disabled (set in ``tests/e2e/_isolated_hub.py``). The
 test hub reads no usage history, so a phase that stubs nothing renders the
-empty-state path of ``/admin/api/code/usage/summary``. Each phase runs in its
-own browser context.
+empty-state path of ``/admin/api/code/usage/summary``. Each phase gets its own
+page, with its cookies and storage reset after.
 
 ``test_code_usage_renders_the_summary`` reads the picture:
   * the four usage cards are one aligned set (same height, shared right edge,

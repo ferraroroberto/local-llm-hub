@@ -1,7 +1,7 @@
 """The Playground tab: one composer, its modes, its empty states and its geometry.
 
 Every request is stubbed or held by the test, so no model backend is reached.
-Each phase runs in its own browser context.
+Each phase gets its own page, with its cookies and storage reset after.
 """
 
 from __future__ import annotations

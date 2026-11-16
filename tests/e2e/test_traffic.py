@@ -1,6 +1,6 @@
 """Hub Activity: live requests, their rows, their traces and the sign-in sheet.
 
-Three phases, each in its own browser context: the live stream delivering real
+Three phases, each on its own page: the live stream delivering real
 requests (rows lead with the model, the clock trails, no duplicate on a
 reconnect), a stubbed stream whose rows are 44px trace targets that open the
 trace sheet with every OTel function, and the typed 401 contract with the

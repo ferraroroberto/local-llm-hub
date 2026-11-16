@@ -22,6 +22,8 @@ from src.process import backend_process
 from src.process.process_supervisor import OutcomeKind, ProcessOutcome
 from src.usage import agentsview_service
 
+_TICK_WAIT_S = 10.0
+
 
 def _stub_real_backend_ops(monkeypatch):
     """Keep the real ``server_mod.app`` lifespan hermetic (issue #416 follow-up).
@@ -111,7 +113,21 @@ def test_runs_list_is_empty_initially(client):
 # ------------------------------------------------------------- capture flow
 
 
-def test_start_stop_capture_round_trip(client):
+@pytest.fixture()
+def fast_tick(monkeypatch):
+    """Give a timed capture an instant tick instead of a live scan of this machine.
+
+    A real tick walks every process and runs 4-9 s on a quiet box, longer on a
+    loaded gate, so a test that waits a fixed time for it races the host. These
+    tests prove the capture's lifecycle, not the scan; the real path stays
+    covered by ``test_one_shot_snapshot_captures_and_evaluates`` and the
+    attribution smoke tests.
+    """
+    monkeypatch.setattr(sampler.attribution, "prime_cpu_percent", lambda: None)
+    monkeypatch.setattr(sampler, "_collect_tick", lambda: (_sample(time.time()), [], [], False))
+
+
+def test_start_stop_capture_round_trip(client, fast_tick):
     started = client.post("/admin/api/diagnostics/start",
                           json={"duration_s": 600, "interval_s": 5})
     assert started.status_code == 200
@@ -126,7 +142,7 @@ def test_start_stop_capture_round_trip(client):
     assert store.get_run(run_id)["status"] == "stopped"
 
 
-def test_second_capture_is_refused_while_one_runs(client):
+def test_second_capture_is_refused_while_one_runs(client, fast_tick):
     """Two concurrent captures would double the observer effect and interleave
     in the store."""
     client.post("/admin/api/diagnostics/start", json={"duration_s": 600})
@@ -140,7 +156,7 @@ def test_start_rejects_non_numeric_input(client):
     assert res.status_code == 400
 
 
-def test_interval_and_duration_are_clamped(client):
+def test_interval_and_duration_are_clamped(client, fast_tick):
     """A pathological interval must not turn the sampler into the load it is
     supposed to measure."""
     body = client.post("/admin/api/diagnostics/start",
@@ -168,7 +184,7 @@ def test_stop_when_idle_is_safe(client):
     assert client.post("/admin/api/diagnostics/stop", json={}).json()["stopped"] is False
 
 
-def test_stop_leaves_no_write_in_flight(client):
+def test_stop_leaves_no_write_in_flight(client, fast_tick):
     """Stopping must be *graceful*, not a mid-tick cancel.
 
     The sampler does its work through ``asyncio.to_thread``, and cancelling
@@ -180,7 +196,10 @@ def test_stop_leaves_no_write_in_flight(client):
     its row count must be final."""
     client.post("/admin/api/diagnostics/start", json={"duration_s": 600, "interval_s": 5})
     run_id = client.get("/admin/api/diagnostics/status").json()["active"]["run_id"]
-    time.sleep(2.5)  # let at least one tick land
+    deadline = time.monotonic() + _TICK_WAIT_S
+    while not store.samples(run_id):  # the stop must find a landed tick to guard
+        assert time.monotonic() < deadline, "the first tick never landed"
+        time.sleep(0.05)
 
     assert client.post("/admin/api/diagnostics/stop", json={}).json()["stopped"] is True
 
@@ -194,7 +213,7 @@ def test_stop_leaves_no_write_in_flight(client):
     assert len(store.samples(run_id)) == settled, "a write landed after stop returned"
 
 
-def test_stop_signal_does_not_abort_the_next_run(client):
+def test_stop_signal_does_not_abort_the_next_run(client, fast_tick):
     """A stale stop signal must not kill the following capture on tick one."""
     client.post("/admin/api/diagnostics/start", json={"duration_s": 600, "interval_s": 5})
     client.post("/admin/api/diagnostics/stop", json={})
@@ -394,7 +413,7 @@ def test_broken_settings_file_falls_back_to_defaults(tmp_path):
         diag_settings.set_settings_path(None)
 
 
-def test_shutdown_drains_an_active_capture(tmp_path, monkeypatch):
+def test_shutdown_drains_an_active_capture(tmp_path, monkeypatch, fast_tick):
     """A hub shutdown must gracefully stop an in-flight capture, not abandon it.
 
     Beyond finalizing the run as `stopped` instead of orphaning it, this is what

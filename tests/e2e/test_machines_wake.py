@@ -3,8 +3,8 @@
 The SPA contract is pinned with route interception on
 ``GET /admin/api/machines/status`` and the wake / sync endpoints, so no real
 fleet is ever probed. Phases run at a touch-enabled phone viewport (the same
-coarse-pointer branch the rest of the Machines tab is validated against), each in
-its own browser context.
+coarse-pointer branch the rest of the Machines tab is validated against), each on
+its own page.
 
 * Wake is the row's one visible verb on a **down** (or dormant) machine whose
   row advertises ``actions.wake`` (the MAC gate); an **up** or **self** machine

@@ -1,19 +1,23 @@
 """Shared pieces for the e2e flow tests.
 
 Each e2e test walks one user-visible flow as several phases. A phase is a
-function that takes a ``page`` and drives one scenario; every phase runs in its
-own browser context so the routes, init scripts, listeners, viewport and stored
-state of one scenario never leak into the next.
+function that takes a ``page`` and drives one scenario; every phase gets its own
+page, and ``fresh_page`` clears the cookies, storage and permissions it
+leaves behind, so the routes, init scripts, listeners, viewport and stored state
+of one scenario never leak into the next.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator, List
+from typing import Any, Dict, Iterator, List, Tuple
 
-from playwright.sync_api import Browser, Page
+from playwright.sync_api import Browser, BrowserContext, Page
+
+logger = logging.getLogger(__name__)
 
 PHONE = {"width": 390, "height": 844}
 DESKTOP = {"width": 1280, "height": 900}
@@ -38,6 +42,59 @@ PHASE_TIMEOUT_MS = 15000
 _TOLERATED_CONSOLE_NOISE = ("icon-180", "icon-512")
 
 
+# One browser context per (browser, context args), kept for the whole session.
+# A closed context drops its connections to the hub, and every closed connection
+# parks a loopback ephemeral port in TIME_WAIT; a drained pool fails the next
+# page load with ``net::ERR_ADDRESS_IN_USE`` (see ``_port_pool.py``). Reusing
+# the context keeps its connections and HTTP cache alive across phases.
+_ContextKey = Tuple[int, Tuple[Tuple[str, str], ...]]
+_SHARED_CONTEXTS: Dict[_ContextKey, BrowserContext] = {}
+
+
+def _shared_context(browser: Browser, context_args: Dict[str, Any]) -> BrowserContext:
+    key: _ContextKey = (id(browser), tuple(sorted((k, repr(v)) for k, v in context_args.items())))
+    context = _SHARED_CONTEXTS.get(key)
+    if context is None:
+        context = browser.new_context(**context_args)
+        _SHARED_CONTEXTS[key] = context
+    return context
+
+
+def close_shared_contexts() -> None:
+    """Close every context ``fresh_page`` opened; called once at session end."""
+    for context in _SHARED_CONTEXTS.values():
+        try:
+            context.close()
+        except Exception as exc:  # noqa: BLE001 - teardown must reach every context
+            logger.warning("⚠️  closing a shared browser context failed: %s", exc)
+    _SHARED_CONTEXTS.clear()
+
+
+def _close_and_reset(context: BrowserContext, page: Page) -> None:
+    """Close the phase's page and return the shared context to a first-visit state.
+
+    Everything a phase can leave behind that the next one could read: the
+    page's own storage, and the context's cookies and permissions. Its routes,
+    init scripts and listeners die with the page; ``unroute_all`` is skipped
+    because it blocks on a handler still holding a request. A step that fails
+    is logged and skipped, never raised, so one broken page cannot mask the
+    phase's own result.
+    """
+    steps = (
+        lambda: page.evaluate(
+            "() => { try { localStorage.clear(); sessionStorage.clear(); } catch (e) {} }"
+        ),
+        page.close,
+        context.clear_cookies,
+        context.clear_permissions,
+    )
+    for step in steps:
+        try:
+            step()
+        except Exception as exc:  # noqa: BLE001 - see docstring
+            logger.warning("⚠️  shared context reset step failed: %s", exc)
+
+
 @contextmanager
 def fresh_page(
     browser: Browser,
@@ -46,13 +103,14 @@ def fresh_page(
     page_errors: bool = False,
     **context_args: Any,
 ) -> Iterator[Page]:
-    """Yield a page in a new browser context; close the context afterwards.
+    """Yield a new page in the session's shared context for ``context_args``.
 
-    ``console_errors`` fails the phase on any ``console.error`` line and
-    ``page_errors`` on any uncaught page exception. A phase that stubs a failing
-    response leaves them off: the browser logs the non-2xx itself.
+    The page is closed and the context reset afterwards. ``console_errors``
+    fails the phase on any ``console.error`` line and ``page_errors`` on any
+    uncaught page exception. A phase that stubs a failing response leaves them
+    off: the browser logs the non-2xx itself.
     """
-    context = browser.new_context(**context_args)
+    context = _shared_context(browser, context_args)
     page = context.new_page()
     page.set_default_timeout(PHASE_TIMEOUT_MS)
     page.set_default_navigation_timeout(PHASE_TIMEOUT_MS)
@@ -69,7 +127,7 @@ def fresh_page(
     try:
         yield page
     finally:
-        context.close()
+        _close_and_reset(context, page)
     if errors:
         raise AssertionError("console errors: " + " | ".join(errors))
 
