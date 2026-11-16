@@ -223,9 +223,13 @@ def _fields_and_presets_keep_the_design_geometry(page, admin_url):
             }"""
         )
         for sel in _FIELDS:
-            color = page.evaluate(
-                "sel => getComputedStyle(document.querySelector(sel)).borderTopColor", sel)
-            assert color == token, f"{sel}: border {color}, expected control-border {token} ({theme})"
+            # The vendored select draws its boundary as an inset ring inside a
+            # transparent 44px hit band, so the token is a border colour or a ring.
+            color, ring = page.evaluate(
+                "sel => { const s = getComputedStyle(document.querySelector(sel));"
+                " return [s.borderTopColor, s.boxShadow]; }", sel)
+            assert color == token or token in ring, (
+                f"{sel}: border {color}, ring {ring}, expected control-border {token} ({theme})")
 
     page.evaluate("document.getElementById('playgroundMore').open = true")
     page.wait_for_selector("#playgroundMaxTokensSeg", state="visible", timeout=3000)
