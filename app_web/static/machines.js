@@ -136,12 +136,11 @@ function badgeFor(m) {
   return null;
 }
 
-/* The meta line's lead: the state in words (the badge is decoration, so the
- * text must say it too), then the uptime. */
+/* The meta line's lead (its tail, which never ellipsizes): the state in words
+ * (the badge is decoration, so the text must say it too), then the uptime. */
 function leadFor(m) {
   const uptime = fmtDuration(m.uptime_seconds, { days: true, empty: null });
-  if (m.state === 'self') return 'This machine' + (uptime ? ' · up ' + uptime : '');
-  if (m.state === 'up') return uptime ? 'Up ' + uptime : 'Up';
+  if (m.state === 'self' || m.state === 'up') return uptime ? 'Up ' + uptime : 'Up';
   if (isAnswering(m)) return 'Reachable · still dormant';
   if (isDormant(m)) return 'Dormant';
   return m.detail && m.detail !== 'Offline' ? m.detail : 'Offline';
@@ -276,7 +275,9 @@ function machineRow(m) {
     // One chip on the face (design.md action-row: a chip closes the line, for
     // an exception); the sheet lists every one.
     chips: exceptionChips(m).slice(0, 1),
-    meta: m.role,
+    // "This machine" marks the host in the words, which truncate, so the tail
+    // stays the short state figure.
+    meta: m.state === 'self' ? ['This machine', m.role].filter(Boolean).join(' · ') : m.role,
     selected: wide && state.machinesSelectedId === m.id,
     mainAttrs: ' data-machine-action="open"' + (wide ? '' : ' aria-haspopup="dialog"'),
     verb: rowVerb(m),

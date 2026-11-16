@@ -1,30 +1,10 @@
 /* Shared parts — the app-side half of rows.js. The row itself is the
  * vendored action-row (_vendored/action-row/action-row.css); the chip and the
  * tone map live in styles.css. This file adds only what the vendored row
- * leaves to the app: the meta line's lead + chips + ellipsizing context, the
- * selected row of a list-plus-detail split, the header
+ * leaves to the app: the selected row of a list-plus-detail split, the header
  * line's tones, the ⓘ button, the info sheet, the sheet's own rows and the
  * two wide-window primitives.
  */
-
-/* ---------- meta line: lead · chips · context ----------
- * One body-sm line. The lead (a state, an uptime) and the chips never shrink;
- * only the context string, last, ellipsizes (design.md action-row: at 390px
- * only the context name may ellipsize). */
-.action-row .action-row-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.row-meta-lead { flex: none; white-space: nowrap; }
-.row-meta-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.row-meta-text:not(:first-child)::before { content: "· "; }
 
 /* The selected row of a list-plus-detail split keeps the accent-soft tint, and
  * its secondary text moves to accent-text (muted measured under AA on it). */
