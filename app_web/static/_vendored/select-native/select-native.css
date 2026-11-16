@@ -52,3 +52,21 @@
 }
 .input-native:focus-visible,
 .select-native:focus-visible { outline-offset: calc(2px - var(--native-inset)); }
+
+/* WebKit renders a select with a transparent border band as its native
+ * rounded menulist and drops the author's box-shadow, so the boundary ring
+ * vanishes. `appearance: none` keeps the author's box in every engine (a
+ * touch device still opens its native picker), and the chevron is two
+ * token-coloured gradients, with room on the right so the label never runs
+ * under it. The `background` shorthand above resets these, so they follow it. */
+.select-native {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 34px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink) 50%),
+    linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position: calc(100% - 19px) 50%, calc(100% - 14px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
