@@ -124,6 +124,48 @@ def test_a_logged_exhaustion_event_is_act_with_its_time_even_when_no_sample_saw_
     assert later["block"]["last_event"]["ts"] == T0 - 60
 
 
+def _event(record_id: int, ts: float, event_id: int) -> Dict:
+    return {"record_id": record_id, "ts": ts, "event_id": event_id,
+            "protocol": port_probe.EXHAUSTION_EVENTS[event_id][0],
+            "reason": port_probe.EXHAUSTION_EVENTS[event_id][1]}
+
+
+def test_a_lone_4227_with_low_port_use_is_watch_and_keeps_its_time(rig):
+    rig.table.set(tcp=_endpoints(202, 3))
+    rig.events.append(_event(10, T0 - 90, 4227))
+    rig.pw.tick(_cfg(), now=T0)
+    verdict = watch.WATCH.current(now=T0)
+    assert verdict["verdict"] == "watch"
+    (found,) = [f for f in verdict["findings"] if f["metric"] == "tcpip_4227"]
+    assert found["level"] == "watch" and found["ts"] == T0 - 90
+    assert "Tcpip 4227" in found["reason"]
+
+
+@pytest.mark.parametrize("table", [
+    {"tcp": _endpoints(101, 90)},
+    {"tcp": _endpoints(202, 2) + _endpoints(303, 60, start=LO + 2, status=psutil.CONN_TIME_WAIT)},
+], ids=["ports-at-act-line", "time-wait-at-act-line"])
+def test_a_4227_with_port_use_at_the_act_line_is_act(rig, table):
+    rig.table.set(**table)
+    rig.events.append(_event(11, T0 - 90, 4227))
+    cfg = _cfg(tcp_time_wait={"watch": 20, "act": 50})
+    rig.pw.tick(cfg, now=T0)
+    verdict = watch.WATCH.current(now=T0)
+    (found,) = [f for f in verdict["findings"] if f["metric"] == "tcpip_4227"]
+    assert found["level"] == "act" and verdict["verdict"] == "act"
+
+
+def test_4231_and_4266_are_act_whatever_the_port_use(rig):
+    rig.table.set(tcp=_endpoints(202, 3))
+    rig.events.append(_event(12, T0 - 90, 4231))
+    rig.events.append(_event(13, T0 - 60, 4266))
+    rig.pw.tick(_cfg(), now=T0)
+    verdict = watch.WATCH.current(now=T0)
+    levels = {f["metric"]: f["level"] for f in verdict["findings"] if f["metric"].startswith("tcpip_")}
+    assert levels == {"tcpip_4231": "act", "tcpip_4266": "act"}
+    assert verdict["verdict"] == "act"
+
+
 def test_offenders_list_port_holders_by_process_with_growth(rig):
     cfg = _cfg()
     for i in range(11):  # steady.exe gains 2 ports a tick for 10 min = 240 an hour

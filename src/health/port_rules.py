@@ -4,8 +4,10 @@ the port history, the exhaustion events and the config.
 A level is judged on the worst sample inside ``hold_minutes``, not only the
 newest one: a burst that drains in two minutes must still read ``act`` for
 whoever looks a few minutes later, and the reason says when it peaked. A
-logged exhaustion event is ``act`` for ``event_hold_hours`` after it, even
-when no sample caught the burst.
+logged exhaustion event holds the verdict for ``event_hold_hours`` after it, even
+when no sample caught the burst. 4231 and 4266 (the dynamic range ran out) are
+``act``; a 4227 (a port still in TIME_WAIT could not be reused) is connection
+churn, so it is ``watch`` unless the samples around it were at the ``act`` line.
 """
 
 from __future__ import annotations
@@ -84,11 +86,28 @@ def _pressure_finding(history, cfg, now, metric, read, label, unit, protocol) ->
             "ts": at["ts"], "reason": reason, "fix": fix}
 
 
-def _event_findings(events: Sequence[Dict[str, Any]], cfg: Dict[str, Any], now: float) -> List[Dict[str, Any]]:
+_CHURN_EVENT = 4227
+
+
+def _churn_at_act_line(history: Sequence[Dict[str, Any]], cfg: Dict[str, Any], ts: float) -> bool:
+    """Whether TCP ports or TIME_WAIT reached their ``act`` line within ``hold_minutes`` of ``ts``."""
+    span = float(cfg["hold_minutes"]) * 60
+    near = [s for s in history if abs(s["ts"] - ts) <= span]
+    for metric, read in (("tcp_percent", _percent("tcp")), ("tcp_time_wait", _time_wait)):
+        peak = _peak(near, read, float("-inf"))
+        if peak is not None and _level(peak[0], cfg[metric]) == "act":
+            return True
+    return False
+
+
+def _event_findings(events: Sequence[Dict[str, Any]], history: Sequence[Dict[str, Any]],
+                    cfg: Dict[str, Any], now: float) -> List[Dict[str, Any]]:
     since = now - float(cfg["event_hold_hours"]) * _HOUR
     recent = sorted((e for e in events if e["ts"] >= since), key=lambda e: e["ts"], reverse=True)
     return [
-        {"level": "act", "kind": "system", "metric": f"tcpip_{e['event_id']}", "value": e["event_id"],
+        {"level": "watch" if e["event_id"] == _CHURN_EVENT and not _churn_at_act_line(history, cfg, e["ts"])
+                 else "act",
+         "kind": "system", "metric": f"tcpip_{e['event_id']}", "value": e["event_id"],
          "process": None, "ts": e["ts"],
          "reason": f"Windows logged {e['reason']} (Tcpip {e['event_id']}) at {_clock(e['ts'])}",
          "fix": RUNBOOK_FIX}
@@ -115,7 +134,7 @@ def findings(history: Sequence[Dict[str, Any]], events: Sequence[Dict[str, Any]]
              now: float, events_probe: Optional[str] = None) -> List[Dict[str, Any]]:
     """Every port finding as of ``now``; ``cfg`` is the ``ports`` section plus ``attribution_share``
     and ``reboot_only_processes``."""
-    out = _event_findings(events, cfg, now)
+    out = _event_findings(events, history, cfg, now)
     if is_stale(history, cfg, now):
         age = "never" if not history else f"{fmt_count((now - history[-1]['ts']) / 60)} min ago"
         out.append({"level": "unknown", "kind": "probe", "metric": "ports",
