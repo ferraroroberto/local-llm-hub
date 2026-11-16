@@ -43,7 +43,7 @@ The fleet's **Settings pane**: an `overline` header over an inset `card`, the ca
 
 - **A value that can be cut off carries a `title` with its full text** (a path, a long name), so the ellipsis never hides it for good.
 - **A value is never boxed.** The value is muted text, and a select inside a row is `.settings-row-select` (borderless, muted, right-aligned), never a bordered `.select-native` pill. Keep `.select-native` for forms and modal rows.
-- **A number field is 80px wide in every app**, at the body size (16px, so iOS never zooms on focus), figures right-aligned in `tabular-nums`, with its unit after it in `.settings-row-unit`, and no prefix sign.
+- **A number field is 80px wide in every app**, at the body size (16px, so iOS never zooms on focus), figures right-aligned in `tabular-nums`, with its unit after it in `.settings-row-unit`, and no prefix sign. Its box is the `--hit-min` floor (44px) tall on every pointer, because an input cannot grow its hit area with a `::before`: the visible 36px control is the padding box inside a transparent vertical band, and its boundary is an inset shadow.
 - **Tone:** `data-tone="attention"` or `data-tone="danger"` on `.settings-row-value` for an exception only (a failing check, a setting that needs you). A health check that passes reads as a plain value.
 - **Wide layout:** `aria-current="true"` on the row whose sheet is open beside the list tints it `accent-soft` and moves its value and glyphs to `accent-text`.
 - A row that acts on tap (Delete all…) carries no chevron. A control changed often (Text size, a segmented mode) is placed in a row without a value or chevron.
@@ -63,7 +63,8 @@ The fleet's **Settings pane**: an `overline` header over an inset `card`, the ca
 | `--accent` | `#0969da` | focus ring |
 | `--accent-soft`, `--accent-text` | mixed / `#0550ae` | the selected row on a wide screen |
 | `--attention-text`, `--danger-text` | `#7d4e00` / `#a40e26` | a toned value |
-| `--control-h`, `--row-sm`, `--row-md` | `36px` / `44px` / `52px` | number field height, select height, row height |
+| `--control-h`, `--row-sm`, `--row-md` | `36px` / `44px` / `52px` | number field's visible height, select height, row height |
+| `--hit-min` (fallback `44px`) | `44px` | the number field's box height (target floor) |
 | `--control-border`, `--input-bg` | `#818b98` / `var(--card-off)` | number field border and fill |
 | `--radius-md` | `12px` | number field corners |
 | `--icon-title`, `--icon-inline` | `18px` / `16px` | lead glyph, chevron |
