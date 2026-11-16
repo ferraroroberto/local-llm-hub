@@ -120,9 +120,9 @@ function memoryRow(host, confirmed) {
   // never a confident "0 running" — that's the stopped-hub case the
   // Machines tab offers "Start hub" for.
   const meta = !confirmed ? ''
-    : (host.dormant ? 'dormant'
-      : (!host.local && !host.reachable ? 'off'
-        : (host.running_unknown ? 'not confirmed' : running + ' running')));
+    : (host.dormant ? 'Dormant'
+      : (!host.local && !host.reachable ? 'Off'
+        : (host.running_unknown ? 'Not confirmed' : running + ' running')));
   return row({
     cls: 'memory-row' + (confirmed && host.capacity_warning ? ' is-over' : ''),
     attrs: ' data-host-id="' + escapeHtml(host.id) + '"',
