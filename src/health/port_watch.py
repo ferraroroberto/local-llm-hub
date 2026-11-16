@@ -77,6 +77,25 @@ class PortWatch:
         # Overlap the previous read so an event logged during it is not skipped; record ids dedupe.
         return lookback if last is None else min(lookback, now - last + float(ports["events_interval_s"]))
 
+    def _attach_snapshot(self, events: Optional[List[Dict[str, Any]]], ports: Dict[str, Any], now: float) -> None:
+        """Snapshot the port holders now for an exhaustion event not seen before, and keep it
+        on the event: by the next interval the burst has drained. One table read serves every
+        new event; each carries its own delay, the seconds between the event and the read."""
+        with self._lock:
+            fresh = [e for e in events or [] if e["event_id"] in port_probe.SNAPSHOT_EVENTS
+                     and e["record_id"] not in self._events]
+        if not fresh:
+            return
+        try:
+            snapshot = self._probe.snapshot(top_n=int(ports["top_n"]), now=now)
+        except Exception as exc:  # noqa: BLE001 — a failed snapshot must not lose the event itself
+            logger.warning("⚠️ port watch: holder snapshot failed: %s", exc)
+            return
+        for e in fresh:
+            e["snapshot"] = {**snapshot, "delay_s": round(max(0.0, snapshot["ts"] - e["ts"]), 1)}
+            logger.info("ℹ️ port watch: holder snapshot taken %s s after Tcpip %s", e["snapshot"]["delay_s"],
+                        e["event_id"])
+
     def tick(self, cfg: Dict[str, Any], now: Optional[float] = None) -> Dict[str, Any]:
         """Take one sample (and read the event log when due), store and keep it. Blocking."""
         ports = cfg["ports"]
@@ -86,6 +105,7 @@ class PortWatch:
         lookback = self._due_events(ports, now)
         if lookback is not None and self._read_events is not None:
             events = self._read_events(lookback)
+            self._attach_snapshot(events, ports, now)
         try:
             self._store.add_sample(sample, keep_hours=float(ports["history_hours"]))
             if events:
@@ -105,8 +125,9 @@ class PortWatch:
                 else:
                     self._events_probe = "failed" if events is None else "ok"
                 for e in events or []:
-                    if e["record_id"] not in self._events:
-                        logger.warning("🚨 port watch: Windows logged %s (Tcpip %s)", e["reason"], e["event_id"])
+                    if e["record_id"] in self._events:
+                        continue  # a re-read of a known event carries no snapshot; keep the one taken
+                    logger.warning("🚨 port watch: Windows logged %s (Tcpip %s)", e["reason"], e["event_id"])
                     self._events[e["record_id"]] = e
         return sample
 

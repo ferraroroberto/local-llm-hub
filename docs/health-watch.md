@@ -89,6 +89,12 @@ Ephemeral-port exhaustion builds and drains in minutes, and every fleet web app 
 - **Holders**: the `top_n` processes by endpoints held in the dynamic ranges, split TCP / UDP.
 - **Exhaustion events**: the System log's Tcpip 4227 (a local port still in TIME_WAIT could not be reused: connection churn, not exhaustion), 4231 (TCP ran out of ephemeral ports) and 4266 (UDP ran out), read with `wevtutil` every `events_interval_s` (60 s) over a window that overlaps the previous read; the record id stops an event being counted twice. Windows writes these the moment an allocation fails, so they are ground truth even when no sample landed in the burst. Off Windows the event probe is `unsupported`.
 
+### The holder snapshot
+
+A burst drains within a minute, long before the next 30 s sample, so by the time the event log is read the holders are gone. When a read finds a **new** `4231` or `4266` (a `4227` and a re-read of a known event do not), the watch takes one extra port sample at once and keeps it on the event, in SQLite, so it survives a restart. Besides the top holders by live endpoints it attributes **TIME_WAIT** sockets, which have no owning process: each is grouped by the local server port it belongs to (its own port, or the remote port it points at) and mapped to the process listening on that port. A group whose port has no local listener says so. Only ports, process names and counts are kept, never addresses or command lines.
+
+The snapshot runs a few seconds after the event, never at it, so the verdict says how many (`snapshot 9 s after the event: TIME_WAIT mostly port 8000 (hub.exe, 60 sockets); top holders ...`). A snapshot that found nothing or could not read a table reads `not confirmed`, never "nothing held them"; an event with no snapshot (stored before this existed, or the read failed) says the holder is not confirmed. The finding carries the raw `snapshot`, and `ports.last_event` carries it with a `snapshot_summary`.
+
 ### Findings
 
 | Metric | Default watch / act | Judged on |
@@ -177,7 +183,7 @@ The `resource` section of `config/health_watch.json`, re-read every sample like 
 | `src/health/classifier.py` | The verdict: a pure function of the history and the config |
 | `src/health/settings.py` | Config loading and defaults |
 | `src/health/watch.py` | The loop, the rolling history and the act/cleared alerts |
-| `src/health/port_probe.py` | One port sample from the endpoint tables, and the Tcpip exhaustion events from the System log |
+| `src/health/port_probe.py` | One port sample from the endpoint tables, the TIME_WAIT-attributing snapshot, and the Tcpip exhaustion events from the System log |
 | `src/health/port_rules.py` | Port findings, holders with growth, the `ports` block (pure) |
 | `src/health/sample_store.py` | The JSON-row sample history both stores build on |
 | `src/health/port_store.py` | Port sample and event history in SQLite |
