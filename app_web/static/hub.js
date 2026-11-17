@@ -458,7 +458,9 @@ function renderServices() {
   setStatusPill(els.agentsviewStatus, els.agentsviewStatusText, avKind, avLabel);
   setDetail(els.agentsviewDetail, av.reachable
     ? (av.version ? av.version : '')
-    : (av.installed === false ? 'see docs/code-usage-agentsview.md' : (av.error || '')));
+    : (av.installed === false ? 'see docs/code-usage-agentsview.md'
+      // The API's error names the env var that is empty; the sheet says it in words.
+      : (!avEnabled ? 'Not set up on this hub' : (av.error || ''))));
   if (els.agentsviewStartBtn) {
     els.agentsviewStartBtn.hidden = !(avEnabled && !av.reachable && av.installed);
     els.agentsviewStartBtn.disabled = state.agentsviewBusy;
