@@ -1283,7 +1283,7 @@ surfaces:
   # ------------------------------------------------------------------------------------------- settings
   - id: settings.dialog
     area: settings
-    title: Settings dialog
+    title: Settings page
     root: data-surface
     reach:
       - the gear in any pane's header
@@ -1291,9 +1291,9 @@ surfaces:
       - Display, Startup, Machines, Health and About groups
       - a close button
     does:
-      - the gear opens it, and a wide window opens Service startup beside the list
-    phone: a full-screen dialog; a row with a body replaces the list, with a back row
-    desktop: the list and a detail pane side by side
+      - the gear opens it as the full Settings page; a row with a body opens it as a sheet
+    phone: a full-screen page
+    desktop: a centred column at the layout measure
     links:
       - to: settings.display
       - to: settings.startup
@@ -1322,7 +1322,7 @@ surfaces:
     holds:
       - Service startup, with how many services start on launch
     does:
-      - opens the startup page
+      - opens the Service startup sheet
     links:
       - to: settings.startup-page
         via: Service startup
@@ -1349,7 +1349,7 @@ surfaces:
     holds:
       - Dormant machines, with how many are marked
     does:
-      - opens the dormant page
+      - opens the Dormant machines sheet
     links:
       - to: settings.machines-page
         via: Dormant machines
@@ -1379,7 +1379,7 @@ surfaces:
     holds:
       - Health & install, with how many checks pass
     does:
-      - opens the health page and runs the checks the first time
+      - opens the Health and install sheet and runs the checks the first time
     links:
       - to: settings.health-page
         via: Health & install
@@ -1395,7 +1395,7 @@ surfaces:
       - Fix all, only once a check has something to fix
       - Re-check
     does:
-      - the checks take seconds, so they run when the page first opens
+      - the checks take seconds, so they run when the sheet first opens
       - a fix toasts the outcome and re-reads
     states:
       - Checking… on first open

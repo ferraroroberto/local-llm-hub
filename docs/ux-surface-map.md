@@ -73,7 +73,7 @@ flowchart LR
   s30(["Playground tab · Playground"])
   s41(["Code tab · Code"])
   s60(["Machines tab · Machines"])
-  s72(["Settings dialog · Settings"])
+  s72(["Settings page · Settings"])
   s11(["Activity feed · Hub"])
   s20(["Memory glance · Models"])
   s23(["Model row menu · Models"])
@@ -137,7 +137,7 @@ flowchart LR
   - the theme toggle flips light and dark and is remembered
   - the gear opens Settings
 - **States:** Reading… before the first read lands
-- **Leads to:** [Settings dialog](#settingsdialog-settings-dialog) (gear)
+- **Leads to:** [Settings page](#settingsdialog-settings-page) (gear)
 
 ### `chrome.toast` Toast
 
@@ -215,7 +215,7 @@ flowchart LR
   s17["By model sheet"]
   s18["Server log sheet"]
   s0(["Nav · Chrome"])
-  s72(["Settings dialog · Settings"])
+  s72(["Settings page · Settings"])
   s7(["Info sheet · Chrome"])
   s31(["Chat composer · Playground"])
   s83(["Sideways table scroll · Keys and gestures"])
@@ -254,7 +254,7 @@ flowchart LR
   - [Serving glance](#hubglance-serving-glance)
   - [Services card](#hubservices-services-card)
   - [Activity feed](#hubactivity-activity-feed)
-  - [Settings dialog](#settingsdialog-settings-dialog) (gear)
+  - [Settings page](#settingsdialog-settings-page) (gear)
 
 ### `hub.glance` Serving glance
 
@@ -417,7 +417,7 @@ flowchart LR
   s28["Transcription dictionary"]
   s29["Model log"]
   s0(["Nav · Chrome"])
-  s72(["Settings dialog · Settings"])
+  s72(["Settings page · Settings"])
   s7(["Info sheet · Chrome"])
   s6(["Confirm dialog · Chrome"])
   s82(["Menu and dialog keys · Keys and gestures"])
@@ -462,7 +462,7 @@ flowchart LR
 - **Leads to:**
   - [Memory glance](#modelsmemory-glance-memory-glance)
   - [Model list](#modelslist-model-list)
-  - [Settings dialog](#settingsdialog-settings-dialog) (gear)
+  - [Settings page](#settingsdialog-settings-page) (gear)
 
 ### `models.memory-glance` Memory glance
 
@@ -1045,7 +1045,7 @@ flowchart LR
   s70["Terminal dialog"]
   s71["Terminal unavailable"]
   s0(["Nav · Chrome"])
-  s72(["Settings dialog · Settings"])
+  s72(["Settings page · Settings"])
   s6(["Confirm dialog · Chrome"])
   s7(["Info sheet · Chrome"])
   s82(["Menu and dialog keys · Keys and gestures"])
@@ -1088,7 +1088,7 @@ flowchart LR
   - [Machine status error](#machineserror-machine-status-error)
   - [Machine list](#machineslist-machine-list)
   - [Diagnostics row](#machinesdiagnostics-diagnostics-row)
-  - [Settings dialog](#settingsdialog-settings-dialog) (gear)
+  - [Settings page](#settingsdialog-settings-page) (gear)
 
 ### `machines.loading` Reading machine status
 
@@ -1242,7 +1242,7 @@ The gear on every pane opens one dialog. A row with a body opens it in place of 
 
 ```mermaid
 flowchart LR
-  s72["Settings dialog"]
+  s72["Settings page"]
   s73["Display"]
   s74["Startup group"]
   s75["Service startup"]
@@ -1269,16 +1269,16 @@ flowchart LR
   s78 -->|"Health & install"| s79
 ```
 
-### `settings.dialog` Settings dialog
+### `settings.dialog` Settings page
 
 - **Root:** `data-surface`
 - **Reach:** the gear in any pane's header
 - **Holds:**
   - Display, Startup, Machines, Health and About groups
   - a close button
-- **Does:** the gear opens it, and a wide window opens Service startup beside the list
-- **Phone:** a full-screen dialog; a row with a body replaces the list, with a back row
-- **Desktop:** the list and a detail pane side by side
+- **Does:** the gear opens it as the full Settings page; a row with a body opens it as a sheet
+- **Phone:** a full-screen page
+- **Desktop:** a centred column at the layout measure
 - **Leads to:**
   - [Display](#settingsdisplay-display)
   - [Startup group](#settingsstartup-startup-group)
@@ -1300,7 +1300,7 @@ flowchart LR
 - **Root:** `data-surface`
 - **Reach:** the Startup group of Settings
 - **Holds:** Service startup, with how many services start on launch
-- **Does:** opens the startup page
+- **Does:** opens the Service startup sheet
 - **Leads to:** [Service startup](#settingsstartup-page-service-startup) (Service startup)
 
 ### `settings.startup-page` Service startup
@@ -1318,7 +1318,7 @@ flowchart LR
 - **Root:** `data-surface`
 - **Reach:** the Machines group of Settings
 - **Holds:** Dormant machines, with how many are marked
-- **Does:** opens the dormant page
+- **Does:** opens the Dormant machines sheet
 - **Leads to:** [Dormant machines](#settingsmachines-page-dormant-machines) (Dormant machines)
 
 ### `settings.machines-page` Dormant machines
@@ -1339,7 +1339,7 @@ flowchart LR
 - **Root:** `data-surface`
 - **Reach:** the Health group of Settings
 - **Holds:** Health & install, with how many checks pass
-- **Does:** opens the health page and runs the checks the first time
+- **Does:** opens the Health and install sheet and runs the checks the first time
 - **Leads to:** [Health and install](#settingshealth-page-health-and-install) (Health & install)
 
 ### `settings.health-page` Health and install
@@ -1351,7 +1351,7 @@ flowchart LR
   - Fix all, only once a check has something to fix
   - Re-check
 - **Does:**
-  - the checks take seconds, so they run when the page first opens
+  - the checks take seconds, so they run when the sheet first opens
   - a fix toasts the outcome and re-reads
 - **States:**
   - Checking… on first open
@@ -1426,11 +1426,11 @@ flowchart LR
 | [Nav](#chromenav-nav) | Play | [Playground tab](#playgroundtab-playground-tab) |
 | [Nav](#chromenav-nav) | Code | [Code tab](#code-usagetab-code-tab) |
 | [Nav](#chromenav-nav) | Machines | [Machines tab](#machinestab-machines-tab) |
-| [Pane header](#chromeheader-pane-header) | gear | [Settings dialog](#settingsdialog-settings-dialog) |
+| [Pane header](#chromeheader-pane-header) | gear | [Settings page](#settingsdialog-settings-page) |
 | [Hub tab](#hubtab-hub-tab) |  | [Serving glance](#hubglance-serving-glance) |
 | [Hub tab](#hubtab-hub-tab) |  | [Services card](#hubservices-services-card) |
 | [Hub tab](#hubtab-hub-tab) |  | [Activity feed](#hubactivity-activity-feed) |
-| [Hub tab](#hubtab-hub-tab) | gear | [Settings dialog](#settingsdialog-settings-dialog) |
+| [Hub tab](#hubtab-hub-tab) | gear | [Settings page](#settingsdialog-settings-page) |
 | [Services card](#hubservices-services-card) | Services row | [Services sheet](#hubservices-sheet-services-sheet) |
 | [Services card](#hubservices-services-card) | down Langfuse row | [Langfuse sheet](#hublangfuse-sheet-langfuse-sheet) |
 | [Activity feed](#hubactivity-activity-feed) | a row with a trace | [Request sheet](#hubtrace-sheet-request-sheet) |
@@ -1444,7 +1444,7 @@ flowchart LR
 | [Services sheet](#hubservices-sheet-services-sheet) | Details | [Langfuse sheet](#hublangfuse-sheet-langfuse-sheet) |
 | [Models tab](#modelstab-models-tab) |  | [Memory glance](#modelsmemory-glance-memory-glance) |
 | [Models tab](#modelstab-models-tab) |  | [Model list](#modelslist-model-list) |
-| [Models tab](#modelstab-models-tab) | gear | [Settings dialog](#settingsdialog-settings-dialog) |
+| [Models tab](#modelstab-models-tab) | gear | [Settings page](#settingsdialog-settings-page) |
 | [Memory glance](#modelsmemory-glance-memory-glance) | a host row | [Machine summary](#modelshost-summary-machine-summary) |
 | [Memory glance](#modelsmemory-glance-memory-glance) | ⓘ | [Info sheet](#chromeinfo-sheet-info-sheet) |
 | [Model list](#modelslist-model-list) | kebab | [Model row menu](#modelsrow-menu-model-row-menu) |
@@ -1493,7 +1493,7 @@ flowchart LR
 | [Machines tab](#machinestab-machines-tab) |  | [Machine status error](#machineserror-machine-status-error) |
 | [Machines tab](#machinestab-machines-tab) |  | [Machine list](#machineslist-machine-list) |
 | [Machines tab](#machinestab-machines-tab) |  | [Diagnostics row](#machinesdiagnostics-diagnostics-row) |
-| [Machines tab](#machinestab-machines-tab) | gear | [Settings dialog](#settingsdialog-settings-dialog) |
+| [Machines tab](#machinestab-machines-tab) | gear | [Settings page](#settingsdialog-settings-page) |
 | [Machine list](#machineslist-machine-list) | kebab | [Machine row menu](#machinesrow-menu-machine-row-menu) |
 | [Machine list](#machineslist-machine-list) | a row on a phone | [Machine sheet](#machinesmachine-sheet-machine-sheet) |
 | [Machine list](#machineslist-machine-list) | a row on a wide window | [Machine detail pane](#machinesdetail-pane-machine-detail-pane) |
@@ -1509,11 +1509,11 @@ flowchart LR
 | [Diagnostics row](#machinesdiagnostics-diagnostics-row) |  | [Diagnostics dialog](#machinesdiagnostics-dialog-diagnostics-dialog) |
 | [Diagnostics dialog](#machinesdiagnostics-dialog-diagnostics-dialog) | Delete | [Confirm dialog](#chromeconfirm-dialog-confirm-dialog) |
 | [Terminal dialog](#machinesterminal-dialog-terminal-dialog) | no companion | [Terminal unavailable](#machinesterminal-unavailable-terminal-unavailable) |
-| [Settings dialog](#settingsdialog-settings-dialog) |  | [Display](#settingsdisplay-display) |
-| [Settings dialog](#settingsdialog-settings-dialog) |  | [Startup group](#settingsstartup-startup-group) |
-| [Settings dialog](#settingsdialog-settings-dialog) |  | [Machines group](#settingsmachines-machines-group) |
-| [Settings dialog](#settingsdialog-settings-dialog) |  | [Health group](#settingshealth-health-group) |
-| [Settings dialog](#settingsdialog-settings-dialog) |  | [About](#settingsabout-about) |
+| [Settings page](#settingsdialog-settings-page) |  | [Display](#settingsdisplay-display) |
+| [Settings page](#settingsdialog-settings-page) |  | [Startup group](#settingsstartup-startup-group) |
+| [Settings page](#settingsdialog-settings-page) |  | [Machines group](#settingsmachines-machines-group) |
+| [Settings page](#settingsdialog-settings-page) |  | [Health group](#settingshealth-health-group) |
+| [Settings page](#settingsdialog-settings-page) |  | [About](#settingsabout-about) |
 | [Startup group](#settingsstartup-startup-group) | Service startup | [Service startup](#settingsstartup-page-service-startup) |
 | [Machines group](#settingsmachines-machines-group) | Dormant machines | [Dormant machines](#settingsmachines-page-dormant-machines) |
 | [Health group](#settingshealth-health-group) | Health & install | [Health and install](#settingshealth-page-health-and-install) |

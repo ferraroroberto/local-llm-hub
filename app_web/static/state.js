@@ -121,7 +121,6 @@ export const els = {
   // Settings: the dialog, its layout, the theme row and the About values
   settingsDialog: document.getElementById('settingsDialog'),
   settingsCloseBtn: document.getElementById('settingsCloseBtn'),
-  settingsLayout: document.getElementById('settingsLayout'),
   textSizeControl: document.getElementById('textSizeControl'),
   themeSeg: document.getElementById('themeSeg'),
   startupSummary: document.getElementById('startupSummary'),
