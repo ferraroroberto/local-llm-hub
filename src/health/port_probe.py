@@ -37,7 +37,7 @@ _DEFAULT_RANGE = (49152, 65535)
 
 # Tcpip event id -> (protocol, what it means)
 EXHAUSTION_EVENTS: Dict[int, Tuple[str, str]] = {
-    4227: ("tcp", "TCP could not reuse a local port still in TIME_WAIT"),
+    4227: ("tcp", "TCP could not reuse a local port still in time wait"),
     4231: ("tcp", "TCP ran out of ephemeral ports"),
     4266: ("udp", "UDP ran out of ephemeral ports"),
 }
