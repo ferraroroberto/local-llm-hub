@@ -2,7 +2,7 @@
        Launch primary and the hint. Langfuse: the OTel health the OTel pane shows.
        Trace: one request's preview, thumbs score and Langfuse link. By model:
        the per-backend counters. Server log: the live tail. -->
-  <dialog data-track-view="services-sheet" class="detail-dialog" id="servicesSheet" aria-labelledby="servicesSheetTitle">
+  <dialog data-surface="hub.services-sheet" data-track-view="services-sheet" class="detail-dialog" id="servicesSheet" aria-labelledby="servicesSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="servicesSheetTitle">Services</h2>
@@ -58,7 +58,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="langfuse-sheet" class="detail-dialog" id="langfuseSheet" aria-labelledby="langfuseSheetTitle">
+  <dialog data-surface="hub.langfuse-sheet" data-track-view="langfuse-sheet" class="detail-dialog" id="langfuseSheet" aria-labelledby="langfuseSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="langfuseSheetTitle">Langfuse</h2>
@@ -87,7 +87,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="trace-sheet" class="detail-dialog" id="traceSheet" aria-labelledby="traceSheetTitle">
+  <dialog data-surface="hub.trace-sheet" data-track-view="trace-sheet" class="detail-dialog" id="traceSheet" aria-labelledby="traceSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="traceSheetTitle">Request</h2>
@@ -99,7 +99,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="by-model-sheet" class="detail-dialog wide-dialog" id="byModelSheet" aria-labelledby="byModelSheetTitle">
+  <dialog data-surface="hub.by-model-sheet" data-track-view="by-model-sheet" class="detail-dialog wide-dialog" id="byModelSheet" aria-labelledby="byModelSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="byModelSheetTitle">By model</h2>
@@ -119,7 +119,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="log-sheet" class="detail-dialog wide-dialog" id="logSheet" aria-labelledby="logSheetTitle">
+  <dialog data-surface="hub.log-sheet" data-track-view="log-sheet" class="detail-dialog wide-dialog" id="logSheet" aria-labelledby="logSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="logSheetTitle">Server log</h2>
@@ -136,7 +136,7 @@
 
   <!-- Code sheets. Agent: every agent and the Sub-agents (OTel) source.
        By model, every project and the recent sessions: the breakdowns. -->
-  <dialog data-track-view="cld-agent-sheet" class="detail-dialog" id="cldAgentSheet" aria-labelledby="cldAgentSheetTitle">
+  <dialog data-surface="code-usage.agent-sheet" data-track-view="cld-agent-sheet" class="detail-dialog" id="cldAgentSheet" aria-labelledby="cldAgentSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="cldAgentSheetTitle">Agent</h2>
@@ -148,7 +148,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="cld-model-sheet" class="detail-dialog wide-dialog" id="cldModelSheet" aria-labelledby="cldModelSheetTitle">
+  <dialog data-surface="code-usage.model-sheet" data-track-view="cld-model-sheet" class="detail-dialog wide-dialog" id="cldModelSheet" aria-labelledby="cldModelSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="cldModelSheetTitle">By model</h2>
@@ -167,11 +167,11 @@
         </table>
       </div>
       <p class="table-scroll-hint muted">Swipe the table sideways for every column.</p>
-      <div id="cldModelEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg><p class="empty-state-message">No model data for this period — pick a longer period or another agent above.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-model-action">Show all</button></div>
+      <div id="cldModelEmpty" class="empty-state" data-surface="code-usage.model-empty" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg><p class="empty-state-message">No model data for this period — pick a longer period or another agent above.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-model-action">Show all</button></div>
     </div>
   </dialog>
 
-  <dialog data-track-view="cld-project-sheet" class="detail-dialog wide-dialog" id="cldProjectSheet" aria-labelledby="cldProjectSheetTitle">
+  <dialog data-surface="code-usage.project-sheet" data-track-view="cld-project-sheet" class="detail-dialog wide-dialog" id="cldProjectSheet" aria-labelledby="cldProjectSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="cldProjectSheetTitle">Every project</h2>
@@ -193,7 +193,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="cld-sessions-sheet" class="detail-dialog wide-dialog" id="cldSessionsSheet" aria-labelledby="cldSessionsSheetTitle">
+  <dialog data-surface="code-usage.sessions-sheet" data-track-view="cld-sessions-sheet" class="detail-dialog wide-dialog" id="cldSessionsSheet" aria-labelledby="cldSessionsSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="cldSessionsSheetTitle">Recent sessions</h2>
@@ -202,6 +202,6 @@
         </button>
       </div>
       <ul id="cldSessionsList" class="card-list dense cld-sessions" aria-label="Recent coding-agent sessions"></ul>
-      <div id="cldSessionsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-clock"></use></svg><p class="empty-state-message">No sessions found in <code>~/.claude/projects/</code> — pick another agent above.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-sessions-action">Show all</button></div>
+      <div id="cldSessionsEmpty" class="empty-state" data-surface="code-usage.sessions-empty"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-clock"></use></svg><p class="empty-state-message">No sessions found in <code>~/.claude/projects/</code> — pick another agent above.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-sessions-action">Show all</button></div>
     </div>
   </dialog>

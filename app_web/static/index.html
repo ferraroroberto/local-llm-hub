@@ -58,7 +58,7 @@
   <!-- Primary nav — the vendored fleet component (_vendored/nav). Body-level
        sibling of the scrolling <main class="app">: iOS captures position:fixed
        descendants of scroll containers (see _vendored/nav/README.md). -->
-  <nav class="tabs" role="tablist" aria-label="Sections" data-active-tab="hub">
+  <nav class="tabs" data-surface="chrome.nav" role="tablist" aria-label="Sections" data-active-tab="hub">
     <button id="tabHub" type="button" class="tab active" data-tab="hub" role="tab" aria-selected="true" aria-controls="paneHub">
       <svg class="icon tab-icon" aria-hidden="true"><use href="#i-house"></use></svg>
       <span class="tab-label">Hub</span>
@@ -82,7 +82,7 @@
   </nav>
 
   <main class="app">
-    <section id="paneHub" class="pane" role="tabpanel" aria-labelledby="tabHub" data-wide="cols">
+    <section id="paneHub" data-surface="hub.tab" class="pane" role="tabpanel" aria-labelledby="tabHub" data-wide="cols">
       <!-- Page header: the vendored home-head (_vendored/home-head) — title, the live
            header line (rows.js setHeadLine: a down service, the error count, an
            unreachable hub; else the uptime), and the theme toggle pinned right. -->
@@ -101,7 +101,7 @@
                errors and median latency since hub start (the hub keeps no hourly
                history, so it says which window), one load sparkline whose series
                the control below swaps, and the process line. -->
-          <section class="card hub-glance" id="hubGlance">
+          <section class="card hub-glance" id="hubGlance" data-surface="hub.glance">
             <div class="card-header">
               <h2><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg>Serving</h2>
               <span id="hubWindow" class="muted hub-window">since start</span>
@@ -121,7 +121,7 @@
           <!-- Services as exceptions: healthy services fold into one row
                that opens the services sheet; a stopped or failing one is its own
                row with Start. -->
-          <section class="card action-list" id="servicesCard" aria-label="Services">
+          <section class="card action-list" id="servicesCard" data-surface="hub.services" aria-label="Services">
             <ul id="servicesList" class="action-rows"></ul>
           </section>
         </div>
@@ -130,7 +130,7 @@
           <!-- Activity: live requests, errors and traces in one feed of
                shared rows. Requests · Errors are true alternatives; a row with a
                trace opens its preview, thumbs score and Langfuse link. -->
-          <section class="card action-list" id="activityCard" aria-labelledby="activityTitle">
+          <section class="card action-list" id="activityCard" data-surface="hub.activity" aria-labelledby="activityTitle">
             <div class="glance-head">
               <h2 id="activityTitle"><svg class="icon" aria-hidden="true"><use href="#i-radio"></use></svg>Activity</h2>
               <button data-track="info-hub-activity" type="button" class="icon-button info-button" data-info="hub-activity" aria-haspopup="dialog" aria-label="About activity" title="About activity"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></button>
@@ -143,9 +143,9 @@
               <input id="liveRequestsFilter" type="search" class="list-filter" placeholder="Filter requests" aria-label="Filter activity" autocomplete="off">
             </div>
             <ul id="liveRequestsList" class="action-rows activity-list" aria-label="Live requests"></ul>
-          <div id="liveRequestsEmpty" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No requests yet — the ring fills as clients call the hub.</p><button type="button" data-track="hub-live-empty-playground" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
+          <div id="liveRequestsEmpty" class="empty-state" data-surface="hub.requests-empty"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No requests yet — the ring fills as clients call the hub.</p><button type="button" data-track="hub-live-empty-playground" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
             <ul id="recentErrorsList" class="action-rows activity-list" aria-label="Recent errors" hidden></ul>
-          <div id="recentErrorsEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-circle-check"></use></svg><p class="empty-state-message">No failed requests yet — a failure shows here the moment a client gets a non-2xx answer.</p><button type="button" data-track="hub-errors-empty-playground" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
+          <div id="recentErrorsEmpty" class="empty-state" data-surface="hub.errors-empty" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-circle-check"></use></svg><p class="empty-state-message">No failed requests yet — a failure shows here the moment a client gets a non-2xx answer.</p><button type="button" data-track="hub-errors-empty-playground" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
             <ul class="action-rows activity-links">
               <li class="action-row"><button type="button" class="action-row-main" id="byModelOpenBtn" data-track="hub-by-model" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-column"></use></svg></span><span class="action-row-text"><span class="action-row-title">By model</span><span class="action-row-meta" id="byModelMeta">Requests, errors and latency per backend</span></span></button></li>
               <li class="action-row"><button type="button" class="action-row-main" id="logOpenBtn" data-track="hub-log" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-scroll-text"></use></svg></span><span class="action-row-text"><span class="action-row-title">Server log</span><span class="action-row-meta">The hub's own log, live</span></span></button></li>
@@ -155,7 +155,7 @@
       </div>
     </section>
 
-    <section id="paneModels" class="pane" hidden role="tabpanel" data-wide="split">
+    <section id="paneModels" data-surface="models.tab" class="pane" hidden role="tabpanel" data-wide="split">
       <!-- Page header: the vendored home-head (_vendored/home-head) — title, the live
            header line (rows.js setHeadLine: "N failover" / over capacity, else the
            number running), and the theme toggle pinned right. -->
@@ -170,7 +170,7 @@
            drawn at once from the models payload's fleet hosts and filled in by the
            fleet-placement probe (loaded on tab open and once after a Start / Stop,
            never polled). A row opens that host's running / loadable summary. -->
-      <section class="card action-list glance-card" id="modelsMemoryCard" aria-labelledby="modelsMemoryTitle">
+      <section class="card action-list glance-card" id="modelsMemoryCard" data-surface="models.memory-glance" aria-labelledby="modelsMemoryTitle">
         <div class="glance-head">
           <h2 id="modelsMemoryTitle"><svg class="icon" aria-hidden="true"><use href="#i-cpu"></use></svg>Memory</h2>
           <button data-track="info-models-about" type="button" class="icon-button info-button" data-info="models-about" aria-haspopup="dialog" aria-label="About models and memory" title="About models and memory"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></button>
@@ -188,16 +188,16 @@
 
       <!-- One shared row per model (rows.js), grouped by the host serving it. A row
            opens the model's sheet (phone) or fills #modelsDetail (wide window). -->
-      <section class="card action-list" id="modelsCard" aria-label="Models">
+      <section class="card action-list" id="modelsCard" data-surface="models.list" aria-label="Models">
         <ul id="modelsList" class="action-rows models-list"></ul>
-        <div id="modelsEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-boxes"></use></svg><p class="empty-state-message">No models enabled for this host — check <code>config/models.yaml</code>.</p></div>
+        <div id="modelsEmpty" class="empty-state" data-surface="models.empty" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-boxes"></use></svg><p class="empty-state-message">No models enabled for this host — check <code>config/models.yaml</code>.</p></div>
       </section>
     </section>
     <!-- The wide window's detail pane for the selected model or machine (rows.css
          data-wide="split"); the phone uses #modelSheet instead. -->
-    <aside id="modelsDetail" class="card wide-detail" aria-label="Model detail"></aside>
+    <aside id="modelsDetail" data-surface="models.detail-pane" class="card wide-detail" aria-label="Model detail"></aside>
 
-    <section id="panePlayground" class="pane" hidden role="tabpanel" data-wide="cols">
+    <section id="panePlayground" data-surface="playground.tab" class="pane" hidden role="tabpanel" data-wide="cols">
       <!-- Page header: the vendored home-head (_vendored/home-head) — title, the
            header line (rows.js setHeadLine: a mode whose backend is missing or
            stopped; else the mode in use), and the theme toggle pinned right. -->
@@ -223,7 +223,7 @@
            so a switch never cancels a request or shows another mode's result. -->
       <div class="play-cols wide-cols">
         <div class="play-col">
-          <section class="card play-composer" id="chatCard" data-mode="chat" aria-label="Chat">
+          <section class="card play-composer" id="chatCard" data-surface="playground.chat" data-mode="chat" aria-label="Chat">
             <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-flask-conical"></use></svg>Chat</h2></div>
             <div class="opt-stack">
               <label for="playgroundModel">Model</label>
@@ -271,9 +271,9 @@
               <button data-track="playground-clear" id="playgroundClearBtn" type="button" class="ghost-btn">Clear</button>
             </div>
           </section>
-          <section class="card play-composer" id="imageCard" data-mode="image" aria-label="Image" hidden>
+          <section class="card play-composer" id="imageCard" data-surface="playground.image" data-mode="image" aria-label="Image" hidden>
             <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>Image</h2></div>
-            <div id="imageNone" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-image"></use></svg><p class="empty-state-message">No image model is configured on this hub.</p></div>
+            <div id="imageNone" class="empty-state" data-surface="playground.image-none" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-image"></use></svg><p class="empty-state-message">No image model is configured on this hub.</p></div>
             <div class="opt-stack">
               <label for="imageModel">Model</label>
               <select class="select-native" data-track="image-model" id="imageModel" aria-label="Image model"></select>
@@ -318,9 +318,9 @@
               <button data-track="image-clear" id="imageClearBtn" type="button" class="ghost-btn">Clear</button>
             </div>
           </section>
-          <section class="card play-composer" id="ttsCard" data-mode="speech" aria-label="Speech" hidden>
+          <section class="card play-composer" id="ttsCard" data-surface="playground.speech" data-mode="speech" aria-label="Speech" hidden>
             <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Speech</h2></div>
-            <div id="ttsNone" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-volume-2"></use></svg><p class="empty-state-message">No voice model is configured on this hub.</p></div>
+            <div id="ttsNone" class="empty-state" data-surface="playground.speech-none" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-volume-2"></use></svg><p class="empty-state-message">No voice model is configured on this hub.</p></div>
             <div class="opt-stack">
               <label for="ttsModel">Voice model</label>
               <select class="select-native" data-track="tts-model" id="ttsModel" aria-label="TTS model"></select>
@@ -384,7 +384,7 @@
               <button id="ttsSpeakBtn" data-track="play-speak" type="button" class="button-primary"><svg class="icon" aria-hidden="true"><use href="#i-volume-2"></use></svg>Speak</button>
             </div>
           </section>
-          <section class="card play-composer" id="jevCard" data-mode="decide" aria-label="Decide" hidden>
+          <section class="card play-composer" id="jevCard" data-surface="playground.decide" data-mode="decide" aria-label="Decide" hidden>
             <div class="card-header"><h2><svg class="icon" aria-hidden="true"><use href="#i-circle-help"></use></svg>Decide</h2></div>
             <p class="jev-privacy muted small"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg><span>Sent to <code>api.typesafe.ai</code>, a third-party API hosted in the US — don't paste private content.</span></p>
             <p id="jevKeyNote" class="muted small" role="status" aria-live="polite" hidden></p>
@@ -413,7 +413,7 @@
           </section>
         </div>
         <div class="play-col">
-          <section class="card play-result" id="chatResult" data-mode="chat" aria-label="Chat result" aria-live="polite">
+          <section class="card play-result" id="chatResult" data-surface="playground.chat-result" data-mode="chat" aria-label="Chat result" aria-live="polite">
             <p class="play-result-empty muted" data-empty>Press Send and the reply shows here.</p>
             <p id="playgroundLatency" class="muted small" style="margin: 8px 0 0;"></p>
 
@@ -422,7 +422,7 @@
             <h3 class="opt-group-title" data-label>Usage</h3>
             <div id="playgroundUsage" class="kv-grid usage"></div>
           </section>
-          <section class="card play-result" id="imageResult" data-mode="image" aria-label="Image result" aria-live="polite" hidden>
+          <section class="card play-result" id="imageResult" data-surface="playground.image-result" data-mode="image" aria-label="Image result" aria-live="polite" hidden>
             <p class="play-result-empty muted" data-empty>Press Generate and the image shows here.</p>
             <p id="imageLatency" class="muted small" style="margin: 8px 0 0;"></p>
 
@@ -431,13 +431,13 @@
               <a data-track="image-download" id="imageDownload" class="button-tint" download="generated.png" role="button"><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Download</a>
             </div>
           </section>
-          <section class="card play-result" id="ttsResult" data-mode="speech" aria-label="Speech result" aria-live="polite" hidden>
+          <section class="card play-result" id="ttsResult" data-surface="playground.speech-result" data-mode="speech" aria-label="Speech result" aria-live="polite" hidden>
             <p class="play-result-empty muted" data-empty>Press Speak and the audio plays here.</p>
             <p id="ttsLatency" class="muted small" style="margin: 8px 0 0;"></p>
 
             <audio id="ttsAudio" controls style="width: 100%; margin-top: 10px;" hidden></audio>
           </section>
-          <section class="card play-result" id="jevResult" data-mode="decide" aria-label="Decide result" aria-live="polite" hidden>
+          <section class="card play-result" id="jevResult" data-surface="playground.decide-result" data-mode="decide" aria-label="Decide result" aria-live="polite" hidden>
             <p class="play-result-empty muted" data-empty>Press Evaluate and the answers show here.</p>
             <p id="jevLatency" class="muted small" style="margin: 8px 0 0;"></p>
 
@@ -452,7 +452,7 @@
       </div>
     </section>
 
-    <section id="paneCodeUsage" class="pane" hidden role="tabpanel" data-wide="cols">
+    <section id="paneCodeUsage" data-surface="code-usage.tab" class="pane" hidden role="tabpanel" data-wide="cols">
       <!-- Page header: the vendored home-head (_vendored/home-head) — title, the live
            header line (rows.js setHeadLine: a failed load or an offline AgentsView;
            else the period and its total cost), and the theme toggle pinned right. -->
@@ -470,7 +470,7 @@
           <!-- Totals first: the period switch over the four counters and the
                total cost. The agent filter opens a sheet (every agent, the AgentsView
                extras with their freshness, and the separate Sub-agents (OTel) source). -->
-          <section class="card cld-totals" id="cldTotalsCard">
+          <section class="card cld-totals" id="cldTotalsCard" data-surface="code-usage.totals">
             <div class="card-header">
               <h2><svg class="icon" aria-hidden="true"><use href="#i-code"></use></svg>Usage</h2>
               <span class="card-header-actions">
@@ -491,7 +491,7 @@
             <!-- Load-failure banner: a summary that could not be
                  built is its own state, never a zero-usage day. Shown only when
                  the server actually reports a failure. -->
-            <p id="cldError" class="cld-error" hidden role="status">
+            <p id="cldError" class="cld-error" data-surface="code-usage.error" hidden role="status">
               <svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>
               <span id="cldErrorMsg">Usage data could not be loaded.</span>
             </p>
@@ -534,7 +534,7 @@
 
             <!-- Sub-agents (OTel) source: Claude Code's own OTel export, for the
                  one period switch above; a separate store, never added into All. -->
-            <div class="cld-subagents" id="cldSubagents" hidden>
+            <div class="cld-subagents" id="cldSubagents" data-surface="code-usage.subagents" hidden>
               <p class="cld-sub-summary" id="cldSubSummary">—</p>
               <p class="cld-note muted">A separate source (Claude Code's own telemetry export, the only one that sees sub-agent usage), never added into All.</p>
               <div class="counters-wrap table-scroll">
@@ -544,13 +544,13 @@
                 </table>
               </div>
               <p class="table-scroll-hint muted">Swipe the table sideways for every column.</p>
-              <div id="cldSubEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-code"></use></svg><p class="empty-state-message">No sub-agent usage for this period — needs <code>CLAUDE_CODE_ENABLE_TELEMETRY</code> set on the host, or pick a longer period above.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-sub-action">Show all</button></div>
+              <div id="cldSubEmpty" class="empty-state" data-surface="code-usage.subagents-empty" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-code"></use></svg><p class="empty-state-message">No sub-agent usage for this period — needs <code>CLAUDE_CODE_ENABLE_TELEMETRY</code> set on the host, or pick a longer period above.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-sub-action">Show all</button></div>
             </div>
           </section>
 
           <!-- Copilot official credits — under the counters when
                Copilot is chosen. Authoritative $ from the GitHub billing API. -->
-          <section class="card" id="cldCopilotBillingCard" hidden>
+          <section class="card" id="cldCopilotBillingCard" data-surface="code-usage.copilot-billing" hidden>
             <div class="card-header">
               <h2><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg>Copilot credits (official)</h2>
               <span class="muted small" id="cldCopilotBillingAsOf"></span>
@@ -570,14 +570,14 @@
                 <tbody></tbody>
               </table>
             </div>
-            <div id="cldCopilotBillingEmpty" class="empty-state" hidden>
+            <div id="cldCopilotBillingEmpty" class="empty-state" data-surface="code-usage.billing-empty" hidden>
               <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg>
               <p class="empty-state-message" id="cldCopilotBillingEmptyMsg">No billing data.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-billing-action">Show all</button>
             </div>
           </section>
 
           <!-- One trend chart: its metric is the counter last tapped. -->
-          <section class="card" id="cldChartsCard" hidden>
+          <section class="card" id="cldChartsCard" data-surface="code-usage.trend" hidden>
             <div class="card-header">
               <h2><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>Trend · <span id="cldChartLabel">Input tokens</span></h2>
             </div>
@@ -590,16 +590,16 @@
           <!-- Until the first usage summary lands the breakdowns stay hidden: a
                header-only table or a "none found" line would claim emptiness
                nothing has measured. -->
-          <div id="cldPending" class="empty-state"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-clock"></use></svg><p class="empty-state-message">Reading usage…</p></div>
+          <div id="cldPending" class="empty-state" data-surface="code-usage.loading"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-clock"></use></svg><p class="empty-state-message">Reading usage…</p></div>
 
           <!-- Breakdowns as rows: By project first; By model, every project
                and the recent sessions open as sheets. -->
-          <section class="card action-list" id="cldProjectCard" hidden aria-labelledby="cldProjectTitle">
+          <section class="card action-list" id="cldProjectCard" data-surface="code-usage.projects" hidden aria-labelledby="cldProjectTitle">
             <div class="glance-head">
               <h2 id="cldProjectTitle"><svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>By project</h2>
             </div>
             <ul id="cldProjectList" class="action-rows" aria-label="Projects by requests"></ul>
-            <div id="cldProjectEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-folder"></use></svg><p class="empty-state-message">No project data for this period — pick a longer period or another agent above.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-project-action">Show all</button></div>
+            <div id="cldProjectEmpty" class="empty-state" data-surface="code-usage.projects-empty" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-folder"></use></svg><p class="empty-state-message">No project data for this period — pick a longer period or another agent above.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-project-action">Show all</button></div>
             <ul class="action-rows cld-links">
               <li class="action-row"><button type="button" class="action-row-main" id="cldProjectsAllBtn" data-track="code-projects" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-folder"></use></svg></span><span class="action-row-text"><span class="action-row-title">Every project</span><span class="action-row-meta" id="cldProjectsMeta">The full table</span></span></button></li>
               <li class="action-row"><button type="button" class="action-row-main" id="cldModelOpenBtn" data-track="code-model" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-line"></use></svg></span><span class="action-row-text"><span class="action-row-title">By model</span><span class="action-row-meta" id="cldModelMeta">Requests and tokens per model</span></span></button></li>
@@ -609,7 +609,7 @@
 
           <!-- Per-vendor table: the wide window's full table, in All. On
                a phone each agent's figures sit in the agent sheet instead. -->
-          <section class="card" id="cldVendorCard" hidden>
+          <section class="card" id="cldVendorCard" data-surface="code-usage.per-agent" hidden>
             <div class="card-header">
               <h2><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg>Per agent</h2>
             </div>
@@ -623,13 +623,13 @@
                 <tbody></tbody>
               </table>
             </div>
-            <div id="cldVendorEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg><p class="empty-state-message">No agent data for this period — pick a longer period above.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-vendor-action">Show all</button></div>
+            <div id="cldVendorEmpty" class="empty-state" data-surface="code-usage.per-agent-empty" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg><p class="empty-state-message">No agent data for this period — pick a longer period above.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-vendor-action">Show all</button></div>
           </section>
         </div>
       </div>
     </section>
 
-    <section id="paneMachines" class="pane" hidden role="tabpanel" aria-labelledby="tabMachines" data-wide="split">
+    <section id="paneMachines" data-surface="machines.tab" class="pane" hidden role="tabpanel" aria-labelledby="tabMachines" data-wide="split">
       <!-- Page header: the vendored home-head (_vendored/home-head) — title, the live
            header line (rows.js setHeadLine: "N offline" / stale age, else the machine
            count), and the theme toggle pinned right. -->
@@ -644,27 +644,27 @@
            header line. Only one of loading/error/the list is visible at a time.
            A row opens the machine sheet (phone) or fills
            #machinesDetail beside the list (wide window). -->
-      <div id="machinesLoading" class="empty-state">
+      <div id="machinesLoading" class="empty-state" data-surface="machines.loading">
         <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-server"></use></svg>
         <p class="empty-state-message">Reading machine status…</p>
       </div>
-      <div id="machinesError" class="empty-state" hidden>
+      <div id="machinesError" class="empty-state" data-surface="machines.error" hidden>
         <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>
         <p class="empty-state-message" id="machinesErrorMsg">Could not read machine status.</p>
         <button data-track="machines-retry" id="machinesRetryBtn" type="button" class="empty-state-action">Retry</button>
       </div>
-      <div id="machinesList" class="card action-list" hidden></div>
+      <div id="machinesList" class="card action-list" data-surface="machines.list" hidden></div>
       <!-- Diagnostics: its own row under the list, only for the machine being
            viewed (a capture runs inside this hub's own process). -->
-      <div id="machinesDiagCard" class="card action-list" hidden></div>
+      <div id="machinesDiagCard" class="card action-list" data-surface="machines.diagnostics" hidden></div>
     </section>
     <!-- The wide window's detail pane for the selected machine (rows.css
          data-wide="split"); the phone uses #machineSheet instead. -->
-    <aside id="machinesDetail" class="card wide-detail" aria-label="Machine detail"></aside>
+    <aside id="machinesDetail" data-surface="machines.detail-pane" class="card wide-detail" aria-label="Machine detail"></aside>
 
     <!-- Build identity: which build the PWA is running. Filled by main.js.
          (Frontier report stays reachable at /admin/frontier by URL.) -->
-    <footer class="page-foot">
+    <footer class="page-foot" data-surface="chrome.build-readout">
       <p id="buildReadout"></p>
     </footer>
 
@@ -673,14 +673,14 @@
   <!-- Fixed layers live at body level, outside the .app scroller (the
        standalone-PWA shell makes .app a fixed-inset element scroller —
        fixed descendants of a scroller are an iOS capture hazard). -->
-  <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
+  <div id="toast" class="toast" data-surface="chrome.toast" hidden role="status" aria-live="polite"></div>
 
   <!-- Destructive-action confirm (confirm_dialog.js, shared by Models,
        Machines and Diagnostics) + the Machines SSH terminal overlay. Both use
        the vendored editor-modal shell (_vendored/modal) — a native <dialog>,
        so the fleet nav auto-hides itself while either is open
        (body:has(dialog[open])). -->
-  <dialog data-track-view="confirm-dialog" class="detail-dialog" id="confirmDialog">
+  <dialog data-surface="chrome.confirm-dialog" data-track-view="confirm-dialog" class="detail-dialog" id="confirmDialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="confirmDialogTitle">Confirm</h2>
@@ -700,7 +700,7 @@
   <!-- One model's (or one machine's memory) sheet on the phone: placement,
        roles, details, the placement editor or dictionary, the log tail. The wide
        window renders the same body in #modelsDetail instead. -->
-  <dialog data-track-view="model-sheet" class="detail-dialog model-sheet" id="modelSheet" aria-labelledby="modelSheetTitle">
+  <dialog data-surface="models.model-sheet" data-track-view="model-sheet" class="detail-dialog model-sheet" id="modelSheet" aria-labelledby="modelSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="modelSheetTitle">Model</h2>
@@ -715,7 +715,7 @@
   <!-- One machine's sheet on the phone: gauges, Terminal and Remote,
        connection, its own hub, then Reboot / Shut down last. The wide window
        renders the same body in #machinesDetail instead. -->
-  <dialog data-track-view="machine-sheet" class="detail-dialog machine-sheet" id="machineSheet" aria-labelledby="machineSheetTitle">
+  <dialog data-surface="machines.machine-sheet" data-track-view="machine-sheet" class="detail-dialog machine-sheet" id="machineSheet" aria-labelledby="machineSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="machineSheetTitle">Machine</h2>
@@ -729,7 +729,7 @@
 
   <!-- The ⓘ info sheet (rows.js): explanations that used to be permanent
        footnote paragraphs. -->
-  <dialog data-track-view="info-sheet" class="detail-dialog" id="infoSheet" aria-labelledby="infoSheetTitle">
+  <dialog data-surface="chrome.info-sheet" data-track-view="info-sheet" class="detail-dialog" id="infoSheet" aria-labelledby="infoSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="infoSheetTitle">About</h2>
@@ -744,7 +744,7 @@
   <!-- Diagnostics drill-in: capture · runs · settings. Same
        vendored dialog shell; read-heavy rather than an editor, so the body
        scrolls and the footer primary is replaced by per-section actions. -->
-  <dialog data-track-view="diag-dialog" class="detail-dialog machines-diag-dialog" id="diagDialog">
+  <dialog data-surface="machines.diagnostics-dialog" data-track-view="diag-dialog" class="detail-dialog machines-diag-dialog" id="diagDialog">
     <div class="detail-card machines-diag-card">
       <div class="detail-header">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-stethoscope"></use></svg><span>Diagnostics</span></h2>
@@ -756,7 +756,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="machines-terminal-dialog" class="detail-dialog machines-terminal-dialog" id="machinesTerminalDialog">
+  <dialog data-surface="machines.terminal-dialog" data-track-view="machines-terminal-dialog" class="detail-dialog machines-terminal-dialog" id="machinesTerminalDialog">
     <div class="detail-card machines-terminal-card">
       <div class="detail-header">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-terminal"></use></svg><span id="machinesTerminalTitle">Terminal</span></h2>
@@ -764,7 +764,7 @@
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
-      <div id="machinesTerminalUnavailable" class="empty-state" hidden>
+      <div id="machinesTerminalUnavailable" class="empty-state" data-surface="machines.terminal-unavailable" hidden>
         <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>
         <p class="empty-state-message" id="machinesTerminalUnavailableMsg">Terminal unavailable.</p>
       </div>
@@ -777,7 +777,7 @@
        and the design system's settings groups (Display, Startup, Health,
        About). A row with a body opens it in place on a phone (with a back
        row) and beside the list on a wide window (list : detail). -->
-  <dialog data-track-view="settings-dialog" class="detail-dialog settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
+  <dialog data-surface="settings.dialog" data-track-view="settings-dialog" class="detail-dialog settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="settingsTitle"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg><span>Settings</span></h2>
@@ -788,7 +788,7 @@
       <div class="settings-layout" id="settingsLayout">
         <div class="settings-list">
           <h3 class="settings-overline" id="settingsGroupDisplay">Display</h3>
-          <section class="card settings-group" aria-labelledby="settingsGroupDisplay">
+          <section class="card settings-group" data-surface="settings.display" aria-labelledby="settingsGroupDisplay">
             <div class="settings-row">
               <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-monitor"></use></svg>
               <span class="settings-row-label">Text size</span>
@@ -809,19 +809,19 @@
             </div>
           </section>
           <h3 class="settings-overline" id="settingsGroupStartup">Startup</h3>
-          <section class="card settings-group" aria-labelledby="settingsGroupStartup">
+          <section class="card settings-group" data-surface="settings.startup" aria-labelledby="settingsGroupStartup">
             <button type="button" class="settings-row settings-link" data-settings="startup" aria-controls="settingsPage-startup" data-track="settings-startup"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-rocket"></use></svg><span class="settings-row-label">Service startup</span><span class="settings-row-value" id="startupSummary">—</span><svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
           </section>
           <h3 class="settings-overline" id="settingsGroupMachines">Machines</h3>
-          <section class="card settings-group" aria-labelledby="settingsGroupMachines">
+          <section class="card settings-group" data-surface="settings.machines" aria-labelledby="settingsGroupMachines">
             <button type="button" class="settings-row settings-link" data-settings="machines" aria-controls="settingsPage-machines" data-track="settings-machines"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-server"></use></svg><span class="settings-row-label">Dormant machines</span><span class="settings-row-value" id="dormantSummary">—</span><svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
           </section>
           <h3 class="settings-overline" id="settingsGroupHealth">Health</h3>
-          <section class="card settings-group" aria-labelledby="settingsGroupHealth">
+          <section class="card settings-group" data-surface="settings.health" aria-labelledby="settingsGroupHealth">
             <button type="button" class="settings-row settings-link" data-settings="health" aria-controls="settingsPage-health" data-track="settings-health"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-stethoscope"></use></svg><span class="settings-row-label">Health &amp; install</span><span class="settings-row-value" id="installSummary">not checked</span><svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
           </section>
           <h3 class="settings-overline" id="settingsGroupAbout">About</h3>
-          <section class="card settings-group" aria-labelledby="settingsGroupAbout">
+          <section class="card settings-group" data-surface="settings.about" aria-labelledby="settingsGroupAbout">
             <div class="settings-row"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-tag"></use></svg><span class="settings-row-label">Build</span><span class="settings-row-value settings-row-value-whole" id="aboutBuild">—</span></div>
             <div class="settings-row"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-layers"></use></svg><span class="settings-row-label">Config version</span><span class="settings-row-value" id="modelsConfigSha">—</span></div>
             <div class="settings-row"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-cpu"></use></svg><span class="settings-row-label">Process</span><span class="settings-row-value" id="aboutPid">—</span></div>
@@ -830,19 +830,19 @@
           </section>
         </div>
         <div class="settings-detail">
-          <section class="settings-page" id="settingsPage-startup" data-page="startup" hidden aria-labelledby="settingsStartupTitle">
+          <section class="settings-page" id="settingsPage-startup" data-surface="settings.startup-page" data-page="startup" hidden aria-labelledby="settingsStartupTitle">
           <button type="button" data-track="settings-back-startup" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
           <h3 id="settingsStartupTitle">Service startup</h3>
           <p class="settings-note muted">Services that come up automatically every time the hub launches; each switch saves at once to <code>config/startup_profile.json</code>. Model autostart is set per model (<code>startup: eager|on_demand</code>) in its placement editor on Models.</p>
           <ul id="startupList" class="startup-list"></ul>
           </section>
-          <section class="settings-page" id="settingsPage-machines" data-page="machines" hidden aria-labelledby="settingsMachinesTitle">
+          <section class="settings-page" id="settingsPage-machines" data-surface="settings.machines-page" data-page="machines" hidden aria-labelledby="settingsMachinesTitle">
           <button type="button" data-track="settings-back-machines" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
           <h3 id="settingsMachinesTitle">Dormant machines</h3>
           <p class="settings-note muted">Switch on a machine that is off on purpose. It stays listed as a neutral row, raises no offline alert, and the hub never contacts it for failover, placement or sync. Each switch saves at once to <code>config/machines.local.yaml</code>, on this machine only.</p>
           <ul id="dormantList" class="startup-list"></ul>
           </section>
-          <section class="settings-page" id="settingsPage-health" data-page="health" hidden aria-labelledby="settingsHealthTitle">
+          <section class="settings-page" id="settingsPage-health" data-surface="settings.health-page" data-page="health" hidden aria-labelledby="settingsHealthTitle">
           <button type="button" data-track="settings-back-health" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
           <h3 id="settingsHealthTitle">Health &amp; install</h3>
           <div id="installRows"><p class="settings-note muted">Checking…</p></div>

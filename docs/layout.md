@@ -278,6 +278,8 @@ local-llm-hub/
 │   ├── structure_ratchet.py      # vendored from project-scaffolding: fails on a NEW oversized file/function/flat directory or a root folder outside the declared shape
 │   ├── instruction_ratchet.py    # vendored from project-scaffolding: fails on a NEW prompt-audit rule hit or size-cap breach in CLAUDE.md / AGENTS.md / skills
 │   ├── doc_refs_ratchet.py       # vendored from project-scaffolding: fails on a NEW doc reference to a repo path, module, relative link or loopback port that does not exist
+│   ├── ux_surface_ratchet.py     # vendored from project-scaffolding: fails on a NEW surface root without a `data-surface` id, an id with no map entry, a stale or duplicate entry, a dangling link or a stale generated page
+│   ├── ux_surface_map.py         #   vendored: reads docs/ux-surfaces.yaml and generates docs/ux-surface-map.md
 │   ├── classify_e2e.py           # vendored from project-scaffolding: maps the diff to an e2e tier via .fleet.toml [e2e]
 │   ├── e2e_route.py              #   the gate's wrapper: an unreadable verdict runs the full suite, never less
 │   └── verify-before-ship.ps1    # byte-compile + static/docs/comment/structure/instruction/doc-refs/dead-code ratchets + pytest + diff-routed Playwright on Chromium
@@ -334,6 +336,8 @@ local-llm-hub/
     ├── coding-agent-usage.md     # Code-tab usage accounting
     ├── limitations.md            # intentional limits of the hub
     ├── layout.md                 # this file
+    ├── ux-surfaces.yaml          # the UX surface map: every surface of the admin app, one entry each (the single source)
+    ├── ux-surface-map.md         # generated from ux-surfaces.yaml by scripts/ux_surface_map.py, never edited by hand
     ├── architecture.mmd          # hand-authored internal-structure diagram (CLAUDE.md-bound, same-PR upkeep)
     ├── model-comparison.md       # per-model specs, quantisation, docs links
     ├── diagnostics.md            # on-demand machine diagnostics

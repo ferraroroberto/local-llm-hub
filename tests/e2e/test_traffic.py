@@ -181,7 +181,7 @@ def _trace_links_are_44px_targets(page, admin_url, mark):
     ordered = sorted(rects, key=lambda r: r["top"])
     for a, b in zip(ordered, ordered[1:]):
         assert a["bottom"] <= b["top"] + 0.5, f"trace targets overlap: {ordered}"
-    mark("hub.activity-requests")
+    mark("hub.activity")
 
     # A stored snake_case model key reads as words; a name without an
     # underscore passes through untouched.
@@ -209,7 +209,7 @@ def _trace_links_are_44px_targets(page, admin_url, mark):
     link = sheet.locator("a.trace-link")
     assert "trace-0002-abcdef" in link.get_attribute("href")
     assert link.bounding_box()["height"] >= 44
-    mark("hub.trace-sheet-offline")
+    mark("hub.trace-sheet")
 
 
 def _auth_error_is_a_typed_contract(page, admin_url, mark):
@@ -229,7 +229,7 @@ def _auth_error_is_a_typed_contract(page, admin_url, mark):
     sheet = page.locator("dialog.sign-in")
     sheet.wait_for(state="visible", timeout=3000)
     assert sheet.locator("input[type=password]").is_visible()
-    mark("login.overlay")
+    mark("shared.login")
 
 
 def test_hub_activity(browser, admin_url):

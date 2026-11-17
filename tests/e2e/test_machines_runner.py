@@ -146,7 +146,7 @@ def _the_section_runs_stops_and_refuses(page, admin_url, fakes, mark):
     actions = page.locator("#machineSheetBody [data-machine-action]").evaluate_all(
         "els => els.map(e => e.dataset.machineAction)")
     assert actions[-2:] == ["reboot", "shutdown"], actions
-    mark("machines.runner-online")
+    mark("machines.runner")
 
     # Stop then Start toast the outcome of the re-read, not of the request.
     section.locator('[data-machine-action="runner-stop"]').click()

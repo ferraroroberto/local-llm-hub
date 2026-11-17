@@ -176,7 +176,7 @@ def _phone_tab_shows_its_empty_card_and_privacy_line(page, admin_url, browser_na
     assert card.locator(".opt-group-title").count() == 2
     assert card.locator(".opt-group-title:visible").count() == 0
     assert page.locator("#playgroundReply").is_hidden()
-    mark("playground.chat-empty")
+    mark("playground.chat-result")
 
     page.fill("#playgroundPrompt", "An invented test prompt.")
     page.click("#playgroundSendBtn")

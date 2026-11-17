@@ -401,7 +401,7 @@ def _the_menu_stays_reachable_at_both_ends_of_the_list(page, admin_url, mark):
     assert g["list"]["bottom"] <= g["nav"]["top"], g
     assert g["fontPx"] == 16, f"menu text should be body size: {g}"
     assert g["itemMinPx"] == 44 and g["glyphPx"] == 16, g
-    mark("models.row-menu-phone")
+    mark("models.row-menu")
 
 
 def _an_open_menu_follows_its_row_through_a_repoll(page, admin_url):

@@ -21,6 +21,7 @@ export function mountGlossaryEditor(container) {
 
   container.replaceChildren();
   container.classList.add('glossary-editor');
+  container.dataset.surface = 'models.dictionary-editor';
 
   // Make the shared nature unmistakable: this is one list, reachable from
   // every whisper row, not a per-model dictionary.
