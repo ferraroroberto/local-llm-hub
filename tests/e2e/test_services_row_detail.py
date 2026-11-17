@@ -157,6 +157,14 @@ def _healthy_services_fold_and_a_short_detail_stays_inline(page):
     assert docker.locator(".dot").is_hidden()
 
 
+def _a_disabled_service_is_said_in_words(page):
+    """AgentsView with no address configured says so plainly; the empty
+    setting's name is the system's word, not the reader's."""
+    _open_sheet(page)
+    detail = page.locator("#agentsviewDetail")
+    assert detail.inner_text().strip() == "Not set up on this hub", detail.inner_text()
+
+
 def test_hub_services_sheet(browser, admin_url):
     for viewport in (PHONE, DESKTOP):
         with fresh_page(browser, viewport=viewport) as page:
@@ -171,3 +179,7 @@ def test_hub_services_sheet(browser, admin_url):
     with fresh_page(browser, viewport=PHONE) as page:
         _open_hub(page, admin_url, _HEALTHY)
         _healthy_services_fold_and_a_short_detail_stays_inline(page)
+    with fresh_page(browser, viewport=PHONE) as page:
+        _open_hub(page, admin_url, {**_HEALTHY, "agentsview": {
+            "host": None, "reachable": False, "error": "disabled (AGENTSVIEW_BASE_URL is empty)"}})
+        _a_disabled_service_is_said_in_words(page)
