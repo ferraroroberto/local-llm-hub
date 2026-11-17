@@ -186,9 +186,19 @@ export function codeHtml(s) {
   return '<code>' + escapeHtml(s) + '</code>';
 }
 
+/* A model key the hub stores as snake_case ("claude_opus", "audio_transcribe")
+ * said in words ("Claude Opus"): the key is the system's, not the reader's.
+ * A name with no underscore ("parakeet", "claude-opus-5-5") already reads as a
+ * name and passes through. The raw key stays in the cell's title attribute. */
+export function plainModelName(key) {
+  const s = String(key || '');
+  if (!/^[A-Za-z0-9]+(?:_[A-Za-z0-9]+)+$/.test(s)) return s;
+  return s.split('_').map(function (w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
+}
+
 /* Plain-text label for a request record's model: the requested name, the model
  * that actually served it when the hub resolved one to the other, and the host
- * that served it ("audio_transcribe, served by parakeet @mac-mini-m4"). The served host
+ * that served it ("Audio Transcribe, served by parakeet @mac-mini-m4"). The served host
  * is the dimension the old drill-down was missing — a `model=whisper` answered by
  * a machine with no whisper bound was a legitimate remote hop, and no field
  * said so. Only the audio paths populate the served pair, so ordinary chat
@@ -197,8 +207,8 @@ export function modelLabelText(rec, fallback) {
   const requested = (rec && rec.model) || '';
   const served = (rec && rec.served_model) || '';
   const host = (rec && rec.served_host) || '';
-  let out = requested || fallback || '';
-  if (served && served !== requested) out += ', served by ' + served;
+  let out = plainModelName(requested) || fallback || '';
+  if (served && served !== requested) out += ', served by ' + plainModelName(served);
   if (host) out += ' @' + host;
   return out;
 }
@@ -303,7 +313,7 @@ function fillTableBody(table, rows, cellsFn) {
 export function renderCounterTable(table, rows) {
   const count = fillTableBody(table, rows, function (r) {
     return '<tr>' +
-      '<td class="td-trunc" title="' + escapeHtml(r.key) + '">' + escapeHtml(r.key) + '</td>' +
+      '<td class="td-trunc" title="' + escapeHtml(r.key) + '">' + escapeHtml(plainModelName(r.key)) + '</td>' +
       '<td>' + r.requests + '</td>' +
       '<td>' + r.errors + '</td>' +
       '<td>' + fmtSecs(r.p50_ms) + '</td>' +

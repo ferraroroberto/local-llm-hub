@@ -621,11 +621,11 @@ h2 { display: flex; align-items: center; gap: 8px; }
   padding: 8px 10px;
   max-height: 260px;
   overflow: auto;
-  background: var(--card-off);
+  background: var(--card);   /* the code-listing frame: never canvas-subtle, true black in dark */
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  font-size: var(--font-body-sm);
-  line-height: 1.45;
+  font-size: var(--font-code);
+  line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

@@ -183,6 +183,15 @@ def _trace_links_are_44px_targets(page, admin_url, mark):
         assert a["bottom"] <= b["top"] + 0.5, f"trace targets overlap: {ordered}"
     mark("hub.activity-requests")
 
+    # A stored snake_case model key reads as words; a name without an
+    # underscore passes through untouched.
+    said = page.evaluate(
+        "() => import('/admin/static/api.js').then(m => ["
+        "m.modelLabelText({model: 'claude_opus'}), m.modelLabelText({model: 'parakeet', served_model: 'audio_transcribe'}),"
+        "m.modelLabelText({model: 'claude-haiku-4-5'})])"
+    )
+    assert said == ["Claude Opus", "parakeet, served by Audio Transcribe", "claude-haiku-4-5"], said
+
     page.locator('#liveRequestsList [data-act="trace"]').first.click()
     sheet = page.locator("#traceSheet[open]")
     sheet.wait_for(timeout=3000)
