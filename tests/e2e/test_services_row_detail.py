@@ -83,14 +83,14 @@ def _rows_read_in_two_lines_and_the_detail_opens(page, mark):
     assert face.locator('[data-act="svc-start"]').count() == 3
     head = page.locator("#hubHeadLine").text_content()
     assert "Docker down" in head, head
-    mark("hub.services-stopped")
+    mark("hub.services")
 
     _open_sheet(page)
     rows = page.evaluate(_ROW_FACTS)
     assert len(rows) == 3, rows
     for row in rows:
         assert row["lines"] <= 2, f"{row['name']} face is {row['lines']} lines: {row}"
-    mark("hub.services-sheet-stopped")
+    mark("hub.services-sheet")
 
     long_rows = page.locator("#servicesSheet .services-row details.services-detail")
     assert long_rows.count() == 3, "docker, langfuse and agentsview carry long detail"

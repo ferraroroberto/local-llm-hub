@@ -144,7 +144,7 @@ export function runnerSection(m) {
   const info = infoButton('actions-runner', 'About the Actions runner') + '</div>';
   if (!d) {
     const words = s.error ? ['Not confirmed', 'attention'] : ['Reading…', ''];
-    return '<div class="sheet-section machine-runner">' + head
+    return '<div class="sheet-section machine-runner" data-surface="machines.runner">' + head
       + '<span class="sheet-row-value" data-machine-runner-state' + (words[1] ? ' data-tone="' + words[1] + '"' : '') + '>'
       + escapeHtml(words[0]) + '</span>' + info
       + (s.error ? '<p class="sheet-meta">Could not read the runner.</p>' : '')
@@ -164,7 +164,7 @@ export function runnerSection(m) {
     ? verbButton('install', 'plus', 'Install service', 'Installing…', true, busy)
     : verbButton('start', 'play', 'Start', 'Starting…', d.actions.start, busy))
     + verbButton('stop', 'square', 'Stop', 'Stopping…', d.actions.stop, busy);
-  return '<div class="sheet-section machine-runner" data-runner-headline="' + escapeHtml(d.headline) + '">' + head
+  return '<div class="sheet-section machine-runner" data-surface="machines.runner" data-runner-headline="' + escapeHtml(d.headline) + '">' + head
     + '<span class="sheet-row-value" data-machine-runner-state' + (headline[1] ? ' data-tone="' + headline[1] + '"' : '') + '>'
     + escapeHtml(headline[0]) + '</span>' + info
     + '<dl class="sheet-pairs">'

@@ -51,6 +51,11 @@
 #      sheets or built ids in app_web/static rises beyond
 #      .usage-track-ratchet-baseline.json, and the usage log is wired. Whole tree,
 #      never routed; exit 3 (a file that cannot be read or closed) fails.
+#   10d. ux surface ratchet: no surface root without a `data-surface` id, id without an
+#      entry in docs/ux-surfaces.yaml, entry no element carries, id on two surfaces, link to
+#      no entry, or docs/ux-surface-map.md page that is not what the map generates, beyond
+#      .ux-surface-ratchet-baseline.json. Whole tree, never routed; exit 3 (a file that
+#      cannot be read or closed) fails.
 #   11. `pytest -q` (unit tests, no GPU / no real CLIs); stages 11-12 run inside
 #      the runtime write probe (--snapshot before, --probe after), which fails on
 #      any untracked or ignored file they leave under a code folder.
@@ -185,6 +190,13 @@ Step "usage track ratchet" {
     # (a file that cannot be read, or JS that never closes) is a failure here, never
     # a pass or a skip.
     & $Python scripts/usage_track_ratchet.py
+}
+
+Step "ux surface ratchet" {
+    # Same as the usage track ratchet: Step fails on any non-zero exit, so exit 3
+    # (a file that cannot be read, or JS that never closes) is a failure here, never
+    # a pass or a skip.
+    & $Python scripts/ux_surface_ratchet.py
 }
 
 Step "mmd history check" {

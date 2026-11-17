@@ -354,6 +354,7 @@ export function hostBodyEl(id) {
   }
   const wrap = document.createElement('div');
   wrap.className = 'host-body';
+  wrap.dataset.surface = 'models.host-summary';
   wrap.appendChild(buildHostGroup(host));
   return wrap;
 }

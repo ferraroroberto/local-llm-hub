@@ -1,0 +1,1457 @@
+# UX surface map: the single source for docs/ux-surface-map.md.
+#
+# Every screen, drill-in, menu, sheet, dialog, popover, Settings row, state, gesture and key a person can
+# reach in the hub's admin app, one entry per surface. The convention is project-scaffolding's
+# docs/ux-surface-map.md. Edit this file, never the generated page; then run
+# `python scripts/ux_surface_map.py`.
+#
+# A change that adds, removes, renames or reshapes a user-visible surface updates its entry here in the same
+# change, adds or removes the matching `data-surface` attribute in the code, and regenerates the page.
+
+app: local-llm-hub admin
+
+notes: |
+  The checklist of everything a person can see and do in the hub's admin app, served at `/admin/`: every tab, sheet, dialog, menu, Settings row, empty and error state and key, with how it is reached, what is on it and what each control does. It is the exhaustive index, so a layout change can check every surface and not only the ones a reviewer happens to open.
+
+  **Ids.** `<area>.<surface>`, lowercase words joined by `.` or `-`, the same form the e2e `surface(page, "<id>")` hook takes. An id never changes when a title is reworded, and one id names one surface. The surface's root element carries the same id as `data-surface`; the vendored row menu builds its own element, so its call sites stamp the id on what `attach` returns. `scripts/ux_surface_ratchet.py` holds the markup and this map together, so the entries marked `none` and every state with no root of its own are held by this map and the e2e walk alone.
+
+  ## Ground rules
+
+  **Five tabs, one gear.** The nav is Hub · Models · Play · Code · Machines. Settings is the gear in each pane's header, one tap from every tab, and is not a tab. The last tab is remembered on this device, and a stored or linked `#telemetry` (the retired OTel pane) opens Hub with the Activity feed in view.
+
+  **Layout bands** (the same markup, three placements):
+
+  | Band | Condition | Nav | Models and Machines detail | Hub, Playground, Code |
+  | --- | --- | --- | --- | --- |
+  | Phone | a touch pointer, up to 520px | floating bottom pill, hidden under an open dialog | a full-screen sheet over the list | one column |
+  | Narrow or mid window | a mouse below 1100px, or a touch device wider than a phone | a tab bar pinned at the top | a full-screen sheet over the list | one column |
+  | Wide | 1100px and up with a mouse | left rail | a detail pane beside the list (list : detail) | two columns |
+
+  **Async states.** Every list tab draws the five states of the design system: loading, ready, empty, stale (the last good data stays up, labelled with its age or "live data unavailable") and error with a Retry. A probe that did not answer reads "not confirmed", never an empty meter or a zero.
+
+  **Gating.** A surface tagged for a feature disappears or turns into a plain fact when the feature is off: Docker and Langfuse start only where Docker Desktop is installed, AgentsView only when enabled, Edit placement only on the machine that may write `config/models.yaml`, the Dictionary only on speech-to-text rows, Reboot and Shut down only where the machine supports them, Terminal only where the terminal companion answers, the runner section only on a machine that hosts one, Dormant machines only for peers. A hub with a password set refuses a call that carries no token, and the sign-in sheet opens over whatever the first refused call was; one with none set never shows it.
+
+  **Where state lives.** Per-device choices live in `localStorage`: theme, text size, the last tab, the Models Running or All scope, the Playground mode. Everything else is read live from the hub.
+
+  **Reading the diagrams.** Every row on Models and Machines opens one sheet (a pane on a wide window) whose body is shared, and every ⓘ opens the one info sheet.
+
+  ## Keyboard map
+
+  | Key | Does |
+  | --- | --- |
+  | Arrow keys, Home, End | move between the tabs and open the one focused |
+  | Tab / Shift+Tab | move between controls |
+  | Enter | opens the focused row, presses the focused button, adds the typed boost term |
+  | Esc | closes the open menu, then the topmost sheet or dialog |
+  | Arrow Down / Up on a kebab | opens its menu on the first or last item |
+  | Arrow keys, Home, End in a menu | move between its items |
+
+walk:
+  date: 2026-11-17
+  build: f5e2794
+  widths: [390, 1280]
+  themes: [light, dark]
+
+areas:
+  - id: chrome
+    title: Chrome
+    notes: What every tab shares. Each pane's header is the same card (the title, one live status line and the theme and Settings buttons), so it is listed once.
+  - id: hub
+    title: Hub
+    notes: Is the hub serving, and is anything failing.
+  - id: models
+    title: Models
+    notes: What is loaded and how much room is left.
+  - id: playground
+    title: Playground
+    notes: One composer with four modes. Each mode owns its composer and its result, so a switch never cancels a request or shows another mode's result.
+  - id: code-usage
+    title: Code
+    notes: Coding-agent usage. A period and an agent choose what every card shows.
+  - id: machines
+    title: Machines
+    notes: The fleet, one row per machine.
+  - id: settings
+    title: Settings
+    notes: The gear on every pane opens one dialog. A row with a body opens it in place of the list on a phone, with a back row, and beside the list on a wide window.
+  - id: keys
+    title: Keys and gestures
+
+surfaces:
+  # ------------------------------------------------------------------------------------------- chrome
+  - id: chrome.nav
+    area: chrome
+    title: Nav
+    root: data-surface
+    reach:
+      - always on screen except under an open dialog
+    holds:
+      - Hub, Models, Play, Code and Machines, one tab each, the active one marked
+    does:
+      - switches the pane and resets its scroll
+      - remembers the tab on this device
+    phone: a floating bottom pill that hides while a dialog is open
+    desktop: a bar at the top below 1100px with a mouse, and a left rail from 1100px
+    why: the fleet navigation contract; Settings is not a tab, it is the header gear
+    links:
+      - to: hub.tab
+        via: Hub
+      - to: models.tab
+        via: Models
+      - to: playground.tab
+        via: Play
+      - to: code-usage.tab
+        via: Code
+      - to: machines.tab
+        via: Machines
+
+  - id: chrome.header
+    area: chrome
+    title: Pane header
+    root:
+      none: "the same card heads every pane, so it carries no id of its own"
+    reach:
+      - the top of each tab
+    holds:
+      - the pane title
+      - one live status line that names the exceptions (at most two, each in its tone), else one plain fact
+      - the theme toggle
+      - the Settings gear
+    does:
+      - the status line never wraps, so it never moves the layout
+      - the theme toggle flips light and dark and is remembered
+      - the gear opens Settings
+    states:
+      - Reading… before the first read lands
+    links:
+      - to: settings.dialog
+        via: gear
+
+  - id: chrome.toast
+    area: chrome
+    title: Toast
+    root: data-surface
+    reach:
+      - the result of a command the person started (Start, Stop, Save, Ping, Fix)
+    holds:
+      - one neutral line, tinted only for an error
+    does:
+      - hides itself after a few seconds, and a newer toast replaces it
+    states:
+      - a load that stays up while it runs never auto-hides
+
+  - id: chrome.build-readout
+    area: chrome
+    title: Build readout
+    root: data-surface
+    reach:
+      - the foot of every tab
+    holds:
+      - the running build's short sha and its build time
+
+  - id: app.update-banner
+    area: chrome
+    title: Update banner
+    root: data-surface
+    reach:
+      - appears on its own when a deploy lands under an open page
+    holds:
+      - New version available
+      - Reload
+      - a dismiss button
+    does:
+      - Reload reloads the page; a dismissed banner stays down until the server moves to yet another build
+    why: the vendored build-watch component stamps its own id, since the app has no call site for it
+
+  - id: shared.login
+    area: chrome
+    title: Sign-in sheet
+    root: data-surface
+    reach:
+      - opens by itself when the hub refuses a call for want of a token, on any tab
+    holds:
+      - This hub is locked. Enter the password to continue.
+      - a password field and the Sign in button, disabled until something is typed
+    does:
+      - a good password stores a token, closes the sheet, toasts Signed in and re-reads every tab's data
+    states:
+      - an inline error for a wrong password, too many attempts (with the seconds to wait), a server with no password set up, or an unreachable hub
+      - there is no close button and Esc does nothing, since the app cannot be used signed out
+    why: the vendored sign-in component builds the sheet and stamps its own id
+
+  - id: chrome.confirm-dialog
+    area: chrome
+    title: Confirm dialog
+    root: data-surface
+    reach:
+      - Force stop on a model
+      - Reboot or Shut down on a machine
+      - Delete on a diagnostics run
+    holds:
+      - a title and one sentence naming the target
+      - the confirming button, in danger
+      - a close button
+    does:
+      - the button runs the action and closes; the close button or Esc cancels
+
+  - id: chrome.info-sheet
+    area: chrome
+    title: Info sheet
+    root: data-surface
+    reach:
+      - the ⓘ beside Activity, Memory, Usage, a machine's own hub, Health, Resources and the Actions runner
+    holds:
+      - a title and a few short paragraphs of explanation
+    does:
+      - the explanation that would otherwise be a permanent footnote opens here and closes with the ×
+
+  # ------------------------------------------------------------------------------------------- hub
+  - id: hub.tab
+    area: hub
+    title: Hub tab
+    root: data-surface
+    reach:
+      - the Hub tab, the first one and the default
+      - a stored or linked `#telemetry`
+    holds:
+      - the pane header, whose line names an unreachable hub, a down service, the error count or a failing install check, else the uptime
+      - the Serving glance and the Services card
+      - the Activity feed
+    phone: one column
+    desktop: two columns, the glance and services on the left and Activity on the right
+    links:
+      - to: hub.glance
+      - to: hub.services
+      - to: hub.activity
+      - to: settings.dialog
+        via: gear
+
+  - id: hub.glance
+    area: hub
+    title: Serving glance
+    root: data-surface
+    reach:
+      - the top of the Hub tab
+    holds:
+      - requests, errors and median latency since hub start, with the window named
+      - one load sparkline (CPU, GPU, RAM or VRAM) drawn at first paint with dashes
+      - a segmented control that swaps the series and carries all four current figures
+      - the hub's uptime
+    does:
+      - the control swaps the sparkline's series; GPU and VRAM appear only where a GPU reports
+    states:
+      - a failed read says since start · not confirmed and shows dashes, never zeros
+
+  - id: hub.services
+    area: hub
+    title: Services card
+    root: data-surface
+    reach:
+      - the Hub tab, under the glance
+    holds:
+      - a row per Docker, Langfuse or AgentsView that is down, each with a Start button where it can be started
+      - one summary row, Services, saying All up or N of 3 up
+    does:
+      - the summary row and a down row open the Services sheet
+      - a down Langfuse row opens the Langfuse sheet
+      - Start brings that service up, with a toast for the outcome
+    states:
+      - a probe that did not answer says not confirmed and offers no Start
+      - Checking… before the first answer
+    why: healthy services fold into one row, so only an exception takes space
+    links:
+      - to: hub.services-sheet
+        via: Services row
+      - to: hub.langfuse-sheet
+        via: down Langfuse row
+
+  - id: hub.activity
+    area: hub
+    title: Activity feed
+    root: data-surface
+    reach:
+      - the Hub tab
+    holds:
+      - the Requests and Errors switch and a filter that counts what it filters
+      - one row per request with the model, status, latency, backend and clock; a failure's status is its chip
+      - By model and Server log rows at the foot
+      - an ⓘ
+    does:
+      - a row with a trace opens its sheet; a row without one does nothing on tap
+      - By model opens the counters sheet and Server log the live tail
+    states:
+      - empty, in each scope, with a way to send a test request
+    links:
+      - to: hub.trace-sheet
+        via: a row with a trace
+      - to: hub.by-model-sheet
+        via: By model
+      - to: hub.log-sheet
+        via: Server log
+      - to: hub.requests-empty
+        via: no requests
+      - to: hub.errors-empty
+        via: no errors
+      - to: chrome.info-sheet
+        via: ⓘ
+
+  - id: hub.requests-empty
+    area: hub
+    title: No requests yet
+    root: data-surface
+    reach:
+      - the Requests scope while the feed holds nothing
+    holds:
+      - a line saying the ring fills as clients call the hub
+      - Send a test request
+    does:
+      - Send a test request opens the Playground on Chat
+    links:
+      - to: playground.chat
+        via: Send a test request
+
+  - id: hub.errors-empty
+    area: hub
+    title: No failed requests yet
+    root: data-surface
+    reach:
+      - the Errors scope while no request has failed
+    holds:
+      - a line saying a failure shows here at once
+      - Send a test request
+    does:
+      - Send a test request opens the Playground on Chat
+    links:
+      - to: playground.chat
+        via: Send a test request
+
+  - id: hub.services-sheet
+    area: hub
+    title: Services sheet
+    root: data-surface
+    reach:
+      - the Services summary row or a down service's row
+      - Langfuse's Details button
+    holds:
+      - a row each for Docker, Langfuse and AgentsView with its state in words and a detail line
+      - Start or Stop per service, where the platform allows
+      - a Langfuse and telemetry row with its health and a Details button
+      - a hint, and a Launch Docker + Langfuse button while either is down and launchable
+    does:
+      - a long detail becomes a one-line disclosure that opens in place
+      - Launch brings Docker and then Langfuse up, up to about 90 seconds, with a toast for the outcome
+    states:
+      - a probe that failed says Status check failed and hides Start and Stop
+      - without Docker Desktop the hint names the manual command for the platform
+    links:
+      - to: hub.langfuse-sheet
+        via: Details
+
+  - id: hub.langfuse-sheet
+    area: hub
+    title: Langfuse sheet
+    root: data-surface
+    reach:
+      - a down Langfuse row on the Services card
+      - Details on the Services sheet
+    holds:
+      - health, telemetry export, whether personal data is hidden and the endpoint
+      - what telemetry export and hiding mean
+      - the offline hint with the commands to bring the stack up
+      - Open Langfuse UI
+    does:
+      - Open Langfuse UI opens the stack in its own tab
+    states:
+      - the offline hint shows only while the stack is down and export is on
+
+  - id: hub.trace-sheet
+    area: hub
+    title: Request sheet
+    root: data-surface
+    reach:
+      - an Activity row that carries a trace
+    holds:
+      - status, latency, tokens, backend and time, and the error detail of a failure
+      - the prompt and completion preview
+      - thumbs up and down
+      - Open in Langfuse
+    does:
+      - a thumb scores the trace and toasts the result
+      - Open in Langfuse opens the trace in its own tab
+    states:
+      - Loading… while the preview is read
+      - with Langfuse offline the preview says so instead of showing bodies
+
+  - id: hub.by-model-sheet
+    area: hub
+    title: By model sheet
+    root: data-surface
+    reach:
+      - By model at the foot of Activity
+    holds:
+      - the summary line with requests, error rate and the window
+      - a table of model, requests, errors, median, slowest 5% and tokens in and out
+      - a hint that the window resets on restart
+    does:
+      - the table scrolls sideways when it is wider than the sheet
+    states:
+      - a failed read says Not confirmed, never zeros
+    phone: a full-screen sheet
+    desktop: a wide dialog
+
+  - id: hub.log-sheet
+    area: hub
+    title: Server log sheet
+    root: data-surface
+    reach:
+      - Server log at the foot of Activity
+    holds:
+      - the hub's own log, live, newest last
+      - Pause or Resume
+    does:
+      - Pause freezes the tail and Resume carries on
+
+  # ------------------------------------------------------------------------------------------- models
+  - id: models.tab
+    area: models
+    title: Models tab
+    root: data-surface
+    reach:
+      - the Models tab
+    holds:
+      - the pane header, whose line names a model on failover, a host over capacity or not confirmed, else the number running
+      - the Memory glance
+      - a Running or All switch
+      - the model rows, grouped by host
+    does:
+      - the switch is remembered on this device
+      - opening the tab reads the fleet's memory once; it is read again after a Start or Stop and is never polled
+    phone: one column, a tapped row opens a sheet
+    desktop: the list on the left and a detail pane on the right, the first model selected
+    links:
+      - to: models.memory-glance
+      - to: models.list
+      - to: settings.dialog
+        via: gear
+
+  - id: models.memory-glance
+    area: models
+    title: Memory glance
+    root: data-surface
+    reach:
+      - the top of the Models tab
+    holds:
+      - one memory meter per fleet host, drawn at once and filled when the probe answers
+      - live GPU memory where the machine reports it, else the estimated footprint against the declared ceiling marked with ~, and RAM on a machine with no GPU
+      - an ⓘ
+    does:
+      - a row opens that machine's summary
+    states:
+      - a host the probe has not answered reads not confirmed
+      - stale keeps the last figures with a Last updated line
+      - an unreadable summary says Memory not confirmed
+    links:
+      - to: models.host-summary
+        via: a host row
+      - to: chrome.info-sheet
+        via: ⓘ
+
+  - id: models.list
+    area: models
+    title: Model list
+    root: data-surface
+    reach:
+      - the Models tab, under the switch
+    holds:
+      - a group heading per host, this machine first
+      - a row per model with an alive badge, a name, its kind, remote host, port and footprint, at most one exception chip, and one verb
+      - a kebab on each row
+    does:
+      - the row opens the model's sheet or pane
+      - the verb is Start while the model is down and Stop once the hub owns it; a model another process started is Start, disabled, with Force stop in the menu
+      - the 5 second poll repaints only what changed, so an open menu and focus survive it
+    states:
+      - the empty list says no model is enabled for this host or that none is running, and points at All
+      - a failed read after a good one is not confirmed in the header line
+    links:
+      - to: models.row-menu
+        via: kebab
+      - to: models.model-sheet
+        via: a row on a phone
+      - to: models.detail-pane
+        via: a row on a wide window
+      - to: models.empty
+        via: nothing to list
+
+  - id: models.empty
+    area: models
+    title: No models
+    root: data-surface
+    reach:
+      - the Models list with nothing to show
+    holds:
+      - No models enabled for this host, with a pointer at `config/models.yaml`
+      - or No models running right now, with a pointer at All
+
+  - id: models.row-menu
+    area: models
+    title: Model row menu
+    root: data-surface
+    reach:
+      - the kebab on a model row
+      - Arrow Down or Up on the kebab
+    holds:
+      - a header with the host chain, the startup policy and the roles served
+      - Ping, except on the billed decision backend
+      - Transcription dictionary, on speech-to-text rows
+      - Edit placement, on the machine that may write the registry
+      - Model log, on a managed process
+      - Force stop, last and in danger, on an adopted process
+    does:
+      - Ping toasts the status and latency; a backend that does not answer is disabled
+      - the others open the matching part of the model's sheet
+    why: destructive actions never sit on a row; Force stop is last and behind a confirm
+    links:
+      - to: models.dictionary-editor
+        via: Transcription dictionary
+      - to: models.placement-editor
+        via: Edit placement
+      - to: models.model-log
+        via: Model log
+      - to: chrome.confirm-dialog
+        via: Force stop
+
+  - id: models.model-sheet
+    area: models
+    title: Model sheet
+    root: data-surface
+    reach:
+      - a model row, or a host row of the Memory glance, on a phone
+    holds:
+      - the model's exception chips and its facts, such as kind, host, port, status, device, aliases, footprint and roles
+      - its placement, the host chain with the owner marked and the startup policy
+      - its actions, as the row menu offers them
+      - one editor slot and the log tail
+      - Force stop, last, for an adopted process
+    does:
+      - the 5 second poll repaints only the facts, so an open editor keeps its draft
+      - closing the sheet discards an open editor's draft
+    phone: a full-screen sheet
+    why: the sheet and the wide detail pane render one body
+    links:
+      - to: models.placement-editor
+        via: Edit placement
+      - to: models.dictionary-editor
+        via: Transcription dictionary
+      - to: models.model-log
+        via: Model log
+      - to: chrome.confirm-dialog
+        via: Force stop
+
+  - id: models.detail-pane
+    area: models
+    title: Model detail pane
+    root: data-surface
+    reach:
+      - a model or host row on a wide window
+    holds:
+      - the model's name with a worded Start or Stop button
+      - the same body as the model sheet
+    states:
+      - Select a model. until one is chosen
+    desktop: beside the list; on a phone the sheet is used instead
+    links:
+      - to: models.placement-editor
+        via: Edit placement
+      - to: models.dictionary-editor
+        via: Transcription dictionary
+      - to: models.model-log
+        via: Model log
+
+  - id: models.host-summary
+    area: models
+    title: Machine summary
+    root: data-surface
+    reach:
+      - a host row of the Memory glance
+    holds:
+      - This machine, on the local host
+      - an over-capacity warning where the estimate passes the declared ceiling
+      - Running, the models serving there now, Loadable, those it could load, and Capacity
+      - a note for a machine that is off or dormant, whose desired models apply when it powers up
+    states:
+      - Reading the fleet summary… while loading
+      - Could not read the fleet summary, with Retry
+      - No models placeable on this machine, naming Edit placement
+    phone: shown in the model sheet
+    desktop: shown in the detail pane
+
+  - id: models.placement-editor
+    area: models
+    title: Placement editor
+    root: data-surface
+    reach:
+      - Edit placement, in the row menu or the pencil in the sheet's Placement row
+      - only on the machine that may write `config/models.yaml`
+    holds:
+      - the host chain in priority order, each with a cpu tier tick, Move up, Move down and Remove
+      - a picker and Add host for a host not yet in the chain
+      - Startup, always on or on demand, and the idle unload minutes
+      - Save and commit and Cancel
+    does:
+      - Save validates the schema and the VRAM budget, commits `config/models.yaml` and pushes it; satellites sync on their own
+      - a rejection stays inline with its arithmetic, since that detail is the point
+      - the same menu item or Cancel closes it
+    states:
+      - the idle field applies only to on demand
+      - an inline error in an alert
+    why: one editor slot that the poll never repaints, so a draft survives
+
+  - id: models.dictionary-editor
+    area: models
+    title: Transcription dictionary
+    root: data-surface
+    reach:
+      - Transcription dictionary, in the row menu of a speech-to-text row
+    holds:
+      - a note that the one list serves every whisper model
+      - Replacements, ordered heard-as to correct-to rules, with add, edit and delete
+      - Boost terms as chips, with a field and a launch-prompt token budget
+      - Suggest from transcripts, and Save
+    does:
+      - Suggest mines recent transcripts and offers chips to tap and then Save
+      - boost terms bind on the next whisper start
+    states:
+      - Loading… and a failed load message
+      - No boost terms yet
+      - No new suggestions
+
+  - id: models.model-log
+    area: models
+    title: Model log
+    root: data-surface
+    reach:
+      - Model log, in the row menu or the sheet's actions
+    holds:
+      - a Log row with Refresh
+      - the last 200 lines of that backend's log
+    does:
+      - Refresh reads it again
+    states:
+      - Reading…
+      - No log yet when the backend has not started
+      - Could not read the log
+
+  # ------------------------------------------------------------------------------------------- playground
+  - id: playground.tab
+    area: playground
+    title: Playground tab
+    root: data-surface
+    reach:
+      - the Play tab
+      - Send a test request on an empty Activity feed
+    holds:
+      - the pane header, whose line names a mode whose backend is missing or stopped, else the mode in use
+      - a Chat, Image, Speech and Decide switch
+      - the chosen mode's composer and result
+    does:
+      - the last mode is remembered on this device
+      - a mode with no usable model shows its none state
+    desktop: composer on the left, result on the right
+    links:
+      - to: playground.chat
+        via: Chat
+      - to: playground.image
+        via: Image
+      - to: playground.speech
+        via: Speech
+      - to: playground.decide
+        via: Decide
+
+  - id: playground.chat
+    area: playground
+    title: Chat composer
+    root: data-surface
+    reach:
+      - the Chat mode, the default
+    holds:
+      - a model picker, a prompt and a Send button
+      - More options with a system prompt, an attachment (claude and gemini only) and max tokens as a preset segment with a numeric override
+      - Clear
+    does:
+      - Send posts the prompt to the chosen backend through the hub
+      - an empty prompt or no model is a toast
+    links:
+      - to: playground.chat-result
+
+  - id: playground.chat-result
+    area: playground
+    title: Chat result
+    root: data-surface
+    reach:
+      - beside or under the Chat composer
+    holds:
+      - Press Send and the reply shows here, until there is a reply
+      - the latency, the reply and a usage grid
+    states:
+      - sending… while it runs
+      - a failure shows its status and message in the reply and as a toast
+
+  - id: playground.image
+    area: playground
+    title: Image composer
+    root: data-surface
+    reach:
+      - the Image mode
+    holds:
+      - an image model picker, a prompt and a size picker, each with a note
+      - More options with Refine after upscaling where the model supports it and an optional reference image
+      - Generate and Clear
+    does:
+      - a reference image edits the upload instead of generating, which is slow and experimental
+    states:
+      - the none state when no image model is configured
+    links:
+      - to: playground.image-result
+      - to: playground.image-none
+        via: no image model
+
+  - id: playground.image-none
+    area: playground
+    title: No image model
+    root: data-surface
+    reach:
+      - the Image composer when the hub has no image model
+    holds:
+      - No image model is configured on this hub
+
+  - id: playground.image-result
+    area: playground
+    title: Image result
+    root: data-surface
+    reach:
+      - beside or under the Image composer
+    holds:
+      - Press Generate and the image shows here, until there is one
+      - the elapsed time, the image and a Download button
+    states:
+      - a failure clears the preview and toasts the message
+
+  - id: playground.speech
+    area: playground
+    title: Speech composer
+    root: data-surface
+    reach:
+      - the Speech mode
+    holds:
+      - a voice model with its availability, a text, a language and a voice
+      - a Stream switch, where the voice supports it
+      - More options with a format, and speed, exaggeration and CFG weight where the voice supports them
+      - Speak
+    does:
+      - Stream plays as it synthesizes; off gives a buffered clip with a player
+    states:
+      - the none state when no voice model is configured
+      - Voice model status could not be loaded
+    links:
+      - to: playground.speech-result
+      - to: playground.speech-none
+        via: no voice model
+
+  - id: playground.speech-none
+    area: playground
+    title: No voice model
+    root: data-surface
+    reach:
+      - the Speech composer when the hub has no voice model
+    holds:
+      - No voice model is configured on this hub
+
+  - id: playground.speech-result
+    area: playground
+    title: Speech result
+    root: data-surface
+    reach:
+      - beside or under the Speech composer
+    holds:
+      - Press Speak and the audio plays here, until there is a clip
+      - the timing and an audio player
+    states:
+      - synthesizing…, then first audio and playing… while streaming
+
+  - id: playground.decide
+    area: playground
+    title: Decide composer
+    root: data-surface
+    reach:
+      - the Decide mode
+    holds:
+      - a notice that the content goes to a third-party API hosted in the US
+      - a model picker, the state being judged and the questions as JSON
+      - Evaluate and Reset sample
+    does:
+      - Evaluate posts through the hub's own decision route, so it lands in the Activity feed
+      - a malformed JSON shows its error inline
+    states:
+      - a note when the API key is not set, since evaluations would answer 503
+    links:
+      - to: playground.decide-result
+
+  - id: playground.decide-result
+    area: playground
+    title: Decide result
+    root: data-surface
+    reach:
+      - beside or under the Decide composer
+    holds:
+      - Press Evaluate and the answers show here, until there are answers
+      - each answer as probability bars with the model that served it, and a usage grid
+
+  # ------------------------------------------------------------------------------------------- code-usage
+  - id: code-usage.tab
+    area: code-usage
+    title: Code tab
+    root: data-surface
+    reach:
+      - the Code tab
+    holds:
+      - the pane header, whose line names a failed load or an offline AgentsView, else the period and its total cost
+      - the totals card, the trend and the breakdowns
+    does:
+      - polls the summary every 30 seconds while the tab is visible
+    desktop: totals and trend on the left, the breakdowns on the right
+    links:
+      - to: code-usage.totals
+      - to: code-usage.loading
+        via: before the first read
+      - to: code-usage.projects
+
+  - id: code-usage.loading
+    area: code-usage
+    title: Reading usage
+    root: data-surface
+    reach:
+      - the breakdowns column until the first summary lands, and the whole tab while it loads
+    holds:
+      - Reading usage…
+    why: a header-only table would claim an emptiness nothing has measured
+
+  - id: code-usage.totals
+    area: code-usage
+    title: Totals
+    root: data-surface
+    reach:
+      - the top of the Code tab
+    holds:
+      - a Day, Week, Month and All switch and an agent button
+      - the total equivalent API cost and four counters with their cost and a delta against the previous period
+      - how fresh the data is, an ⓘ and a note that Claude figures undercount
+    does:
+      - a counter picks the trend's metric
+      - the agent button opens the agent sheet
+    states:
+      - a Sub-agents source swaps the counters for its own table
+    links:
+      - to: code-usage.agent-sheet
+        via: agent button
+      - to: code-usage.error
+        via: a failed read
+      - to: code-usage.subagents
+        via: Sub-agents source
+      - to: code-usage.trend
+        via: counter
+      - to: chrome.info-sheet
+        via: ⓘ
+
+  - id: code-usage.error
+    area: code-usage
+    title: Load failure
+    root: data-surface
+    reach:
+      - the totals card when the server reports that the summary could not be built
+    holds:
+      - the reason, in a banner
+    why: a summary that could not be built is its own state, never a zero-usage day
+
+  - id: code-usage.subagents
+    area: code-usage
+    title: Sub-agents source
+    root: data-surface
+    reach:
+      - Sub-agents in the agent sheet
+    holds:
+      - a summary line and a note that this is a separate source, never added into All
+      - a table of date, project, model, source, tokens, cache and cost
+      - a hint to swipe the table sideways
+    states:
+      - the empty state when the period holds nothing
+    links:
+      - to: code-usage.subagents-empty
+
+  - id: code-usage.subagents-empty
+    area: code-usage
+    title: No sub-agent usage
+    root: data-surface
+    reach:
+      - the Sub-agents source with nothing in the period
+    holds:
+      - a line saying it needs `CLAUDE_CODE_ENABLE_TELEMETRY` on the host, or a longer period
+      - one button that is Retry after a failed read, Show all after a narrowed view and Refresh otherwise
+
+  - id: code-usage.copilot-billing
+    area: code-usage
+    title: Copilot credits
+    root: data-surface
+    reach:
+      - the Code tab while the Copilot agent is chosen
+    holds:
+      - the authoritative spend from the GitHub billing API, the total of the last 14 days and a table by date and model
+    states:
+      - the empty state when the billing data is not available
+    links:
+      - to: code-usage.billing-empty
+
+  - id: code-usage.billing-empty
+    area: code-usage
+    title: No billing data
+    root: data-surface
+    reach:
+      - the Copilot credits card with no data
+    holds:
+      - the reason billing is unavailable and the one empty-state button
+
+  - id: code-usage.trend
+    area: code-usage
+    title: Trend
+    root: data-surface
+    reach:
+      - the Code tab once a summary has landed, except for the Sub-agents source or a failed read
+    holds:
+      - one stacked bar chart whose metric is the counter last tapped, a bar series per vendor
+    states:
+      - No usage to chart yet
+
+  - id: code-usage.projects
+    area: code-usage
+    title: By project
+    root: data-surface
+    reach:
+      - the breakdowns column of the Code tab
+    holds:
+      - the projects by requests
+      - Every project, By model and Recent sessions rows
+    does:
+      - each row opens its sheet
+    states:
+      - the empty state with Show all
+    links:
+      - to: code-usage.project-sheet
+        via: Every project
+      - to: code-usage.model-sheet
+        via: By model
+      - to: code-usage.sessions-sheet
+        via: Recent sessions
+      - to: code-usage.projects-empty
+        via: no projects
+
+  - id: code-usage.projects-empty
+    area: code-usage
+    title: No project data
+    root: data-surface
+    reach:
+      - By project with nothing in the period or for the agent
+    holds:
+      - a line suggesting a longer period or another agent
+      - the one empty-state button
+    does:
+      - Show all widens the period and the agent back to everything and removes nothing
+
+  - id: code-usage.per-agent
+    area: code-usage
+    title: Per agent
+    root: data-surface
+    reach:
+      - the breakdowns column, in All
+    holds:
+      - a table of agent, requests, tokens in and out, cache reads and cost
+    phone: not shown; each agent's figures sit in the agent sheet
+    desktop: shown as a card
+    links:
+      - to: code-usage.per-agent-empty
+
+  - id: code-usage.per-agent-empty
+    area: code-usage
+    title: No agent data
+    root: data-surface
+    reach:
+      - Per agent with nothing in the period
+    holds:
+      - a line suggesting a longer period
+      - the one empty-state button
+
+  - id: code-usage.agent-sheet
+    area: code-usage
+    title: Agent sheet
+    root: data-surface
+    reach:
+      - the agent button on the totals card
+    holds:
+      - an Agents group with All, every built-in agent and the extras AgentsView reports, each with its figures for the period
+      - a Separate source group with Sub-agents
+    does:
+      - a row chooses the agent, closes the sheet and re-reads
+    states:
+      - an AgentsView extra carries its freshness and an offline chip when AgentsView is down
+
+  - id: code-usage.model-sheet
+    area: code-usage
+    title: By model sheet
+    root: data-surface
+    reach:
+      - By model on the By project card
+    holds:
+      - a table of model, requests, tokens in and out and cache reads
+      - a hint to swipe the table sideways
+    states:
+      - the empty state with Show all
+    links:
+      - to: code-usage.model-empty
+
+  - id: code-usage.model-empty
+    area: code-usage
+    title: No model data
+    root: data-surface
+    reach:
+      - the By model sheet with nothing in the period or for the agent
+    holds:
+      - a line suggesting a longer period or another agent
+      - the one empty-state button
+
+  - id: code-usage.project-sheet
+    area: code-usage
+    title: Every project sheet
+    root: data-surface
+    reach:
+      - Every project on the By project card
+    holds:
+      - a table of project, requests and tokens in and out
+      - a hint to swipe the table sideways
+
+  - id: code-usage.sessions-sheet
+    area: code-usage
+    title: Recent sessions sheet
+    root: data-surface
+    reach:
+      - Recent sessions on the By project card
+    holds:
+      - a list of sessions, each with its project, model, short id, first and last time, requests and tokens
+    states:
+      - the empty state with Show all
+    links:
+      - to: code-usage.sessions-empty
+
+  - id: code-usage.sessions-empty
+    area: code-usage
+    title: No sessions found
+    root: data-surface
+    reach:
+      - the Recent sessions sheet with nothing to list
+    holds:
+      - a line saying no sessions were found under the agent's transcript folder and suggesting another agent
+      - the one empty-state button
+
+  # ------------------------------------------------------------------------------------------- machines
+  - id: machines.tab
+    area: machines
+    title: Machines tab
+    root: data-surface
+    reach:
+      - the Machines tab
+    holds:
+      - the pane header, whose line names how many are offline, the stale age or how many to fix, else the machine count and how many are dormant
+      - the loading and error states, then the machine list
+      - a Diagnostics row under the list
+    does:
+      - polls the fleet every 10 seconds while the tab is visible
+    desktop: the list on the left and a detail pane on the right
+    links:
+      - to: machines.loading
+      - to: machines.error
+      - to: machines.list
+      - to: machines.diagnostics
+      - to: settings.dialog
+        via: gear
+
+  - id: machines.loading
+    area: machines
+    title: Reading machine status
+    root: data-surface
+    reach:
+      - the Machines tab until the first read lands
+    holds:
+      - Reading machine status…
+
+  - id: machines.error
+    area: machines
+    title: Machine status error
+    root: data-surface
+    reach:
+      - a first read that failed
+    holds:
+      - the reason, or Could not read machine status
+      - Retry
+    does:
+      - Retry reads again
+    states:
+      - after a good read, a failure keeps the list and marks it stale instead
+
+  - id: machines.list
+    area: machines
+    title: Machine list
+    root: data-surface
+    reach:
+      - the Machines tab once the status has landed
+    holds:
+      - a row per machine with an alive badge, a name, This machine or its role, its state or uptime and at most one exception chip
+      - one verb, Wake on a down machine that has a MAC, or Start hub on a machine whose own hub is down
+      - a kebab where the machine can reboot or its health needs a word
+    does:
+      - the row opens the machine's sheet or pane
+      - a dormant machine is a neutral row sorted after the live ones, and never counts as offline
+    states:
+      - stale dims the list and labels its age, and disables Reboot and Shut down against old data
+      - No machines configured
+    links:
+      - to: machines.row-menu
+        via: kebab
+      - to: machines.machine-sheet
+        via: a row on a phone
+      - to: machines.detail-pane
+        via: a row on a wide window
+
+  - id: machines.row-menu
+    area: machines
+    title: Machine row menu
+    root: data-surface
+    reach:
+      - the kebab on a machine row
+    holds:
+      - a header with the health verdict and its suggested fix, for a machine that is not fine
+      - Reboot, in danger
+    does:
+      - Reboot asks for confirmation first; it is disabled, with the reason, when the hub runs here, the machine is unreachable, an action is in flight or the data is stale
+    why: the one fix the hub can carry out; restarting a single process stays advice
+    links:
+      - to: chrome.confirm-dialog
+        via: Reboot
+
+  - id: machines.machine-sheet
+    area: machines
+    title: Machine sheet
+    root: data-surface
+    reach:
+      - a machine row on a phone
+    holds:
+      - the state, role and exception chips
+      - CPU, RAM, GPU and disk gauges
+      - Health with its verdict, findings and suggested fix, and Resources with the drive stall summary
+      - Terminal and Remote
+      - Connection, a disclosure with address, MAC, network, tailnet and link quality
+      - Hub, for a peer that runs its own, with Sync or Start hub
+      - Runner, on a machine that hosts one
+      - Reboot and Shut down, last and in danger
+    does:
+      - Terminal opens the in-browser terminal; Remote downloads the Remote Desktop file
+      - Sync updates the peer's hub to main and restarts it, and is offered only when it would help
+      - Reboot and Shut down ask for confirmation, and are disabled against stale data
+    states:
+      - a dormant machine that answers again says so and where to switch Dormant off
+    phone: a full-screen sheet
+    why: the sheet and the wide detail pane render one body
+    links:
+      - to: machines.terminal-dialog
+        via: Terminal
+      - to: machines.runner
+        via: Runner
+      - to: chrome.confirm-dialog
+        via: Reboot or Shut down
+      - to: chrome.info-sheet
+        via: ⓘ
+
+  - id: machines.detail-pane
+    area: machines
+    title: Machine detail pane
+    root: data-surface
+    reach:
+      - a machine row on a wide window
+    holds:
+      - the machine's name and a Terminal button in its head
+      - the same body as the machine sheet, with the gauges in two columns
+    states:
+      - Select a machine. until one is chosen
+    desktop: beside the list; on a phone the sheet is used instead
+    links:
+      - to: machines.terminal-dialog
+        via: Terminal
+      - to: machines.runner
+        via: Runner
+      - to: chrome.confirm-dialog
+        via: Reboot or Shut down
+
+  - id: machines.runner
+    area: machines
+    title: Actions runner
+    root: data-surface
+    reach:
+      - the sheet or pane of a machine that hosts a GitHub Actions runner
+    holds:
+      - a headline such as Online · idle, Stopped, Not installed or Service and GitHub disagree
+      - Service, GitHub, Last run and Boot as separate rows, since they fail separately
+      - notes and the owner steps still outstanding
+      - Install service or Start, and Stop, and an ⓘ
+    does:
+      - Stop is refused while a job runs and while GitHub's view cannot be read, and says why
+      - each action runs over SSH, then both sources are read again and the toast says what they showed
+    states:
+      - Reading… before the first read
+      - Not confirmed, with Could not read the runner, when a source cannot be read; the last good reading stays up marked not current
+    links:
+      - to: chrome.info-sheet
+        via: ⓘ
+
+  - id: machines.diagnostics
+    area: machines
+    title: Diagnostics row
+    root: data-surface
+    reach:
+      - the Machines tab, only where the hub's own machine is listed
+    holds:
+      - one row, Diagnostics, with This machine and the capture state as a chip
+    does:
+      - opens the diagnostics dialog
+    links:
+      - to: machines.diagnostics-dialog
+
+  - id: machines.diagnostics-dialog
+    area: machines
+    title: Diagnostics dialog
+    root: data-surface
+    reach:
+      - the Diagnostics row
+    holds:
+      - Capture, with a window and a sample interval and Start capture and One-shot snapshot, or the running capture with its progress and Stop capture
+      - Runs, each with its verdict, trigger and sample count
+      - the chosen run's verdict, resource envelope, load by app, heaviest processes, listening ports and drift against the baseline
+      - Mark as baseline, Health report, Export JSON and Delete
+      - Settings, a disclosure with the daily snapshot switch, its interval, retention and Save settings
+    does:
+      - polls every 5 seconds while the dialog is open, and leaves an unchanged body alone so an open list, focus and scroll survive
+      - Delete asks for confirmation
+    states:
+      - Reading diagnostics status… and Could not read diagnostics status, with Retry
+      - No captures recorded yet
+      - Live data unavailable, showing the last known state
+    why: a capture runs inside this hub's own process, so a peer's diagnostics are opened on that peer
+    links:
+      - to: chrome.confirm-dialog
+        via: Delete
+
+  - id: machines.terminal-dialog
+    area: machines
+    title: Terminal dialog
+    root: data-surface
+    reach:
+      - Terminal in a machine's sheet or pane
+    holds:
+      - an in-browser SSH terminal that streams, resizes and closes with the dialog
+    states:
+      - the unavailable message when the terminal companion does not answer
+    links:
+      - to: machines.terminal-unavailable
+        via: no companion
+
+  - id: machines.terminal-unavailable
+    area: machines
+    title: Terminal unavailable
+    root: data-surface
+    reach:
+      - the Terminal dialog when the terminal status says unavailable
+    holds:
+      - the reason, in words
+    why: it degrades to a clean message, never a hang or a thrown error
+
+  # ------------------------------------------------------------------------------------------- settings
+  - id: settings.dialog
+    area: settings
+    title: Settings dialog
+    root: data-surface
+    reach:
+      - the gear in any pane's header
+    holds:
+      - Display, Startup, Machines, Health and About groups
+      - a close button
+    does:
+      - the gear opens it, and a wide window opens Service startup beside the list
+    phone: a full-screen dialog; a row with a body replaces the list, with a back row
+    desktop: the list and a detail pane side by side
+    links:
+      - to: settings.display
+      - to: settings.startup
+      - to: settings.machines
+      - to: settings.health
+      - to: settings.about
+
+  - id: settings.display
+    area: settings
+    title: Display
+    root: data-surface
+    reach:
+      - the Display group of Settings
+    holds:
+      - Text size, Small, Default or Large
+      - Theme, System, Light or Dark
+    does:
+      - each choice applies at once and is remembered on this device
+
+  - id: settings.startup
+    area: settings
+    title: Startup group
+    root: data-surface
+    reach:
+      - the Startup group of Settings
+    holds:
+      - Service startup, with how many services start on launch
+    does:
+      - opens the startup page
+    links:
+      - to: settings.startup-page
+        via: Service startup
+
+  - id: settings.startup-page
+    area: settings
+    title: Service startup
+    root: data-surface
+    reach:
+      - Service startup in Settings
+    holds:
+      - a note that each switch saves at once to `config/startup_profile.json`
+      - one switch per service that comes up when the hub launches
+    does:
+      - a switch saves at once; a failure toasts and the switch snaps back
+    why: model autostart is set per model in its placement editor, not here
+
+  - id: settings.machines
+    area: settings
+    title: Machines group
+    root: data-surface
+    reach:
+      - the Machines group of Settings
+    holds:
+      - Dormant machines, with how many are marked
+    does:
+      - opens the dormant page
+    links:
+      - to: settings.machines-page
+        via: Dormant machines
+
+  - id: settings.machines-page
+    area: settings
+    title: Dormant machines
+    root: data-surface
+    reach:
+      - Dormant machines in Settings
+    holds:
+      - a note on what dormant means
+      - one switch per other machine, Mark as intentionally off
+    does:
+      - a switch saves at once to `config/machines.local.yaml` on this machine only, and the Machines tab re-reads
+    states:
+      - No other machines are configured
+      - not confirmed in the group's value when the read failed
+    why: a machine that is off on purpose is a neutral row and raises no alert
+
+  - id: settings.health
+    area: settings
+    title: Health group
+    root: data-surface
+    reach:
+      - the Health group of Settings
+    holds:
+      - Health & install, with how many checks pass
+    does:
+      - opens the health page and runs the checks the first time
+    links:
+      - to: settings.health-page
+        via: Health & install
+
+  - id: settings.health-page
+    area: settings
+    title: Health and install
+    root: data-surface
+    reach:
+      - Health & install in Settings
+    holds:
+      - one row per check with a glyph, a label and its detail, and a Fix button on a failing one
+      - Fix all, only once a check has something to fix
+      - Re-check
+    does:
+      - the checks take seconds, so they run when the page first opens
+      - a fix toasts the outcome and re-reads
+    states:
+      - Checking… on first open
+      - not confirmed in the group's value when the read failed
+
+  - id: settings.about
+    area: settings
+    title: About
+    root: data-surface
+    reach:
+      - the About group of Settings
+    holds:
+      - Build, Config version and Process
+      - Open Langfuse UI
+      - Frontier report
+    does:
+      - the two link rows open in their own tab; the Frontier report is a separate page at `/admin/frontier`, not part of this map
+
+  # ------------------------------------------------------------------------------------------- keys
+  - id: keys.nav
+    area: keys
+    title: Tab keys
+    root:
+      none: "a key path, not an element"
+    reach:
+      - focus on the nav
+    does:
+      - Arrow keys step between tabs and wrap at the ends, Home and End jump to the first and last, and each opens its tab
+    links:
+      - to: chrome.nav
+
+  - id: keys.menus
+    area: keys
+    title: Menu and dialog keys
+    root:
+      none: "a key path, not an element"
+    reach:
+      - focus on a kebab, in a menu, or anywhere under an open dialog
+    does:
+      - Arrow Down or Up on a kebab opens its menu on the first or last item
+      - arrow keys, Home and End move between items, Esc closes it and returns focus to the kebab
+      - Esc closes the topmost dialog, and a draft in a sheet's editor goes with it; the sign-in sheet ignores it
+    links:
+      - to: models.row-menu
+      - to: machines.row-menu
+
+  - id: keys.table-scroll
+    area: keys
+    title: Sideways table scroll
+    root:
+      none: "a gesture, not an element"
+    reach:
+      - a wide table on a phone
+    does:
+      - swipe the table sideways for every column; a hint under each table says so
+    links:
+      - to: hub.by-model-sheet
+      - to: code-usage.model-sheet
+      - to: code-usage.project-sheet

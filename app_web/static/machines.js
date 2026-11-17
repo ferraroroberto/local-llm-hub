@@ -258,7 +258,10 @@ function attachRowMenus(root) {
   root.querySelectorAll('.machine-row').forEach(function (li) {
     const kebab = li.querySelector('.row-kebab');
     const m = findMachine(li.dataset.machineId);
-    if (kebab && m) rowMenu.attach(m.id, kebab, menuItems(m), { header: menuHeader(m) });
+    if (!kebab || !m) return;
+    // The vendored menu builds its own element; its call site names it.
+    const menu = rowMenu.attach(m.id, kebab, menuItems(m), { header: menuHeader(m) });
+    menu.dataset.surface = 'machines.row-menu';
   });
   rowMenu.endRender();
 }

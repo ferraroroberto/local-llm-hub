@@ -102,7 +102,7 @@ def _fix_all_is_hidden_when_nothing_needs_fixing(page, admin_url, mark):
     _open_health(page, admin_url, ALL_OK)
     assert page.locator("#installFixAllBtn").is_hidden()
     assert page.locator("#installRefreshBtn").is_visible()
-    mark("settings.health-all-ok")
+    mark("settings.health-page")
 
 
 def _fix_all_reports_a_failed_fix(page, admin_url, mark):
@@ -194,7 +194,7 @@ def _a_switch_marks_a_machine_dormant(page, admin_url, mark):
     )
     assert puts == [("attic", {"dormant": True})], puts
     assert page.inner_text("#dormantSummary") == "1 of 2"
-    mark("settings.machines-dormant")
+    mark("settings.machines-page")
 
 
 def _about_carries_the_models_config_version(page, admin_url, mark):

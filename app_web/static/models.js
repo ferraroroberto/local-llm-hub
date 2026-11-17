@@ -314,7 +314,8 @@ function attachRowMenus(root) {
         },
       };
     });
-    rowMenu.attach(m.id, kebab, items, { header: menuHeader(m) });
+    const menu = rowMenu.attach(m.id, kebab, items, { header: menuHeader(m) });
+    menu.dataset.surface = 'models.row-menu';
   });
   rowMenu.endRender();
 }
@@ -466,7 +467,7 @@ function fillModelBody(container, m) {
     body.className = 'model-body';
     body.dataset.id = m.id;
     body.innerHTML = '<div class="model-info"></div><div class="model-editor"></div>'
-      + '<div class="model-log sheet-section" hidden></div>';
+      + '<div class="model-log sheet-section" data-surface="models.model-log" hidden></div>';
     container.appendChild(body);
   }
   body.querySelector('.model-info').innerHTML = modelInfoHtml(m);
@@ -595,6 +596,7 @@ function openEditor(m, kind) {
 }
 
 function mountPlacementEditor(panel, m) {
+  panel.dataset.surface = 'models.placement-editor';
   const p = m.placement || {};
   const ed = {
     panel: panel,
