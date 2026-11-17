@@ -544,7 +544,7 @@
                 </table>
               </div>
               <p class="table-scroll-hint muted">Swipe the table sideways for every column.</p>
-              <div id="cldSubEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-code"></use></svg><p class="empty-state-message">No sub-agent usage for this period — needs <code>CLAUDE_CODE_ENABLE_TELEMETRY</code> set on the host, or pick a longer period above.</p></div>
+              <div id="cldSubEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-code"></use></svg><p class="empty-state-message">No sub-agent usage for this period — needs <code>CLAUDE_CODE_ENABLE_TELEMETRY</code> set on the host, or pick a longer period above.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-sub-action">Clear filters</button></div>
             </div>
           </section>
 
@@ -572,7 +572,7 @@
             </div>
             <div id="cldCopilotBillingEmpty" class="empty-state" hidden>
               <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg>
-              <p class="empty-state-message" id="cldCopilotBillingEmptyMsg">No billing data.</p>
+              <p class="empty-state-message" id="cldCopilotBillingEmptyMsg">No billing data.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-billing-action">Clear filters</button>
             </div>
           </section>
 
@@ -599,7 +599,7 @@
               <h2 id="cldProjectTitle"><svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>By project</h2>
             </div>
             <ul id="cldProjectList" class="action-rows" aria-label="Projects by requests"></ul>
-            <div id="cldProjectEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-folder"></use></svg><p class="empty-state-message">No project data for this period — pick a longer period or another agent above.</p></div>
+            <div id="cldProjectEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-folder"></use></svg><p class="empty-state-message">No project data for this period — pick a longer period or another agent above.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-project-action">Clear filters</button></div>
             <ul class="action-rows cld-links">
               <li class="action-row"><button type="button" class="action-row-main" id="cldProjectsAllBtn" data-track="code-projects" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-folder"></use></svg></span><span class="action-row-text"><span class="action-row-title">Every project</span><span class="action-row-meta" id="cldProjectsMeta">The full table</span></span></button></li>
               <li class="action-row"><button type="button" class="action-row-main" id="cldModelOpenBtn" data-track="code-model" aria-haspopup="dialog"><span class="action-row-avatar" aria-hidden="true"><svg class="icon"><use href="#i-chart-line"></use></svg></span><span class="action-row-text"><span class="action-row-title">By model</span><span class="action-row-meta" id="cldModelMeta">Requests and tokens per model</span></span></button></li>
@@ -623,7 +623,7 @@
                 <tbody></tbody>
               </table>
             </div>
-            <div id="cldVendorEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg><p class="empty-state-message">No agent data for this period — pick a longer period above.</p></div>
+            <div id="cldVendorEmpty" class="empty-state" hidden><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-tag"></use></svg><p class="empty-state-message">No agent data for this period — pick a longer period above.</p><button type="button" class="empty-state-action" data-cld-empty-action data-track="code-empty-vendor-action">Clear filters</button></div>
           </section>
         </div>
       </div>

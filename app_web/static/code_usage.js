@@ -118,6 +118,12 @@ export function wireCodeUsage() {
     });
   }
 
+  // Empty-state action (the block's one button): the sheets hold some of the
+  // blocks, so the listener is delegated rather than bound per button.
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-cld-empty-action]')) runEmptyAction();
+  });
+
   // Agent filter: a button opening the sheet of every agent and source.
   if (els.cldAgentBtn) {
     els.cldAgentBtn.addEventListener('click', function () {
@@ -278,6 +284,7 @@ function setLoadError(reason) {
   // on every 30s poll and must not rewrite the DOM each time.
   if (!failed && !_loadFailed) return;
   _loadFailed = failed;
+  syncEmptyActions();
 
   if (els.cldError) els.cldError.hidden = !failed;
   if (els.cldErrorMsg && failed) {
@@ -384,6 +391,7 @@ function agentsviewOffline() {
 // ---------------------------------------------------------------------------
 
 function syncPeriodSeg() {
+  syncEmptyActions();
   if (!els.cldPeriodSeg) return;
   els.cldPeriodSeg.querySelectorAll('button[data-period]').forEach(function (b) {
     b.setAttribute('aria-pressed', String(b.dataset.period === state.cldPeriod));
@@ -391,7 +399,38 @@ function syncPeriodSeg() {
 }
 
 function syncAgentLabel() {
+  syncEmptyActions();
   set(els.cldAgentLabel, agentLabel(state.cldVendor));
+}
+
+/* The one way out of an empty state, by cause: a failed read retries; a
+ * narrowed period or agent clears back to everything (the Sub-agents source
+ * only has a period to widen); an unfiltered, genuinely empty view re-reads. */
+function emptyActionKind() {
+  if (_loadFailed) return 'retry';
+  const narrowed = state.cldPeriod !== 'all' ||
+    (state.cldVendor !== 'all' && state.cldVendor !== SUBAGENTS);
+  return narrowed ? 'clear' : 'refresh';
+}
+
+const EMPTY_ACTION_LABEL = { retry: 'Retry', clear: 'Clear filters', refresh: 'Refresh' };
+
+function syncEmptyActions() {
+  const label = EMPTY_ACTION_LABEL[emptyActionKind()];
+  document.querySelectorAll('[data-cld-empty-action]').forEach(function (b) {
+    b.textContent = label;
+  });
+}
+
+function runEmptyAction() {
+  if (emptyActionKind() === 'clear') {
+    state.cldPeriod = 'all';
+    if (state.cldVendor !== SUBAGENTS) state.cldVendor = 'all';
+    syncPeriodSeg();
+    syncAgentLabel();
+    applyView();
+  }
+  startChoiceLoad();
 }
 
 function syncMetric() {

@@ -307,6 +307,19 @@ def _the_trend_is_stacked_vendor_bars(page, admin_url, mark):
     ]
 
 
+def _empty_state_action_is_the_way_out(page):
+    # The block's one action is the way out: on the narrowed Day view it widens
+    # the period to All, then (nothing left to clear) the same button re-reads.
+    project_action = page.locator("#cldProjectEmpty .empty-state-action")
+    assert project_action.inner_text() == "Clear filters"
+    project_action.click()
+    page.wait_for_selector("#cldPeriodSeg [data-period=all][aria-pressed=true]", timeout=5000)
+    page.wait_for_selector("#cldProjectEmpty .empty-state-action:has-text('Refresh')", timeout=5000)
+    page.click("#cldPeriodSeg [data-period=today]")
+    page.wait_for_selector("#cldPeriodSeg [data-period=today][aria-pressed=true]", timeout=5000)
+    page.wait_for_selector("#cldProjectEmpty", state="visible", timeout=PANE_TIMEOUT)
+
+
 def _empty_states_wait_for_the_summary_and_the_first_screen_fits(page, admin_url, browser_name, mark):
     held = []
     released = []
@@ -369,6 +382,8 @@ def _empty_states_wait_for_the_summary_and_the_first_screen_fits(page, admin_url
         has_action = page.locator(f"{empty} .empty-state-action").count() > 0
         assert has_action or "above" in text, f"{empty} names no control: {text!r}"
         assert "today" not in text, f"{empty} still says 'today' for every period: {text!r}"
+
+    _empty_state_action_is_the_way_out(page)
 
     # The first screen: the period switch, the four counters and the total cost
     # fit without scrolling, with no paragraph above the numbers, on a phone and

@@ -352,7 +352,7 @@ function renderServiceRows() {
       glyph: s.glyph,
       badge: s.unknown ? null : 'down',
       title: s.name,
-      lead: s.unknown ? 'Not confirmed' : 'Down',
+      lead: s.unknown ? 'not confirmed' : 'down',
       meta: s.key === 'langfuse' && !s.unknown ? 'traces and previews unavailable' : '',
       mainAttrs: ' data-act="' + (s.key === 'langfuse' ? 'langfuse' : 'services') + '" aria-haspopup="dialog"',
       verb: s.canStart ? {
