@@ -1,47 +1,80 @@
 <!-- Fleet settings-group — markup skeleton (copy and adapt). Needs card/,
-     switch/ and icons/ beside it. One overline + one card per group. -->
-<h3 class="settings-overline" id="settingsGroupDictation">Dictation</h3>
-<section class="card settings-group" aria-labelledby="settingsGroupDictation">
-
-  <!-- Value + chevron: the row opens a detail sheet. -->
-  <button type="button" class="settings-row" aria-haspopup="dialog" data-track="settings.language">
-    <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-globe"></use></svg>
-    <span class="settings-row-label">Language</span>
-    <span class="settings-row-value">English</span>
-    <svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-  </button>
-
-  <!-- Select: the value is a native picker, drawn as the muted value. -->
-  <label class="settings-row">
-    <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-mic"></use></svg>
-    <span class="settings-row-label">Microphone</span>
-    <select class="settings-row-select" data-track="settings.microphone">
-      <option>System default</option>
-      <option>USB microphone</option>
-    </select>
-    <svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
-  </label>
-
-  <!-- Switch, with one hint line: tapping anywhere on the row toggles it. -->
-  <label class="settings-row">
-    <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-globe"></use></svg>
-    <span class="settings-row-text">
-      <span class="settings-row-label">Translate to English</span>
-      <span class="settings-row-hint">Any language in, English out</span>
-    </span>
-    <button type="button" class="toggle" role="switch" aria-checked="false" data-track="settings.translate">
-      <span class="knob"></span><span class="toggle-label">OFF</span>
+     switch/, icon-button/, modal/, button/ and icons/ beside it. One page;
+     one label + one card per group; one detail sheet per value + chevron row.
+     Open the page with showModal() from the header gear. -->
+<dialog class="settings-page" id="settingsPage" aria-labelledby="settingsTitle" data-track-view="settings">
+  <header class="settings-page-head">
+    <h2 class="settings-page-title" id="settingsTitle">Settings</h2>
+    <button type="button" class="icon-button settings-page-close" aria-label="Close settings" data-track="settings.close">
+      <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
     </button>
-  </label>
+  </header>
+  <div class="settings-page-body">
 
-  <!-- Number field + unit: saves on blur. -->
-  <label class="settings-row">
-    <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-timer"></use></svg>
-    <span class="settings-row-label">Silence length</span>
-    <span class="settings-row-number">
-      <input class="settings-row-input" type="number" inputmode="numeric" min="1" max="60" value="3" data-track="settings.silence">
-      <span class="settings-row-unit">s</span>
-    </span>
-  </label>
-</section>
-<p class="settings-footnote">Changes save as you make them.</p>
+    <h3 class="settings-group-label" id="settingsGroupDictation">Dictation</h3>
+    <section class="card settings-group" aria-labelledby="settingsGroupDictation">
+
+      <!-- Value + chevron: the row opens a detail sheet. -->
+      <button type="button" class="settings-row" aria-haspopup="dialog" data-track="settings.language">
+        <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-globe"></use></svg>
+        <span class="settings-row-label">Language</span>
+        <span class="settings-row-value">English</span>
+        <svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+      </button>
+
+      <!-- Select: the value is a native picker, drawn as the muted value. -->
+      <label class="settings-row">
+        <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-mic"></use></svg>
+        <span class="settings-row-label">Microphone</span>
+        <select class="settings-row-select" data-track="settings.microphone">
+          <option>System default</option>
+          <option>USB microphone</option>
+        </select>
+        <svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+      </label>
+
+      <!-- Switch, with one hint line: tapping anywhere on the row toggles it. -->
+      <label class="settings-row">
+        <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-globe"></use></svg>
+        <span class="settings-row-text">
+          <span class="settings-row-label">Translate to English</span>
+          <span class="settings-row-hint">Any language in, English out</span>
+        </span>
+        <button type="button" class="toggle" role="switch" aria-checked="false" data-track="settings.translate">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </label>
+
+      <!-- Number field + unit: saves on blur. -->
+      <label class="settings-row">
+        <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-timer"></use></svg>
+        <span class="settings-row-label">Silence length</span>
+        <span class="settings-row-number">
+          <input class="settings-row-input" type="number" inputmode="numeric" min="1" max="60" value="3" data-track="settings.silence">
+          <span class="settings-row-unit">s</span>
+        </span>
+      </label>
+    </section>
+    <p class="settings-footnote">Changes save as you make them.</p>
+
+  </div>
+</dialog>
+
+<!-- A detail sheet: the vendored modal plus `settings-sheet`. Title and close
+     pinned, the body scrolls, Done pinned above the home indicator. -->
+<dialog class="detail-dialog settings-sheet" aria-labelledby="settingsLanguageTitle" data-track-view="settings.language">
+  <div class="detail-card">
+    <div class="detail-header">
+      <h2 id="settingsLanguageTitle" tabindex="-1" autofocus>Language</h2>
+      <button type="button" class="icon-button detail-close" aria-label="Close" data-track="settings.language.close">
+        <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+      </button>
+    </div>
+    <div class="settings-sheet-body">
+      <!-- the sheet's own rows -->
+    </div>
+    <div class="detail-actions">
+      <button type="button" class="button-primary detail-save-btn" data-track="settings.language.done">Done</button>
+    </div>
+  </div>
+</dialog>

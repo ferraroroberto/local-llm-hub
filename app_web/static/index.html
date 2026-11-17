@@ -772,87 +772,110 @@
     </div>
   </dialog>
 
-  <!-- Settings: the home-head gear on every pane opens this vendored dialog
-       shell, holding the vendored text-size control (_vendored/text-size)
-       and the design system's settings groups (Display, Startup, Health,
-       About). A row with a body opens it in place on a phone (with a back
-       row) and beside the list on a wide window (list : detail). -->
-  <dialog data-surface="settings.dialog" data-track-view="settings-dialog" class="detail-dialog settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
+  <!-- Settings: the vendored full page (settings-group), opened by the
+       home-head gear on every pane. It holds the vendored text-size control
+       (_vendored/text-size) and the groups (Display, Startup, Machines,
+       Health, About). A row with a body opens it as a fitted sheet. -->
+  <dialog data-surface="settings.dialog" data-track-view="settings-dialog" class="settings-page" id="settingsDialog" aria-labelledby="settingsTitle">
+    <header class="settings-page-head">
+      <h2 class="settings-page-title" id="settingsTitle">Settings</h2>
+      <button data-track="settings-close" type="button" class="icon-button settings-page-close" id="settingsCloseBtn" aria-label="Close settings">
+        <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+      </button>
+    </header>
+    <div class="settings-page-body">
+      <h3 class="settings-group-label" id="settingsGroupDisplay">Display</h3>
+      <section class="card settings-group" data-surface="settings.display" aria-labelledby="settingsGroupDisplay">
+        <div class="settings-row">
+          <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-monitor"></use></svg>
+          <span class="settings-row-label">Text size</span>
+          <div class="segmented" id="textSizeControl" role="group" aria-label="Text size">
+            <button type="button" class="segmented-item" aria-pressed="false" data-textsize="small" data-track="text-size-small">Small</button>
+            <button type="button" class="segmented-item" aria-pressed="true" data-textsize="default" data-track="text-size-default">Default</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-textsize="large" data-track="text-size-large">Large</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
+          <span class="settings-row-label">Theme</span>
+          <div class="segmented" id="themeSeg" role="group" aria-label="Theme">
+            <button type="button" class="segmented-item" data-theme-pref="system" aria-pressed="false" data-track="theme-system">System</button>
+            <button type="button" class="segmented-item" data-theme-pref="light" aria-pressed="false" data-track="theme-light">Light</button>
+            <button type="button" class="segmented-item" data-theme-pref="dark" aria-pressed="false" data-track="theme-dark">Dark</button>
+          </div>
+        </div>
+      </section>
+      <h3 class="settings-group-label" id="settingsGroupStartup">Startup</h3>
+      <section class="card settings-group" data-surface="settings.startup" aria-labelledby="settingsGroupStartup">
+        <button type="button" class="settings-row settings-link" data-settings="startup" aria-haspopup="dialog" data-track="settings-startup"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-rocket"></use></svg><span class="settings-row-label">Service startup</span><span class="settings-row-value" id="startupSummary">—</span><svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+      </section>
+      <h3 class="settings-group-label" id="settingsGroupMachines">Machines</h3>
+      <section class="card settings-group" data-surface="settings.machines" aria-labelledby="settingsGroupMachines">
+        <button type="button" class="settings-row settings-link" data-settings="machines" aria-haspopup="dialog" data-track="settings-machines"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-server"></use></svg><span class="settings-row-label">Dormant machines</span><span class="settings-row-value" id="dormantSummary">—</span><svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+      </section>
+      <h3 class="settings-group-label" id="settingsGroupHealth">Health</h3>
+      <section class="card settings-group" data-surface="settings.health" aria-labelledby="settingsGroupHealth">
+        <button type="button" class="settings-row settings-link" data-settings="health" aria-haspopup="dialog" data-track="settings-health"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-stethoscope"></use></svg><span class="settings-row-label">Health &amp; install</span><span class="settings-row-value" id="installSummary">not checked</span><svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+      </section>
+      <h3 class="settings-group-label" id="settingsGroupAbout">About</h3>
+      <section class="card settings-group" data-surface="settings.about" aria-labelledby="settingsGroupAbout">
+        <div class="settings-row"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-tag"></use></svg><span class="settings-row-label">Build</span><span class="settings-row-value settings-row-value-whole" id="aboutBuild">—</span></div>
+        <div class="settings-row"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-layers"></use></svg><span class="settings-row-label">Config version</span><span class="settings-row-value" id="modelsConfigSha">—</span></div>
+        <div class="settings-row"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-cpu"></use></svg><span class="settings-row-label">Process</span><span class="settings-row-value" id="aboutPid">—</span></div>
+        <button data-track="about-langfuse" type="button" class="settings-row" id="aboutLangfuse"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-external-link"></use></svg><span class="settings-row-text"><span class="settings-row-label">Open Langfuse UI</span><span class="settings-row-hint">Traces and long-window analytics</span></span></button>
+        <button data-track="about-frontier" type="button" class="settings-row" id="aboutFrontier" data-href="/admin/frontier"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg><span class="settings-row-text"><span class="settings-row-label">Frontier report</span><span class="settings-row-hint">The latest model comparison run</span></span></button>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog data-surface="settings.startup-page" data-track-view="settings-startup" class="detail-dialog settings-sheet" id="settingsPage-startup" aria-labelledby="settingsStartupTitle">
     <div class="detail-card">
       <div class="detail-header">
-        <h2 id="settingsTitle"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg><span>Settings</span></h2>
-        <button data-track="settings-close" type="button" class="icon-button detail-close" id="settingsCloseBtn" aria-label="Close settings">
+        <h2 id="settingsStartupTitle" tabindex="-1" autofocus>Service startup</h2>
+        <button data-track="settings-startup-close" type="button" class="icon-button detail-close" data-sheet-close aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
-      <div class="settings-layout" id="settingsLayout">
-        <div class="settings-list">
-          <h3 class="settings-overline" id="settingsGroupDisplay">Display</h3>
-          <section class="card settings-group" data-surface="settings.display" aria-labelledby="settingsGroupDisplay">
-            <div class="settings-row">
-              <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-monitor"></use></svg>
-              <span class="settings-row-label">Text size</span>
-              <div class="segmented" id="textSizeControl" role="group" aria-label="Text size">
-                <button type="button" class="segmented-item" aria-pressed="false" data-textsize="small" data-track="text-size-small">Small</button>
-                <button type="button" class="segmented-item" aria-pressed="true" data-textsize="default" data-track="text-size-default">Default</button>
-                <button type="button" class="segmented-item" aria-pressed="false" data-textsize="large" data-track="text-size-large">Large</button>
-              </div>
-            </div>
-            <div class="settings-row">
-              <svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
-              <span class="settings-row-label">Theme</span>
-              <div class="segmented" id="themeSeg" role="group" aria-label="Theme">
-                <button type="button" class="segmented-item" data-theme-pref="system" aria-pressed="false" data-track="theme-system">System</button>
-                <button type="button" class="segmented-item" data-theme-pref="light" aria-pressed="false" data-track="theme-light">Light</button>
-                <button type="button" class="segmented-item" data-theme-pref="dark" aria-pressed="false" data-track="theme-dark">Dark</button>
-              </div>
-            </div>
-          </section>
-          <h3 class="settings-overline" id="settingsGroupStartup">Startup</h3>
-          <section class="card settings-group" data-surface="settings.startup" aria-labelledby="settingsGroupStartup">
-            <button type="button" class="settings-row settings-link" data-settings="startup" aria-controls="settingsPage-startup" data-track="settings-startup"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-rocket"></use></svg><span class="settings-row-label">Service startup</span><span class="settings-row-value" id="startupSummary">—</span><svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
-          </section>
-          <h3 class="settings-overline" id="settingsGroupMachines">Machines</h3>
-          <section class="card settings-group" data-surface="settings.machines" aria-labelledby="settingsGroupMachines">
-            <button type="button" class="settings-row settings-link" data-settings="machines" aria-controls="settingsPage-machines" data-track="settings-machines"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-server"></use></svg><span class="settings-row-label">Dormant machines</span><span class="settings-row-value" id="dormantSummary">—</span><svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
-          </section>
-          <h3 class="settings-overline" id="settingsGroupHealth">Health</h3>
-          <section class="card settings-group" data-surface="settings.health" aria-labelledby="settingsGroupHealth">
-            <button type="button" class="settings-row settings-link" data-settings="health" aria-controls="settingsPage-health" data-track="settings-health"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-stethoscope"></use></svg><span class="settings-row-label">Health &amp; install</span><span class="settings-row-value" id="installSummary">not checked</span><svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
-          </section>
-          <h3 class="settings-overline" id="settingsGroupAbout">About</h3>
-          <section class="card settings-group" data-surface="settings.about" aria-labelledby="settingsGroupAbout">
-            <div class="settings-row"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-tag"></use></svg><span class="settings-row-label">Build</span><span class="settings-row-value settings-row-value-whole" id="aboutBuild">—</span></div>
-            <div class="settings-row"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-layers"></use></svg><span class="settings-row-label">Config version</span><span class="settings-row-value" id="modelsConfigSha">—</span></div>
-            <div class="settings-row"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-cpu"></use></svg><span class="settings-row-label">Process</span><span class="settings-row-value" id="aboutPid">—</span></div>
-            <button data-track="about-langfuse" type="button" class="settings-row" id="aboutLangfuse"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-external-link"></use></svg><span class="settings-row-text"><span class="settings-row-label">Open Langfuse UI</span><span class="settings-row-hint">Traces and long-window analytics</span></span></button>
-            <button data-track="about-frontier" type="button" class="settings-row" id="aboutFrontier" data-href="/admin/frontier"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg><span class="settings-row-text"><span class="settings-row-label">Frontier report</span><span class="settings-row-hint">The latest model comparison run</span></span></button>
-          </section>
-        </div>
-        <div class="settings-detail">
-          <section class="settings-page" id="settingsPage-startup" data-surface="settings.startup-page" data-page="startup" hidden aria-labelledby="settingsStartupTitle">
-          <button type="button" data-track="settings-back-startup" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
-          <h3 id="settingsStartupTitle">Service startup</h3>
-          <p class="settings-note muted">Services that come up automatically every time the hub launches; each switch saves at once to <code>config/startup_profile.json</code>. Model autostart is set per model (<code>startup: eager|on_demand</code>) in its placement editor on Models.</p>
-          <ul id="startupList" class="startup-list"></ul>
-          </section>
-          <section class="settings-page" id="settingsPage-machines" data-surface="settings.machines-page" data-page="machines" hidden aria-labelledby="settingsMachinesTitle">
-          <button type="button" data-track="settings-back-machines" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
-          <h3 id="settingsMachinesTitle">Dormant machines</h3>
-          <p class="settings-note muted">Switch on a machine that is off on purpose. It stays listed as a neutral row, raises no offline alert, and the hub never contacts it for failover, placement or sync. Each switch saves at once to <code>config/machines.local.yaml</code>, on this machine only.</p>
-          <ul id="dormantList" class="startup-list"></ul>
-          </section>
-          <section class="settings-page" id="settingsPage-health" data-surface="settings.health-page" data-page="health" hidden aria-labelledby="settingsHealthTitle">
-          <button type="button" data-track="settings-back-health" class="settings-back" data-settings-back aria-label="Back to Settings"><svg class="icon settings-back-glyph" aria-hidden="true"><use href="#i-chevron-right"></use></svg><span>Settings</span></button>
-          <h3 id="settingsHealthTitle">Health &amp; install</h3>
-          <div id="installRows"><p class="settings-note muted">Checking…</p></div>
-          <div class="card-actions">
-            <button data-track="install-fix-all" id="installFixAllBtn" type="button" class="button-primary launch-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-wrench"></use></svg>Fix all</button>
-            <button data-track="install-refresh" id="installRefreshBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>Re-check</button>
-          </div>
-          </section>
+      <div class="settings-sheet-body">
+        <p class="settings-note muted">Services that come up automatically every time the hub launches; each switch saves at once to <code>config/startup_profile.json</code>. Model autostart is set per model (<code>startup: eager|on_demand</code>) in its placement editor on Models.</p>
+        <ul id="startupList" class="startup-list"></ul>
+      </div>
+      <div class="detail-actions"><button data-track="settings-startup-done" type="button" class="button-primary detail-save-btn" data-sheet-close>Done</button></div>
+    </div>
+  </dialog>
+
+  <dialog data-surface="settings.machines-page" data-track-view="settings-machines" class="detail-dialog settings-sheet" id="settingsPage-machines" aria-labelledby="settingsMachinesTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="settingsMachinesTitle" tabindex="-1" autofocus>Dormant machines</h2>
+        <button data-track="settings-machines-close" type="button" class="icon-button detail-close" data-sheet-close aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div class="settings-sheet-body">
+        <p class="settings-note muted">Switch on a machine that is off on purpose. It stays listed as a neutral row, raises no offline alert, and the hub never contacts it for failover, placement or sync. Each switch saves at once to <code>config/machines.local.yaml</code>, on this machine only.</p>
+        <ul id="dormantList" class="startup-list"></ul>
+      </div>
+      <div class="detail-actions"><button data-track="settings-machines-done" type="button" class="button-primary detail-save-btn" data-sheet-close>Done</button></div>
+    </div>
+  </dialog>
+
+  <dialog data-surface="settings.health-page" data-track-view="settings-health" class="detail-dialog settings-sheet" id="settingsPage-health" aria-labelledby="settingsHealthTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="settingsHealthTitle" tabindex="-1" autofocus>Health &amp; install</h2>
+        <button data-track="settings-health-close" type="button" class="icon-button detail-close" data-sheet-close aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div class="settings-sheet-body">
+        <div id="installRows"><p class="settings-note muted">Checking…</p></div>
+        <div class="card-actions">
+          <button data-track="install-fix-all" id="installFixAllBtn" type="button" class="button-primary launch-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-wrench"></use></svg>Fix all</button>
+          <button data-track="install-refresh" id="installRefreshBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>Re-check</button>
         </div>
       </div>
+      <div class="detail-actions"><button data-track="settings-health-done" type="button" class="button-primary detail-save-btn" data-sheet-close>Done</button></div>
     </div>
   </dialog>
 

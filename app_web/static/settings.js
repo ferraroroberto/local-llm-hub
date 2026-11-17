@@ -1,51 +1,36 @@
-/* Settings: the gear on every pane opens the design system's settings
- * groups — Display (text size, theme), Startup (service startup switches),
- * Machines (dormant switches), Health (Health & install) and About
+/* Settings: the gear on every pane opens the vendored full Settings page
+ * (settings-group): Display (text size, theme), Startup (service startup
+ * switches), Machines (dormant switches), Health (Health & install) and About
  * (build, config version, process id, Langfuse UI, frontier report).
  *
- * A row with a body (Service startup, Health & install) opens it in place of
- * the list on a phone, with a back row, and beside the list on a wide window
- * (list : detail), where the first one opens
- * with the dialog. Text size keeps the vendored control and its
- * `llmhub.textsize` key; the pre-paint boot script in index.html stamps it
- * before first paint.
+ * A row with a body (Service startup, Dormant machines, Health & install)
+ * opens it as a fitted sheet over the page, on every width. Text size keeps
+ * the vendored control and its `llmhub.textsize` key; the pre-paint boot
+ * script in index.html stamps it before first paint.
  */
 
 import { els, state } from './state.js';
 import { jsonApi, postJson, toast, escapeHtml } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
-import { isWide, onWideChange } from './rows.js';
 import { langfuseUiBase } from './langfuse.js';
 import { fetchDormant } from './dormant.js';
 import { renderHeadLine as renderHubHeadLine } from './hub.js';
 
 const APP_PREFIX = 'llmhub';
 
-// --------------------------------------------------------- pages
-/* Show one group's body (or none: the list alone, on a phone). The row that
- * opened it is the selected one; the health battery runs the first time its
- * page opens (it takes seconds). */
-function openPage(key) {
-  if (els.settingsLayout) els.settingsLayout.dataset.open = key || '';
-  document.querySelectorAll('#settingsDialog .settings-page').forEach(function (page) {
-    page.hidden = page.dataset.page !== key;
-  });
-  document.querySelectorAll('#settingsDialog .settings-link').forEach(function (row) {
-    const on = row.dataset.settings === key;
-    if (on) row.setAttribute('aria-current', 'true');
-    else row.removeAttribute('aria-current');
-  });
+// --------------------------------------------------------- sheets
+/* Open one group's body as its fitted sheet over the page. The health battery
+ * runs the first time its sheet opens (it takes seconds). */
+function openSheet(key) {
+  const sheet = document.getElementById('settingsPage-' + key);
+  if (!sheet || sheet.open) return;
   if (key === 'machines') fetchDormant();
   if (key === 'health' && !state.installChecked) {
     state.installChecked = true;
     fetchInstallStatus();
   }
-}
-
-/* A wide window always shows a body beside the list; a phone shows the list. */
-function defaultPage() {
-  return isWide() ? 'startup' : '';
+  sheet.showModal();
 }
 
 function syncAbout() {
@@ -159,14 +144,13 @@ export function wireSettings() {
   document.querySelectorAll('.home-settings').forEach(function (btn) {
     btn.addEventListener('click', function () {
       syncAbout();
-      openPage(defaultPage());
       dialog.showModal();
     });
   });
   if (els.settingsCloseBtn) els.settingsCloseBtn.addEventListener('click', function () { dialog.close(); });
   dialog.addEventListener('click', function (ev) {
     const link = ev.target.closest('.settings-link');
-    if (link) { openPage(link.dataset.settings); return; }
+    if (link) { openSheet(link.dataset.settings); return; }
     // A row that leaves the app is a button row; the address
     // rides in data-href and opens in its own tab, as a link row would.
     const out = ev.target.closest('.settings-row[data-href]');
@@ -174,12 +158,9 @@ export function wireSettings() {
       window.open(out.dataset.href, '_blank', 'noopener');
       return;
     }
-    if (ev.target.closest('[data-settings-back]')) openPage('');
   });
-  onWideChange(function () {
-    if (!dialog.open) return;
-    const open = els.settingsLayout ? els.settingsLayout.dataset.open : '';
-    if (!open && isWide()) openPage(defaultPage());
+  document.querySelectorAll('.settings-sheet [data-sheet-close]').forEach(function (btn) {
+    btn.addEventListener('click', function () { btn.closest('dialog').close(); });
   });
   wireInstall();
 }
