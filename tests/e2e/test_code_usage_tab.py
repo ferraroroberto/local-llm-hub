@@ -311,7 +311,7 @@ def _empty_state_action_is_the_way_out(page):
     # The block's one action is the way out: on the narrowed Day view it widens
     # the period to All, then (nothing left to clear) the same button re-reads.
     project_action = page.locator("#cldProjectEmpty .empty-state-action")
-    assert project_action.inner_text() == "Clear filters"
+    assert project_action.inner_text() == "Show all"
     project_action.click()
     page.wait_for_selector("#cldPeriodSeg [data-period=all][aria-pressed=true]", timeout=5000)
     page.wait_for_selector("#cldProjectEmpty .empty-state-action:has-text('Refresh')", timeout=5000)

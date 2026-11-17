@@ -413,7 +413,9 @@ function emptyActionKind() {
   return narrowed ? 'clear' : 'refresh';
 }
 
-const EMPTY_ACTION_LABEL = { retry: 'Retry', clear: 'Clear filters', refresh: 'Refresh' };
+// "Show all", not "Clear …": the action widens the view and removes nothing,
+// and a "clear" verb inside a sheet reads (and is measured) as destructive.
+const EMPTY_ACTION_LABEL = { retry: 'Retry', clear: 'Show all', refresh: 'Refresh' };
 
 function syncEmptyActions() {
   const label = EMPTY_ACTION_LABEL[emptyActionKind()];
