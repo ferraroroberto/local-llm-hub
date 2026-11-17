@@ -21,7 +21,7 @@ SYSTEM_METRICS: Dict[str, Tuple[str, str, str]] = {
     "nonpaged_pool_percent": ("Nonpaged pool", "% of RAM", "performance"),
     "paged_pool_percent": ("Paged pool", "% of RAM", "performance"),
     "total_handles": ("System handles", "", "performance"),
-    "tcp_time_wait": ("TCP TIME_WAIT", " sockets", "tcp"),
+    "tcp_time_wait": ("TCP time wait", " sockets", "tcp"),
     "ephemeral_ports_percent": ("Ephemeral ports in use", "%", "tcp"),
     "disk_free_percent": ("System disk free", "%", "disk"),
 }
@@ -31,7 +31,7 @@ PROCESS_UNITS = {
     "user": "USER objects", "threads": "threads",
 }
 
-_PORT_FIX = "No reboot: TIME_WAIT drains in minutes; find the client opening connections in a burst"
+_PORT_FIX = "No reboot: sockets in time wait drain in minutes; find the client opening connections in a burst"
 _POOL_FIX = "Reboot: kernel pool memory is only returned by restarting Windows"
 
 

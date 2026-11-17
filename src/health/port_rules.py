@@ -112,7 +112,7 @@ def snapshot_text(event: Dict[str, Any]) -> str:
     parts = []
     groups = snap.get("time_wait_groups") or []
     if groups:
-        parts.append("TIME_WAIT mostly " + ", ".join(
+        parts.append("time wait mostly on " + ", ".join(
             f"port {g['port']} ({g['listener'] or 'not a local listener'}, {fmt_count(g['count'])} sockets)"
             for g in groups[:3]))
     holders = snap.get("holders") or []
@@ -174,7 +174,7 @@ def findings(history: Sequence[Dict[str, Any]], events: Sequence[Dict[str, Any]]
                                   f"{LABELS[protocol]} dynamic ports", "% in use", protocol)
         if found:
             out.append(found)
-    found = _pressure_finding(history, cfg, now, "tcp_time_wait", _time_wait, "TCP TIME_WAIT", " sockets", None)
+    found = _pressure_finding(history, cfg, now, "tcp_time_wait", _time_wait, "TCP time wait", " sockets", None)
     if found:
         out.append(found)
     return out
