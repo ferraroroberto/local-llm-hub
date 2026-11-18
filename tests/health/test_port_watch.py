@@ -292,7 +292,7 @@ def test_the_verdict_shows_the_snapshot_and_its_delay(rig):
     assert "snapshot 9 s after the event" in found["reason"]
     assert f"port {HUB_PORT} (hub.exe, 60 sockets)" in found["reason"]
     assert "burst.exe" in found["reason"]
-    assert "not confirmed" not in found["reason"]
+    assert "found no holders" not in found["reason"]
     assert found["snapshot"]["delay_s"] == 9.0
     assert verdict["ports"]["last_event"]["snapshot"]["delay_s"] == 9.0
     assert "hub.exe" in verdict["ports"]["last_event"]["snapshot_summary"]
@@ -381,3 +381,99 @@ def test_a_4231_stored_before_snapshots_existed_says_the_holder_is_not_confirmed
     (found,) = [f for f in pw.current(now=T0)["findings"] if f["metric"] == "tcpip_4231"]
     assert "no holder snapshot, so the holder is not confirmed" in found["reason"]
     assert "snapshot" not in found
+
+
+# --- the 60 s window of per-second counts: who peaked before the burst drained ---
+
+
+def _run_window(rig, seconds: int, per_second, cfg=None) -> None:
+    """Tally once a second for ``seconds`` seconds ending at T0; ``per_second(age)`` sets the table, age = seconds before T0."""
+    ports = (cfg or _cfg())["ports"]
+    for age in range(seconds, -1, -1):
+        per_second(age)
+        rig.pw.record_window(ports, now=T0 - age)
+
+
+def test_a_udp_burst_in_the_window_names_its_peak_holder_in_the_stored_event(rig):
+    def per_second(age):
+        burst = 12 <= age <= 14  # three seconds of a burst, drained well before the event is read
+        rig.table.set(udp=_endpoints(202, 5) + (_endpoints(101, 85, start=LO + 10) if burst else []))
+
+    _run_window(rig, 59, per_second)
+    rig.table.set(udp=_endpoints(202, 5))  # drained when the event log is read
+    rig.events.append(_event(60, T0 - 20, 4266))
+    rig.pw.tick(_cfg(), now=T0)
+    (event,) = rig.store.events_since(T0 - 60)
+    peak = event["peak"]
+    assert peak["confirmed"] is True and peak["protocol"] == "udp"
+    top = peak["holders"][0]
+    assert (top["name"], top["peak"], top["low"]) == ("burst.exe", 85, 0)
+    assert top["at"] == T0 - 14  # the first second it reached the peak
+    reason = next(f for f in rig.pw.current(now=T0)["findings"] if f["metric"] == "tcpip_4266")["reason"]
+    assert "peak UDP holders" in reason and "burst.exe 85" in reason and "(from 0)" in reason
+    assert "steady.exe" not in reason.split("peak UDP holders")[1]  # a flat holder is no suspect
+
+
+def test_a_window_with_nothing_unusual_says_the_holder_is_not_confirmed(rig):
+    _run_window(rig, 59, lambda age: rig.table.set(udp=_endpoints(202, 50)))
+    rig.events.append(_event(61, T0 - 20, 4266))
+    rig.pw.tick(_cfg(), now=T0)
+    (event,) = rig.store.events_since(T0 - 60)
+    assert event["peak"]["confirmed"] is False
+    assert event["peak"]["holders"][0]["name"] == "steady.exe"  # the data stays for the reader
+    reason = next(f for f in rig.pw.current(now=T0)["findings"] if f["metric"] == "tcpip_4266")["reason"]
+    assert "peak holder not confirmed: no process rose by 50 or more UDP ports" in reason
+    assert "can fall between two tallies" in reason
+
+
+def test_an_empty_window_and_a_window_that_starts_after_the_event_are_not_confirmed(rig):
+    rig.events.append(_event(62, T0 - 20, 4266))
+    rig.pw.tick(_cfg(), now=T0)  # the window thread has not tallied yet
+    reason = next(f for f in rig.pw.current(now=T0)["findings"] if f["metric"] == "tcpip_4266")["reason"]
+    assert "held no readable UDP tally, so the peak holder is not confirmed" in reason
+
+    def per_second(age):
+        rig.table.set(udp=_endpoints(101, 85 if age < 10 else 0))
+
+    _run_window(rig, 10, per_second)
+    rig.events.append(_event(63, T0 - 40, 4266))  # the burst predates the window's first tally
+    rig.pw.tick(_cfg(), now=T0 + 60)
+    (late,) = [e for e in rig.store.events_since(T0 - 60) if e["record_id"] == 63]
+    assert late["peak"]["covers_event"] is False and late["peak"]["confirmed"] is False
+    found = [f for f in rig.pw.current(now=T0 + 60)["findings"] if f["metric"] == "tcpip_4266"]
+    assert any("the window starts after the event" in f["reason"] for f in found)
+
+
+def test_the_window_drops_what_aged_out_and_a_table_that_failed_is_not_a_zero(rig):
+    ports = _cfg(window_s=10)["ports"]
+    for age in range(30, -1, -1):
+        rig.table.set(udp=_endpoints(101, 60))
+        rig.pw.record_window(ports, now=T0 - age)
+    peak = rig.pw._window.peaks("udp", event_ts=T0 - 5, top_n=5, min_rise=50)
+    assert peak["samples"] == 11 and peak["from"] == T0 - 10
+
+    def half_broken(protocol):
+        if protocol == "udp":
+            raise OSError("table read failed")
+        return rig.table(protocol)
+
+    broken = port_watch.PortWatch(port_probe.PortProbe(half_broken, NAMES.get, RANGES), rig.store,
+                                  read_events=lambda lookback: [])
+    broken.record_window(ports, now=T0)
+    unread = broken._window.peaks("udp", event_ts=T0, top_n=5, min_rise=50)
+    assert unread["samples"] == 0 and unread["unread"] == 1 and unread["confirmed"] is False
+
+
+def test_a_snapshot_ranks_holders_by_the_events_own_protocol(rig):
+    # tcp order: a(202) > b(101); udp order: b > a. Each event must lead with its own protocol's holder.
+    rig.table.set(tcp=_endpoints(202, 30) + _endpoints(101, 10, start=LO + 40),
+                  udp=_endpoints(101, 40) + _endpoints(202, 5, start=LO + 40) + _endpoints(303, 1, start=LO + 50))
+    rig.events.append(_event(70, T0 - 5, 4231))
+    rig.events.append(_event(71, T0 - 5, 4266))
+    rig.pw.tick(_cfg(), now=T0)
+    by_id = {e["event_id"]: e["snapshot"]["holders"] for e in rig.store.events_since(T0 - 60)}
+    assert [h["name"] for h in by_id[4231]] == ["steady.exe", "burst.exe"]
+    assert [h["name"] for h in by_id[4266]] == ["burst.exe", "steady.exe", "dns.exe"]
+    assert all(h["tcp"] for h in by_id[4231])  # a UDP-only process is no TCP holder
+    # The plain 30 s sample still ranks by tcp + udp (burst.exe 50 vs steady.exe 35), which is the mix the events avoid.
+    assert rig.pw._probe.sample(top_n=3, now=T0)["holders"][0]["name"] == "burst.exe"

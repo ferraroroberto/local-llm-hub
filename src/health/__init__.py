@@ -13,4 +13,6 @@ anything.
   * ``watch``      — the loop, the history, and the act/cleared alerts.
   * ``port_watch`` — a 30 s port sampler + Tcpip exhaustion events; its
     findings join the verdict.
+  * ``port_window`` — 60 s of per-second per-process counts; its peak holders
+    are stored with each 4231/4266.
 """
