@@ -257,6 +257,7 @@ button.settings-row:focus-visible {
   text-align: right;
   text-align-last: right;
   text-overflow: ellipsis;
+  overflow: hidden;   /* WebKit draws a long value past the select's own box once the row shrinks it, widening the row */
   cursor: pointer;
 }
 .settings-row-select:focus-visible {
