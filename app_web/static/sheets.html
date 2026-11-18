@@ -134,17 +134,51 @@
     </div>
   </dialog>
 
-  <!-- Code sheets. Agent: every agent and the Sub-agents (OTel) source.
-       By model, every project and the recent sessions: the breakdowns. -->
-  <dialog data-surface="code-usage.agent-sheet" data-track-view="cld-agent-sheet" class="detail-dialog" id="cldAgentSheet" aria-labelledby="cldAgentSheetTitle">
+  <!-- Filters & sort: the one sheet per view (design.md action-row). Each control
+       applies as it changes; Clear restores the defaults, Done closes. Hub Activity
+       holds the Requests / Errors scope; Code Usage the period and the agent. -->
+  <dialog data-surface="hub.filters-sheet" data-track-view="hub-filters-sheet" class="detail-dialog" id="activityFilterSheet" aria-labelledby="activityFilterSheetTitle">
     <div class="detail-card">
       <div class="detail-header">
-        <h2 id="cldAgentSheetTitle">Agent</h2>
-        <button data-track="cld-agent-sheet-close" type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+        <h2 id="activityFilterSheetTitle">Filters &amp; sort</h2>
+        <button data-track="hub-filters-sheet-close" type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
           <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
       </div>
+      <h3 class="overline filter-group-title">Show</h3>
+      <div class="segmented" id="activityScope" role="group" aria-label="Which activity to list">
+        <button type="button" class="segmented-item" aria-pressed="true" data-scope="requests" data-track="hub-activity-requests">Requests</button>
+        <button type="button" class="segmented-item" aria-pressed="false" data-scope="errors" data-track="hub-activity-errors">Errors</button>
+      </div>
+      <div class="detail-actions filter-actions">
+        <button data-track="hub-filters-clear" type="button" class="button-tint" id="activityFilterClear">Clear</button>
+        <button data-track="hub-filters-done" type="button" class="button-primary detail-save-btn" data-close-dialog>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Code sheets. Filters &amp; sort: the period and every agent and the Sub-agents
+       (OTel) source. By model, every project and the recent sessions: the breakdowns. -->
+  <dialog data-surface="code-usage.filters-sheet" data-track-view="cld-filters-sheet" class="detail-dialog" id="cldFilterSheet" aria-labelledby="cldFilterSheetTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="cldFilterSheetTitle">Filters &amp; sort</h2>
+        <button data-track="cld-filters-sheet-close" type="button" class="icon-button detail-close" data-close-dialog aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <h3 class="overline filter-group-title">Period</h3>
+      <div id="cldPeriodSeg" class="segmented" role="group" aria-label="Usage period">
+        <button type="button" class="segmented-item" data-period="today" aria-pressed="true" data-track="code-period-today">Day</button>
+        <button type="button" class="segmented-item" data-period="week" aria-pressed="false" data-track="code-period-week">Week</button>
+        <button type="button" class="segmented-item" data-period="month" aria-pressed="false" data-track="code-period-month">Month</button>
+        <button type="button" class="segmented-item" data-period="all" aria-pressed="false" data-track="code-period-all">All</button>
+      </div>
       <ul id="cldAgentList" class="action-rows cld-agent-list" aria-label="Agents"></ul>
+      <div class="detail-actions filter-actions">
+        <button data-track="cld-filters-clear" type="button" class="button-tint" id="cldFilterClear">Clear</button>
+        <button data-track="cld-filters-done" type="button" class="button-primary detail-save-btn" data-close-dialog>Done</button>
+      </div>
     </div>
   </dialog>
 

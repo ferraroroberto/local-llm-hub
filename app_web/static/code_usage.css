@@ -2,27 +2,24 @@
  * Inherits .card, .counters, .card-list.dense, .badge, .empty from styles.css.
  */
 
-/* The period switch and the agent filter share one row above the figures. */
+/* One control row above the figures: what the view shows (period and agent) and
+ * the Filters & sort trigger that changes it. */
 .cld-tools {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-sm);
   margin-bottom: 12px;
 }
-.cld-tools .segmented { flex: 1 1 220px; }
-.cld-tools .segmented .segmented-item { flex: 1; }
-.cld-agent-btn {
-  flex: 0 1 auto;
-  min-height: var(--row-sm);
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.cld-filter-summary {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
+  color: var(--muted);
+  font-size: var(--font-body-sm);
 }
-.cld-agent-btn > span { overflow: hidden; text-overflow: ellipsis; }
 
 /* The total cost leads the figures: the one number read first. */
 .cld-total {

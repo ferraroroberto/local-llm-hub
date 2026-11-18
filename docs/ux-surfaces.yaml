@@ -272,16 +272,19 @@ surfaces:
     reach:
       - the Hub tab
     holds:
-      - the Requests and Errors switch and a filter that counts what it filters
+      - a filter that counts what it filters and a Filters & sort button that shows how many filters are on
       - one row per request with the model, status, latency, backend and clock; a failure's status is its chip
       - By model and Server log rows at the foot
       - an ⓘ
     does:
+      - Filters & sort opens the sheet that holds the Requests and Errors switch
       - a row with a trace opens its sheet; a row without one does nothing on tap
       - By model opens the counters sheet and Server log the live tail
     states:
       - empty, in each scope, with a way to send a test request
     links:
+      - to: hub.filters-sheet
+        via: Filters & sort
       - to: hub.trace-sheet
         via: a row with a trace
       - to: hub.by-model-sheet
@@ -398,6 +401,21 @@ surfaces:
       - a failed read says Not confirmed, never zeros
     phone: a full-screen sheet
     desktop: a wide dialog
+
+  - id: hub.filters-sheet
+    area: hub
+    title: Activity filters sheet
+    root: data-surface
+    reach:
+      - Filters & sort beside the Activity filter
+    holds:
+      - the Requests and Errors switch
+      - Clear beside Done
+    does:
+      - the switch applies as it changes
+      - Clear goes back to Requests
+    states:
+      - the button's badge shows 1 while Errors is chosen and nothing otherwise
 
   - id: hub.log-sheet
     area: hub
@@ -843,17 +861,17 @@ surfaces:
     reach:
       - the top of the Code tab
     holds:
-      - a Day, Week, Month and All switch and an agent button
+      - a line saying which period and agent are shown, and a Filters & sort button that shows how many filters are on
       - the total equivalent API cost and four counters with their cost and a delta against the previous period
       - how fresh the data is, an ⓘ and a note that Claude figures undercount
     does:
       - a counter picks the trend's metric
-      - the agent button opens the agent sheet
+      - Filters & sort opens the sheet that holds the period and the agent
     states:
       - a Sub-agents source swaps the counters for its own table
     links:
-      - to: code-usage.agent-sheet
-        via: agent button
+      - to: code-usage.filters-sheet
+        via: Filters & sort
       - to: code-usage.error
         via: a failed read
       - to: code-usage.subagents
@@ -878,7 +896,7 @@ surfaces:
     title: Sub-agents source
     root: data-surface
     reach:
-      - Sub-agents in the agent sheet
+      - Sub-agents in the Filters & sort sheet
     holds:
       - a summary line and a note that this is a separate source, never added into All
       - a table of date, project, model, source, tokens, cache and cost
@@ -974,7 +992,7 @@ surfaces:
       - the breakdowns column, in All
     holds:
       - a table of agent, requests, tokens in and out, cache reads and cost
-    phone: not shown; each agent's figures sit in the agent sheet
+    phone: not shown; each agent's figures sit in the Filters & sort sheet
     desktop: shown as a card
     links:
       - to: code-usage.per-agent-empty
@@ -989,18 +1007,22 @@ surfaces:
       - a line suggesting a longer period
       - the one empty-state button
 
-  - id: code-usage.agent-sheet
+  - id: code-usage.filters-sheet
     area: code-usage
-    title: Agent sheet
+    title: Usage filters sheet
     root: data-surface
     reach:
-      - the agent button on the totals card
+      - Filters & sort on the totals card
     holds:
+      - a Day, Week, Month and All switch
       - an Agents group with All, every built-in agent and the extras AgentsView reports, each with its figures for the period
       - a Separate source group with Sub-agents
+      - Clear beside Done
     does:
-      - a row chooses the agent, closes the sheet and re-reads
+      - the period and a row each apply as they change, re-read and leave the sheet open
+      - Clear goes back to Day and All agents
     states:
+      - the button's badge counts a period other than Day and an agent other than All
       - an AgentsView extra carries its freshness and an offline chip when AgentsView is down
 
   - id: code-usage.model-sheet

@@ -313,10 +313,10 @@ def _empty_state_action_is_the_way_out(page):
     project_action = page.locator("#cldProjectEmpty .empty-state-action")
     assert project_action.inner_text() == "Show all"
     project_action.click()
-    page.wait_for_selector("#cldPeriodSeg [data-period=all][aria-pressed=true]", timeout=5000)
+    page.wait_for_selector("#cldPeriodSeg [data-period=all][aria-pressed=true]", state="attached", timeout=5000)
     page.wait_for_selector("#cldProjectEmpty .empty-state-action:has-text('Refresh')", timeout=5000)
-    page.click("#cldPeriodSeg [data-period=today]")
-    page.wait_for_selector("#cldPeriodSeg [data-period=today][aria-pressed=true]", timeout=5000)
+    _click(page, "#cldPeriodSeg [data-period=today]")  # the switch lives in the closed Filters & sort sheet
+    page.wait_for_selector("#cldPeriodSeg [data-period=today][aria-pressed=true]", state="attached", timeout=5000)
     page.wait_for_selector("#cldProjectEmpty", state="visible", timeout=PANE_TIMEOUT)
 
 
@@ -385,7 +385,7 @@ def _empty_states_wait_for_the_summary_and_the_first_screen_fits(page, admin_url
 
     _empty_state_action_is_the_way_out(page)
 
-    # The first screen: the period switch, the four counters and the total cost
+    # The first screen: the filter row, the four counters and the total cost
     # fit without scrolling, with no paragraph above the numbers, on a phone and
     # on a PC window.
     _await_first_summary(page)
@@ -395,7 +395,7 @@ def _empty_states_wait_for_the_summary_and_the_first_screen_fits(page, admin_url
             """() => {
                 const grid = document.querySelector('#cldCounterGrid').getBoundingClientRect();
                 return {
-                    bottom: Math.max(...['#cldPeriodSeg', '#cldTotalCost', '#cldCounterGrid'].map(
+                    bottom: Math.max(...['#cldFilterBtn', '#cldTotalCost', '#cldCounterGrid'].map(
                         s => document.querySelector(s).getBoundingClientRect().bottom)),
                     paragraphs: [...document.querySelectorAll('#cldTotalsCard p')].filter(
                         p => p.offsetParent && p.getBoundingClientRect().top < grid.top).length,
@@ -543,9 +543,9 @@ def _retapping_the_active_tab_leaves_one_poll_interval(page, admin_url):
     assert page.evaluate("window.__livePollIntervals()") == baseline
 
 
-def _the_agent_sheet_and_the_period_switch_choose_the_source(page, admin_url):
-    """The agent sheet lists every agent (a runtime AgentsView extra with its
-    freshness too) and the Sub-agents (OTel) source."""
+def _the_filters_sheet_and_the_period_switch_choose_the_source(page, admin_url):
+    """The Filters & sort sheet lists every agent (a runtime AgentsView extra with
+    its freshness too) and the Sub-agents (OTel) source, beside the period."""
     summaries, subs = [], []
 
     def summary(route):
@@ -566,8 +566,8 @@ def _the_agent_sheet_and_the_period_switch_choose_the_source(page, admin_url):
     assert page.inner_text("#cldAgentLabel") == "All agents"
     # The offline AgentsView behind the extra is the header's exception.
     assert "AgentsView offline" in page.inner_text("#codeHeadLine")
-    page.click("#cldAgentBtn")
-    sheet = page.locator("#cldAgentSheet[open]")
+    page.click("#cldFilterBtn")
+    sheet = page.locator("#cldFilterSheet[open]")
     sheet.wait_for(timeout=3000)
     titles = sheet.locator(".cld-agent-row .action-row-title").all_inner_texts()
     assert titles == ["All agents", "Claude", "Codex", "Copilot", "AGY", "Sub-agents (telemetry)"], titles
@@ -575,14 +575,17 @@ def _the_agent_sheet_and_the_period_switch_choose_the_source(page, admin_url):
     assert "AgentsView" in agy and "offline" in agy and "2 req" in agy, agy
 
     sheet.locator('.cld-agent-row[data-vendor="codex"] .action-row-main').click()
-    page.wait_for_selector("#cldAgentSheet", state="hidden", timeout=3000)
     assert page.inner_text("#cldAgentLabel") == "Codex"
+    # The choice applies as it changes: the sheet stays open and the trigger counts it.
+    assert page.locator("#cldFilterSheet").evaluate("e => e.open")
+    assert page.locator("#cldFilterBtn .filter-badge").inner_text() == "1"
+    assert "agent Codex" in page.get_attribute("#cldFilterBtn", "aria-label")
     assert _wait_for(page, lambda: ("today", "codex") in summaries), summaries
     page.wait_for_selector("#cldVendorCard", state="hidden", timeout=PANE_TIMEOUT)  # the per-agent table is an All view
 
     # Sub-agents (OTel): the pane's table for the one period switch above.
-    page.click("#cldAgentBtn")
-    page.locator('#cldAgentSheet .cld-agent-row[data-vendor="subagents"] .action-row-main').click()
+    page.locator('#cldFilterSheet .cld-agent-row[data-vendor="subagents"] .action-row-main').click()
+    page.keyboard.press("Escape")
     page.wait_for_selector("#cldSubagents", state="visible", timeout=PANE_TIMEOUT)
     assert page.locator("#cldFigures").is_hidden()
     assert page.locator("#cldSubTable thead th").all_inner_texts() == _SUB_COLUMNS
@@ -717,10 +720,10 @@ def _a_switch_says_it_is_loading_until_the_data_lands(page, admin_url):
     toast.wait_for(state="hidden", timeout=5000)
     _wait_requests(page, 30)
 
-    # The agent is chosen in its sheet; the toast is the frosted neutral glass.
+    # The agent is chosen in the Filters & sort sheet; the toast is the frosted neutral glass.
     summary.forget()
-    page.click("#cldAgentBtn")
-    page.click('#cldAgentSheet .cld-agent-row[data-vendor="codex"] .action-row-main')
+    page.click("#cldFilterBtn")
+    page.click('#cldFilterSheet .cld-agent-row[data-vendor="codex"] .action-row-main')
     toast.wait_for(state="visible", timeout=2000)
     style = toast.evaluate(
         "e => { const s = getComputedStyle(e); return { f: s.backdropFilter || s.webkitBackdropFilter, w: s.fontWeight }; }")
@@ -768,7 +771,7 @@ def test_code_usage_switching(browser, admin_url):
     with fresh_page(browser, console_errors=True) as page:
         _retapping_the_active_tab_leaves_one_poll_interval(page, admin_url)
     with fresh_page(browser, console_errors=True) as page:
-        _the_agent_sheet_and_the_period_switch_choose_the_source(page, admin_url)
+        _the_filters_sheet_and_the_period_switch_choose_the_source(page, admin_url)
     with fresh_page(browser) as page:  # the browser logs the stubbed 503 itself
         _a_switch_says_it_is_loading_until_the_data_lands(page, admin_url)
     with fresh_page(browser) as page:

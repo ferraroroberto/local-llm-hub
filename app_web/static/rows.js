@@ -16,6 +16,12 @@
  *                        the tone map in styles.css: none (a plain fact),
  *                        'accent' (in progress), 'attention' (needs you soon),
  *                        'danger' (broken). A healthy state is never a chip.
+ *   setFilterTrigger(btn, active)
+ *                        The Filters & sort button's count badge: `active` is
+ *                        the plain-words list of the non-default filters. The
+ *                        badge shows its length (nothing when empty) and the
+ *                        accessible name spells the filters out, so filtered-out
+ *                        content never disappears silently.
  *   setHeadLine(el, parts, fact)
  *                        The pane header's one context line: the exceptions
  *                        (at most two, each in its tone) or, when nothing is
@@ -135,6 +141,20 @@ export function setHeadLine(el, parts, fact, title) {
     el.textContent = fact || '';
   }
   el.title = title || el.textContent;
+}
+
+// -------------------------------------------------------------- filter trigger
+export function setFilterTrigger(btn, active) {
+  if (!btn) return;
+  const badge = btn.querySelector('.filter-badge');
+  const n = active.length;
+  if (badge) {
+    badge.textContent = n ? String(n) : '';
+    badge.hidden = !n;
+  }
+  const name = n ? 'Filters & sort, ' + n + ' active: ' + active.join(', ') : 'Filters & sort';
+  btn.setAttribute('aria-label', name);
+  btn.title = name;
 }
 
 // ----------------------------------------------------------------- info sheet

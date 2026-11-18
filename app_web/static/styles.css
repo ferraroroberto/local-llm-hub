@@ -342,19 +342,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
 }
 .home-head .home-toggle::before { content: ""; position: absolute; inset: -5px; }
 
-/* Filter above a long list (action-row: 44px, control-border). */
-.list-filter {
-  width: 100%;
-  min-height: var(--hit-min);
-  margin: 0 0 var(--space-sm);
-  padding: 0 12px;
-  font: inherit;
-  font-size: var(--font-label);
-  color: var(--ink);
-  background: var(--input-bg);
-  border: 1px solid var(--control-border);
-  border-radius: var(--radius-md);
-}
 .card-actions {
   display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: 10px;
   align-items: center;
@@ -568,12 +555,11 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .hub-proc { margin: 10px 0 0; font-size: var(--font-body-sm); }
 .activity-tools {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-sm);
   padding: 10px 14px;
 }
-.activity-tools .list-filter { flex: 1 1 180px; min-width: 0; margin: 0; }
+.activity-tools .action-row-filter { flex: 1 1 0; min-width: 0; margin: 0; }
 .activity-list:empty { display: none; }
 /* A row that opens nothing (a request without a trace, a project row). */
 .action-row.is-static .action-row-main { cursor: default; }

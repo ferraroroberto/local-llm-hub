@@ -71,7 +71,7 @@ itself.**
   timeout); the summary endpoint only ever reads the snapshot. Completed
   sessions are fetched once and cached — they're immutable.
 - **Graceful degradation.** AgentsView down → the AGY button keeps showing
-  last-fetched data, the agent sheet marks it "offline" and the header line
+  last-fetched data, the Filters & sort sheet marks it "offline" and the header line
   names it (the Code-tab mirror of the Langfuse sheet's `langfuse_reachable`). Not installed
   → the tab is exactly the native three-vendor view, no hint, no errors.
 - **Costs are "as reported by AgentsView"** — its own estimates for

@@ -19,7 +19,7 @@
 
 import { els, state } from './state.js';
 import { jsonApi, fmtTok, fmtCost, tokPair, escapeHtml, renderTable, toastPending, isAuthError } from './api.js';
-import { row, setHeadLine, defineInfo } from './rows.js';
+import { row, setHeadLine, setFilterTrigger, defineInfo } from './rows.js';
 
 defineInfo('code-usage', 'About these figures',
   '<p><strong>Input tokens</strong> are net new plus cache creation (both billed). <strong>Cache reads</strong> '
@@ -124,18 +124,29 @@ export function wireCodeUsage() {
     if (e.target.closest('[data-cld-empty-action]')) runEmptyAction();
   });
 
-  // Agent filter: a button opening the sheet of every agent and source.
-  if (els.cldAgentBtn) {
-    els.cldAgentBtn.addEventListener('click', function () {
+  // Filters & sort: one sheet holds the period and the agent; each applies as it
+  // changes, Clear restores Day and All agents.
+  if (els.cldFilterBtn) {
+    els.cldFilterBtn.addEventListener('click', function () {
       renderAgentSheet();
-      if (els.cldAgentSheet && !els.cldAgentSheet.open) els.cldAgentSheet.showModal();
+      if (els.cldFilterSheet && !els.cldFilterSheet.open) els.cldFilterSheet.showModal();
+    });
+  }
+  if (els.cldFilterClear) {
+    els.cldFilterClear.addEventListener('click', function () {
+      if (state.cldPeriod === 'today' && state.cldVendor === 'all') return;
+      state.cldPeriod = 'today';
+      state.cldVendor = 'all';
+      syncPeriodSeg();
+      syncAgentLabel();
+      applyView();
+      startChoiceLoad();
     });
   }
   if (els.cldAgentList) {
     els.cldAgentList.addEventListener('click', function (e) {
       const item = e.target.closest('[data-vendor]');
       if (!item) return;
-      if (els.cldAgentSheet && els.cldAgentSheet.open) els.cldAgentSheet.close();
       const next = item.dataset.vendor;
       if (next === state.cldVendor) return;
       state.cldVendor = next;
@@ -260,6 +271,8 @@ function renderSummary(body) {
   }
   if (state.cldVendor === 'all') {
     state.cldVendorTotals = { period: state.cldPeriod, rows: body.by_vendor || [], totals: body.totals || {} };
+    // The open sheet shows each agent's figures for the shown period.
+    if (els.cldFilterSheet && els.cldFilterSheet.open) renderAgentSheet();
   }
   render(body);
   // Copilot billing is a separate authoritative source:
@@ -392,6 +405,8 @@ function agentsviewOffline() {
 
 function syncPeriodSeg() {
   syncEmptyActions();
+  syncFilterTrigger();
+  set(els.cldPeriodLabel, PERIOD_LABEL[state.cldPeriod] || state.cldPeriod);
   if (!els.cldPeriodSeg) return;
   els.cldPeriodSeg.querySelectorAll('button[data-period]').forEach(function (b) {
     b.setAttribute('aria-pressed', String(b.dataset.period === state.cldPeriod));
@@ -400,7 +415,17 @@ function syncPeriodSeg() {
 
 function syncAgentLabel() {
   syncEmptyActions();
+  syncFilterTrigger();
   set(els.cldAgentLabel, agentLabel(state.cldVendor));
+  if (els.cldFilterSheet && els.cldFilterSheet.open) renderAgentSheet();
+}
+
+/* The trigger's count: the choices that differ from the default Day / All agents. */
+function syncFilterTrigger() {
+  const active = [];
+  if (state.cldPeriod !== 'today') active.push('period ' + (PERIOD_LABEL[state.cldPeriod] || state.cldPeriod));
+  if (state.cldVendor !== 'all') active.push('agent ' + agentLabel(state.cldVendor));
+  setFilterTrigger(els.cldFilterBtn, active);
 }
 
 /* The one way out of an empty state, by cause: a failed read retries; a
