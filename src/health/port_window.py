@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import threading
 from collections import deque
-from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
+from typing import Any, Callable, Deque, Dict, List, Tuple
 
 from .port_probe import PROTOCOLS
 
