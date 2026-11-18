@@ -95,6 +95,12 @@ A burst drains within a minute, long before the next 30 s sample, so by the time
 
 The snapshot runs a few seconds after the event, never at it, so the verdict says how many (`snapshot 9 s after the event: TIME_WAIT mostly port 8000 (hub.exe, 60 sockets); top holders ...`). A snapshot that found nothing or could not read a table reads `not confirmed`, never "nothing held them"; an event with no snapshot (stored before this existed, or the read failed) says the holder is not confirmed. The finding carries the raw `snapshot`, and `ports.last_event` carries it with a `snapshot_summary`.
 
+### The burst window
+
+A UDP socket frees its port the instant it closes, so a burst can be gone before the snapshot looks. A second loop therefore tallies the endpoints each process holds in the dynamic ranges every `window_interval_s` (1 s) into a `window_s` (60 s) in-memory buffer (`src/health/port_window.py`, in a worker thread, never on the event loop). When a **new** `4231` or `4266` is read, the watch stores the window's peak holders of the event's protocol on the event, beside its snapshot: for each process the highest count, the second it was reached, and its lowest count in the window (`low`, 0 when it was absent). The tallies themselves are never persisted.
+
+The holder is **confirmed** only when the window reaches back to the event and some process rose by `window_min_rise` (50) or more endpoints; a flat block (a vendor service holding 50 UDP ports all day) is listed but never named as the burst. An empty or unreadable window, one that starts after the event, or one in which nothing rose reads `peak holder not confirmed`, never an all-clear. The limit: a burst shorter than the 1 s tally interval can fall between two tallies, and an event read more than `window_s` after it was logged is no longer covered; the event text says so. A snapshot ranks its holders by the event's own protocol (a UDP event by UDP endpoints, a TCP event by TCP), not by TCP plus UDP.
+
 ### Findings
 
 | Metric | Default watch / act | Judged on |
@@ -118,11 +124,11 @@ Samples are kept for `history_hours` (24) and events for `event_keep_days` (30) 
 
 ### Cost
 
-Measured on the tower (about 760 TCP and 160 UDP endpoints): a port sample is one `psutil.net_connections` call per protocol, **about 5 ms of CPU** every 30 s; the event-log read is **about 75 ms** of wall time for a 24-hour window, once a minute. Together that is under 0.2 % of one core. Each sample's own cost is in `sample_ms` and `cpu_ms`.
+Measured on the tower (about 760 TCP and 160 UDP endpoints): a port sample is one `psutil.net_connections` call per protocol, **about 5 ms of CPU** every 30 s; the event-log read is **about 75 ms** of wall time for a 24-hour window, once a minute. Each sample's own cost is in `sample_ms` and `cpu_ms`. The 1 s window tally reads the same two tables: **about 10 ms median, 13 ms p95** of wall time (92 processes holding endpoints), roughly 1 % of one core, in its own thread.
 
 ### Configuration
 
-The `ports` section of `config/health_watch.json`, re-read every tick. Every threshold and cadence above is a key there; `"ports": {"enabled": false}` stops the port watch and the slow sample's port rows judge ports again.
+The `ports` section of `config/health_watch.json`, re-read every tick. Every threshold and cadence above is a key there; `ports.window_s`, `window_interval_s` and `window_min_rise` set the burst window's length, tally interval and the rise that confirms a holder. `"ports": {"enabled": false}` stops the port watch and the slow sample's port rows judge ports again.
 
 ## Resource watch: RAM, free space and disk latency
 
@@ -184,6 +190,7 @@ The `resource` section of `config/health_watch.json`, re-read every sample like 
 | `src/health/settings.py` | Config loading and defaults |
 | `src/health/watch.py` | The loop, the rolling history and the act/cleared alerts |
 | `src/health/port_probe.py` | One port sample from the endpoint tables, the TIME_WAIT-attributing snapshot, and the Tcpip exhaustion events from the System log |
+| `src/health/port_window.py` | The rolling 60 s window of per-second, per-process endpoint counts and its peak summary |
 | `src/health/port_rules.py` | Port findings, holders with growth, the `ports` block (pure) |
 | `src/health/sample_store.py` | The JSON-row sample history both stores build on |
 | `src/health/port_store.py` | Port sample and event history in SQLite |

@@ -11,7 +11,9 @@ The System log's Tcpip events are ground truth: Windows writes 4227, 4231 or
 samples still leaves its trace there. A new 4231 or 4266 also takes an
 immediate snapshot (``PortProbe.snapshot``) that attributes TIME_WAIT sockets,
 which have no owning pid, to the local server port they point at and its
-listening process.
+listening process. ``PortProbe.tally`` is the cheap per-process count the 1 s
+window (``port_window``) records, so a burst that drained before the event was
+read is still attributed.
 """
 
 from __future__ import annotations
@@ -125,15 +127,51 @@ class PortProbe:
             groups.append({"port": port, "listener": self._name(pid) if pid else None, "pid": pid, "count": count})
         return groups, unplaced
 
-    def snapshot(self, *, top_n: int = 10, now: Optional[float] = None) -> Dict[str, Any]:
+    def snapshot(self, *, top_n: int = 10, now: Optional[float] = None,
+                 rank_by: Optional[str] = None) -> Dict[str, Any]:
         """A sample that also attributes TIME_WAIT by port and listener: the moment an
-        exhaustion event lands, this names who held the ports. Blocking."""
-        sample = self.sample(top_n=top_n, now=now, with_time_wait=True)
+        exhaustion event lands, this names who held the ports. ``rank_by`` orders the
+        holders by that protocol's endpoints, so a UDP event leads with its UDP holders.
+        Blocking."""
+        sample = self.sample(top_n=top_n, now=now, with_time_wait=True, rank_by=rank_by)
         return {key: sample[key] for key in ("ts", "probes", "tcp", "udp", "holders", "time_wait_groups",
                                               "time_wait_unplaced") if key in sample}
 
+    def name_of(self, pid: int) -> str:
+        """The process name of ``pid``, for the window that outlives the process."""
+        return self._name_of(pid)
+
+    def _read_table(self, protocol: str, probes: Dict[str, str], *, quiet: bool = False) -> Optional[List[Any]]:
+        """The endpoint table of ``protocol``, or ``None`` with ``probes[protocol]`` saying why."""
+        try:
+            rows = list(self._connections(protocol))
+        except psutil.AccessDenied:
+            probes[protocol] = "denied"
+            return None
+        except OSError as exc:
+            if not quiet:
+                logger.info("ℹ️ port watch: %s table read failed: %s", protocol, exc)
+            probes[protocol] = "failed"
+            return None
+        probes[protocol] = "ok"
+        return rows
+
+    def tally(self, *, now: Optional[float] = None) -> Dict[str, Any]:
+        """The endpoints each process holds in the dynamic ranges and nothing else: the cheap
+        read the 1 s burst window records. Blocking: call it off the event loop."""
+        ranges = self.ranges()
+        per_pid: Dict[int, Dict[str, int]] = {}
+        probes: Dict[str, str] = {}
+        for protocol in PROTOCOLS:
+            rows = self._read_table(protocol, probes, quiet=True)
+            if rows is not None:
+                lo, hi = ranges[protocol]
+                _count_by_pid(per_pid, [r for r in rows if r.laddr and lo <= r.laddr.port <= hi], protocol)
+        return {"ts": time.time() if now is None else now, "probes": probes,
+                "counts": {pid: (c["tcp"], c["udp"]) for pid, c in per_pid.items()}}
+
     def sample(self, *, top_n: int = 10, now: Optional[float] = None,
-               with_time_wait: bool = False) -> Dict[str, Any]:
+               with_time_wait: bool = False, rank_by: Optional[str] = None) -> Dict[str, Any]:
         """One sample. Blocking: call it off the event loop."""
         started, cpu_started = time.perf_counter(), time.process_time()
         ranges = self.ranges()
@@ -141,38 +179,27 @@ class PortProbe:
         per_pid: Dict[int, Dict[str, int]] = {}
         for protocol in PROTOCOLS:
             lo, hi = ranges[protocol]
-            try:
-                rows = list(self._connections(protocol))
-            except psutil.AccessDenied:
-                out["probes"][protocol] = "denied"
+            rows = self._read_table(protocol, out["probes"])
+            if rows is None:
                 continue
-            except OSError as exc:
-                logger.info("ℹ️ port watch: %s table read failed: %s", protocol, exc)
-                out["probes"][protocol] = "failed"
-                continue
-            used = set()
-            time_wait = 0
-            for row in rows:
-                port = row.laddr.port if row.laddr else None
-                if row.status == psutil.CONN_TIME_WAIT:
-                    time_wait += 1
-                if port is None or not lo <= port <= hi:
-                    continue
-                used.add(port)
-                if row.pid:
-                    counts = per_pid.setdefault(int(row.pid), {"tcp": 0, "udp": 0})
-                    counts[protocol] += 1
+            in_range = [r for r in rows if r.laddr and lo <= r.laddr.port <= hi]
+            used = {r.laddr.port for r in in_range}
+            _count_by_pid(per_pid, in_range, protocol)
             total = hi - lo + 1
             out[protocol] = {"used": len(used), "total": total, "range": [lo, hi],
                              "percent": round(100.0 * len(used) / total, 1)}
             if protocol == "tcp":
-                out[protocol]["time_wait"] = time_wait
+                out[protocol]["time_wait"] = sum(1 for r in rows if r.status == psutil.CONN_TIME_WAIT)
                 if with_time_wait:
                     out["time_wait_groups"], out["time_wait_unplaced"] = self._time_wait_groups(rows, top_n)
-            out["probes"][protocol] = "ok"
         live = set(per_pid)
         self._names = {pid: name for pid, name in self._names.items() if pid in live}
-        ranked = sorted(per_pid.items(), key=lambda kv: kv[1]["tcp"] + kv[1]["udp"], reverse=True)
+        if rank_by in PROTOCOLS:
+            # An event of one protocol ranks by that protocol alone; a process holding none of it is no holder.
+            ranked = sorted(((pid, c) for pid, c in per_pid.items() if c[rank_by]),
+                            key=lambda kv: kv[1][rank_by], reverse=True)
+        else:
+            ranked = sorted(per_pid.items(), key=lambda kv: kv[1]["tcp"] + kv[1]["udp"], reverse=True)
         out["holders"] = [
             {"pid": pid, "name": self._name(pid), "tcp": c["tcp"], "udp": c["udp"], "ports": c["tcp"] + c["udp"]}
             for pid, c in ranked[:top_n]
@@ -180,6 +207,13 @@ class PortProbe:
         out["sample_ms"] = round((time.perf_counter() - started) * 1000, 1)
         out["cpu_ms"] = round((time.process_time() - cpu_started) * 1000, 1)
         return out
+
+
+def _count_by_pid(per_pid: Dict[int, Dict[str, int]], rows: Iterable[Any], protocol: str) -> None:
+    """Add the endpoints in ``rows`` to their owning process's ``protocol`` count."""
+    for row in rows:
+        if row.pid:
+            per_pid.setdefault(int(row.pid), {"tcp": 0, "udp": 0})[protocol] += 1
 
 
 def _parse_events(xml_text: str) -> List[Dict[str, Any]]:

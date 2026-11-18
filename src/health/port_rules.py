@@ -116,8 +116,12 @@ def snapshot_text(event: Dict[str, Any]) -> str:
             f"port {g['port']} ({g['listener'] or 'not a local listener'}, {fmt_count(g['count'])} sockets)"
             for g in groups[:3]))
     holders = snap.get("holders") or []
+    protocol = event.get("protocol")
     if holders:
-        parts.append("top holders " + ", ".join(f"{h['name']} ({fmt_count(h['ports'])} ports)" for h in holders[:3]))
+        # Ranked by the event's own protocol, so the count shown is that protocol's, not tcp + udp.
+        label = f"{LABELS[protocol]} ports" if protocol in LABELS else "ports"
+        parts.append("top holders " + ", ".join(
+            f"{h['name']} ({fmt_count(h.get(protocol, h['ports']))} {label})" for h in holders[:3]))
     unread = sorted(p for p, state in (snap.get("probes") or {}).items() if state != "ok")
     if not parts:
         return f"snapshot {delay} found no holders: not confirmed (the burst may have drained)"
@@ -125,6 +129,29 @@ def snapshot_text(event: Dict[str, Any]) -> str:
     if unread:
         text += f"; {'/'.join(unread)} table not read, not confirmed for it"
     return text
+
+
+def peak_text(event: Dict[str, Any]) -> str:
+    """Who peaked in the in-memory window before the event was read. A window that reached back to
+    the event and saw a process rise names it; anything else says the holder is not confirmed,
+    never that the ports were fine, because a burst shorter than the window's tally can escape it."""
+    peak = event.get("peak")
+    if not peak:
+        return "no peak window recorded, so the peak holder is not confirmed"
+    label = LABELS.get(peak["protocol"], peak["protocol"])
+    span = f"{fmt_count(round((peak['to'] or 0) - (peak['from'] or 0)))} s window"
+    holders = peak.get("holders") or []
+    if peak["confirmed"]:
+        return f"peak {label} holders in the {span}: " + ", ".join(
+            f"{h['name']} {fmt_count(h['peak'])} at {time.strftime('%H:%M:%S', time.localtime(h['at']))}"
+            f" (from {fmt_count(h['low'])})" for h in [h for h in holders if h["peak"] - h["low"] >= peak["min_rise"]][:3])
+    if not peak["samples"]:
+        return f"the {span} held no readable {label} tally, so the peak holder is not confirmed"
+    why = (f"no process rose by {fmt_count(peak['min_rise'])} or more {label} ports"
+           if peak.get("covers_event") else "the window starts after the event")
+    steady = f" (largest: {holders[0]['name']} at {fmt_count(holders[0]['peak'])})" if holders else ""
+    return (f"peak holder not confirmed: {why} in the {span}{steady}; "
+            "a burst shorter than the tally interval can fall between two tallies")
 
 
 def _event_findings(events: Sequence[Dict[str, Any]], history: Sequence[Dict[str, Any]],
@@ -137,8 +164,9 @@ def _event_findings(events: Sequence[Dict[str, Any]], history: Sequence[Dict[str
          "kind": "system", "metric": f"tcpip_{e['event_id']}", "value": e["event_id"],
          "process": None, "ts": e["ts"],
          "reason": f"Windows logged {e['reason']} (Tcpip {e['event_id']}) at {_clock(e['ts'])}"
-                   + (f"; {snapshot_text(e)}" if e["event_id"] in SNAPSHOT_EVENTS else ""),
-         "fix": RUNBOOK_FIX, **({"snapshot": e["snapshot"]} if e.get("snapshot") else {})}
+                   + (f"; {snapshot_text(e)}; {peak_text(e)}" if e["event_id"] in SNAPSHOT_EVENTS else ""),
+         "fix": RUNBOOK_FIX, **({"snapshot": e["snapshot"]} if e.get("snapshot") else {}),
+         **({"peak": e["peak"]} if e.get("peak") else {})}
         for e in recent
     ]
 
@@ -233,4 +261,6 @@ def block(history: Sequence[Dict[str, Any]], events: Sequence[Dict[str, Any]], c
     if last and last["event_id"] in SNAPSHOT_EVENTS:
         out["last_event"]["snapshot"] = last.get("snapshot")
         out["last_event"]["snapshot_summary"] = snapshot_text(last)
+        out["last_event"]["peak"] = last.get("peak")
+        out["last_event"]["peak_summary"] = peak_text(last)
     return out
