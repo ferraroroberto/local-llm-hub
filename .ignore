@@ -49,6 +49,7 @@
 /src/password.py
 /src/runtime_data.py
 /src/usage_log.py
+/tests/e2e/_paced_browser.py
 /tests/e2e/_surface.py
 /tray/single_instance.py
 # END vendored-copies
