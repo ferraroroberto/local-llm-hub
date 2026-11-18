@@ -168,6 +168,9 @@ export const els = {
   hubOtelOfflineHint: document.getElementById('hubOtelOfflineHint'),
   hubOpenLangfuse: document.getElementById('hubOpenLangfuse'),
   activityScope: document.getElementById('activityScope'),
+  activityFilterBtn: document.getElementById('activityFilterBtn'),
+  activityFilterSheet: document.getElementById('activityFilterSheet'),
+  activityFilterClear: document.getElementById('activityFilterClear'),
   traceSheet: document.getElementById('traceSheet'),
   traceSheetTitle: document.getElementById('traceSheetTitle'),
   traceSheetBody: document.getElementById('traceSheetBody'),
@@ -295,9 +298,11 @@ export const els = {
   // Code: header line, agent sheet, figures, Sub-agents (OTel), one
   // trend chart, breakdown rows and sheets
   codeHeadLine: document.getElementById('codeHeadLine'),
-  cldAgentBtn: document.getElementById('cldAgentBtn'),
+  cldFilterBtn: document.getElementById('cldFilterBtn'),
+  cldFilterSheet: document.getElementById('cldFilterSheet'),
+  cldFilterClear: document.getElementById('cldFilterClear'),
+  cldPeriodLabel: document.getElementById('cldPeriodLabel'),
   cldAgentLabel: document.getElementById('cldAgentLabel'),
-  cldAgentSheet: document.getElementById('cldAgentSheet'),
   cldAgentList: document.getElementById('cldAgentList'),
   cldFigures: document.getElementById('cldFigures'),
   cldCounterGrid: document.getElementById('cldCounterGrid'),

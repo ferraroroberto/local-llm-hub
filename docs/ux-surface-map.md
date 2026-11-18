@@ -46,7 +46,7 @@ Walked 2026-11-17 against build `f5e2794`, at widths 390, 1280, themes light, da
 | Area | Surfaces |
 |---|---|
 | [Chrome](#chrome) | 8 |
-| [Hub](#hub) | 11 |
+| [Hub](#hub) | 12 |
 | [Models](#models) | 11 |
 | [Playground](#playground) | 11 |
 | [Code](#code) | 19 |
@@ -69,40 +69,40 @@ flowchart LR
   s6["Confirm dialog"]
   s7["Info sheet"]
   s8(["Hub tab · Hub"])
-  s19(["Models tab · Models"])
-  s30(["Playground tab · Playground"])
-  s41(["Code tab · Code"])
-  s60(["Machines tab · Machines"])
-  s72(["Settings page · Settings"])
+  s20(["Models tab · Models"])
+  s31(["Playground tab · Playground"])
+  s42(["Code tab · Code"])
+  s61(["Machines tab · Machines"])
+  s73(["Settings page · Settings"])
   s11(["Activity feed · Hub"])
-  s20(["Memory glance · Models"])
-  s23(["Model row menu · Models"])
-  s24(["Model sheet · Models"])
-  s43(["Totals · Code"])
-  s64(["Machine row menu · Machines"])
-  s65(["Machine sheet · Machines"])
-  s66(["Machine detail pane · Machines"])
-  s67(["Actions runner · Machines"])
-  s69(["Diagnostics dialog · Machines"])
-  s81(["Tab keys · Keys and gestures"])
+  s21(["Memory glance · Models"])
+  s24(["Model row menu · Models"])
+  s25(["Model sheet · Models"])
+  s44(["Totals · Code"])
+  s65(["Machine row menu · Machines"])
+  s66(["Machine sheet · Machines"])
+  s67(["Machine detail pane · Machines"])
+  s68(["Actions runner · Machines"])
+  s70(["Diagnostics dialog · Machines"])
+  s82(["Tab keys · Keys and gestures"])
   s0 -->|"Hub"| s8
-  s0 -->|"Models"| s19
-  s0 -->|"Play"| s30
-  s0 -->|"Code"| s41
-  s0 -->|"Machines"| s60
-  s1 -->|"gear"| s72
+  s0 -->|"Models"| s20
+  s0 -->|"Play"| s31
+  s0 -->|"Code"| s42
+  s0 -->|"Machines"| s61
+  s1 -->|"gear"| s73
   s11 -->|"ⓘ"| s7
-  s20 -->|"ⓘ"| s7
-  s23 -->|"Force stop"| s6
+  s21 -->|"ⓘ"| s7
   s24 -->|"Force stop"| s6
-  s43 -->|"ⓘ"| s7
-  s64 -->|"Reboot"| s6
-  s65 -->|"Reboot or Shut down"| s6
-  s65 -->|"ⓘ"| s7
+  s25 -->|"Force stop"| s6
+  s44 -->|"ⓘ"| s7
+  s65 -->|"Reboot"| s6
   s66 -->|"Reboot or Shut down"| s6
-  s67 -->|"ⓘ"| s7
-  s69 -->|"Delete"| s6
-  s81 --> s0
+  s66 -->|"ⓘ"| s7
+  s67 -->|"Reboot or Shut down"| s6
+  s68 -->|"ⓘ"| s7
+  s70 -->|"Delete"| s6
+  s82 --> s0
 ```
 
 ### `chrome.nav` Nav
@@ -213,29 +213,31 @@ flowchart LR
   s15["Langfuse sheet"]
   s16["Request sheet"]
   s17["By model sheet"]
-  s18["Server log sheet"]
+  s18["Activity filters sheet"]
+  s19["Server log sheet"]
   s0(["Nav · Chrome"])
-  s72(["Settings page · Settings"])
+  s73(["Settings page · Settings"])
   s7(["Info sheet · Chrome"])
-  s31(["Chat composer · Playground"])
-  s83(["Sideways table scroll · Keys and gestures"])
+  s32(["Chat composer · Playground"])
+  s84(["Sideways table scroll · Keys and gestures"])
   s0 -->|"Hub"| s8
   s8 --> s9
   s8 --> s10
   s8 --> s11
-  s8 -->|"gear"| s72
+  s8 -->|"gear"| s73
   s10 -->|"Services row"| s14
   s10 -->|"down Langfuse row"| s15
+  s11 -->|"Filters & sort"| s18
   s11 -->|"a row with a trace"| s16
   s11 -->|"By model"| s17
-  s11 -->|"Server log"| s18
+  s11 -->|"Server log"| s19
   s11 -->|"no requests"| s12
   s11 -->|"no errors"| s13
   s11 -->|"ⓘ"| s7
-  s12 -->|"Send a test request"| s31
-  s13 -->|"Send a test request"| s31
+  s12 -->|"Send a test request"| s32
+  s13 -->|"Send a test request"| s32
   s14 -->|"Details"| s15
-  s83 --> s17
+  s84 --> s17
 ```
 
 ### `hub.tab` Hub tab
@@ -292,15 +294,17 @@ flowchart LR
 - **Root:** `data-surface`
 - **Reach:** the Hub tab
 - **Holds:**
-  - the Requests and Errors switch and a filter that counts what it filters
+  - a filter that counts what it filters and a Filters & sort button that shows how many filters are on
   - one row per request with the model, status, latency, backend and clock; a failure's status is its chip
   - By model and Server log rows at the foot
   - an ⓘ
 - **Does:**
+  - Filters & sort opens the sheet that holds the Requests and Errors switch
   - a row with a trace opens its sheet; a row without one does nothing on tap
   - By model opens the counters sheet and Server log the live tail
 - **States:** empty, in each scope, with a way to send a test request
 - **Leads to:**
+  - [Activity filters sheet](#hubfilters-sheet-activity-filters-sheet) (Filters & sort)
   - [Request sheet](#hubtrace-sheet-request-sheet) (a row with a trace)
   - [By model sheet](#hubby-model-sheet-by-model-sheet) (By model)
   - [Server log sheet](#hublog-sheet-server-log-sheet) (Server log)
@@ -390,6 +394,18 @@ flowchart LR
 - **Phone:** a full-screen sheet
 - **Desktop:** a wide dialog
 
+### `hub.filters-sheet` Activity filters sheet
+
+- **Root:** `data-surface`
+- **Reach:** Filters & sort beside the Activity filter
+- **Holds:**
+  - the Requests and Errors switch
+  - Clear beside Done
+- **Does:**
+  - the switch applies as it changes
+  - Clear goes back to Requests
+- **States:** the button's badge shows 1 while Errors is chosen and nothing otherwise
+
 ### `hub.log-sheet` Server log sheet
 
 - **Root:** `data-surface`
@@ -405,44 +421,44 @@ What is loaded and how much room is left.
 
 ```mermaid
 flowchart LR
-  s19["Models tab"]
-  s20["Memory glance"]
-  s21["Model list"]
-  s22["No models"]
-  s23["Model row menu"]
-  s24["Model sheet"]
-  s25["Model detail pane"]
-  s26["Machine summary"]
-  s27["Placement editor"]
-  s28["Transcription dictionary"]
-  s29["Model log"]
+  s20["Models tab"]
+  s21["Memory glance"]
+  s22["Model list"]
+  s23["No models"]
+  s24["Model row menu"]
+  s25["Model sheet"]
+  s26["Model detail pane"]
+  s27["Machine summary"]
+  s28["Placement editor"]
+  s29["Transcription dictionary"]
+  s30["Model log"]
   s0(["Nav · Chrome"])
-  s72(["Settings page · Settings"])
+  s73(["Settings page · Settings"])
   s7(["Info sheet · Chrome"])
   s6(["Confirm dialog · Chrome"])
-  s82(["Menu and dialog keys · Keys and gestures"])
-  s0 -->|"Models"| s19
-  s19 --> s20
-  s19 --> s21
-  s19 -->|"gear"| s72
-  s20 -->|"a host row"| s26
-  s20 -->|"ⓘ"| s7
-  s21 -->|"kebab"| s23
-  s21 -->|"a row on a phone"| s24
-  s21 -->|"a row on a wide window"| s25
-  s21 -->|"nothing to list"| s22
-  s23 -->|"Transcription dictionary"| s28
-  s23 -->|"Edit placement"| s27
-  s23 -->|"Model log"| s29
-  s23 -->|"Force stop"| s6
-  s24 -->|"Edit placement"| s27
-  s24 -->|"Transcription dictionary"| s28
-  s24 -->|"Model log"| s29
+  s83(["Menu and dialog keys · Keys and gestures"])
+  s0 -->|"Models"| s20
+  s20 --> s21
+  s20 --> s22
+  s20 -->|"gear"| s73
+  s21 -->|"a host row"| s27
+  s21 -->|"ⓘ"| s7
+  s22 -->|"kebab"| s24
+  s22 -->|"a row on a phone"| s25
+  s22 -->|"a row on a wide window"| s26
+  s22 -->|"nothing to list"| s23
+  s24 -->|"Transcription dictionary"| s29
+  s24 -->|"Edit placement"| s28
+  s24 -->|"Model log"| s30
   s24 -->|"Force stop"| s6
-  s25 -->|"Edit placement"| s27
-  s25 -->|"Transcription dictionary"| s28
-  s25 -->|"Model log"| s29
-  s82 --> s23
+  s25 -->|"Edit placement"| s28
+  s25 -->|"Transcription dictionary"| s29
+  s25 -->|"Model log"| s30
+  s25 -->|"Force stop"| s6
+  s26 -->|"Edit placement"| s28
+  s26 -->|"Transcription dictionary"| s29
+  s26 -->|"Model log"| s30
+  s83 --> s24
 ```
 
 ### `models.tab` Models tab
@@ -640,33 +656,33 @@ One composer with four modes. Each mode owns its composer and its result, so a s
 
 ```mermaid
 flowchart LR
-  s30["Playground tab"]
-  s31["Chat composer"]
-  s32["Chat result"]
-  s33["Image composer"]
-  s34["No image model"]
-  s35["Image result"]
-  s36["Speech composer"]
-  s37["No voice model"]
-  s38["Speech result"]
-  s39["Decide composer"]
-  s40["Decide result"]
+  s31["Playground tab"]
+  s32["Chat composer"]
+  s33["Chat result"]
+  s34["Image composer"]
+  s35["No image model"]
+  s36["Image result"]
+  s37["Speech composer"]
+  s38["No voice model"]
+  s39["Speech result"]
+  s40["Decide composer"]
+  s41["Decide result"]
   s0(["Nav · Chrome"])
   s12(["No requests yet · Hub"])
   s13(["No failed requests yet · Hub"])
-  s0 -->|"Play"| s30
-  s12 -->|"Send a test request"| s31
-  s13 -->|"Send a test request"| s31
-  s30 -->|"Chat"| s31
-  s30 -->|"Image"| s33
-  s30 -->|"Speech"| s36
-  s30 -->|"Decide"| s39
-  s31 --> s32
-  s33 --> s35
-  s33 -->|"no image model"| s34
-  s36 --> s38
-  s36 -->|"no voice model"| s37
-  s39 --> s40
+  s0 -->|"Play"| s31
+  s12 -->|"Send a test request"| s32
+  s13 -->|"Send a test request"| s32
+  s31 -->|"Chat"| s32
+  s31 -->|"Image"| s34
+  s31 -->|"Speech"| s37
+  s31 -->|"Decide"| s40
+  s32 --> s33
+  s34 --> s36
+  s34 -->|"no image model"| s35
+  s37 --> s39
+  s37 -->|"no voice model"| s38
+  s40 --> s41
 ```
 
 ### `playground.tab` Playground tab
@@ -802,48 +818,48 @@ Coding-agent usage. A period and an agent choose what every card shows.
 
 ```mermaid
 flowchart LR
-  s41["Code tab"]
-  s42["Reading usage"]
-  s43["Totals"]
-  s44["Load failure"]
-  s45["Sub-agents source"]
-  s46["No sub-agent usage"]
-  s47["Copilot credits"]
-  s48["No billing data"]
-  s49["Trend"]
-  s50["By project"]
-  s51["No project data"]
-  s52["Per agent"]
-  s53["No agent data"]
-  s54["Agent sheet"]
-  s55["By model sheet"]
-  s56["No model data"]
-  s57["Every project sheet"]
-  s58["Recent sessions sheet"]
-  s59["No sessions found"]
+  s42["Code tab"]
+  s43["Reading usage"]
+  s44["Totals"]
+  s45["Load failure"]
+  s46["Sub-agents source"]
+  s47["No sub-agent usage"]
+  s48["Copilot credits"]
+  s49["No billing data"]
+  s50["Trend"]
+  s51["By project"]
+  s52["No project data"]
+  s53["Per agent"]
+  s54["No agent data"]
+  s55["Usage filters sheet"]
+  s56["By model sheet"]
+  s57["No model data"]
+  s58["Every project sheet"]
+  s59["Recent sessions sheet"]
+  s60["No sessions found"]
   s0(["Nav · Chrome"])
   s7(["Info sheet · Chrome"])
-  s83(["Sideways table scroll · Keys and gestures"])
-  s0 -->|"Code"| s41
-  s41 --> s43
-  s41 -->|"before the first read"| s42
-  s41 --> s50
-  s43 -->|"agent button"| s54
-  s43 -->|"a failed read"| s44
-  s43 -->|"Sub-agents source"| s45
-  s43 -->|"counter"| s49
-  s43 -->|"ⓘ"| s7
-  s45 --> s46
-  s47 --> s48
-  s50 -->|"Every project"| s57
-  s50 -->|"By model"| s55
-  s50 -->|"Recent sessions"| s58
-  s50 -->|"no projects"| s51
-  s52 --> s53
-  s55 --> s56
-  s58 --> s59
-  s83 --> s55
-  s83 --> s57
+  s84(["Sideways table scroll · Keys and gestures"])
+  s0 -->|"Code"| s42
+  s42 --> s44
+  s42 -->|"before the first read"| s43
+  s42 --> s51
+  s44 -->|"Filters & sort"| s55
+  s44 -->|"a failed read"| s45
+  s44 -->|"Sub-agents source"| s46
+  s44 -->|"counter"| s50
+  s44 -->|"ⓘ"| s7
+  s46 --> s47
+  s48 --> s49
+  s51 -->|"Every project"| s58
+  s51 -->|"By model"| s56
+  s51 -->|"Recent sessions"| s59
+  s51 -->|"no projects"| s52
+  s53 --> s54
+  s56 --> s57
+  s59 --> s60
+  s84 --> s56
+  s84 --> s58
 ```
 
 ### `code-usage.tab` Code tab
@@ -872,15 +888,15 @@ flowchart LR
 - **Root:** `data-surface`
 - **Reach:** the top of the Code tab
 - **Holds:**
-  - a Day, Week, Month and All switch and an agent button
+  - a line saying which period and agent are shown, and a Filters & sort button that shows how many filters are on
   - the total equivalent API cost and four counters with their cost and a delta against the previous period
   - how fresh the data is, an ⓘ and a note that Claude figures undercount
 - **Does:**
   - a counter picks the trend's metric
-  - the agent button opens the agent sheet
+  - Filters & sort opens the sheet that holds the period and the agent
 - **States:** a Sub-agents source swaps the counters for its own table
 - **Leads to:**
-  - [Agent sheet](#code-usageagent-sheet-agent-sheet) (agent button)
+  - [Usage filters sheet](#code-usagefilters-sheet-usage-filters-sheet) (Filters & sort)
   - [Load failure](#code-usageerror-load-failure) (a failed read)
   - [Sub-agents source](#code-usagesubagents-sub-agents-source) (Sub-agents source)
   - [Trend](#code-usagetrend-trend) (counter)
@@ -896,7 +912,7 @@ flowchart LR
 ### `code-usage.subagents` Sub-agents source
 
 - **Root:** `data-surface`
-- **Reach:** Sub-agents in the agent sheet
+- **Reach:** Sub-agents in the Filters & sort sheet
 - **Holds:**
   - a summary line and a note that this is a separate source, never added into All
   - a table of date, project, model, source, tokens, cache and cost
@@ -962,7 +978,7 @@ flowchart LR
 - **Root:** `data-surface`
 - **Reach:** the breakdowns column, in All
 - **Holds:** a table of agent, requests, tokens in and out, cache reads and cost
-- **Phone:** not shown; each agent's figures sit in the agent sheet
+- **Phone:** not shown; each agent's figures sit in the Filters & sort sheet
 - **Desktop:** shown as a card
 - **Leads to:** [No agent data](#code-usageper-agent-empty-no-agent-data)
 
@@ -974,15 +990,21 @@ flowchart LR
   - a line suggesting a longer period
   - the one empty-state button
 
-### `code-usage.agent-sheet` Agent sheet
+### `code-usage.filters-sheet` Usage filters sheet
 
 - **Root:** `data-surface`
-- **Reach:** the agent button on the totals card
+- **Reach:** Filters & sort on the totals card
 - **Holds:**
+  - a Day, Week, Month and All switch
   - an Agents group with All, every built-in agent and the extras AgentsView reports, each with its figures for the period
   - a Separate source group with Sub-agents
-- **Does:** a row chooses the agent, closes the sheet and re-reads
-- **States:** an AgentsView extra carries its freshness and an offline chip when AgentsView is down
+  - Clear beside Done
+- **Does:**
+  - the period and a row each apply as they change, re-read and leave the sheet open
+  - Clear goes back to Day and All agents
+- **States:**
+  - the button's badge counts a period other than Day and an agent other than All
+  - an AgentsView extra carries its freshness and an offline chip when AgentsView is down
 
 ### `code-usage.model-sheet` By model sheet
 
@@ -1032,45 +1054,45 @@ The fleet, one row per machine.
 
 ```mermaid
 flowchart LR
-  s60["Machines tab"]
-  s61["Reading machine status"]
-  s62["Machine status error"]
-  s63["Machine list"]
-  s64["Machine row menu"]
-  s65["Machine sheet"]
-  s66["Machine detail pane"]
-  s67["Actions runner"]
-  s68["Diagnostics row"]
-  s69["Diagnostics dialog"]
-  s70["Terminal dialog"]
-  s71["Terminal unavailable"]
+  s61["Machines tab"]
+  s62["Reading machine status"]
+  s63["Machine status error"]
+  s64["Machine list"]
+  s65["Machine row menu"]
+  s66["Machine sheet"]
+  s67["Machine detail pane"]
+  s68["Actions runner"]
+  s69["Diagnostics row"]
+  s70["Diagnostics dialog"]
+  s71["Terminal dialog"]
+  s72["Terminal unavailable"]
   s0(["Nav · Chrome"])
-  s72(["Settings page · Settings"])
+  s73(["Settings page · Settings"])
   s6(["Confirm dialog · Chrome"])
   s7(["Info sheet · Chrome"])
-  s82(["Menu and dialog keys · Keys and gestures"])
-  s0 -->|"Machines"| s60
-  s60 --> s61
-  s60 --> s62
-  s60 --> s63
-  s60 --> s68
-  s60 -->|"gear"| s72
-  s63 -->|"kebab"| s64
-  s63 -->|"a row on a phone"| s65
-  s63 -->|"a row on a wide window"| s66
-  s64 -->|"Reboot"| s6
-  s65 -->|"Terminal"| s70
-  s65 -->|"Runner"| s67
-  s65 -->|"Reboot or Shut down"| s6
-  s65 -->|"ⓘ"| s7
-  s66 -->|"Terminal"| s70
-  s66 -->|"Runner"| s67
+  s83(["Menu and dialog keys · Keys and gestures"])
+  s0 -->|"Machines"| s61
+  s61 --> s62
+  s61 --> s63
+  s61 --> s64
+  s61 --> s69
+  s61 -->|"gear"| s73
+  s64 -->|"kebab"| s65
+  s64 -->|"a row on a phone"| s66
+  s64 -->|"a row on a wide window"| s67
+  s65 -->|"Reboot"| s6
+  s66 -->|"Terminal"| s71
+  s66 -->|"Runner"| s68
   s66 -->|"Reboot or Shut down"| s6
-  s67 -->|"ⓘ"| s7
-  s68 --> s69
-  s69 -->|"Delete"| s6
-  s70 -->|"no companion"| s71
-  s82 --> s64
+  s66 -->|"ⓘ"| s7
+  s67 -->|"Terminal"| s71
+  s67 -->|"Runner"| s68
+  s67 -->|"Reboot or Shut down"| s6
+  s68 -->|"ⓘ"| s7
+  s69 --> s70
+  s70 -->|"Delete"| s6
+  s71 -->|"no companion"| s72
+  s83 --> s65
 ```
 
 ### `machines.tab` Machines tab
@@ -1242,31 +1264,31 @@ The gear on every pane opens one dialog. A row with a body opens it in place of 
 
 ```mermaid
 flowchart LR
-  s72["Settings page"]
-  s73["Display"]
-  s74["Startup group"]
-  s75["Service startup"]
-  s76["Machines group"]
-  s77["Dormant machines"]
-  s78["Health group"]
-  s79["Health and install"]
-  s80["About"]
+  s73["Settings page"]
+  s74["Display"]
+  s75["Startup group"]
+  s76["Service startup"]
+  s77["Machines group"]
+  s78["Dormant machines"]
+  s79["Health group"]
+  s80["Health and install"]
+  s81["About"]
   s1(["Pane header · Chrome"])
   s8(["Hub tab · Hub"])
-  s19(["Models tab · Models"])
-  s60(["Machines tab · Machines"])
-  s1 -->|"gear"| s72
-  s8 -->|"gear"| s72
-  s19 -->|"gear"| s72
-  s60 -->|"gear"| s72
-  s72 --> s73
-  s72 --> s74
-  s72 --> s76
-  s72 --> s78
-  s72 --> s80
-  s74 -->|"Service startup"| s75
-  s76 -->|"Dormant machines"| s77
-  s78 -->|"Health & install"| s79
+  s20(["Models tab · Models"])
+  s61(["Machines tab · Machines"])
+  s1 -->|"gear"| s73
+  s8 -->|"gear"| s73
+  s20 -->|"gear"| s73
+  s61 -->|"gear"| s73
+  s73 --> s74
+  s73 --> s75
+  s73 --> s77
+  s73 --> s79
+  s73 --> s81
+  s75 -->|"Service startup"| s76
+  s77 -->|"Dormant machines"| s78
+  s79 -->|"Health & install"| s80
 ```
 
 ### `settings.dialog` Settings page
@@ -1371,21 +1393,21 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  s81["Tab keys"]
-  s82["Menu and dialog keys"]
-  s83["Sideways table scroll"]
+  s82["Tab keys"]
+  s83["Menu and dialog keys"]
+  s84["Sideways table scroll"]
   s0(["Nav · Chrome"])
-  s23(["Model row menu · Models"])
-  s64(["Machine row menu · Machines"])
+  s24(["Model row menu · Models"])
+  s65(["Machine row menu · Machines"])
   s17(["By model sheet · Hub"])
-  s55(["By model sheet · Code"])
-  s57(["Every project sheet · Code"])
-  s81 --> s0
-  s82 --> s23
-  s82 --> s64
-  s83 --> s17
-  s83 --> s55
-  s83 --> s57
+  s56(["By model sheet · Code"])
+  s58(["Every project sheet · Code"])
+  s82 --> s0
+  s83 --> s24
+  s83 --> s65
+  s84 --> s17
+  s84 --> s56
+  s84 --> s58
 ```
 
 ### `keys.nav` Tab keys
@@ -1433,6 +1455,7 @@ flowchart LR
 | [Hub tab](#hubtab-hub-tab) | gear | [Settings page](#settingsdialog-settings-page) |
 | [Services card](#hubservices-services-card) | Services row | [Services sheet](#hubservices-sheet-services-sheet) |
 | [Services card](#hubservices-services-card) | down Langfuse row | [Langfuse sheet](#hublangfuse-sheet-langfuse-sheet) |
+| [Activity feed](#hubactivity-activity-feed) | Filters & sort | [Activity filters sheet](#hubfilters-sheet-activity-filters-sheet) |
 | [Activity feed](#hubactivity-activity-feed) | a row with a trace | [Request sheet](#hubtrace-sheet-request-sheet) |
 | [Activity feed](#hubactivity-activity-feed) | By model | [By model sheet](#hubby-model-sheet-by-model-sheet) |
 | [Activity feed](#hubactivity-activity-feed) | Server log | [Server log sheet](#hublog-sheet-server-log-sheet) |
@@ -1475,7 +1498,7 @@ flowchart LR
 | [Code tab](#code-usagetab-code-tab) |  | [Totals](#code-usagetotals-totals) |
 | [Code tab](#code-usagetab-code-tab) | before the first read | [Reading usage](#code-usageloading-reading-usage) |
 | [Code tab](#code-usagetab-code-tab) |  | [By project](#code-usageprojects-by-project) |
-| [Totals](#code-usagetotals-totals) | agent button | [Agent sheet](#code-usageagent-sheet-agent-sheet) |
+| [Totals](#code-usagetotals-totals) | Filters & sort | [Usage filters sheet](#code-usagefilters-sheet-usage-filters-sheet) |
 | [Totals](#code-usagetotals-totals) | a failed read | [Load failure](#code-usageerror-load-failure) |
 | [Totals](#code-usagetotals-totals) | Sub-agents source | [Sub-agents source](#code-usagesubagents-sub-agents-source) |
 | [Totals](#code-usagetotals-totals) | counter | [Trend](#code-usagetrend-trend) |

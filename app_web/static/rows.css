@@ -177,3 +177,28 @@ details.sheet-disclosure[open] > summary .sheet-chevron { transform: rotate(90de
  * row, so a label never wraps inside its button. */
 .sheet-buttons.sheet-buttons--flow { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 .sheet-buttons .button-tint { white-space: nowrap; }
+
+/* Filters & sort: the trigger beside a view's one control row, its active-count
+ * badge, and the sheet's group titles and footer (Clear beside Done). */
+.filter-trigger { --icon-btn-box: var(--hit-min); }
+.filter-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-fill);
+  color: var(--accent-fg);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.filter-badge[hidden] { display: none; }
+.filter-group-title { margin: 14px 0 6px; }
+.filter-actions { display: flex; gap: var(--space-sm); }
+.filter-actions .button-tint { flex: 0 0 auto; }
+.filter-actions .detail-save-btn { flex: 1 1 auto; width: auto; }

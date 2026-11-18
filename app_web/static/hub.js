@@ -22,7 +22,7 @@ import { els, state, HUB_STATS_POLL_MS, HUB_LOG_MAX_LINES } from './state.js';
 import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, fmtDuration, renderCounterTable, shortGpu, modelLabelText, applyListFilter, isAuthError, tokPair } from './api.js';
 import { langfuseTraceUrl, langfuseUiBase, fetchOtelHealth, hydrateTraceDetail, postFeedback } from './langfuse.js';
 import { icon } from './_vendored/icons/icons.js';
-import { row, chip, setHeadLine, defineInfo } from './rows.js';
+import { row, chip, setHeadLine, setFilterTrigger, defineInfo } from './rows.js';
 
 defineInfo('hub-activity', 'About activity',
   '<p>Every request that passes through this hub: the most recent 50 here, the errors among them '
@@ -205,6 +205,7 @@ function renderActivityChrome() {
       b.setAttribute('aria-pressed', String((b.dataset.scope === 'errors') === errorsView));
     });
   }
+  setFilterTrigger(els.activityFilterBtn, errorsView ? ['showing errors only'] : []);
   if (els.liveRequestsFilter) {
     els.liveRequestsFilter.placeholder = errorsView
       ? 'Filter ' + errs + (errs === 1 ? ' error' : ' errors') + '…'
@@ -600,6 +601,12 @@ function openSheet(dlg) {
   if (dlg && !dlg.open) dlg.showModal();
 }
 
+function setActivityScope(scope) {
+  state.activityScope = scope;
+  renderActivityChrome();
+  applyListFilter(els.liveRequestsFilter, scope === 'errors' ? els.recentErrorsList : els.liveRequestsList);
+}
+
 // --------------------------------------------------------- wiring
 // The Activity card: its filter, scope switch and trace rows, plus the
 // trace sheet's feedback thumbs.
@@ -613,10 +620,16 @@ function wireActivity() {
     els.activityScope.addEventListener('click', function (ev) {
       const seg = ev.target.closest('.segmented-item');
       if (!seg) return;
-      state.activityScope = seg.dataset.scope;
-      renderActivityChrome();
-      applyListFilter(els.liveRequestsFilter, state.activityScope === 'errors' ? els.recentErrorsList : els.liveRequestsList);
+      setActivityScope(seg.dataset.scope);
     });
+  }
+  // Filters & sort: the scope lives in one sheet beside the field; Clear is
+  // the default scope (Requests).
+  if (els.activityFilterBtn) {
+    els.activityFilterBtn.addEventListener('click', function () { openSheet(els.activityFilterSheet); });
+  }
+  if (els.activityFilterClear) {
+    els.activityFilterClear.addEventListener('click', function () { setActivityScope('requests'); });
   }
   [els.liveRequestsList, els.recentErrorsList].forEach(function (list) {
     if (!list) return;

@@ -377,7 +377,7 @@ This section is the opposite direction: the hub also runs a small OTLP-
 metrics **receiver** so Claude Code's own telemetry export — which is the
 only channel that sees sub-agent (Task tool) API calls, since Claude Code
 never writes those to its JSONL session transcripts — can feed the
-admin SPA's Code tab (agent sheet › **Sub-agents (telemetry)**).
+admin SPA's Code tab (Filters & sort sheet › **Sub-agents (telemetry)**).
 
 ### Enable on the host
 

@@ -459,8 +459,13 @@ click = "#logOpenBtn"
 
 [[design.review.extra_steps]]
 tab   = "code-usage"
-id    = "agent-sheet"
-click = "#cldAgentBtn"
+id    = "filters-sheet"
+click = "#cldFilterBtn"
+
+[[design.review.extra_steps]]
+tab   = "hub"
+id    = "activity-filters-sheet"
+click = "#activityFilterBtn"
 
 [[design.review.extra_steps]]
 tab   = "code-usage"

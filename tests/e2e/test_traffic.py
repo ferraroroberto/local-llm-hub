@@ -232,11 +232,45 @@ def _auth_error_is_a_typed_contract(page, admin_url, mark):
     mark("shared.login")
 
 
+def _the_filters_sheet_holds_the_scope(page, admin_url, mark):
+    """One control row above the Activity list; the Requests / Errors scope lives in
+    the Filters & sort sheet, whose trigger counts the filter that is on."""
+    page.goto(admin_url, wait_until="domcontentloaded")
+    page.wait_for_selector("#activityCard", state="visible", timeout=10000)
+    btn = page.locator("#activityFilterBtn")
+    assert btn.get_attribute("aria-label") == "Filters & sort"
+    assert btn.locator(".filter-badge").is_hidden()
+    assert page.locator("#activityScope").is_hidden()
+    rows = page.evaluate(
+        "() => [...document.querySelectorAll('#activityCard .activity-tools > *')]"
+        ".map(e => Math.round(e.getBoundingClientRect().top))"
+    )
+    assert len(set(rows)) == 1, f"the Activity controls wrap onto a second row: {rows}"
+
+    btn.click()
+    sheet = page.locator("#activityFilterSheet[open]")
+    sheet.wait_for(timeout=3000)
+    box = sheet.bounding_box()
+    assert box["y"] >= 0 and box["y"] + box["height"] <= page.viewport_size["height"], box
+    assert sheet.locator("#activityFilterClear").is_visible()
+    sheet.locator('#activityScope [data-scope="errors"]').click()
+    page.wait_for_selector("#recentErrorsList", state="visible", timeout=3000)
+    assert btn.locator(".filter-badge").inner_text() == "1"
+    assert "showing errors only" in btn.get_attribute("aria-label")
+    mark("hub.filters-sheet")
+    sheet.locator("#activityFilterClear").click()
+    page.wait_for_selector("#liveRequestsList", state="visible", timeout=3000)
+    assert btn.locator(".filter-badge").is_hidden()
+    page.keyboard.press("Escape")
+
+
 def test_hub_activity(browser, admin_url):
     with fresh_page(browser, console_errors=True) as page:
         _live_stream_rolls_forward(page, admin_url)
     for viewport in (PHONE, DESKTOP):
         with fresh_page(browser, viewport=viewport) as page:
             _trace_links_are_44px_targets(page, admin_url, lambda name: surface(page, name))
+    with fresh_page(browser, viewport=PHONE) as page:
+        _the_filters_sheet_holds_the_scope(page, admin_url, lambda name: surface(page, name))
     with fresh_page(browser, console_errors=True) as page:
         _auth_error_is_a_typed_contract(page, admin_url, lambda name: surface(page, name))

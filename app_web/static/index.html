@@ -136,11 +136,11 @@
               <button data-track="info-hub-activity" type="button" class="icon-button info-button" data-info="hub-activity" aria-haspopup="dialog" aria-label="About activity" title="About activity"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></button>
             </div>
             <div class="activity-tools">
-              <div class="segmented" id="activityScope" role="group" aria-label="Which activity to list">
-                <button type="button" class="segmented-item" aria-pressed="true" data-scope="requests" data-track="hub-activity-requests">Requests</button>
-                <button type="button" class="segmented-item" aria-pressed="false" data-scope="errors" data-track="hub-activity-errors">Errors</button>
-              </div>
-              <input id="liveRequestsFilter" type="search" class="list-filter" placeholder="Filter requests" aria-label="Filter activity" autocomplete="off">
+              <label class="action-row-filter">
+                <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+                <input id="liveRequestsFilter" type="search" placeholder="Filter requests" aria-label="Filter activity" autocomplete="off">
+              </label>
+              <button type="button" class="icon-button filter-trigger" id="activityFilterBtn" data-track="hub-activity-filters" aria-haspopup="dialog" aria-label="Filters &amp; sort" title="Filters &amp; sort"><svg class="icon" aria-hidden="true"><use href="#i-sliders-horizontal"></use></svg><span class="filter-badge" hidden></span></button>
             </div>
             <ul id="liveRequestsList" class="action-rows activity-list" aria-label="Live requests"></ul>
           <div id="liveRequestsEmpty" class="empty-state" data-surface="hub.requests-empty"><svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-radio"></use></svg><p class="empty-state-message">No requests yet — the ring fills as clients call the hub.</p><button type="button" data-track="hub-live-empty-playground" class="empty-state-action" data-open-tab="playground">Send a test request</button></div>
@@ -479,13 +479,8 @@
               </span>
             </div>
             <div class="cld-tools">
-              <div id="cldPeriodSeg" class="segmented" role="group" aria-label="Usage period">
-                <button type="button" class="segmented-item" data-period="today" aria-pressed="true" data-track="code-period-today">Day</button>
-                <button type="button" class="segmented-item" data-period="week" aria-pressed="false" data-track="code-period-week">Week</button>
-                <button type="button" class="segmented-item" data-period="month" aria-pressed="false" data-track="code-period-month">Month</button>
-                <button type="button" class="segmented-item" data-period="all" aria-pressed="false" data-track="code-period-all">All</button>
-              </div>
-              <button type="button" class="button-tint cld-agent-btn" id="cldAgentBtn" data-track="code-agent" aria-haspopup="dialog" aria-label="Choose the agent"><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg><span id="cldAgentLabel">All agents</span><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+              <span class="cld-filter-summary" id="cldFilterSummary" aria-live="polite"><span id="cldPeriodLabel">Day</span> · <span id="cldAgentLabel">All agents</span></span>
+              <button type="button" class="icon-button filter-trigger" id="cldFilterBtn" data-track="code-filters" aria-haspopup="dialog" aria-label="Filters &amp; sort" title="Filters &amp; sort"><svg class="icon" aria-hidden="true"><use href="#i-sliders-horizontal"></use></svg><span class="filter-badge" hidden></span></button>
             </div>
 
             <!-- Load-failure banner: a summary that could not be
