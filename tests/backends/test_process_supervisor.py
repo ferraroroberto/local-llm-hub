@@ -21,11 +21,17 @@ from __future__ import annotations
 import subprocess
 import sys
 
+import pytest
+
 from src.process.process_supervisor import (
     OutcomeKind,
     ProcessOutcome,
     ProcessSupervisor,
 )
+
+# The Windows branch reads ``subprocess.CTRL_BREAK_EVENT``, which only exists on
+# Windows, so faking ``sys.platform`` is not enough to run these elsewhere.
+_NEEDS_CTRL_BREAK = pytest.mark.windows_only
 
 
 class _FakePopen:
@@ -56,6 +62,7 @@ class _FakePopen:
             raise subprocess.TimeoutExpired(cmd="fake", timeout=timeout)
 
 
+@_NEEDS_CTRL_BREAK
 def test_ctrl_break_given_a_grace_period_before_terminate(monkeypatch):
     """A process that dies from CTRL_BREAK alone must never see terminate()."""
     monkeypatch.setattr(sys, "platform", "win32")
@@ -67,6 +74,7 @@ def test_ctrl_break_given_a_grace_period_before_terminate(monkeypatch):
     assert proc.calls == ["send_signal", "wait"]   # no terminate/kill needed
 
 
+@_NEEDS_CTRL_BREAK
 def test_escalates_to_terminate_only_after_ctrl_break_grace_expires(monkeypatch):
     """A process that ignores CTRL_BREAK escalates to terminate() next."""
     monkeypatch.setattr(sys, "platform", "win32")
@@ -80,6 +88,7 @@ def test_escalates_to_terminate_only_after_ctrl_break_grace_expires(monkeypatch)
     assert proc.calls == ["send_signal", "wait", "terminate", "wait"]
 
 
+@_NEEDS_CTRL_BREAK
 def test_escalates_to_kill_as_last_resort(monkeypatch):
     monkeypatch.setattr(sys, "platform", "win32")
     proc = _FakePopen(dies_after="kill")

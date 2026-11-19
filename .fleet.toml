@@ -36,6 +36,17 @@ ignore_refs = [
 [worktree]
 extra_junctions = ["vendor/comfyui"]
 
+# Nightly CI on the Mac Mini (project-scaffolding docs/mac-runner.md, "The
+# [ci.nightly] table"): the unit leg skips tests marked `windows_only`, the e2e leg
+# runs the suite on WebKit against its own isolated hub. No `views`: the simulator
+# smoke needs a [design.review.synthetic] command this repo does not declare.
+[ci.nightly]
+python       = "3.14"
+requirements = ["requirements.txt", "requirements-dev.txt"]
+samples      = "config"
+unit         = ["tests", "--ignore=tests/e2e"]
+e2e          = ["tests/e2e"]
+
 # Diff-proportionate e2e routing (project-scaffolding docs/e2e-routing.md).
 # Rules are evaluated top-to-bottom; first match wins. Unmatched paths fall
 # through to `full` by design — see the doc before narrowing this table.

@@ -39,7 +39,10 @@ SIDE_BY_SIDE = """sel => {
 PHASE_TIMEOUT_MS = 15000
 
 # PWA icons are optional placeholders that can 404 while the manifest settles.
-_TOLERATED_CONSOLE_NOISE = ("icon-180", "icon-512")
+# WebKit logs "due to access control checks" when a tab switch aborts an
+# in-flight streaming fetch (the hub's request and log streams); Chromium logs
+# nothing for an abort, and a genuinely blocked request reads differently there.
+_TOLERATED_CONSOLE_NOISE = ("icon-180", "icon-512", "due to access control checks")
 
 
 # One browser context per (browser, context args), kept for the whole session.
@@ -116,14 +119,21 @@ def fresh_page(
     page.set_default_navigation_timeout(PHASE_TIMEOUT_MS)
     errors: List[str] = []
 
+    def _is_noise(text: str) -> bool:
+        return any(n in text for n in _TOLERATED_CONSOLE_NOISE)
+
     def _on_console(msg) -> None:
-        if msg.type == "error" and not any(n in msg.text for n in _TOLERATED_CONSOLE_NOISE):
+        if msg.type == "error" and not _is_noise(msg.text):
             errors.append(msg.text)
+
+    def _on_page_error(exc) -> None:
+        if not _is_noise(str(exc)):
+            errors.append(str(exc))
 
     if console_errors:
         page.on("console", _on_console)
     if page_errors:
-        page.on("pageerror", lambda exc: errors.append(str(exc)))
+        page.on("pageerror", _on_page_error)
     try:
         yield page
     finally:

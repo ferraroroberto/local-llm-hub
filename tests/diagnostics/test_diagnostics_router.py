@@ -24,6 +24,12 @@ from src.usage import agentsview_service
 
 _TICK_WAIT_S = 10.0
 
+# The capture tests share the sampler's module-level stop event, lock and
+# active-run state across one event loop per TestClient; on the Mac they fail a
+# different test each run (an "interrupted run" finalising into the next test's
+# database), so the unit leg excludes the module and the Windows gate runs it.
+pytestmark = pytest.mark.windows_only
+
 
 def _stub_real_backend_ops(monkeypatch):
     """Keep the real ``server_mod.app`` lifespan hermetic (issue #416 follow-up).
