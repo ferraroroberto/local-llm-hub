@@ -90,6 +90,15 @@ persisted to `config/webapp_config.json`. Loopback callers bypass it;
 anyone reaching the hub over the tunnel must present
 `Authorization: Bearer <token>` or `?token=…` on the URL.
 
+**Setting the admin password.** Run `python -m src.password set` from the
+repo root (prompts twice, never echoed or logged) to store a salted
+PBKDF2-SHA256 hash in `config/app_password.json` (its own gitignored file
+beside `src/`); `python -m src.password status` reports whether a hash is
+stored, without revealing it. Until that hash exists, login falls back to
+the plaintext `auth_password` field in `config/webapp_config.json` — the
+legacy value `config/webapp_config.sample.json` still ships empty by
+default; once a hash is set, `auth_password` is ignored.
+
 Login attempts are logged to `auth.log` in the app's runtime-data directory (`C:\sqlite\local-llm-hub` on Windows, see `src/runtime_data.py`), not in the checkout.
 
 The password route is rate-limited per client address by the vendored
