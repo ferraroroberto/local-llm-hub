@@ -95,20 +95,13 @@ for the models enabled for this host:
 The installer reads [config/models.yaml](config/models.yaml), figures
 out which host row you are (by `LOCAL_LLM_HUB_HOST` env var, else
 hostname match, else `default: true`), and only downloads what that
-host's `enabled` list asks for. On the reference Windows PC that's
-the active rotation: Qwen 3.5 4B (~2.6 GB), Gemma 4 26B-A4B IQ4_XS
-(~13.4 GB), whisper-large-v3-turbo (~1.62 GB), whisper-medium for
-translate (~1.5 GB), plus Gemma 4 E4B (~5 GB) kept as the
-agentic_light fallback, plus the llama.cpp + whisper.cpp CUDA
-binaries under `vendor/`. Other hosts' `enabled:` lists vary — see
-[config/models.yaml](config/models.yaml) for current per-host placement.
-
-The demoted candidate `glm-4.5-air` is in the registry but **not** in
-any host's `enabled:` list, so the installer ignores it. To bring it up
-ad-hoc, add it to `enabled:` and re-run `--fix`, or just download
-manually and launch via `launchers/run_model.bat glm`. `qwen3.5-9b` is
-active on its owning host's own `enabled:` list; see
-[config/models.yaml](config/models.yaml) for current placement.
+host's `enabled` list asks for — see that file for which models (and
+which candidates, like `glm-4.5-air` or `qwen3.5-9b`) are currently
+placed on which host; it also carries the llama.cpp + whisper.cpp CUDA
+binaries under `vendor/`. A candidate absent from every host's
+`enabled:` list is in the registry but not downloaded or started; add
+it to a host's `enabled:` and re-run `--fix`, or download it manually
+and launch via `launchers/run_model.bat <id>`.
 
 On a host with a TTS role enabled, `--fix` also pip-installs
 [requirements-tts.txt](requirements-tts.txt) (`chatterbox-tts`, `snac`,

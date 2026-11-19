@@ -43,6 +43,11 @@
 #      .md files, so a hand-authored diagram is otherwise a blind spot for the
 #      same "history belongs in git/issues, not docs" convention. Zero-tolerance,
 #      no baseline; exit 3 (a file could not be read) fails.
+#   10a. readme model placement check (repo-specific, not vendored): README.md's
+#      Setup section never restates two or more per-model (~N GB) sizes in one
+#      paragraph -- that placement/rotation list lives only in
+#      config/models.yaml. Zero-tolerance, no baseline; exit 3 (README.md could
+#      not be read) fails.
 #   10b. runtime write ratchet: no file's count of write targets resolving under a
 #      code folder (src, app_web, tray, scripts) rises beyond
 #      .runtime-write-ratchet-baseline.json. Whole tree, never routed; exit 3 (a
@@ -206,6 +211,14 @@ Step "mmd history check" {
     # semantics as the ratchets above: exit 3 (a file could not be read) is a
     # failure here, never a pass or a skip.
     & $Python scripts/mmd_history_check.py
+}
+
+Step "readme model placement check" {
+    # Repo-specific, not vendored: catches README.md's Setup section
+    # restating per-model/per-host sizes that belong only in
+    # config/models.yaml. Same Step semantics as the checks above: exit 3
+    # (README.md could not be read) is a failure here, never a pass or a skip.
+    & $Python scripts/readme_model_placement_check.py
 }
 
 # Runtime write probe, first half: what already sits untracked or ignored under
