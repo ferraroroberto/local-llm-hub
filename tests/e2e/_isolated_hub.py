@@ -299,6 +299,10 @@ def isolate_from_live_services(state_dir: Path) -> None:
     _stub(install, "run_all_checks", run_all_checks)
     _stub(system_stats, "gpu_stats", lambda: [])
     _stub(server_process, "lan_ip", no_lan_ip)
+    # Whose sockets are listening is a live-machine fact, and where psutil
+    # cannot read them (macOS without root) the fallback spawns lsof, which the
+    # egress guard refuses. No backend runs in the test hub, so none is listening.
+    _stub(server_process, "snapshot_listening_pids", lambda: {})
     _stub(services, "_docker_info_sync", docker_info)
     _stub(backend_process, "is_reachable", lambda model, timeout=1.5: False)
     _stub(backend_process, "probe_health", lambda model, timeout=1.5: None)

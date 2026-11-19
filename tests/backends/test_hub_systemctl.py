@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import os
 
+import pytest
+
 os.environ.setdefault("LOCAL_LLM_HUB_HOST", "tower")
 
 from fastapi.testclient import TestClient
@@ -41,6 +43,9 @@ def test_under_systemd_false_without_invocation_id(monkeypatch):
     assert hub_mod._under_systemd() is False
 
 
+# The hub endpoints pick the launchctl path on macOS before the systemd check,
+# so these two only reach systemctl on the Windows and Linux hosts.
+@pytest.mark.windows_only
 def test_hub_stop_uses_systemctl_under_systemd(monkeypatch):
     calls = []
     monkeypatch.setattr(hub_mod, "_under_systemd", lambda: True)
@@ -51,6 +56,7 @@ def test_hub_stop_uses_systemctl_under_systemd(monkeypatch):
     assert "systemctl stop" in r.json()["detail"]
 
 
+@pytest.mark.windows_only
 def test_hub_restart_uses_systemctl_under_systemd(monkeypatch):
     from src.process import backend_process as bp
 

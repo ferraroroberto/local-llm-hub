@@ -170,7 +170,9 @@ def _the_usage_cards_read_as_one_aligned_set(page, admin_url):
                 assert "tabular-nums" in c["numerals"], c["numerals"]
                 assert c["deltaShown"], "every stub card carries a delta"
                 if viewport is PHONE:  # stacked cards: cost and delta share one row
-                    assert abs(c["costTop"] - c["deltaTop"]) <= 2, (
+                    # WebKit sets the two baselines up to 2.25 px apart; a delta
+                    # on its own row sits a whole text line (>10 px) lower.
+                    assert abs(c["costTop"] - c["deltaTop"]) <= 3, (
                         f"cost and delta are not on one row: {c['costTop']} vs {c['deltaTop']}")
                 assert "reasoning" not in c["text"].lower(), c["text"]
             assert page.locator("#cldOutputReasoning").count() == 0
