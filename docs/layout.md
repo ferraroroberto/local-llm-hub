@@ -93,6 +93,7 @@ local-llm-hub/
 │   │   ├── server_audio_asr.py       #   /v1/audio/{transcriptions,translations,health} — whisper proxy + failover
 │   │   ├── server_audio_tts.py       #   /v1/audio/speech — TTS proxy, routes onto server_audio_asr's router
 │   │   ├── server_audio_common.py    #   header-safety + upstream-error helpers shared by the two above
+│   │   ├── audio_normalize.py        #   decode browser WebM/Ogg uploads to 16 kHz mono wav (ffmpeg) before an ASR backend sees them
 │   │   ├── audio_proxy.py            #   shared multipart bridging + default-language lookup for the whisper transcribe/translate paths
 │   │   ├── transcription_glossary.py #   post-process whisper transcripts through a committed glossary
 │   │   └── dictionary_miner.py       #   mine recent dictation transcripts for glossary suggestions

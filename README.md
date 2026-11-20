@@ -129,6 +129,11 @@ fixes, one button per row plus a **Fix-all**.
 Requires the `claude` CLI on `PATH` (Claude Code) if any `claude-*`
 model is enabled for your host.
 
+Requires `ffmpeg` on `PATH` of the host that receives audio uploads, to
+accept browser `MediaRecorder` recordings (WebM/Opus, Ogg/Opus) on
+`/v1/audio/transcriptions`; the hub decodes them to 16 kHz mono wav before
+any ASR backend sees them. wav and mp4 uploads never need it.
+
 Requires the **Antigravity CLI** (`agy`) on `PATH` if you want to use
 any `gemini-*` model — install it from
 [antigravity.google](https://antigravity.google) and sign in once with

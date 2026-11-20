@@ -36,6 +36,7 @@ from ..server_common import (
     set_span_attrs,
     stash_trace_id_on_ctx,
 )
+from .audio_normalize import body_needs_decode, normalize_files
 from .audio_proxy import build_whisper_upstream_request, default_language_from_args
 from .server_audio_common import (
     HEADER_REQUESTED_MODEL,
@@ -347,6 +348,23 @@ async def _proxy_audio(request: Request, *, default_role: str, ctx_path: str) ->
         raise _observable_audio_error(exc, ctx, requested)
 
 
+async def _parsed_send(request: Request, *, default_language: Optional[str] = None) -> dict:
+    """The reusable upstream payload built from the parsed multipart form: the
+    non-file fields (``task=translate`` rewritten, ``default_language`` injected
+    when the caller sent none) and the ``file`` part, decoded to wav when it is a
+    browser WebM/Ogg recording."""
+    try:
+        form = await request.form()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"invalid multipart body: {exc}")
+    upload, data, files = await build_whisper_upstream_request(form)
+    if upload is None:
+        raise HTTPException(status_code=400, detail="missing required form field: file")
+    if default_language and not data.get("language"):
+        data["language"] = default_language
+    return {"files": await normalize_files(files), "data": data}
+
+
 async def _dispatch_audio(
     request: Request, *, body: bytes, model_name: str, requested: str,
     default_role: str, ctx_path: str, ctx,
@@ -369,14 +387,7 @@ async def _dispatch_audio(
         # `translate=true` boolean, not OpenAI's `task=translate` string. Parse +
         # rewrite via the shared helper (the transcribe branch below calls the
         # same one when a candidate needs its default language injected).
-        try:
-            form = await request.form()
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"invalid multipart body: {exc}")
-        upload, data, files = await build_whisper_upstream_request(form)
-        if upload is None:
-            raise HTTPException(status_code=400, detail="missing required form field: file")
-        send = {"files": files, "data": data}
+        send = await _parsed_send(request)
         upstream_path = "/v1/audio/transcriptions"
     else:
         # Skip form-parsing for the common case: only a row with a
@@ -385,19 +396,11 @@ async def _dispatch_audio(
         # injected, and an explicit ``model=`` request — the only way that
         # unbiased-detect row is normally addressed — resolves to a
         # one-element chain, so ``chain[0]`` is the only candidate that will
-        # ever actually receive this request.
+        # ever actually receive this request. A browser WebM/Ogg recording is
+        # the other case that needs the file itself, to decode it to wav.
         default_language = default_language_from_args(chain[0].args)
-        if default_language:
-            try:
-                form = await request.form()
-            except Exception as exc:
-                raise HTTPException(status_code=400, detail=f"invalid multipart body: {exc}")
-            upload, data, files = await build_whisper_upstream_request(form)
-            if upload is None:
-                raise HTTPException(status_code=400, detail="missing required form field: file")
-            if not data.get("language"):
-                data["language"] = default_language
-            send = {"files": files, "data": data}
+        if default_language or body_needs_decode(body):
+            send = await _parsed_send(request, default_language=default_language)
         else:
             fwd_headers = {
                 k: v for k, v in request.headers.items()
