@@ -206,7 +206,12 @@ curl -s http://127.0.0.1:8000/v1/images/generations \
 
 Transcribe audio via whisper — through the hub's proxy at
 `:8000/v1/audio/transcriptions`, which works from any machine (the hub
-resolves the owning host and lands the call in the observability ring):
+resolves the owning host and lands the call in the observability ring).
+A browser recording (WebM/Opus from Chrome or Android, Ogg/Opus from
+Firefox) is accepted as is: the hub detects the container by its magic bytes
+and decodes it to 16 kHz mono wav with `ffmpeg` before forwarding, so every
+backend gets a format it reads. An upload that still cannot be decoded gets a
+415 naming its container, and a host without `ffmpeg` answers 503 saying so.
 
 ```bash
 # through the hub proxy (portable — works whether or not this box owns whisper)
