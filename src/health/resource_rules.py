@@ -1,6 +1,6 @@
 """Resource-watch judgements as pure functions of stored samples and config.
 
-Three alert conditions, each a *sustained* breach (the last ``sustain_samples``
+Four conditions, each a *sustained* breach (the last ``sustain_samples``
 samples all past the limit) so one odd sample never pages anyone:
 
 * RAM free below ``ram_free_percent.alert_below``.
@@ -8,9 +8,15 @@ samples all past the limit) so one odd sample never pages anyone:
 * A disk's average operation latency above ``disk_latency.alert_above_ms``,
   counted only from windows that completed at least ``min_ios`` operations in
   one direction: a near-idle disk with a single slow read is not a stall.
+* A physical disk's *load*: busy, queued and slow all at once (``disk_load``).
+  Busy alone is a big sequential copy and a deep queue alone is an NVMe doing
+  its job; only the three together starve the apps waiting behind it. It has
+  two levels, ``watch`` after a few minutes and ``alert`` after more, so the
+  overload is visible before it pages.
 
-Each condition resolves to ``ok``, ``alert`` or ``unknown``. ``unknown`` is the
-state of a reading that was not taken; it is never folded into ``ok``.
+Each condition resolves to ``ok``, ``alert`` or ``unknown`` (the load one also
+``watch``). ``unknown`` is the state of a reading that was not taken; it is
+never folded into ``ok``.
 ``unsupported`` (latency off Windows) is its own state and does not hold the
 overall result at ``unknown``, the same rule the process health watch uses.
 
@@ -28,7 +34,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 # Level ranking for the overall result: a known problem outranks a blind spot.
-_RANK = {"ok": 0, "unknown": 1, "alert": 2}
+_RANK = {"ok": 0, "unknown": 1, "watch": 2, "alert": 3}
 # A gap wider than this many intervals between samples ends an episode: the hub
 # was down or the probe failed, so the stall cannot be assumed to have continued.
 _GAP_INTERVALS = 1.5
@@ -132,6 +138,71 @@ def _drive_conditions(label: str, history: List[Dict[str, Any]], cfg: Dict[str, 
     return out
 
 
+def worst_ms(row: Dict[str, Any]) -> Optional[float]:
+    """The slower direction's average latency in a window, or ``None`` when no operation completed."""
+    values = [row[f"{kind}_ms"] for kind in ("read", "write") if row.get(f"{kind}_ms") is not None]
+    return max(values) if values else None
+
+
+def load_level(row: Dict[str, Any], cfg: Dict[str, Any]) -> Optional[str]:
+    """``ok`` / ``watch`` / ``alert`` for one window of one disk, ``None`` when it cannot be judged.
+
+    A level needs busy, queue and latency past its limits together. A window in
+    which requests are queued on a busy disk yet none completed is the worst
+    stall there is, so it counts as slow instead of as unmeasured."""
+    if not latency_ok(row) or row.get("busy_percent") is None or row.get("queue") is None:
+        return None
+    ms = worst_ms(row)
+    for level in ("alert", "watch"):
+        slow = ms is None or ms >= float(cfg[f"latency_{level}_ms"])
+        if row["busy_percent"] >= float(cfg[f"busy_{level}_percent"]) and row["queue"] >= float(cfg[f"queue_{level}"]) and slow:
+            return level
+    return "ok"
+
+
+def _disks(sample: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """``{disk: {labels, row}}``: the drive letters sharing each physical disk in one sample.
+
+    Drives on one disk read the same counters, so they are one subject: one
+    condition and one alert per disk, naming every letter on it."""
+    out: Dict[str, Dict[str, Any]] = {}
+    for label, row in sorted(sample["drives"].items()):
+        if row.get("disk") is None or row.get("lat") == "unsupported":
+            continue
+        out.setdefault(row["disk"], {"labels": [], "row": row})["labels"].append(label)
+    return out
+
+
+def _load_describe(labels: List[str], row: Dict[str, Any]) -> str:
+    ms = worst_ms(row)
+    speed = f"{ms:g} ms per operation" if ms is not None else "no operation completed"
+    return f"{', '.join(labels)} disk {row['busy_percent']:g}% busy, queue {row['queue']:g}, {speed}"
+
+
+def load_condition(disk: str, labels: List[str], history: List[Dict[str, Any]], cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """The ``disk_load`` condition for one physical disk over the newest samples."""
+    levels = []
+    for sample in history[-int(cfg["alert_sustain_samples"]):]:
+        entry = _disks(sample).get(disk)
+        levels.append(load_level(entry["row"], cfg) if entry else None)
+    row = _disks(history[-1])[disk]["row"]
+    key = f"disk_load:{disk}"
+    if levels[-1] is None:
+        reason = f"{', '.join(labels)} disk load could not be read"
+        return _condition(key, "disk_load", "unknown", reason, ", ".join(labels), disk=disk)
+    state = "ok"
+    watch_need, alert_need = int(cfg["watch_sustain_samples"]), int(cfg["alert_sustain_samples"])
+    if len(levels) >= alert_need and all(v == "alert" for v in levels):
+        state = "alert"
+    elif len(levels) >= watch_need and all(v in ("watch", "alert") for v in levels[-watch_need:]):
+        state = "watch"
+    reason = _load_describe(labels, row)
+    if state != "ok":
+        reason += f", {'overloaded' if state == 'alert' else 'loaded'} for {alert_need if state == 'alert' else watch_need} samples"
+    return _condition(key, "disk_load", state, reason, ", ".join(labels), disk=disk,
+                      busy_percent=row["busy_percent"], queue=row["queue"], latency_ms=worst_ms(row))
+
+
 def evaluate(history: List[Dict[str, Any]], cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Every condition for the newest sample in ``history`` (oldest first)."""
     if not history:
@@ -142,7 +213,41 @@ def evaluate(history: List[Dict[str, Any]], cfg: Dict[str, Any]) -> List[Dict[st
         out.append(_condition("drives", "drives", "unknown", "the fixed-drive list could not be read"))
     for label in latest["drives"]:
         out.extend(_drive_conditions(label, history, cfg))
+    for disk, entry in _disks(latest).items():
+        out.append(load_condition(disk, entry["labels"], history, cfg["disk_load"]))
     return out
+
+
+_LOAD_FIX = "Stop or move the heavy disk work on this drive; Resource Monitor's Disk tab names the process"
+_FINDING_LEVEL = {"alert": "act", "watch": "watch", "unknown": "unknown"}
+
+
+def disk_finding(cond: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """A ``disk_load`` condition as a machine-verdict finding (``alert`` -> ``act``), ``None`` when fine."""
+    level = _FINDING_LEVEL.get(cond["state"])
+    if level is None:
+        return None
+    return {"level": level, "kind": "disk", "metric": "disk_load", "value": cond.get("busy_percent"),
+            "process": None, "reason": cond["reason"], "fix": _LOAD_FIX if level != "unknown" else None}
+
+
+def disk_finding_unknown(reason: str) -> Dict[str, Any]:
+    return {"level": "unknown", "kind": "disk", "metric": "disk_load", "value": None,
+            "process": None, "reason": reason, "fix": None}
+
+
+def disk_block(cond: Dict[str, Any], sample: Dict[str, Any]) -> Dict[str, Any]:
+    """One disk's live load for the verdict payload: drive letters, busy %, queue, latency, state."""
+    row = _disks(sample).get(cond["disk"], {}).get("row", {})
+    return {"disk": cond["disk"], "drives": cond["drive"].split(", "), "state": cond["state"],
+            "busy_percent": row.get("busy_percent"), "queue": row.get("queue"),
+            "read_ms": row.get("read_ms"), "write_ms": row.get("write_ms")}
+
+
+def worst_first(conditions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """The conditions that are not fine (``watch``, ``alert``, ``unknown``), worst first."""
+    firing = [c for c in conditions if _RANK.get(c["state"], 0) > 0]
+    return sorted(firing, key=lambda c: _RANK[c["state"]], reverse=True)
 
 
 def overall(conditions: List[Dict[str, Any]]) -> str:

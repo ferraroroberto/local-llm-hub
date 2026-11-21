@@ -3,7 +3,9 @@
 The same ``\\PhysicalDisk(*)`` counters ``Get-Counter`` and Resource Monitor
 show: ``Avg. Disk sec/Read`` / ``Avg. Disk sec/Write`` (the average time one
 operation took between two collections) and ``Disk Reads/sec`` /
-``Disk Writes/sec`` (how many completed). psutil's per-disk ``read_time`` /
+``Disk Writes/sec`` (how many completed), plus ``% Idle Time`` (how busy the
+disk was) and ``Current Disk Queue Length`` (how many requests wait on it).
+psutil's per-disk ``read_time`` /
 ``write_time`` are not used: on Windows they come back in whole seconds while
 labelled milliseconds, so every disk reads about 1000 times too fast and a
 busy NVMe truncates to zero.
@@ -32,6 +34,8 @@ _COUNTERS = {
     "write_s": "\\PhysicalDisk(*)\\Avg. Disk sec/Write",
     "reads_per_s": "\\PhysicalDisk(*)\\Disk Reads/sec",
     "writes_per_s": "\\PhysicalDisk(*)\\Disk Writes/sec",
+    "idle_percent": "\\PhysicalDisk(*)\\% Idle Time",
+    "queue": "\\PhysicalDisk(*)\\Current Disk Queue Length",
 }
 
 
@@ -110,12 +114,15 @@ class DiskCounters:
         return out
 
     def collect(self) -> Optional[Dict[int, Dict[str, float]]]:
-        """Close the current window: ``{disk_number: {read_s, write_s, reads, writes}}``.
+        """Close the current window: ``{disk_number: {read_s, write_s, reads, writes, busy_percent, queue}}``.
 
         ``read_s`` / ``write_s`` are the average seconds per operation over the
-        window; ``reads`` / ``writes`` the operations completed in it. ``None``
-        on the first call, which only opens a window. A disk missing from the
-        result had no usable value. Raises ``OSError`` when PDH fails."""
+        window; ``reads`` / ``writes`` the operations completed in it;
+        ``busy_percent`` the share of the window the disk had a request in
+        flight (100 minus ``% Idle Time``); ``queue`` the requests outstanding
+        when the window closed. ``None`` on the first call, which only opens a
+        window. A disk missing from the result had no usable value. Raises
+        ``OSError`` when PDH fails."""
         _check(self._pdh.PdhCollectQueryData(self._query), "PdhCollectQueryData")
         now, last = time.monotonic(), self._last
         self._last = now
@@ -124,9 +131,13 @@ class DiskCounters:
         elapsed = now - last
         values = {key: self._values(handle) for key, handle in self._counters.items()}
         out: Dict[int, Dict[str, float]] = {}
-        for number in set(values["read_s"]) & set(values["write_s"]) & set(values["reads_per_s"]) & set(values["writes_per_s"]):
+        usable = set.intersection(*(set(v) for v in values.values()))
+        for number in usable:
             out[number] = {
                 "read_s": values["read_s"][number], "write_s": values["write_s"][number],
                 "reads": values["reads_per_s"][number] * elapsed, "writes": values["writes_per_s"][number] * elapsed,
+                # The counter can overshoot 100 on a window boundary; clamp so busy stays a percentage.
+                "busy_percent": min(100.0, max(0.0, 100.0 - values["idle_percent"][number])),
+                "queue": values["queue"][number],
             }
         return out

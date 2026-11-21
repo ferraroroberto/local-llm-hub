@@ -40,12 +40,14 @@ def _cfg(**over):
     return cfg
 
 
-def _drive(free_gb=500.0, read_ms=2.0, read_ios=100, lat="ok", free="ok", disk="PhysicalDrive1"):
+def _drive(free_gb=500.0, read_ms=2.0, read_ios=100, lat="ok", free="ok", disk="PhysicalDrive1",
+           busy=10.0, queue=0.0):
     row = {"disk": disk, "free": free, "lat": lat}
     if free == "ok":
         row.update(free_gb=free_gb, total_gb=1000.0)
     if lat == "ok":
-        row.update(src=rules.LATENCY_SOURCE, read_ms=read_ms, write_ms=1.0, read_ios=read_ios, write_ios=100)
+        row.update(src=rules.LATENCY_SOURCE, read_ms=read_ms, write_ms=1.0, read_ios=read_ios, write_ios=100,
+                   busy_percent=busy, queue=queue)
     return row
 
 
@@ -197,8 +199,9 @@ class _FakeCounters:
         return window
 
 
-def _win(read_s=0.0, reads=0, write_s=0.0, writes=0, disk=1):
-    return {disk: {"read_s": read_s, "reads": reads, "write_s": write_s, "writes": writes}}
+def _win(read_s=0.0, reads=0, write_s=0.0, writes=0, disk=1, busy_percent=3.0, queue=0.0):
+    return {disk: {"read_s": read_s, "reads": reads, "write_s": write_s, "writes": writes,
+                   "busy_percent": busy_percent, "queue": queue}}
 
 
 def _probe_with(monkeypatch, windows, *, disk_number=lambda label: 1, counters=None):
@@ -217,6 +220,13 @@ def test_latency_is_the_per_operation_average_over_the_window(monkeypatch):
     assert row["lat"] == "ok" and row["src"] == rules.LATENCY_SOURCE
     assert row["read_ms"] == 1700.0 and row["read_ios"] == 20 and row["disk"] == "PhysicalDrive1"
     assert row["write_ms"] is None and row["write_ios"] == 0
+
+
+def test_busy_and_queue_ride_along_with_the_latency_row(monkeypatch):
+    probe = _probe_with(monkeypatch, [None, _win(read_s=0.24, reads=20, busy_percent=99.96, queue=14.0)])
+    probe.prime()
+    row = probe.sample()["drives"]["E:"]
+    assert row["busy_percent"] == 100.0 and row["queue"] == 14.0
 
 
 def test_a_fast_disk_keeps_its_sub_millisecond_latency():
@@ -290,8 +300,9 @@ def test_the_real_performance_counters_return_a_window_per_physical_disk():
         counters.close()
     assert window and all(isinstance(n, int) for n in window)
     for values in window.values():
-        assert set(values) == {"read_s", "write_s", "reads", "writes"}
+        assert set(values) == {"read_s", "write_s", "reads", "writes", "busy_percent", "queue"}
         assert all(v >= 0 for v in values.values())
+        assert values["busy_percent"] <= 100.0
 
 
 # ------------------------------------------------------------- store + debounce

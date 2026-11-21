@@ -16,7 +16,7 @@ import time
 from collections import deque
 from typing import Any, Deque, Dict, Optional
 
-from . import classifier, port_watch, sampler, settings
+from . import classifier, port_watch, resource_watch, sampler, settings
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +99,10 @@ class HealthWatch:
             out = classifier.merge(out, ports["findings"], _SLOW_PORT_METRICS if ports["fresh"] else ())
             out["offenders"] = {**out.get("offenders", {}), "ports": ports["offenders"]}
             out["ports"] = ports["block"]
+        disks = resource_watch.WATCH.health_block(now)
+        if disks is not None:
+            out = classifier.merge(out, disks["findings"])
+            out["disks"] = disks["block"]
         out.update(enabled=bool(cfg.get("enabled", True)), interval_s=cfg["interval_s"],
                    samples=len(history), alerts=alerts)
         return out
@@ -114,6 +118,10 @@ def card_fields(verdict: Dict[str, Any]) -> Dict[str, Any]:
     summary = {k: verdict[k] for k in ("verdict", "reason", "fix", "sampled_at", "enabled")}
     summary["findings"] = [
         {k: f.get(k) for k in ("level", "kind", "reason", "fix")} for f in verdict["findings"][:5]
+    ]
+    summary["disks"] = [
+        {k: d.get(k) for k in ("disk", "drives", "state", "busy_percent", "queue", "read_ms", "write_ms")}
+        for d in verdict.get("disks", [])
     ]
     return summary
 

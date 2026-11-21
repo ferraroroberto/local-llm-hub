@@ -199,7 +199,7 @@ local-llm-hub/
 │   │   ├── classifier.py         #   pure ok/watch/act/unknown verdict + suggested fix
 │   │   ├── settings.py           #   config/health_watch.json loader + defaults
 │   │   ├── watch.py              #   the loop, rolling history, act/cleared alerts
-│   │   ├── disk_counters.py      #   per-disk latency from the Windows performance counters (one open PDH query)
+│   │   ├── disk_counters.py      #   per-disk latency, busy % and queue from the Windows performance counters (one open PDH query)
 │   │   ├── resource_probe.py     #   one cheap sample: RAM, free GB per fixed drive, per-disk latency per window + credibility check
 │   │   ├── resource_rules.py     #   pure thresholds (sustained breach), stall episodes, weekly per-drive summary
 │   │   ├── resource_store.py     #   14-day sample history + alert debounce state (SQLite under the runtime-data root)

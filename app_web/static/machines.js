@@ -159,6 +159,7 @@ function healthOf(m) { return m.health && m.health.enabled ? m.health : null; }
 function resourcesOf(m) { return m.resources && m.resources.enabled ? m.resources : null; }
 const RESOURCE_CHIPS = {
   alert: { text: 'resource alert', tone: 'danger' },
+  watch: { text: 'resource watch', tone: 'attention' },
   unknown: { text: 'resources not confirmed', tone: '' },
 };
 const HEALTH_CHIPS = {
@@ -457,14 +458,22 @@ function healthSection(m) {
     + '</div>';
 }
 
-const RESOURCE_WORDS = { ok: 'Fine', alert: 'Alert', unknown: 'Not confirmed' };
+const RESOURCE_WORDS = { ok: 'Fine', watch: 'Watch', alert: 'Alert', unknown: 'Not confirmed' };
+
+/* One live line per physical disk: busy %, queue and per-operation latency. */
+function diskLoadLine(d) {
+  if (d.busy_percent == null) return '';
+  const ms = [d.read_ms, d.write_ms].filter(function (v) { return v != null; });
+  return (d.drives || []).join(', ') + ' ' + d.busy_percent + '% busy, queue ' + d.queue
+    + (ms.length ? ', ' + Math.max.apply(null, ms) + ' ms' : '');
+}
 
 /* The resource watch's state, what is firing, and the weekly per-drive stall
  * summary (the measurement behind moving the fleet off the slow disk). */
 function resourcesSection(m) {
   const r = resourcesOf(m);
   if (!r) return '';
-  const tone = r.state === 'alert' ? 'danger' : '';
+  const tone = r.state === 'alert' ? 'danger' : (r.state === 'watch' ? 'attention' : '');
   const stalls = r.stalls || {};
   const lines = (stalls.drives && stalls.drives.length ? stalls.drives : [{ line: stalls.line || '' }]);
   return '<div class="sheet-section machine-resources">'
@@ -473,6 +482,11 @@ function resourcesSection(m) {
     + escapeHtml(RESOURCE_WORDS[r.state] || r.state) + '</span>'
     + infoButton('resource-watch', 'About the resource watch') + '</div>'
     + (r.state !== 'ok' && r.reason ? '<p class="sheet-meta">' + escapeHtml(r.reason) + '</p>' : '')
+    + (r.disks || []).map(function (d) {
+      const line = diskLoadLine(d);
+      return line ? '<p class="sheet-meta" data-machine-disk-load' + (d.load_state === 'alert' ? ' data-tone="danger"'
+        : (d.load_state === 'watch' ? ' data-tone="attention"' : '')) + '>' + escapeHtml(line) + '</p>' : '';
+    }).join('')
     + lines.map(function (d) {
       return '<p class="sheet-meta" data-machine-stall' + (d.state === 'unknown' ? ' data-tone="attention"' : '') + '>'
         + escapeHtml(d.line) + '</p>';

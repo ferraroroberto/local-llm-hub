@@ -1176,7 +1176,7 @@ surfaces:
     holds:
       - the state, role and exception chips
       - CPU, RAM, GPU and disk gauges
-      - Health with its verdict, findings and suggested fix, and Resources with the drive stall summary
+      - Health with its verdict, findings and suggested fix, and Resources with each disk's live busy, queue and latency and the drive stall summary
       - Terminal and Remote
       - Connection, a disclosure with address, MAC, network, tailnet and link quality
       - Hub, for a peer that runs its own, with Sync or Start hub

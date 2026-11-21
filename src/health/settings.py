@@ -58,6 +58,9 @@ DEFAULTS: Dict[str, Any] = {
         "ram_free_percent": {"alert_below": 10, "sustain_samples": 3},
         "disk_free_gb": {"alert_below": 10, "sustain_samples": 3},
         "disk_latency": {"alert_above_ms": 500, "sustain_samples": 2, "min_ios": 5},
+        # Busy, queued and slow together; the measured starvation read 100 % busy, queue 14-34, 240 ms.
+        "disk_load": {"busy_watch_percent": 90, "queue_watch": 4, "latency_watch_ms": 30, "watch_sustain_samples": 3,
+                      "busy_alert_percent": 95, "queue_alert": 8, "latency_alert_ms": 100, "alert_sustain_samples": 5},
         "alert": {"enabled": True, "cooldown_hours": 6, "retry_after_s": 600, "category": "attention",
                   "script": None, "timeout_s": 30},
     },
