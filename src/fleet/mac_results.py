@@ -96,6 +96,9 @@ EMPTY = "empty"  # READY, and the Mac confirms there is no image to send
 WOULD_DELIVER = "would_deliver"  # --dry-run only
 AUDIT_FILED = "audit_filed"  # the filing tool confirmed an outcome (FILE=created|commented|unchanged)
 AUDIT_NOT_MEASURED = "audit_unknown"  # the audit was not measured, or the filing was not confirmed
+# A red night writes no routing audit; its failure is already reported (ci_reported), so the
+# missing audit is a consequence of it and not a separate unknown.
+AUDIT_FAILED_NIGHT = "audit_failed_night"
 WOULD_FILE = "would_file"  # --dry-run only
 LEGACY = "legacy"  # a folder that predates the audit or the READY marker; can never become measurable
 
@@ -555,7 +558,18 @@ def run_pass(ssh: Ssh, send: Sender, conn, staging_root: Path, *, window_days: i
         nights = [(e.repo, e.run_id, e.age_s) for e in runs if e.ready and e.age_s <= window_s and e.audit != AUDIT_LEGACY]
         report.ci_outcomes = nightly_ci.run_ci_stage(
             nights, ssh, gh, send, conn, staging_root, now=time.time() if now is None else now, dry_run=dry_run)
+        _explain_unmeasured_red_nights(report, conn)
     return report
+
+
+def _explain_unmeasured_red_nights(report: PassReport, conn) -> None:
+    """Re-label an unmeasured audit whose night was reported red as :data:`AUDIT_FAILED_NIGHT`.
+    The line is still printed; it just stops being a second red signal for a failure already
+    reported. A night with no known result (or none reported) keeps ``audit_unknown``."""
+    for i, o in enumerate(report.outcomes):
+        if o.state == AUDIT_NOT_MEASURED and store.ci_result(conn, o.repo, o.run_id) == "red":
+            report.outcomes[i] = RunOutcome(
+                o.repo, o.run_id, AUDIT_FAILED_NIGHT, "the night failed (reported as ci_reported), so no routing audit was measured")
 
 
 # ---------------------------------------------------------------------- CLI
@@ -603,7 +617,7 @@ def _print_report(report: PassReport) -> None:
     if not report.outcomes:
         print("ℹ️ nothing new to deliver")
     icons = {DELIVERED: "✅", EMPTY: "ℹ️", PENDING: "ℹ️", WOULD_DELIVER: "ℹ️", REFUSED: "❌", NOT_CONFIRMED: "⚠️",
-             AUDIT_FILED: "✅", AUDIT_NOT_MEASURED: "⚠️", WOULD_FILE: "ℹ️", LEGACY: "ℹ️"}
+             AUDIT_FILED: "✅", AUDIT_NOT_MEASURED: "⚠️", AUDIT_FAILED_NIGHT: "ℹ️", WOULD_FILE: "ℹ️", LEGACY: "ℹ️"}
     for o in report.outcomes:
         print(f"{icons[o.state]} {o.repo} run {o.run_id}: {o.state} - {o.detail}")
     ci_icons = {nightly_ci.REPORTED: "✅", nightly_ci.WOULD_REPORT: "ℹ️", nightly_ci.DIGEST_SENT: "✅",

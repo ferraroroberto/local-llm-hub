@@ -138,6 +138,12 @@ def ci_reported(conn: sqlite3.Connection, repo: str, run_id: str) -> bool:
     return row is not None
 
 
+def ci_result(conn: sqlite3.Connection, repo: str, run_id: str) -> Optional[str]:
+    """The result (``green`` or ``red``) the night was reported with, or None when it was not reported."""
+    row = conn.execute("SELECT result FROM ci_reported WHERE repo = ? AND run_id = ?", (repo, run_id)).fetchone()
+    return None if row is None else str(row[0])
+
+
 def newest_reported_night(conn: sqlite3.Connection, repo: str) -> float:
     """Unix time of the newest night already reported for the repo (0 when none)."""
     row = conn.execute("SELECT MAX(night_at) FROM ci_reported WHERE repo = ?", (repo,)).fetchone()
