@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import logging
 
-from src.health import classifier, resource_rules as rules, resource_watch, settings, watch
+from src.health import classifier, resource_watch, settings, watch
+from src.health import resource_rules as rules
 from src.health.resource_store import ResourceStore
 
 from .test_resource_watch import T0, _cfg, _drive, _sample
