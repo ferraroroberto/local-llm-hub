@@ -72,6 +72,11 @@ def direction(avg_s: float, ios: float, kind: str) -> Dict[str, Any]:
     return {"ios": count, "ms": round(avg_s * 1000.0, 3) if count else None}
 
 
+def _rounded(value: Optional[float]) -> Optional[float]:
+    """A load reading to one decimal, or ``None`` when the window did not carry it."""
+    return None if value is None else round(float(value), 1)
+
+
 def _open_counters() -> Optional[Any]:
     """The live PDH query, or ``None`` when this machine cannot open one."""
     try:
@@ -138,7 +143,8 @@ class ResourceProbe:
             logger.info("ℹ️ resource watch: %s latency window dropped: %s", label, exc)
             return {"lat": "unknown", "disk": disk, "why": str(exc)}
         return {"lat": "ok", "src": LATENCY_SOURCE, "disk": disk, "read_ms": read["ms"], "write_ms": write["ms"],
-                "read_ios": read["ios"], "write_ios": write["ios"]}
+                "read_ios": read["ios"], "write_ios": write["ios"],
+                "busy_percent": _rounded(values.get("busy_percent")), "queue": _rounded(values.get("queue"))}
 
     def _drive(self, mount: str, window: Optional[Window]) -> Dict[str, Any]:
         row: Dict[str, Any] = self._latency(drive_label(mount), window)

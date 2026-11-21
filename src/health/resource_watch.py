@@ -121,28 +121,61 @@ class ResourceWatch:
                     "conditions": [], "ram": None, "drives": [], "stalls": stalls}
         stale = now - latest["ts"] > float(cfg["interval_s"]) * float(cfg["stale_after_intervals"])
         state = "unknown" if stale else rules.overall(conditions)
-        firing = [c for c in conditions if c["state"] in ("alert", "unknown")]
         reason = ("last sample is stale" if stale
-                  else "; ".join(c["reason"] for c in sorted(firing, key=lambda c: c["state"] != "alert")[:3]) or "all clear")
+                  else "; ".join(c["reason"] for c in rules.worst_first(conditions)[:3]) or "all clear")
+        load = {c["disk"]: c["state"] for c in conditions if c["kind"] == "disk_load"}
         return {**base, "state": state, "sampled_at": latest["ts"], "reason": reason,
                 "conditions": conditions, "ram": latest["ram"], "stalls": stalls,
-                "drives": [_drive_view(label, row, cfg) for label, row in latest["drives"].items()]}
+                "drives": [_drive_view(label, row, cfg, load.get(row.get("disk"))) for label, row in latest["drives"].items()]}
+
+    def health_block(self, now: Optional[float] = None) -> Optional[Dict[str, Any]]:
+        """What the machine health verdict takes from this watch: findings and a per-disk block.
+
+        ``None`` when the watch is off or has no sample yet (nothing to add).
+        A last sample older than the stale limit is itself a finding, so an
+        unmeasured disk never reads as a quiet one."""
+        now = time.time() if now is None else now
+        with self._lock:
+            latest = self._recent[-1] if self._recent else None
+            cfg, conditions = self._cfg, list(self._conditions)
+        if latest is None or not cfg.get("enabled", True):
+            return None
+        if now - latest["ts"] > float(cfg["interval_s"]) * float(cfg["stale_after_intervals"]):
+            return {"findings": [rules.disk_finding_unknown(f"Disk load not sampled for {round((now - latest['ts']) / 60)} min")],
+                    "block": []}
+        loads = [c for c in conditions if c["kind"] == "disk_load"]
+        return {"findings": [f for f in (rules.disk_finding(c) for c in loads) if f],
+                "block": [rules.disk_block(c, latest) for c in loads]}
 
     def card_summary(self) -> Dict[str, Any]:
         """The few fields the Machines card shows."""
         cur = self.current()
         return {"state": cur["state"], "enabled": cur["enabled"], "sampled_at": cur["sampled_at"],
-                "reason": cur["reason"], "stalls": {"state": cur["stalls"].get("state", "unknown"),
+                "reason": cur["reason"], "disks": _disk_lines(cur.get("drives", [])), "stalls": {"state": cur["stalls"].get("state", "unknown"),
                                                     "line": cur["stalls"].get("line", "stall history not available"),
                                                     "drives": [{"drive": d["drive"], "state": d["state"], "line": d["line"]}
                                                                for d in cur["stalls"].get("drives", [])]}}
 
 
-def _drive_view(label: str, row: Dict[str, Any], cfg: Dict[str, Any]) -> Dict[str, Any]:
+def _disk_lines(drives: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """One live load entry per physical disk, with every drive letter on it."""
+    disks: Dict[str, Dict[str, Any]] = {}
+    for d in drives:
+        if d["disk"] is None or d["busy_percent"] is None:
+            continue
+        entry = disks.setdefault(d["disk"], {
+            "disk": d["disk"], "drives": [], "busy_percent": d["busy_percent"], "queue": d["queue"],
+            "read_ms": d["read_ms"], "write_ms": d["write_ms"], "load_state": d["load_state"]})
+        entry["drives"].append(d["drive"])
+    return list(disks.values())
+
+
+def _drive_view(label: str, row: Dict[str, Any], cfg: Dict[str, Any], load_state: Optional[str]) -> Dict[str, Any]:
     stall = rules.stall_ms(row, int(cfg["disk_latency"]["min_ios"]))
     return {"drive": label, "disk": row.get("disk"), "free_state": row.get("free"),
             "free_gb": row.get("free_gb"), "total_gb": row.get("total_gb"),
             "latency_state": row.get("lat"), "read_ms": row.get("read_ms"), "write_ms": row.get("write_ms"),
+            "busy_percent": row.get("busy_percent"), "queue": row.get("queue"), "load_state": load_state,
             "stall_ms": stall}
 
 

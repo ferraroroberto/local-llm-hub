@@ -139,6 +139,7 @@ A second, faster watch answers a plainer question: **is this machine out of RAM 
 - **RAM**: free RAM as a percent of the total.
 - **Free space** per fixed drive (`C:`, `D:`, `E:` on Windows; real mounts elsewhere), in GB.
 - **Latency** per drive, from the Windows performance counters (`src/health/disk_counters.py`): `\PhysicalDisk(*)\Avg. Disk sec/Read` and `Avg. Disk sec/Write`, the same numbers `Get-Counter` and Resource Monitor show, with `Disk Reads/sec` and `Disk Writes/sec` for how many operations completed. One PDH query stays open and each sample closes one window, so the reading is the average time one operation took since the last sample, separately for reads and writes, and a queue of requests stuck behind a 1.7 s read shows up as 1.7 s. A drive letter is mapped to its `PhysicalDriveN` once with a metadata-only `IOCTL_STORAGE_GET_DEVICE_NUMBER`. psutil's per-disk `read_time` / `write_time` are not used: on Windows they arrive in whole seconds labelled as milliseconds, so every disk reads about 1000 times too fast and a busy NVMe reads 0. Off Windows latency is `unsupported`; RAM and free space work everywhere.
+- **Load** per physical disk, from the same query: `% Idle Time` (reported as busy % = 100 minus idle) and `Current Disk Queue Length` (the requests waiting when the window closed). Drives that share a disk share one reading, labelled with every drive letter on it.
 - **Credibility check.** A window in which a disk completed 50 or more operations in one direction yet reports an average of exactly 0 is `unknown` ("source not credible"), never `0 ms`. Every trusted latency row is tagged `src: "pdh"`; a stored row without that tag counts as unmeasured, so it lowers the weekly coverage instead of reading as "no stalls".
 
 ### Why sampling is cheap and never loads the slow disk
@@ -154,18 +155,21 @@ Each condition must hold for several samples in a row. One odd sample never aler
 | RAM free below | 10 % | 3 min | Below 10 % Windows is already trimming working sets, and the model servers hold tens of GB, so a dip is real pressure; the process watch uses the same `watch` line |
 | A drive's free space below | 10 GB | 3 min | Enough room left to act (stop a download, free a cache) before writes fail; a percentage would read a 4 TB drive as fine at 40 GB |
 | A disk's average latency above | 500 ms | 2 min | A healthy disk under load stays far below it; the stall that hung jobs ran at about 1,700 ms. Two minutes keeps a single long operation (a big copy finishing) from paging |
+| A physical disk is overloaded: busy, queued and slow at once | watch at 90 % busy, queue 4, 30 ms per operation; alert at 95 % busy, queue 8, 100 ms | watch 3 min, alert 5 min | The measured starvation read 100 % busy, queue 14 to 34 and about 240 ms per read for several minutes, so the alert line sits well below it. A healthy disk here answers in a few ms. All three must hold: busy alone is a big sequential copy and a deep queue alone is an NVMe doing its job. A window in which requests are queued on a busy disk and none completed counts as slow |
 
-Latency is judged only from windows in which a direction completed at least `min_ios` (5) operations: one slow read on an otherwise idle disk says nothing about a queue.
+Latency is judged only from windows in which a direction completed at least `min_ios` (5) operations: one slow read on an otherwise idle disk says nothing about a queue. The load rule does not use `min_ios`, because a busy disk with a deep queue is not idle.
 
-Alerts go out through the fleet's one Telegram transport, `~/.claude/hooks/notify_send.py` (set `alert.script` to use another path), run as a subprocess with the hub's interpreter and the message on stdin. The destination is the transport's `attention` chat, resolved from fleet config; the hub holds no token and adds no recipient. Each condition (`ram`, `disk_free:E:`, `disk_latency:E:`) sends **at most once per 6 hours**, counted from the last successful send and stored in the history database, so a hub restart does not repeat an alert still inside its window. A failed delivery is logged and recorded as `failed`, does not start the window, and is retried after 10 minutes. `alert.enabled: false` keeps the state and the summary but sends nothing.
+The load rule has two levels. `watch` is shown on the Machines row and in the machine verdict but sends nothing; `alert` sends the Telegram line and raises the machine verdict to `act`, the same path as a port or commit alert.
+
+Alerts go out through the fleet's one Telegram transport, `~/.claude/hooks/notify_send.py` (set `alert.script` to use another path), run as a subprocess with the hub's interpreter and the message on stdin. The destination is the transport's `attention` chat, resolved from fleet config; the hub holds no token and adds no recipient. Each condition (`ram`, `disk_free:E:`, `disk_latency:E:`, `disk_load:PhysicalDrive1`) sends **at most once per 6 hours**, counted from the last successful send and stored in the history database, so a hub restart does not repeat an alert still inside its window. A failed delivery is logged and recorded as `failed`, does not start the window, and is retried after 10 minutes. `alert.enabled: false` keeps the state and the summary but sends nothing.
 
 ### States
 
-Every metric and the whole result is `ok`, `alert` or `unknown`.
+Every metric and the whole result is `ok`, `alert` or `unknown`; the disk load rule also has `watch` between `ok` and `alert`.
 
 - `unknown` means the reading was not taken or cannot be trusted: a failed RAM or free-space read, an unmappable drive, a failed or unavailable performance-counter query, a window that fails the credibility check, the first sample after boot with no window yet, or a last sample older than three intervals. It is never folded into `ok`.
 - `unsupported` (latency off Windows) is listed but does not hold the result at `unknown`.
-- Alert outranks unknown, and unknown outranks ok.
+- Alert outranks watch, watch outranks unknown, and unknown outranks ok.
 
 ### Weekly stall summary
 
@@ -174,11 +178,12 @@ A **stall episode** is a run of consecutive minutes, at least `disk_latency.sust
 ### Where it shows
 
 - **`GET /admin/api/machines/resources`**: `state`, `reason`, the latest RAM and per-drive readings, every `conditions` entry, the `alerts` sent (each `sent` or `failed`), and `stalls` (`line` plus one entry per drive with `episodes`, `total_minutes`, `worst_ms`, `covered_percent`, `recent`). `store` is `failed` when the history could not be written, which makes the stall summary `unknown`. In memory, cheap to poll; it is what a fleet health check reads.
-- **Machines tab**: this machine's sheet has a **Resources** section with the state and one stall line per drive, and a *resource alert* or *resources not confirmed* chip on the row when it is not fine.
+- **`GET /admin/api/machines/health`** (the machine verdict, read by the launcher's monitor): a `disk_load` finding for each disk that is `watch` (level `watch`) or `alert` (level `act`), an `unknown` one when a disk's load cannot be read or the resource sample is stale, and a `disks` list with one entry per physical disk (`drives`, `state`, `busy_percent`, `queue`, `read_ms`, `write_ms`). The compact form a peer's row uses (`card_fields`) carries the same `disks`.
+- **Machines tab**: this machine's sheet has a **Resources** section with the state, a live busy / queue / latency line per physical disk and one stall line per drive, and a *resource watch*, *resource alert* or *resources not confirmed* chip on the row when it is not fine.
 
 ### Configuration
 
-The `resource` section of `config/health_watch.json`, re-read every sample like the rest. Every limit above, `interval_s` (60), `history_days` (14), `summary_days` (7) and the `alert` block are keys there; `"resource": {"enabled": false}` stops it. To prove the path end to end, raise a limit past the current reading (for example `ram_free_percent.alert_below: 101`) and watch one line arrive, then no second one inside the window.
+The `resource` section of `config/health_watch.json`, re-read every sample like the rest. Every limit above (the load rule's are the flat `disk_load` keys), `interval_s` (60), `history_days` (14), `summary_days` (7) and the `alert` block are keys there; `"resource": {"enabled": false}` stops it. To prove the path end to end, raise a limit past the current reading (for example `ram_free_percent.alert_below: 101`) and watch one line arrive, then no second one inside the window.
 
 ## Layout
 
@@ -196,7 +201,7 @@ The `resource` section of `config/health_watch.json`, re-read every sample like 
 | `src/health/port_store.py` | Port sample and event history in SQLite |
 | `src/health/port_watch.py` | The 30-second port loop and its state |
 | `src/health/resource_probe.py` | One resource sample: RAM, free space per drive, latency from counter deltas |
-| `src/health/resource_rules.py` | Sustained-breach conditions, stall episodes, the weekly summary (pure) |
+| `src/health/resource_rules.py` | Sustained-breach conditions (RAM, free space, latency, disk load), stall episodes, the weekly summary (pure) |
 | `src/health/resource_store.py` | Rolling sample history and alert debounce state in SQLite |
 | `src/health/resource_alert.py` | Telegram delivery through the fleet transport, and the per-condition debounce |
 | `src/health/resource_watch.py` | The one-minute loop and the cached verdict |
