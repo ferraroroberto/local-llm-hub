@@ -450,7 +450,7 @@ summary.opt-group-title {
 .jev-bar-track {
   height: 8px;
   border-radius: var(--radius-pill);
-  background: var(--card-off);
+  background: var(--input-bg); /* dark: a step above the card, not a black hole */
   border: 1px solid var(--line-muted);
   overflow: hidden;
 }
@@ -461,7 +461,7 @@ summary.opt-group-title {
 .jev-bar-val { text-align: right; font-variant-numeric: tabular-nums; }
 /* ---------- badges ---------- */
 .badge {
-  background: var(--card-off);
+  background: var(--input-bg); /* dark: a step above the card, not a black hole */
   color: var(--muted);
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
