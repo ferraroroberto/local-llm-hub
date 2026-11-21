@@ -198,6 +198,7 @@ local-llm-hub/
 │   │   ├── sampler.py            #   one sample: system counters + top processes per metric
 │   │   ├── classifier.py         #   pure ok/watch/act/unknown verdict + suggested fix
 │   │   ├── settings.py           #   config/health_watch.json loader + defaults
+│   │   ├── periodic.py           #   the shared tick-forever loop skeleton every watcher (and the usage digest) runs on
 │   │   ├── watch.py              #   the loop, rolling history, act/cleared alerts
 │   │   ├── disk_counters.py      #   per-disk latency, busy % and queue from the Windows performance counters (one open PDH query)
 │   │   ├── resource_probe.py     #   one cheap sample: RAM, free GB per fixed drive, per-disk latency per window + credibility check

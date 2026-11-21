@@ -9,14 +9,13 @@ launcher can show them.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import threading
 import time
 from collections import deque
 from typing import Any, Deque, Dict, Optional
 
-from . import classifier, port_watch, resource_watch, sampler, settings
+from . import classifier, periodic, port_watch, resource_watch, sampler, settings
 
 logger = logging.getLogger(__name__)
 
@@ -138,23 +137,12 @@ def sample_once(cfg: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
 
 async def run_loop() -> None:
     """Sample forever on the configured cadence; never raises out of a tick."""
-    cfg = await asyncio.to_thread(settings.load)
-    WATCH.configure(cfg)
-    if not cfg.get("enabled", True):
-        logger.info("ℹ️ health watch: disabled in config/health_watch.json")
-        return
-    await asyncio.sleep(float(cfg["boot_delay_s"]))
-    first = True
-    while True:
-        started = time.monotonic()
-        try:
-            cfg = await asyncio.to_thread(settings.load)
-            verdict = await asyncio.to_thread(sample_once, cfg)
-            log = logger.info if first else logger.debug
-            log("ℹ️ health watch: %s (%s), sample took %s ms",
-                verdict["verdict"], verdict["reason"], verdict["sample_ms"])
-            first = False
-        except Exception as exc:  # noqa: BLE001 — a failed tick must not end the watch
-            logger.warning("⚠️ health watch: sample failed: %s", exc)
-        elapsed = time.monotonic() - started
-        await asyncio.sleep(max(1.0, float(cfg["interval_s"]) - elapsed))
+
+    def _log(verdict: Dict[str, Any], first: bool) -> None:
+        (logger.info if first else logger.debug)("ℹ️ health watch: %s (%s), sample took %s ms",
+                                                  verdict["verdict"], verdict["reason"], verdict["sample_ms"])
+
+    await periodic.run_periodic(
+        "health watch", load_cfg=settings.load, tick=sample_once, interval_of=lambda c: c["interval_s"],
+        floor_s=1.0, enabled_of=lambda c: c.get("enabled", True), boot_delay_of=lambda c: c["boot_delay_s"],
+        disabled_in="config/health_watch.json", on_loaded=WATCH.configure, on_result=_log)

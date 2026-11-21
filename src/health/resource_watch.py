@@ -11,7 +11,6 @@ so a request never touches the database.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import sqlite3
 import threading
@@ -19,8 +18,8 @@ import time
 from collections import deque
 from typing import Any, Deque, Dict, List, Optional
 
+from . import periodic, settings
 from . import resource_rules as rules
-from . import settings
 from .resource_alert import AlertGate, Sender
 from .resource_probe import ResourceProbe
 from .resource_store import ResourceStore
@@ -184,21 +183,12 @@ WATCH = ResourceWatch()
 
 async def run_loop() -> None:
     """Sample forever on the configured cadence; never raises out of a tick."""
-    cfg = await asyncio.to_thread(settings.load)
-    WATCH.prime()
-    if not cfg["resource"].get("enabled", True):
-        logger.info("ℹ️ resource watch: disabled in config/health_watch.json")
-        return
-    await asyncio.sleep(float(cfg["resource"]["boot_delay_s"]))
-    first = True
-    while True:
-        started = time.monotonic()
-        try:
-            cfg = await asyncio.to_thread(settings.load)
-            out = await asyncio.to_thread(WATCH.tick, cfg)
-            (logger.info if first else logger.debug)("ℹ️ resource watch: %s (%s)", out["state"], out["reason"])
-            first = False
-        except Exception as exc:  # noqa: BLE001 — a failed tick must not end the watch
-            logger.warning("⚠️ resource watch: sample failed: %s", exc)
-        elapsed = time.monotonic() - started
-        await asyncio.sleep(max(1.0, float(cfg["resource"]["interval_s"]) - elapsed))
+
+    def _log(out: Dict[str, Any], first: bool) -> None:
+        (logger.info if first else logger.debug)("ℹ️ resource watch: %s (%s)", out["state"], out["reason"])
+
+    await periodic.run_periodic(
+        "resource watch", load_cfg=settings.load, tick=WATCH.tick, interval_of=lambda c: c["resource"]["interval_s"],
+        floor_s=1.0, enabled_of=lambda c: c["resource"].get("enabled", True),
+        boot_delay_of=lambda c: c["resource"]["boot_delay_s"], disabled_in="config/health_watch.json",
+        on_loaded=lambda _cfg: WATCH.prime(), on_result=_log)

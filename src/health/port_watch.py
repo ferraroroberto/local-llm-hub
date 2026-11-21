@@ -19,7 +19,7 @@ import time
 from collections import deque
 from typing import Any, Callable, Deque, Dict, List, Optional
 
-from . import port_probe, port_rules, settings
+from . import periodic, port_probe, port_rules, settings
 from .port_probe import PortProbe
 from .port_store import PortStore
 from .port_window import PortWindow
@@ -223,20 +223,14 @@ async def run_window_loop(ports: Dict[str, Any]) -> None:
 
 
 async def _sample_forever(cfg: Dict[str, Any], on_tick: Optional[Callable[[], Any]]) -> None:
-    first = True
-    while True:
-        started = time.monotonic()
-        try:
-            cfg = await asyncio.to_thread(settings.load)
-            sample = await asyncio.to_thread(WATCH.tick, cfg)
-            if first:
-                logger.info("ℹ️ port watch: tcp %s%%, udp %s%%, sample took %s ms",
-                            (sample.get("tcp") or {}).get("percent"), (sample.get("udp") or {}).get("percent"),
-                            sample["sample_ms"])
-                first = False
-            if on_tick:
-                on_tick()
-        except Exception as exc:  # noqa: BLE001 — a failed tick must not end the watch
-            logger.warning("⚠️ port watch: sample failed: %s", exc)
-        elapsed = time.monotonic() - started
-        await asyncio.sleep(max(1.0, float(cfg["ports"]["interval_s"]) - elapsed))
+    def _after(sample: Dict[str, Any], first: bool) -> None:
+        if first:
+            logger.info("ℹ️ port watch: tcp %s%%, udp %s%%, sample took %s ms",
+                        (sample.get("tcp") or {}).get("percent"), (sample.get("udp") or {}).get("percent"),
+                        sample["sample_ms"])
+        if on_tick:
+            on_tick()
+
+    await periodic.run_ticks(
+        "port watch", cfg, load_cfg=settings.load, tick=WATCH.tick, interval_of=lambda c: c["ports"]["interval_s"],
+        floor_s=1.0, on_result=_after)

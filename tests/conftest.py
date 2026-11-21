@@ -148,9 +148,12 @@ def _isolate_resource_watch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     otherwise write into the developer's runtime-data store or page the owner.
     A test that wants delivery injects its own sender.
     """
-    from src.health import resource_alert, resource_store
+    from src.health import resource_alert, resource_store, resource_watch
 
     monkeypatch.setattr(resource_store, "DEFAULT_DB_PATH", tmp_path / "resource_watch.sqlite3")
+    # A hub-lifespan test that outlives the loop's boot delay (slow box) leaves a real-time sample
+    # in the module singleton, which turns every later fixed-clock health verdict into "unknown".
+    resource_watch.WATCH.reset()
     monkeypatch.setattr(resource_alert, "send_via_notify_script",
                         lambda text, cfg: (False, "Telegram is blocked in tests"))
 
