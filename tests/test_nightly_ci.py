@@ -59,7 +59,7 @@ class FakeMac:
         if verb == "list":
             lines = ["NOW 1000000"]
             for run, n in self.nights.items():
-                lines.append(f"RUN {n.get('repo', REPO)} {run} ready {1_000_000 - n.get('age', 60)} pass pass clean")
+                lines.append(f"RUN {n.get('repo', REPO)} {run} ready {1_000_000 - n.get('age', 60)} pass pass {n.get('audit', 'clean')}")
             return _ok("\n".join(lines) + "\n")
         night = self.nights[args[1]]
         if verb == "ready":
@@ -294,6 +294,36 @@ def test_a_junit_file_that_cannot_be_asked_for_is_unknown_not_filed_without_ids(
     mac.down_for = "text"
     assert _states(_pass(mac, gh, FakeSender(), conn, tmp_path)) == [("100", nc.UNKNOWN)]
     assert gh.issues == []
+
+
+def _unmeasured(night: Dict) -> Dict:
+    return {**night, "audit": "unknown"}
+
+
+def test_a_red_night_with_no_audit_is_its_own_state_and_does_not_turn_the_job_red(conn, tmp_path):
+    mac = FakeMac({"100": _unmeasured(_red_night())})
+    report = _pass(mac, FakeGh(), FakeSender(), conn, tmp_path)
+    assert _states(report) == [("100", nc.REPORTED)]
+    assert [(o.run_id, o.state) for o in report.outcomes if o.state != mr.EMPTY] == [("100", mr.AUDIT_FAILED_NIGHT)]
+    assert report.attention == 0 and report.exit_code == 0
+    # Remembered, so the next pass (which does not report the night again) still says the same.
+    again = _pass(mac, FakeGh(), FakeSender(), conn, tmp_path)
+    assert [o.state for o in again.outcomes if o.state != mr.EMPTY] == [mr.AUDIT_FAILED_NIGHT] and again.exit_code == 0
+
+
+def test_a_green_night_with_no_audit_stays_unknown_and_red(conn, tmp_path):
+    report = _pass(FakeMac({"100": _unmeasured({"age": 60, "ready": ready("100")})}), FakeGh(), FakeSender(), conn, tmp_path)
+    assert [o.state for o in report.outcomes if o.state != mr.EMPTY] == [mr.AUDIT_NOT_MEASURED]
+    assert report.exit_code == 1
+
+
+def test_a_red_night_whose_ci_report_is_not_confirmed_keeps_both_signals(conn, tmp_path):
+    gh = FakeGh()
+    gh.fail = "issue create"
+    report = _pass(FakeMac({"100": _unmeasured(_red_night())}), gh, FakeSender(), conn, tmp_path)
+    assert _states(report) == [("100", nc.UNKNOWN)]
+    assert [o.state for o in report.outcomes if o.state != mr.EMPTY] == [mr.AUDIT_NOT_MEASURED]
+    assert report.exit_code == 1
 
 
 def test_a_ready_naming_another_run_is_refused(conn, tmp_path):
