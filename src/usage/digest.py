@@ -27,18 +27,16 @@ sends nothing; ``--send`` delivers it.
 from __future__ import annotations
 
 import argparse
-import asyncio
 import copy
 import json
 import logging
 import sys
-import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.atomic_write import atomic_write_text, read_json
-from src.health import resource_alert
+from src.health import periodic, resource_alert
 from src.usage import token_history
 from src.usage.usage_common import today_utc
 
@@ -334,20 +332,11 @@ def tick(cfg: Optional[Dict[str, Any]] = None, now: Optional[datetime] = None) -
 
 async def run_loop() -> None:
     """Tick forever on the configured cadence; never raises out of a tick."""
-    cfg = await asyncio.to_thread(load_config)
-    if not cfg["enabled"]:
-        logger.info("ℹ️ usage digest: disabled in config/usage_digest.json")
-        return
-    await asyncio.sleep(float(cfg["boot_delay_s"]))
-    while True:
-        started = time.monotonic()
-        try:
-            cfg = await asyncio.to_thread(load_config)
-            out = await asyncio.to_thread(tick, cfg)
-            logger.debug("ℹ️ usage digest: %s", out)
-        except Exception as exc:  # noqa: BLE001 — a failed tick must not end the loop
-            logger.warning("⚠️ usage digest: tick failed: %s", exc, exc_info=True)
-        await asyncio.sleep(max(60.0, float(cfg["interval_s"]) - (time.monotonic() - started)))
+    await periodic.run_periodic(
+        "usage digest", load_cfg=load_config, tick=tick, interval_of=lambda c: c["interval_s"], floor_s=60.0,
+        enabled_of=lambda c: c["enabled"], boot_delay_of=lambda c: c["boot_delay_s"],
+        disabled_in="config/usage_digest.json",
+        on_result=lambda out, _first: logger.debug("ℹ️ usage digest: %s", out), fail_label="tick", exc_info=True)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
