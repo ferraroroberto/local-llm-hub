@@ -47,9 +47,8 @@ def test_forward_slash_and_case_are_normalized(rules):
     assert attribution.attribute("python", cmd) == "photo-ocr"
 
 
-def test_posix_home_root_attributes(rules):
-    import os
-    home = os.path.expanduser("~").replace("\\", "/")
+def test_posix_home_root_attributes(synthetic_host, rules):
+    home = str(synthetic_host.home).replace("\\", "/")
     assert attribution.attribute("python3", f"{home}/automation/grocery/.venv/bin/python3 -m app") == "grocery"
 
 

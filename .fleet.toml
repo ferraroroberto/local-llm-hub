@@ -193,9 +193,10 @@ structure_band = { src = "scripts/structure_band.py", sha = "3b708fd3c54ab7b93b0
 instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "a04abc7b3af872cbac974401dd0945587eac6cef", dest = "scripts/instruction_ratchet.py" }
 doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "a68f6e49393f0ef0b94ab3c79f4338a50d89fa49", dest = "scripts/doc_refs_ratchet.py" }
 dead_code_ratchet = { src = "scripts/dead_code_ratchet.py", sha = "4d0b0ff30e23eb95c73c4b0b1517ec6a43d3a836", dest = "scripts/dead_code_ratchet.py" }
-conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "ce64203b017ba636c82737ee7f768c9ef6f422cd", dest = "scripts/conventions_ratchet.py" }
-conventions_readers = { src = "scripts/conventions_readers.py", sha = "7577aece617ad366e7df8ef522d511184b445144", dest = "scripts/conventions_readers.py" }
-conventions_state = { src = "scripts/conventions_state.py", sha = "4d0b0ff30e23eb95c73c4b0b1517ec6a43d3a836", dest = "scripts/conventions_state.py" }
+conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "160b54e2e0bcf76541d0a5f9bb4d6265dd493c31", dest = "scripts/conventions_ratchet.py" }
+conventions_readers = { src = "scripts/conventions_readers.py", sha = "160b54e2e0bcf76541d0a5f9bb4d6265dd493c31", dest = "scripts/conventions_readers.py" }
+conventions_state = { src = "scripts/conventions_state.py", sha = "160b54e2e0bcf76541d0a5f9bb4d6265dd493c31", dest = "scripts/conventions_state.py" }
+synthetic_host = { src = "tests/host/_synthetic_host.py", sha = "160b54e2e0bcf76541d0a5f9bb4d6265dd493c31", dest = "tests/host/_synthetic_host.py" }
 paced_browser = { src = "tests/e2e/_paced_browser.py", sha = "ce64203b017ba636c82737ee7f768c9ef6f422cd", dest = "tests/e2e/_paced_browser.py" }
 runtime_write_ratchet = { src = "scripts/runtime_write_ratchet.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "scripts/runtime_write_ratchet.py" }
 runtime_write_resolve = { src = "scripts/runtime_write_resolve.py", sha = "ce64203b017ba636c82737ee7f768c9ef6f422cd", dest = "scripts/runtime_write_resolve.py" }
@@ -336,7 +337,7 @@ baseline = ".dead-code-ratchet-baseline.json"
 [conventions_ratchet]
 enabled     = true
 baseline    = ".conventions-ratchet-baseline.json"
-rules       = ["no-window", "logging-not-print", "no-drive-path", "password-input-vendored", "nav-standalone-head", "login-lockout", "subprocess-timeout", "browser-per-iteration", "state-literal", "state-set-repeat", "state-write"]
+rules       = ["no-window", "logging-not-print", "no-drive-path", "password-input-vendored", "nav-standalone-head", "login-lockout", "subprocess-timeout", "browser-per-iteration", "state-literal", "state-set-repeat", "state-write", "host-identity"]
 exclude     = ["vendor/**", "data/**", "models/**"]
 print_paths = ["src/", "app_web/", "tray/"]
 
