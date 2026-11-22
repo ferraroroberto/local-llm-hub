@@ -148,6 +148,9 @@ path = ".runtime-write-ratchet-baseline.json"
 [[e2e.rule]]
 tier = "none"
 path = ".usage-track-ratchet-baseline.json"
+[[e2e.rule]]
+tier = "none"
+path = ".request-budget-ratchet-baseline.json"
 
 # Components vendored byte-for-byte from project-scaffolding. Re-vendored by
 # `/propagate-vendored <key>`; never edit a copy here — fix it in the scaffold
@@ -182,6 +185,10 @@ usage_track_ratchet = { src = "scripts/usage_track_ratchet.py", sha = "4a06ca84f
 usage_track_scan = { src = "scripts/usage_track_scan.py", sha = "c4a7afcb413fe88de11e66f24269c8729ecd85d9", dest = "scripts/usage_track_scan.py" }
 ux_surface_ratchet = { src = "scripts/ux_surface_ratchet.py", sha = "adf0375e08a186330196b8d6be7b8b51078a73ae", dest = "scripts/ux_surface_ratchet.py" }
 ux_surface_map = { src = "scripts/ux_surface_map.py", sha = "adf0375e08a186330196b8d6be7b8b51078a73ae", dest = "scripts/ux_surface_map.py" }
+request_budget_ratchet = { src = "scripts/request_budget_ratchet.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "scripts/request_budget_ratchet.py" }
+request_budget_scan = { src = "scripts/request_budget_scan.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "scripts/request_budget_scan.py" }
+request_timing = { src = "src/request_timing.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "src/request_timing.py" }
+poll = { src = "app/webapp/static/_vendored/poll", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "app_web/static/_vendored/poll" }
 build_info  = { src = "src/build_info.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "src/build_info.py" }
 surface_capture = { src = "tests/e2e/_surface.py", sha = "5c4d3a7947dae8b3b4a028bf636c0f052ea3b1f7", dest = "tests/e2e/_surface.py" }
 static_ratchet = { src = "scripts/static_ratchet.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "scripts/static_ratchet.py" }
@@ -366,6 +373,21 @@ enabled  = true
 baseline = ".runtime-write-ratchet-baseline.json"
 # The service shape keeps code in app_web/ and tray/ too, beside src/ and scripts/.
 code_folders = ["src", "app_web", "tray", "scripts"]
+
+# [request_budget_ratchet] -- scripts/request_budget_ratchet.py (with its reader
+# scripts/request_budget_scan.py) fails when a fixed-rate browser poll that reaches the
+# server, a poll under the 2 s floor, an undeclared fast server loop, a directory walk in a
+# request handler, a submit to the event loop's shared default pool, or a web app without
+# the request-timing middleware is new beyond .request-budget-ratchet-baseline.json. Browser
+# code is the admin SPA; server code is every runtime folder, not the scaffold's default
+# src/app, because the admin sub-app lives in app_web/. Exit 3 is "not confirmed", never
+# clean. Mechanism: project-scaffolding docs/request-budget-ratchet.md.
+[request_budget_ratchet]
+enabled       = true
+baseline      = ".request-budget-ratchet-baseline.json"
+browser_paths = ["app_web/static/**"]
+server_paths  = ["src/**", "app_web/**", "tray/**"]
+handler_dirs  = ["app_web/routers", "src/routes"]
 
 # [usage_track_ratchet] -- scripts/usage_track_ratchet.py (with its reader
 # scripts/usage_track_scan.py) fails when the web app's HTML or JS gains a control with no

@@ -61,6 +61,11 @@
 #      no entry, or docs/ux-surface-map.md page that is not what the map generates, beyond
 #      .ux-surface-ratchet-baseline.json. Whole tree, never routed; exit 3 (a file that
 #      cannot be read or closed) fails.
+#   10e. request budget ratchet: no fixed-rate browser poll that reaches the server, poll
+#      under 2 s, undeclared fast server loop, directory walk in a request handler, submit
+#      to the shared default pool, or missing request-timing middleware beyond
+#      .request-budget-ratchet-baseline.json. Whole tree, never routed; exit 3 (a file that
+#      cannot be read, JS that never closes, Python that does not parse) fails.
 #   11. `pytest -q` (unit tests, no GPU / no real CLIs); stages 11-12 run inside
 #      the runtime write probe (--snapshot before, --probe after), which fails on
 #      any untracked or ignored file they leave under a code folder.
@@ -202,6 +207,13 @@ Step "ux surface ratchet" {
     # (a file that cannot be read, or JS that never closes) is a failure here, never
     # a pass or a skip.
     & $Python scripts/ux_surface_ratchet.py
+}
+
+Step "request budget ratchet" {
+    # Same as the ux surface ratchet: Step fails on any non-zero exit, so exit 3
+    # (git unusable, a file that cannot be read, JS that never closes, Python that
+    # does not parse) is a failure here, never a pass or a skip.
+    & $Python scripts/request_budget_ratchet.py
 }
 
 Step "mmd history check" {

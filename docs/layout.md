@@ -179,6 +179,7 @@ local-llm-hub/
 │   │                         #   exposed response headers; installed outside the bearer gate
 │   ├── event_loop.py         # Windows proactor-loop shim so uvicorn survives client aborts
 │   ├── build_info.py         # vendored scaffold helper: build_identity() -> git_sha + built_at
+│   ├── request_timing.py     # vendored scaffold middleware: Server-Timing + slow/in-flight logging, TimedExecutor named pools (not yet mounted: callers migrate in the burn-down)
 │   ├── services.py           # host-side service helpers: Docker engine + Langfuse stack
 │   ├── fsio/                 # guarded file writers
 │   │   └── runtime_files.py      #   mkdir/open/copy/move/log handler/SQLite opener that raise on a path under a code folder; the one place a caller-named runtime path is written
@@ -253,6 +254,7 @@ local-llm-hub/
 │       └── _vendored/        #   project-scaffolding components: action-row / button /
 │                             #   card / disclosure / empty-state / home-head /
 │                             #   icon-button / icons (Lucide sprite) / modal / nav /
+│                             #   poll (startPoll / singleFlight, unused until the burn-down) /
 │                             #   row-menu / segmented / select-native / switch /
 │                             #   text-size / usage-log / xterm — SPA UI glyphs +
 │                             #   primitives per design.md; chartjs (Chart.js
@@ -287,6 +289,8 @@ local-llm-hub/
 │   ├── doc_refs_ratchet.py       # vendored from project-scaffolding: fails on a NEW doc reference to a repo path, module, relative link or loopback port that does not exist
 │   ├── ux_surface_ratchet.py     # vendored from project-scaffolding: fails on a NEW surface root without a `data-surface` id, an id with no map entry, a stale or duplicate entry, a dangling link or a stale generated page
 │   ├── ux_surface_map.py         #   vendored: reads docs/ux-surfaces.yaml and generates docs/ux-surface-map.md
+│   ├── request_budget_ratchet.py # vendored from project-scaffolding: fails on a NEW fixed-rate poll, sub-2 s poll, undeclared fast server loop, handler directory walk, default-pool submit or missing timing middleware
+│   ├── request_budget_scan.py    #   vendored: the JS and Python readers it loads
 │   ├── classify_e2e.py           # vendored from project-scaffolding: maps the diff to an e2e tier via .fleet.toml [e2e]
 │   ├── e2e_route.py              #   the gate's wrapper: an unreadable verdict runs the full suite, never less
 │   └── verify-before-ship.ps1    # byte-compile + static/docs/comment/structure/instruction/doc-refs/dead-code ratchets + pytest + diff-routed Playwright on Chromium
