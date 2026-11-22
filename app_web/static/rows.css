@@ -90,28 +90,9 @@ details.sheet-disclosure[open] > summary .sheet-chevron { transform: rotate(90de
 .sheet-pairs dd[data-tone] { color: var(--tone-text); font-weight: 600; }
 .sheet-pairs + .sheet-meta { margin-top: var(--space-md); }
 
-/* Destructive rows, last, after a divider, in danger-text, each behind the
- * confirm dialog (design.md action-row). */
-.sheet-danger { display: flex; flex-direction: column; }
-.sheet-danger-row {
-  display: flex;
-  align-items: center;
-  gap: var(--gap);
-  min-height: var(--row-md);
-  padding: 0 4px;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--danger-text);
-  font: inherit;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-.sheet-danger-row + .sheet-danger-row { border-top: 1px solid var(--line-muted); border-radius: 0; }
-.sheet-danger-row:not(:disabled):hover { background: var(--danger-soft); }
-.sheet-danger-row:disabled { color: var(--muted); cursor: not-allowed; }
-.sheet-danger-row .icon { width: var(--icon-title); height: var(--icon-title); }
+/* Destructive verbs, last, each a vendored outlined
+ * .button-tint.danger behind the confirm dialog (design.md action-row). */
+.sheet-danger { display: flex; flex-direction: column; gap: var(--gap); }
 
 /* ---------- wide-window primitives (design.md layout.wide) ----------
  * Below 1100px, or on a coarse pointer, nothing here applies: the phone and
@@ -162,7 +143,7 @@ details.sheet-disclosure[open] > summary .sheet-chevron { transform: rotate(90de
   white-space: nowrap;
 }
 .wide-detail-head .button-tint,
-.wide-detail-head .ghost-btn { min-height: var(--row-sm); padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; }
+.wide-detail-head .button-surface { min-height: var(--row-sm); padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; }
 
 @media (prefers-reduced-motion: reduce) {
   details.sheet-disclosure > summary .sheet-chevron { transition: none; }

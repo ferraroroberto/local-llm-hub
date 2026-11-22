@@ -199,7 +199,7 @@
 .pe-host-row { --icon-btn-box: var(--hit-min); }
 .pe-add-row { display: flex; gap: 8px; align-items: stretch; }
 .pe-add-row select { flex: 1 1 0; min-width: 0; }
-.pe-add-row .ghost-btn { flex-shrink: 0; }
+.pe-add-row .button-ghost { flex-shrink: 0; }
 .pe-policy { display: flex; gap: 10px; flex-wrap: wrap; }
 .pe-field {
   display: flex;
@@ -354,7 +354,7 @@
   align-items: center;
   gap: 10px;
 }
-.file-row .ghost-btn { flex-shrink: 0; }
+.file-row .button-surface { flex-shrink: 0; }
 .file-row .file-name {
   min-width: 0;
   overflow: hidden;
@@ -527,11 +527,11 @@ details.services-detail[open] > summary .icon { transform: rotate(180deg); }
   .services-row > .services-label { grid-column: 1; grid-row: 1; }
   .services-row > .hub-live-status { grid-column: 2; grid-row: 1; }
   .services-row > .services-actions,
-  .services-row > .ghost-btn { grid-column: 3; grid-row: 1; }
+  .services-row > .button-surface { grid-column: 3; grid-row: 1; }
   .services-row > .services-detail { grid-column: 1 / -1; grid-row: 2; }
 }
 /* Row-level service action (Wake / Sync) — compact padding, full 44px height. */
-.services-row .ghost-btn {
+.services-row .button-surface {
   padding: 4px 10px;
   font-size: var(--font-caption);
 }
