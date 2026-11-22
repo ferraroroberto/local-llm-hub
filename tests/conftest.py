@@ -32,6 +32,8 @@ import shutil  # noqa: E402
 import pytest  # noqa: E402
 import yaml  # noqa: E402
 
+from tests.host._synthetic_host import synthetic_host  # noqa: E402,F401 -- registers the fixture
+
 _PINNED_CONFIG_DIR: Path | None = None
 
 

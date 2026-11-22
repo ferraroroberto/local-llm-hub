@@ -315,11 +315,11 @@ def test_local_config_overrides_and_extends_defaults(tmp_path, monkeypatch):
         assert cfg.roots[0] == tmp_path / "r"
 
 
-def test_missing_or_broken_config_gives_the_defaults(tmp_path):
-    assert storage.load_config(tmp_path / "none.json").roots == (Path.home(),)
+def test_missing_or_broken_config_gives_the_defaults(tmp_path, synthetic_host):
+    assert storage.load_config(tmp_path / "none.json").roots == (synthetic_host.home,)
     bad = tmp_path / "bad.json"
     bad.write_text("{not json", encoding="utf-8")
-    assert storage.load_config(bad).roots == (Path.home(),)
+    assert storage.load_config(bad).roots == (synthetic_host.home,)
 
 
 # ----------------------------------------------------- store / sampler / report

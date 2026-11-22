@@ -9,7 +9,7 @@ The structure ratchet (`scripts/structure_ratchet.py`, configured in `.fleet.tom
 | `src/` | The hub: FastAPI routing, backend wrappers, process managers, usage parsers. A new module goes in the subpackage of its domain (`routes/`, `audio/`, `images/`, `fleet/`, `process/`, `usage/`, `diagnostics/`, `fsio/`, …), because the flat directory sits just under its 40-module limit. |
 | `app_web/` | The `/admin` sub-app: routers and the static SPA (no bundler). Declared by the shape instead of the scaffold's `app/webapp/`. |
 | `tray/` | The Windows system-tray launcher. Declared by the shape instead of the scaffold's `app/tray/`. |
-| `tests/` | Unit and integration tests, grouped by domain into subfolders (`chat/`, `audio/`, `backends/`, `routers/`, `usage/`, `diagnostics/`, `health/`, `ratchets/`, `e2e_harness/`), with `tests/e2e/` for the Playwright suite. A new test goes in the subfolder of its domain. |
+| `tests/` | Unit and integration tests, grouped by domain into subfolders (`chat/`, `audio/`, `backends/`, `routers/`, `usage/`, `diagnostics/`, `health/`, `ratchets/`, `host/` (the vendored synthetic host fixture), `e2e_harness/`), with `tests/e2e/` for the Playwright suite. A new test goes in the subfolder of its domain. |
 | `scripts/` | Gate, ratchets, installers, benchmarks and one-off tools. |
 | `config/` | Committed config, samples and pricing tables. |
 | `launchers/` | Per-model backend launchers (`.bat` and `.sh`). |

@@ -33,6 +33,7 @@ from tests.e2e._port_pool import (  # noqa: F401 - port-pool report hooks
     pytest_terminal_summary,
 )
 from tests.e2e._surface import pytest_collection_modifyitems  # noqa: F401
+from tests.host._synthetic_host import synthetic_host_env
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -138,7 +139,9 @@ def _hub_made_no_egress(hub_url: str, hub_egress_log: EgressLog) -> Iterator[Non
 def hub_url(hub_state_dir: Path, hub_egress_log: EgressLog) -> Iterator[str]:
     port = _free_tcp_port()
     url = f"http://127.0.0.1:{port}"
-    env = os.environ.copy()
+    # The hub renders home paths (the storage diagnostics); a synthetic home keeps the
+    # developer's real account name off every page the suite loads.
+    env = synthetic_host_env(os.environ, hub_state_dir)
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
     creationflags = 0
