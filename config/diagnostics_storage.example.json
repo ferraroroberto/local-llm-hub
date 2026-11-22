@@ -10,5 +10,6 @@
   "max_entries": 200000,
   "max_children": 60,
   "top_n": 10,
-  "docker_timeout_s": 8
+  "docker_timeout_s": 8,
+  "docker_df_timeout_s": 20
 }

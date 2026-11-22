@@ -69,6 +69,8 @@ class StorageConfig:
     max_children: int = 60
     top_n: int = 10
     docker_timeout_s: float = 8.0
+    # `docker system df` sizes every layer and volume, so it outlasts the cheap calls.
+    docker_df_timeout_s: float = 20.0
 
 
 def _default_config() -> StorageConfig:
@@ -126,6 +128,7 @@ def load_config(path: Optional[Path] = None) -> StorageConfig:
         max_children=int(_number(data, "max_children", cfg.max_children, 1, 500)),
         top_n=int(_number(data, "top_n", cfg.top_n, 1, 50)),
         docker_timeout_s=_number(data, "docker_timeout_s", cfg.docker_timeout_s, 1, 60),
+        docker_df_timeout_s=_number(data, "docker_df_timeout_s", cfg.docker_df_timeout_s, 1, 120),
     )
 
 
@@ -415,17 +418,20 @@ def _docker_state(cfg: StorageConfig, deadline: _Deadline) -> Dict[str, Any]:
     if shutil.which("docker") is None:
         return unknown("docker CLI not on PATH")
 
-    def budget() -> float:
-        return min(cfg.docker_timeout_s, deadline.remaining())
+    def budget(limit: float) -> float:
+        return min(limit, deadline.remaining())
 
-    if budget() <= 0:
+    if budget(cfg.docker_timeout_s) <= 0:
         return unknown("capture time budget exhausted")
-    ok, out = _docker(["info", "--format", "{{.ServerVersion}}"], budget())
+    ok, out = _docker(["info", "--format", "{{.ServerVersion}}"], budget(cfg.docker_timeout_s))
     if not ok:
         return unknown(out)
     state: Dict[str, Any] = {"status": "ok", "server_version": out.strip()}
-    for key, fetch in (("containers", _containers), ("usage", _docker_usage)):
-        timeout = budget()
+    # Usage runs last with its own, longer bound so a slow `system df` cannot
+    # starve the container list.
+    for key, fetch, limit in (("containers", _containers, cfg.docker_timeout_s),
+                              ("usage", _docker_usage, cfg.docker_df_timeout_s)):
+        timeout = budget(limit)
         state[key] = fetch(timeout) if timeout > 0 else unknown("capture time budget exhausted")
     return state
 

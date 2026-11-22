@@ -257,7 +257,11 @@ field failing never stops the others, and a storage failure never fails the run
 
 **Bounds.** Walks never follow symlinks or junctions, and each is capped by
 `walk_budget_s` (default 8), `max_depth`, and `max_entries`, inside an
-`overall_budget_s` (default 30) for the whole section. Blocking calls run in
+`overall_budget_s` (default 30) for the whole section. `docker info` and
+`docker ps` share `docker_timeout_s` (default 8); `docker system df`, which sizes
+every layer and volume, has its own `docker_df_timeout_s` (default 20) and runs
+last, and each call is also capped by what remains of the overall budget.
+Blocking calls run in
 daemon threads with an outer timeout, so a `scandir` wedged on a dead mount is
 abandoned and reported `unknown` instead of stalling the capture. A one-shot
 therefore takes at most about that budget longer than before, and usually a few
