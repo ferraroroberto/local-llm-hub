@@ -223,6 +223,55 @@ def test_system_df_timeout_keeps_the_container_list(tmp_path, monkeypatch):
     assert docker["usage"]["status"] == "unknown" and "timed out" in docker["usage"]["reason"]
 
 
+def _slow_df_docker(monkeypatch, df_delay_s):
+    """Fake docker whose ``system df`` takes ``df_delay_s`` of injected delay: it
+    times out when the caller's ``timeout=`` is shorter. Returns the timeouts seen."""
+    monkeypatch.setattr(storage.shutil, "which", lambda name: "docker" if name == "docker" else None)
+    seen = {}
+
+    def run(cmd, **kw):
+        seen[cmd[1]] = kw["timeout"]
+        if cmd[1] == "system" and kw["timeout"] < df_delay_s:
+            raise subprocess.TimeoutExpired(cmd, kw["timeout"])
+        out = {"info": "27\n", "ps": _PS, "system": _DF}[cmd[1]]
+        return subprocess.CompletedProcess(cmd, 0, out.encode(), b"")
+
+    monkeypatch.setattr(storage.subprocess, "run", run)
+    return seen
+
+
+def test_system_df_gets_its_own_longer_bound(tmp_path, monkeypatch):
+    seen = _slow_df_docker(monkeypatch, df_delay_s=15)  # past the 8 s default, within 20 s
+    docker = _collect(tmp_path, docker_timeout_s=8.0, docker_df_timeout_s=20.0)["docker"]
+    assert seen["info"] == seen["ps"] == 8.0
+    assert 8.0 < seen["system"] <= 20.0
+    assert docker["usage"]["status"] == "ok"
+    assert len(docker["containers"]["items"]) == 2
+
+
+def test_system_df_past_its_own_bound_is_unknown_and_names_it(tmp_path, monkeypatch):
+    _slow_df_docker(monkeypatch, df_delay_s=25)
+    docker = _collect(tmp_path, docker_timeout_s=8.0, docker_df_timeout_s=20.0)["docker"]
+    assert len(docker["containers"]["items"]) == 2
+    assert docker["usage"]["status"] == "unknown"
+    assert "timed out after 20s" in docker["usage"]["reason"]
+
+
+def test_system_df_bound_never_outlasts_the_overall_budget(tmp_path, monkeypatch):
+    seen = _slow_df_docker(monkeypatch, df_delay_s=0)
+    _collect(tmp_path, docker_df_timeout_s=100.0, overall_budget_s=5.0)
+    assert seen["system"] <= 5.0
+
+
+def test_docker_df_timeout_config_is_clamped_with_a_default(tmp_path):
+    path = tmp_path / "cfg.json"
+    assert storage.load_config(path).docker_df_timeout_s == 20.0
+    path.write_text('{"docker_df_timeout_s": 9999}', encoding="utf-8")
+    assert storage.load_config(path).docker_df_timeout_s == 120
+    path.write_text('{"docker_df_timeout_s": "soon"}', encoding="utf-8")
+    assert storage.load_config(path).docker_df_timeout_s == 20.0
+
+
 # ------------------------------------------------------------ sections / config
 
 
