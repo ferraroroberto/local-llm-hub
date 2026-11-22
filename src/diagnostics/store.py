@@ -45,7 +45,7 @@ DEFAULT_DB_PATH = runtime_db_path(
     "local-llm-hub", "diagnostics.db", env_var="LLM_HUB_DIAGNOSTICS_DB_PATH"
 )
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Overridable for tests (same mutable-module-global pattern as
 # startup_profile.DEFAULT_PROFILE_PATH).
@@ -142,6 +142,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         # the version gate and both ALTER — the loser raising "duplicate column".
         # Guard on the actual column, and still swallow a lost race.
         _add_column(conn, "runs", "coverage_json", "TEXT NOT NULL DEFAULT '{}'")
+    if current < 3:
+        # The storage-bloat section (drives, big folders, Docker); '{}' marks a
+        # run that never collected one, so readers can say "not collected".
+        _add_column(conn, "runs", "storage_json", "TEXT NOT NULL DEFAULT '{}'")
     conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     logger.info("🗃️ diagnostics schema migrated %d → %d", current, SCHEMA_VERSION)
 
@@ -402,6 +406,15 @@ def save_coverage(run_id: str, coverage: Dict[str, Any]) -> None:
         )
 
 
+def save_storage(run_id: str, storage: Dict[str, Any]) -> None:
+    """Persist the storage section for a run."""
+    with connect() as conn:
+        conn.execute(
+            "UPDATE runs SET storage_json = ? WHERE run_id = ?",
+            (json.dumps(storage or {}), run_id),
+        )
+
+
 def proc_readability(run_id: str) -> Dict[str, int]:
     """How many of a run's distinct processes had readable memory / CPU.
 
@@ -456,6 +469,11 @@ def _run_dict(row: sqlite3.Row) -> Dict[str, Any]:
             d["coverage"] = json.loads(d.pop("coverage_json") or "{}")
         except json.JSONDecodeError:
             d["coverage"] = {}
+    if "storage_json" in d:
+        try:
+            d["storage"] = json.loads(d.pop("storage_json") or "{}")
+        except json.JSONDecodeError:
+            d["storage"] = {}
     d["is_baseline"] = bool(d.get("is_baseline"))
     return d
 
@@ -470,7 +488,10 @@ def list_runs(limit: int = 50) -> List[Dict[str, Any]]:
             " ORDER BY r.started_at DESC LIMIT ?",
             (int(limit),),
         ).fetchall()
-    return [_run_dict(r) for r in rows]
+    runs = [_run_dict(r) for r in rows]
+    for run in runs:
+        run.pop("storage", None)  # a listing row stays small; get_run carries it
+    return runs
 
 
 def get_run(run_id: str) -> Optional[Dict[str, Any]]:
