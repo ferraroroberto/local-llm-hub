@@ -63,7 +63,10 @@ def test_resource_sampler_logs_each_distinct_failure_once(
     monkeypatch.setattr(system_stats, "ram_stats", _ram)
     monkeypatch.setattr(system_stats, "cpu_stats", lambda: {})
     monkeypatch.setattr(system_stats, "gpu_stats", lambda: [])
-    monkeypatch.setattr(server_lifecycle, "_RESOURCE_SAMPLE_INTERVAL_S", 0)
+    from src.health import live_stats
+
+    monkeypatch.setattr(live_stats, "LIVE_INTERVAL_S", 0)
+    monkeypatch.setattr(live_stats, "IDLE_INTERVAL_S", 0)
 
     with caplog.at_level(logging.WARNING, logger=server_lifecycle.logger.name):
         with pytest.raises(asyncio.CancelledError):

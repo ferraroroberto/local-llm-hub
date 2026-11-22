@@ -11,6 +11,7 @@
  * open (body:has(dialog[open])) and Esc closes for free.
  */
 
+import { startPoll } from './poll.js';
 import { els, state } from './state.js';
 import { jsonApi, postJson, putJson, api, toast, escapeHtml, fmtDuration, isAuthError } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
@@ -598,27 +599,27 @@ export function openDiagnostics() {
   renderDiagnostics();
   fetchDiagnosticsStatus();
   fetchRuns();
-  startPoll();
+  startStatusPoll();
 }
 
 function closeDiagnostics() {
-  stopPoll();
+  stopStatusPoll();
   if (els.diagDialog && els.diagDialog.open) els.diagDialog.close();
 }
 
 /* Poll only while the dialog is open — the same "don't poll an invisible
  * surface" rule machines.js applies per tab. */
-function startPoll() {
+function startStatusPoll() {
   if (pollHandle) return;
-  pollHandle = setInterval(function () {
-    fetchDiagnosticsStatus();
+  pollHandle = startPoll(function () {
     // While a capture runs, the run list gains samples worth reflecting.
-    if (state.diagStatus && state.diagStatus.capturing) fetchRuns();
+    const runs = state.diagStatus && state.diagStatus.capturing ? fetchRuns() : null;
+    return Promise.allSettled([fetchDiagnosticsStatus(), runs]);
   }, POLL_MS);
 }
 
-function stopPoll() {
-  if (pollHandle) { clearInterval(pollHandle); pollHandle = null; }
+function stopStatusPoll() {
+  if (pollHandle) { pollHandle.stop(); pollHandle = null; }
 }
 
 /* Kept exported so machines.js can refresh the card chip without opening
@@ -676,6 +677,6 @@ export function wireDiagnostics() {
   if (els.diagDialog) {
     // Esc fires 'close' on a native <dialog> — stop the poll either way so a
     // dismissed dialog never leaves a timer running.
-    els.diagDialog.addEventListener('close', stopPoll);
+    els.diagDialog.addEventListener('close', stopStatusPoll);
   }
 }

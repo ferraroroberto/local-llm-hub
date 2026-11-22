@@ -122,7 +122,7 @@ async def wire_observatory_loop() -> None:
     # Names the call that blocks the loop, so a latency spike on any endpoint
     # leaves the culprit's stack in the log instead of just a slow request.
     loop_watch.WATCH.start()
-    # Start the resource sampler. 2s tick × 150 samples = 5 min ring.
+    # Start the resource sampler (cadence: src/health/live_stats.py).
     _BACKGROUND_TASKS.append(loop.create_task(_resource_sampler()))
 
     # Inherit any backend process left running on one of our ports by a
@@ -398,22 +398,19 @@ async def _on_demand_idle_loop() -> None:
         logger.warning("on-demand idle loop exited abnormally: %s", exc)
 
 
-# Sampler cadence: fine enough that the Hub tab's sparklines look live, coarse
-# enough that the nvidia-smi shell-out behind gpu_stats() stays a light load.
-_RESOURCE_SAMPLE_INTERVAL_S = 2.0
-
-
 async def _resource_sampler() -> None:
-    """Background task that samples RAM + CPU + GPU usage every 2 s.
+    """Background task that samples RAM + CPU + GPU usage at the demand-paced cadence.
 
-    The sampling itself runs in a worker thread: ``gpu_stats()``
-    shells out to nvidia-smi, which stalls for seconds when the GPU is
-    busy serving models — calling it inline here blocked the whole event
-    loop every 2 s, and any HTTP client with a 5 s timeout (the e2e
-    suite's httpx calls) would intermittently trip on an otherwise-idle
-    endpoint. Same off-the-loop treatment ``/api/hub/stats`` already has.
+    ``src.health.live_stats`` owns the cadence (live while a viewer reads the
+    stats, idle otherwise) and keeps the newest GPU list for ``/api/hub/stats``.
+    The sampling itself runs in a worker thread: ``gpu_stats()`` shells out to
+    nvidia-smi, which stalls for seconds when the GPU is busy serving models —
+    calling it inline here blocked the whole event loop, and any HTTP client
+    with a 5 s timeout (the e2e suite's httpx calls) would intermittently trip
+    on an otherwise-idle endpoint.
     """
     from . import system_stats
+    from .health.live_stats import LIVE
     from .hub_observability import StatSample
 
     def _sample_sync():
@@ -427,6 +424,7 @@ async def _resource_sampler() -> None:
     while True:
         try:
             ram, cpu, gpus = await asyncio.to_thread(_sample_sync)
+            LIVE.record_gpus(gpus)
             gpu0_vram = None
             gpu0_util = None
             if gpus:
@@ -452,7 +450,7 @@ async def _resource_sampler() -> None:
                     "⚠️ resource sampler tick failed (Hub sparklines will "
                     "stall until it recovers): %s", failure)
                 last_failure = failure
-        await asyncio.sleep(_RESOURCE_SAMPLE_INTERVAL_S)
+        await LIVE.sleep(LIVE.interval_s())
 
 
 def register(app) -> None:

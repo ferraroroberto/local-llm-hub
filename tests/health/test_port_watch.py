@@ -477,3 +477,39 @@ def test_a_snapshot_ranks_holders_by_the_events_own_protocol(rig):
     assert all(h["tcp"] for h in by_id[4231])  # a UDP-only process is no TCP holder
     # The plain 30 s sample still ranks by tcp + udp (burst.exe 50 vs steady.exe 35), which is the mix the events avoid.
     assert rig.pw._probe.sample(top_n=3, now=T0)["holders"][0]["name"] == "burst.exe"
+
+
+def test_the_burst_window_tallies_at_the_idle_interval_without_port_pressure(rig):
+    ports = _cfg()["ports"]
+    rig.table.set(tcp=_endpoints(202, 5), udp=_endpoints(303, 3))
+    rig.pw.tick(_cfg(), now=T0)
+    assert rig.pw.window_interval(ports, now=T0 + 1) == ports["window_idle_interval_s"]
+    assert ports["window_idle_interval_s"] > ports["window_interval_s"]
+
+
+@pytest.mark.parametrize("tcp,udp", [(30, 1), (1, 30)])
+def test_port_pressure_on_either_range_arms_the_1s_tally(rig, tcp, udp):
+    ports = _cfg()["ports"]
+    rig.table.set(tcp=_endpoints(202, tcp), udp=_endpoints(303, udp))
+    rig.pw.tick(_cfg(), now=T0)
+    assert rig.pw.window_interval(ports, now=T0 + 1) == ports["window_interval_s"]
+
+
+def test_unknown_port_pressure_keeps_the_1s_tally(rig):
+    """No sample yet, a stale one or an unreadable table is not proof of calm."""
+    ports = _cfg()["ports"]
+    assert rig.pw.window_interval(ports, now=T0) == ports["window_interval_s"]
+    rig.table.set(tcp=_endpoints(202, 5), udp=_endpoints(303, 3))
+    rig.pw.tick(_cfg(), now=T0)
+    stale_after = ports["interval_s"] * ports["stale_after_intervals"]
+    assert rig.pw.window_interval(ports, now=T0 + stale_after + 1) == ports["window_interval_s"]
+
+    def udp_fails(protocol):
+        if protocol == "udp":
+            raise psutil.AccessDenied()
+        return rig.table(protocol)
+
+    pw = port_watch.PortWatch(port_probe.PortProbe(udp_fails, NAMES.get, RANGES), rig.store,
+                              read_events=lambda lookback: [])
+    pw.tick(_cfg(), now=T0)
+    assert pw.window_interval(ports, now=T0 + 1) == ports["window_interval_s"]

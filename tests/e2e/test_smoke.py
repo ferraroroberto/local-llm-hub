@@ -4,7 +4,8 @@ One phone-width visit to ``/admin/`` reads the whole Hub tab: the console stays
 clean, the default pane is Hub on its glance, the boot burst leaves out the
 live-probe endpoints, the load sparkline paints before the first poll, the
 tiles stack under a heading, each empty list names its control, labels are
-plain words and every pane header holds only the theme toggle and the gear.
+plain words, every pane header holds only the theme toggle and the gear, and a
+hidden tab stops polling until it shows again.
 
 Runs before ``test_traffic.py`` on purpose: the empty-state checks need a hub
 that has served no model traffic yet.
@@ -156,6 +157,30 @@ def _toast_clears_the_phone_nav(page):
     assert toast_z > 120, "toast must clear the floating nav's z-index: 120"
 
 
+_SET_VISIBILITY = """hidden => {
+    Object.defineProperty(document, 'hidden', {configurable: true, get: () => hidden});
+    Object.defineProperty(document, 'visibilityState', {configurable: true,
+        get: () => (hidden ? 'hidden' : 'visible')});
+    document.dispatchEvent(new Event('visibilitychange'));
+}"""
+# Past the slowest Hub-tab poll (status and counters, 4 s), so every poll has had a turn.
+_HIDDEN_WATCH_MS = 4500
+
+
+def _hidden_tab_goes_quiet(page, requested):
+    """A hidden tab reads nothing; showing it again makes one catch-up read per poll."""
+    page.evaluate(_SET_VISIBILITY, True)
+    page.wait_for_timeout(300)  # what leaves at the moment of hiding (the usage flush) is not a poll
+    requested.clear()
+    page.wait_for_timeout(_HIDDEN_WATCH_MS)
+    assert requested == [], f"a hidden tab still requested {requested}"
+    page.evaluate(_SET_VISIBILITY, False)
+    page.wait_for_timeout(1000)  # shorter than every poll's interval: only catch-up reads land
+    reads = [u for u in requested if "/admin/api/" in u]
+    for endpoint in ("/admin/api/hub/status", "/admin/api/hub/stats"):
+        assert sum(u.endswith(endpoint) for u in reads) == 1, f"catch-up for {endpoint}: {reads}"
+
+
 def test_hub_landing(browser, admin_url, browser_name):
     requested: list[str] = []
     with fresh_page(browser, console_errors=True, viewport=PHONE) as page:
@@ -167,3 +192,4 @@ def test_hub_landing(browser, admin_url, browser_name):
         _empty_lists_name_their_control(page, mark)
         _labels_and_headers_are_plain(page)
         _toast_clears_the_phone_nav(page)
+        _hidden_tab_goes_quiet(page, requested)

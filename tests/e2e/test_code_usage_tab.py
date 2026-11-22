@@ -474,16 +474,18 @@ def test_code_usage_renders_the_summary(browser, admin_url, browser_name):
 
 _COUNT_POLL_INTERVALS = """
 (() => {
-  // Live 30 s intervals (the Code usage poll cadence), tracked by handle so a
-  // clearInterval on the wrong handle leaves the orphan counted.
+  // Pending 30 s poll timers (the Code usage cadence; poll.js re-arms one
+  // setTimeout per tick), tracked by handle so a clear on the wrong handle
+  // leaves the orphan counted and a fired timer drops out.
   const live = new Set();
-  const set = window.setInterval, clear = window.clearInterval;
-  window.setInterval = function (fn, ms, ...rest) {
-    const id = set.call(window, fn, ms, ...rest);
-    if (ms === 30000) live.add(id);
+  const set = window.setTimeout, clear = window.clearTimeout;
+  window.setTimeout = function (fn, ms, ...rest) {
+    if (ms !== 30000) return set.call(window, fn, ms, ...rest);
+    const id = set.call(window, function () { live.delete(id); return fn.apply(this, arguments); }, ms, ...rest);
+    live.add(id);
     return id;
   };
-  window.clearInterval = function (id) { live.delete(id); return clear.call(window, id); };
+  window.clearTimeout = function (id) { live.delete(id); return clear.call(window, id); };
   window.__livePollIntervals = () => live.size;
 })();
 """
@@ -524,7 +526,7 @@ def _wait_for(page, cond):
 
 def _retapping_the_active_tab_leaves_one_poll_interval(page, admin_url):
     """The nav re-fires onChange on a tap of the already-active tab, and each
-    repeat used to start another 30 s interval whose handle was then lost, so
+    repeat used to start another 30 s poll whose handle was then lost, so
     leaving the tab could not stop it."""
     page.add_init_script(_COUNT_POLL_INTERVALS)
     page.goto(admin_url, wait_until="domcontentloaded")
@@ -534,7 +536,8 @@ def _retapping_the_active_tab_leaves_one_poll_interval(page, admin_url):
     page.click("#tabCodeUsage")
     page.wait_for_selector("#paneCodeUsage", state="visible", timeout=PANE_TIMEOUT)
     _await_first_summary(page)
-    assert page.evaluate("window.__livePollIntervals()") == baseline + 1
+    # The next tick is armed once the first read settles.
+    page.wait_for_function(f"window.__livePollIntervals() === {baseline + 1}", timeout=PANE_TIMEOUT)
 
     for _ in range(3):
         page.click("#tabCodeUsage")

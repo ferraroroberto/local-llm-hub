@@ -22,6 +22,7 @@ import { wireTheme } from './theme.js';
 import { wireCodeUsage, startCodeUsagePolls, stopCodeUsagePolls } from './code_usage.js';
 import { wireMachines, startMachinesPolls, stopMachinesPolls } from './machines.js';
 import { wireSettings } from './settings.js';
+import { startPoll } from './poll.js';
 import { wireInfoSheet } from './rows.js';
 
 // --------------------------------------------------------------- #telemetry
@@ -174,12 +175,18 @@ async function boot() {
   // in wireTabs(); only (re)start the hub streams if that's where we are.
   if (state.tab === 'hub') startHubStreams();
 
-  // Poll loops — light, no SSE for these
-  setInterval(function () { fetchHubStatus().catch(function () {}); }, STATUS_POLL_MS);
-  setInterval(function () { fetchCounters().catch(function () {}); }, COUNTERS_POLL_MS);
-  setInterval(function () {
-    if (state.tab === 'models') fetchModels().catch(function () {});
+  // Poll loops — light, no SSE for these; none runs in a hidden tab.
+  startPoll(fetchHubStatus, STATUS_POLL_MS);
+  startPoll(fetchCounters, COUNTERS_POLL_MS);
+  startPoll(function () {
+    if (state.tab === 'models') return fetchModels();
   }, MODELS_POLL_MS);
+  // The Hub tab's two streams push for as long as they are open, so a hidden
+  // tab closes them and showing it again reopens them (each re-seeds itself).
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) stopHubStreams();
+    else if (state.tab === 'hub') startHubStreams();
+  });
   // "New version available · Reload" when a deploy lands under an open page;
   // the version route is auth-exempt, so the default same-origin read serves it.
   initBuildWatch({ endpoint: '/admin/api/version' });
