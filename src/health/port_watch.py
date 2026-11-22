@@ -2,7 +2,8 @@
 
 Ephemeral-port exhaustion builds and drains in minutes, so the health watch's
 10-minute sample misses it. This loop samples every ``ports.interval_s``
-(30 s), reads the System log's Tcpip exhaustion events every
+(30 s), tallies per-process endpoints into a burst window (every 1 s under port
+pressure, slower otherwise), reads the System log's Tcpip exhaustion events every
 ``ports.events_interval_s``, keeps both on disk (``port_store``) so a restart
 or a reboot keeps the incident, and hands its findings to the health verdict
 (``watch.HealthWatch.current``). Advice only: it never closes a socket or
@@ -153,6 +154,24 @@ class PortWatch:
                     self._events[e["record_id"]] = e
         return sample
 
+    def window_interval(self, ports: Dict[str, Any], now: Optional[float] = None) -> float:
+        """The burst window's tally interval: ``window_interval_s`` while the newest port sample
+        reaches ``window_arm_percent`` of either range (or none is fresh and readable, so pressure
+        is unknown), ``window_idle_interval_s`` otherwise. A burst builds over the samples before
+        it, so the 1 s tally arms in time without reading both tables every second while idle."""
+        now = time.time() if now is None else now
+        with self._lock:
+            last = self._history[-1] if self._history else None
+        fine = float(ports["window_interval_s"])
+        if last is None or now - last["ts"] > float(ports["interval_s"]) * float(ports["stale_after_intervals"]):
+            return fine
+        arm = float(ports["window_arm_percent"])
+        for protocol in port_probe.PROTOCOLS:
+            percent = (last.get(protocol) or {}).get("percent")
+            if percent is None or float(percent) >= arm:
+                return fine
+        return float(ports["window_idle_interval_s"])
+
     def ports_config(self) -> Optional[Dict[str, Any]]:
         """The ``ports`` settings the last tick or load saw, ``None`` before either."""
         with self._lock:
@@ -200,9 +219,10 @@ async def run_loop(on_tick: Optional[Callable[[], Any]] = None) -> None:
 
 
 async def run_window_loop(ports: Dict[str, Any]) -> None:
-    """Tally the per-process endpoints every ``ports.window_interval_s`` (1 s) into the burst
-    window, in a worker thread so the event loop never waits on the table read. Never raises out
-    of a tally; a failing read is logged when it starts, not once a second."""
+    """Tally the per-process endpoints into the burst window every ``WATCH.window_interval`` (1 s
+    under port pressure, ``ports.window_idle_interval_s`` otherwise), in a worker thread so the
+    event loop never waits on the table read. Never raises out of a tally; a failing read is
+    logged when it starts, not once a second."""
     failing, first = False, True
     while True:
         started = time.monotonic()
@@ -211,15 +231,16 @@ async def run_window_loop(ports: Dict[str, Any]) -> None:
             await asyncio.to_thread(WATCH.record_window, ports)
             failing = False
             if first:
-                logger.info("ℹ️ port watch: burst window of %s s every %s s, first tally took %.1f ms",
-                            ports["window_s"], ports["window_interval_s"], (time.monotonic() - started) * 1000)
+                logger.info("ℹ️ port watch: burst window of %s s every %s s (%s s idle), first tally took %.1f ms",
+                            ports["window_s"], ports["window_interval_s"], ports["window_idle_interval_s"],
+                            (time.monotonic() - started) * 1000)
                 first = False
         except Exception as exc:  # noqa: BLE001 — a failed tally must not end the window
             if not failing:
                 logger.warning("⚠️ port watch: burst window tally failed: %s", exc)
             failing = True
         elapsed = time.monotonic() - started
-        await asyncio.sleep(max(0.2, float(ports["window_interval_s"]) - elapsed))
+        await asyncio.sleep(max(0.2, WATCH.window_interval(ports) - elapsed))
 
 
 async def _sample_forever(cfg: Dict[str, Any], on_tick: Optional[Callable[[], Any]]) -> None:

@@ -30,6 +30,31 @@ On a wide window (1100px+, mouse) the glance and services sit left of the
 Activity feed; a phone shows one column. The model roles and placement live
 on the Models tab.
 
+## Background cadence
+
+The page and the hub do background work only while someone is looking, so an
+unwatched hub stays cheap.
+
+- **Page polls** all run through `app_web/static/poll.js`: none fires while the
+  tab is hidden, a read never overlaps the previous one, and showing the tab
+  again makes one catch-up read per poll before the cadence resumes. A hidden
+  tab also closes the Hub tab's request and log streams; showing it reopens
+  them.
+- **Hub stats.** `/admin/api/hub/stats` answers from the resource sampler's
+  newest snapshot and starts no process. Each read marks a viewer watching for
+  15 s (`src/health/live_stats.py`).
+
+What still runs with nobody watching, and why:
+
+| Work | Interval | Why it keeps running |
+| --- | --- | --- |
+| RAM/CPU/GPU sampler (one `nvidia-smi` spawn per sample) | 2 s while watched, 30 s otherwise | Feeds only the Hub tab's sparklines; the idle trace keeps their history from going blank |
+| Port sample (two connection-table reads) | 30 s | Ephemeral-port exhaustion builds over minutes ([health-watch.md](health-watch.md)) |
+| Port burst window (two connection-table reads) | 1 s at 25 % port use or more (or unknown), 10 s below | Names the process behind a burst that drained before its event was read |
+| Tcpip event read (one `wevtutil` spawn) | 60 s | Ground truth for exhaustion; the burst window covers only the last 60 s, so a slower read would lose the holder |
+| Event-loop heartbeat thread | 0.1 s | Must beat faster than its 0.25 s stall threshold; in-process, no spawn |
+| Health watch / resource watch | 600 s / 60 s | Leak and pressure verdicts and the RAM/disk alerts ([health-watch.md](health-watch.md)) |
+
 ## Settings
 
 The gear in every page header opens **Settings**, the fleet's inset

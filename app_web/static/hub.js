@@ -18,6 +18,7 @@
  * install check still reaches this tab's header line.
  */
 
+import { startPoll } from './poll.js';
 import { els, state, HUB_STATS_POLL_MS, HUB_LOG_MAX_LINES } from './state.js';
 import { jsonApi, postJson, eventStream, toast, escapeHtml, fmtClock, fmtDuration, renderCounterTable, shortGpu, modelLabelText, applyListFilter, isAuthError, tokPair } from './api.js';
 import { langfuseTraceUrl, langfuseUiBase, fetchOtelHealth, hydrateTraceDetail, postFeedback } from './langfuse.js';
@@ -725,18 +726,18 @@ export function wireHub() {
   renderHeadLine();
 
   // Sparklines: lightweight inline-SVG renderer driven by /admin/api/hub/stats.
-  setInterval(function () {
-    if (state.tab !== 'hub') return;
-    renderSparklines();
+  startPoll(function () {
+    if (state.tab === 'hub') return renderSparklines();
   }, HUB_STATS_POLL_MS);
 
   // Services + telemetry health every 5 s: two small probes, and the health
   // feeds the Langfuse sheet and every trace link's project id.
-  setInterval(function () {
-    if (state.tab !== 'hub') return;
-    if (state.servicesLaunching) return;
-    fetchServicesStatus().catch(function () {});
-    fetchOtelHealth().then(renderLangfuseSheet).catch(function () {});
+  startPoll(function () {
+    if (state.tab !== 'hub' || state.servicesLaunching) return;
+    return Promise.allSettled([
+      fetchServicesStatus(),
+      fetchOtelHealth().then(renderLangfuseSheet),
+    ]);
   }, 5000);
 }
 

@@ -97,9 +97,9 @@ The snapshot runs a few seconds after the event, never at it, so the verdict say
 
 ### The burst window
 
-A UDP socket frees its port the instant it closes, so a burst can be gone before the snapshot looks. A second loop therefore tallies the endpoints each process holds in the dynamic ranges every `window_interval_s` (1 s) into a `window_s` (60 s) in-memory buffer (`src/health/port_window.py`, in a worker thread, never on the event loop). When a **new** `4231` or `4266` is read, the watch stores the window's peak holders of the event's protocol on the event, beside its snapshot: for each process the highest count, the second it was reached, and its lowest count in the window (`low`, 0 when it was absent). The tallies themselves are never persisted.
+A UDP socket frees its port the instant it closes, so a burst can be gone before the snapshot looks. A second loop therefore tallies the endpoints each process holds in the dynamic ranges into a `window_s` (60 s) in-memory buffer: every `window_interval_s` (1 s) while the newest port sample holds at least `window_arm_percent` (25 %) of either range, or while no fresh, readable sample says otherwise, and every `window_idle_interval_s` (10 s) below that. A burst builds over the 30 s samples before it reaches the 80 % act line, so the 1 s tally arms in time without reading both tables every second on a calm machine (`src/health/port_window.py`, in a worker thread, never on the event loop). When a **new** `4231` or `4266` is read, the watch stores the window's peak holders of the event's protocol on the event, beside its snapshot: for each process the highest count, the second it was reached, and its lowest count in the window (`low`, 0 when it was absent). The tallies themselves are never persisted.
 
-The holder is **confirmed** only when the window reaches back to the event and some process rose by `window_min_rise` (50) or more endpoints; a flat block (a vendor service holding 50 UDP ports all day) is listed but never named as the burst. An empty or unreadable window, one that starts after the event, or one in which nothing rose reads `peak holder not confirmed`, never an all-clear. The limit: a burst shorter than the 1 s tally interval can fall between two tallies, and an event read more than `window_s` after it was logged is no longer covered; the event text says so. A snapshot ranks its holders by the event's own protocol (a UDP event by UDP endpoints, a TCP event by TCP), not by TCP plus UDP.
+The holder is **confirmed** only when the window reaches back to the event and some process rose by `window_min_rise` (50) or more endpoints; a flat block (a vendor service holding 50 UDP ports all day) is listed but never named as the burst. An empty or unreadable window, one that starts after the event, or one in which nothing rose reads `peak holder not confirmed`, never an all-clear. The limit: a burst shorter than the tally interval (1 s armed, 10 s idle) can fall between two tallies, and an event read more than `window_s` after it was logged is no longer covered; the event text says so. A snapshot ranks its holders by the event's own protocol (a UDP event by UDP endpoints, a TCP event by TCP), not by TCP plus UDP.
 
 ### Findings
 
@@ -124,11 +124,11 @@ Samples are kept for `history_hours` (24) and events for `event_keep_days` (30) 
 
 ### Cost
 
-Measured on the tower (about 760 TCP and 160 UDP endpoints): a port sample is one `psutil.net_connections` call per protocol, **about 5 ms of CPU** every 30 s; the event-log read is **about 75 ms** of wall time for a 24-hour window, once a minute. Each sample's own cost is in `sample_ms` and `cpu_ms`. The 1 s window tally reads the same two tables: **about 10 ms median, 13 ms p95** of wall time (92 processes holding endpoints), roughly 1 % of one core, in its own thread.
+Measured on the tower (about 760 TCP and 160 UDP endpoints): a port sample is one `psutil.net_connections` call per protocol, **about 5 ms of CPU** every 30 s; the event-log read is **about 75 ms** of wall time for a 24-hour window, once a minute. Each sample's own cost is in `sample_ms` and `cpu_ms`. A window tally reads the same two tables: **about 10 ms median, 13 ms p95** of wall time (92 processes holding endpoints), roughly 1 % of one core at the armed 1 s interval and a tenth of that at the idle 10 s, in its own thread.
 
 ### Configuration
 
-The `ports` section of `config/health_watch.json`, re-read every tick. Every threshold and cadence above is a key there; `ports.window_s`, `window_interval_s` and `window_min_rise` set the burst window's length, tally interval and the rise that confirms a holder. `"ports": {"enabled": false}` stops the port watch and the slow sample's port rows judge ports again.
+The `ports` section of `config/health_watch.json`, re-read every tick. Every threshold and cadence above is a key there; `ports.window_s`, `window_interval_s`, `window_idle_interval_s`, `window_arm_percent` and `window_min_rise` set the burst window's length, armed and idle tally intervals, the port use that arms it and the rise that confirms a holder. `"ports": {"enabled": false}` stops the port watch and the slow sample's port rows judge ports again.
 
 ## Resource watch: RAM, free space and disk latency
 
@@ -199,7 +199,7 @@ The `resource` section of `config/health_watch.json`, re-read every sample like 
 | `src/health/port_rules.py` | Port findings, holders with growth, the `ports` block (pure) |
 | `src/health/sample_store.py` | The JSON-row sample history both stores build on |
 | `src/health/port_store.py` | Port sample and event history in SQLite |
-| `src/health/port_watch.py` | The 30-second port loop and its state |
+| `src/health/port_watch.py` | The 30-second port loop, the burst window's armed or idle cadence, and their state |
 | `src/health/resource_probe.py` | One resource sample: RAM, free space per drive, latency from counter deltas |
 | `src/health/resource_rules.py` | Sustained-breach conditions (RAM, free space, latency, disk load), stall episodes, the weekly summary (pure) |
 | `src/health/resource_store.py` | Rolling sample history and alert debounce state in SQLite |

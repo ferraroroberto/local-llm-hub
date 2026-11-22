@@ -78,6 +78,9 @@ DEFAULTS: Dict[str, Any] = {
         "event_keep_days": 30,
         "window_s": 60,
         "window_interval_s": 1,
+        # Below this share of either range the tally runs at the idle interval; the act line is 80.
+        "window_arm_percent": 25,
+        "window_idle_interval_s": 10,
         "window_min_rise": 50,
         "tcp_percent": {"watch": 50, "act": 80},
         "udp_percent": {"watch": 50, "act": 80},

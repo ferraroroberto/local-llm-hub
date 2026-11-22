@@ -17,6 +17,7 @@
  * this module executes (see the <script> tag just before main.js in index.html).
  */
 
+import { startPoll } from './poll.js';
 import { els, state } from './state.js';
 import { jsonApi, fmtTok, fmtCost, tokPair, escapeHtml, renderTable, toastPending, isAuthError } from './api.js';
 import { row, setHeadLine, setFilterTrigger, defineInfo } from './rows.js';
@@ -183,13 +184,12 @@ export function startCodeUsagePolls() {
   // A re-tap of the already-active tab calls this again; a second interval would
   // orphan the first (stop clears only the latest handle) and poll forever.
   if (_pollHandle !== null) return;
-  pollSummary();
-  _pollHandle = setInterval(pollSummary, POLL_MS);
+  _pollHandle = startPoll(pollSummary, POLL_MS, { immediate: true });
 }
 
 export function stopCodeUsagePolls() {
   if (_pollHandle !== null) {
-    clearInterval(_pollHandle);
+    _pollHandle.stop();
     _pollHandle = null;
   }
 }
@@ -203,7 +203,7 @@ function pollSummary() {
   if (_choice) return;
   const ctl = new AbortController();
   _pollCtl = ctl;
-  fetchSummary(ctl, _gen).catch(function () {});
+  return fetchSummary(ctl, _gen);
 }
 
 /* A user-picked vendor/period: toast now, fetch once the clicks settle. */

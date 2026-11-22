@@ -197,6 +197,7 @@ local-llm-hub/
 │   ├── health/               # machine health watch — slow resident sampler, leak/pressure verdict
 │   │   ├── snapshot.py           #   stale-while-revalidate cache for a polled read (services status)
 │   │   ├── loop_watch.py         #   watchdog thread: logs the stack of whatever blocks the event loop
+│   │   ├── live_stats.py         #   demand-paced cadence + newest GPU snapshot for the Hub tab's resource sampler
 │   │   ├── win_probe.py          #   native Windows reads (one-call process table, perf info)
 │   │   ├── sampler.py            #   one sample: system counters + top processes per metric
 │   │   ├── classifier.py         #   pure ok/watch/act/unknown verdict + suggested fix
@@ -245,7 +246,7 @@ local-llm-hub/
 │                             #   playground.js + playground_jev.js + code_usage.js/.css +
 │                             #   confirm_dialog.js + diagnostics.js + glossary.js + machines.js/.css +
 │                             #   machines_terminal.js + rows.js/.css + settings.js +
-│                             #   langfuse.js + dormant.js + theme.js +
+│                             #   langfuse.js + dormant.js + theme.js + poll.js (visible-only polls) +
 │                             #   usage.js + styles.css + panels.css +
 │                             #   manifest.webmanifest + icon-*.png/favicon.ico (generated
 │                             #   by scripts/gen_icons.py, committed)

@@ -6,7 +6,7 @@
     "System rules: watch/act limits; below=true means a low value is the bad one.",
     "Handles are file descriptors on macOS/Linux; commit and pool counters exist only on Windows.",
     "resource: the one-minute RAM / free-disk / per-disk latency watch with Telegram alerts (docs/health-watch.md). A sample is one minute, so sustain_samples is minutes. alert_below / alert_above_ms are the limits; min_ios is the fewest operations a window must complete to be judged for latency. disk_load: a physical disk that is busy, queued and slow all at once for the sustained samples is watch, then alert. alert.script null = ~/.claude/hooks/notify_send.py.",
-    "ports: the 30 s port watch (docs/health-watch.md). tcp_percent / udp_percent are the share of each protocol's dynamic range in use, judged on the worst sample in hold_minutes. A Tcpip 4231/4266 event in the System log is act for event_hold_hours; a 4227 is watch unless port use around it was at the act line."
+    "ports: the 30 s port watch (docs/health-watch.md). tcp_percent / udp_percent are the share of each protocol's dynamic range in use, judged on the worst sample in hold_minutes. A Tcpip 4231/4266 event in the System log is act for event_hold_hours; a 4227 is watch unless port use around it was at the act line. The burst window tallies every window_interval_s while the newest sample reaches window_arm_percent of either range (or no fresh sample says otherwise), every window_idle_interval_s below it."
   ],
   "enabled": true,
   "interval_s": 600,
@@ -125,6 +125,8 @@
     "event_keep_days": 30,
     "window_s": 60,
     "window_interval_s": 1,
+    "window_arm_percent": 25,
+    "window_idle_interval_s": 10,
     "window_min_rise": 50,
     "tcp_percent": {
       "watch": 50,

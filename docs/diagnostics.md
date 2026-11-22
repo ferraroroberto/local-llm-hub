@@ -390,7 +390,7 @@ IO counters are stored **raw and cumulative**; deltas are derived at read time.
   should land near the system-wide figure (10.9% vs 11.5% on the reference box).
 - System CPU is measured over the sampler's **own** 0.5 s window rather than
   psutil's `interval=None` mode. That mode reports usage since the previous call
-  *in the process*, and the hub's Hub-tab sampler already calls it every 2 s —
+  *in the process*, and the hub's Hub-tab sampler already calls it (every 2 s while watched) —
   whichever ran last stole the other's delta, which made diagnostics report
   0.0% CPU on a genuinely busy box.
 - The hub never *pushes* a capture onto a peer that runs its own hub — each such

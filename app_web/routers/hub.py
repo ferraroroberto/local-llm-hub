@@ -22,7 +22,6 @@ per ``app_web/admin_forward.py``'s layering rule they don't belong in
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import subprocess
@@ -221,12 +220,14 @@ async def counters() -> Dict[str, Any]:
 
 @router.get("/api/hub/stats")
 async def stats() -> Dict[str, Any]:
-    """gpu_stats() shells out to nvidia-smi (3s timeout). Keep it off the
-    event loop so the rest of /admin stays snappy."""
+    """GPUs come from the resource sampler's newest snapshot, so a read starts no
+    process; the read itself marks a viewer watching, which keeps the sampler live."""
     from src import system_stats
+    from src.health.live_stats import LIVE
 
+    LIVE.note_demand()
     ram = system_stats.ram_stats()
     cpu = system_stats.cpu_stats()
-    gpus = await asyncio.to_thread(system_stats.gpu_stats)
+    gpus = LIVE.gpus()
     history = OBS.stats_snapshot()
     return {"ram": ram, "cpu": cpu, "gpus": gpus, "history": history}

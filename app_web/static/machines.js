@@ -18,6 +18,7 @@
  * sorted after the live ones and never counts as offline.
  */
 
+import { startPoll } from './poll.js';
 import { els, state, MACHINES_POLL_MS } from './state.js';
 import { jsonApi, postJson, api, toast, escapeHtml, codeHtml, fmtClock, fmtDuration, shortGpu, fmtGbValue, isAuthError } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
@@ -92,12 +93,11 @@ export async function fetchMachinesStatus() {
 
 export function startMachinesPolls() {
   if (pollHandle) return;
-  fetchMachinesStatus();
-  pollHandle = setInterval(function () { fetchMachinesStatus(); }, MACHINES_POLL_MS);
+  pollHandle = startPoll(fetchMachinesStatus, MACHINES_POLL_MS, { immediate: true });
 }
 
 export function stopMachinesPolls() {
-  if (pollHandle) { clearInterval(pollHandle); pollHandle = null; }
+  if (pollHandle) { pollHandle.stop(); pollHandle = null; }
 }
 
 // --------------------------------------------------------- formatting
