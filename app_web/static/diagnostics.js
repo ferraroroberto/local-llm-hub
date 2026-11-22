@@ -135,7 +135,7 @@ function renderCapture(status) {
     + '<div class="diag-capture-actions">'
     + '<button type="button" class="button-primary" data-track="diag-start" data-diag-action="start">'
     + icon('play') + '<span>Start capture</span></button>'
-    + '<button type="button" class="ghost-btn" data-track="diag-snapshot" data-diag-action="snapshot">'
+    + '<button type="button" class="button-ghost" data-track="diag-snapshot" data-diag-action="snapshot">'
     + icon('flask-conical') + '<span>One-shot snapshot</span></button>'
     + '</div></div>';
 }
@@ -307,11 +307,11 @@ function renderSummary(summary, drift) {
   parts.push(driftSection(drift));
 
   parts.push('<div class="diag-run-actions">'
-    + '<button type="button" class="ghost-btn" data-track="diag-baseline" data-diag-action="baseline">'
+    + '<button type="button" class="button-ghost" data-track="diag-baseline" data-diag-action="baseline">'
     + icon('tag') + '<span>' + (run.is_baseline ? 'Baseline' : 'Mark as baseline') + '</span></button>'
-    + '<button type="button" class="ghost-btn" data-track="diag-report" data-diag-action="report">'
+    + '<button type="button" class="button-ghost" data-track="diag-report" data-diag-action="report">'
     + icon('scroll-text') + '<span>Health report</span></button>'
-    + '<button type="button" class="ghost-btn" data-track="diag-export" data-diag-action="export">'
+    + '<button type="button" class="button-ghost" data-track="diag-export" data-diag-action="export">'
     + icon('download') + '<span>Export JSON</span></button>'
     + '<button type="button" class="button-tint danger" data-track="diag-delete" data-diag-action="delete">'
     + icon('circle-x') + '<span>Delete</span></button>'
@@ -349,7 +349,7 @@ function renderSettings(status) {
     + '<p class="muted small">Database ' + escapeHtml(fmtMb((s.db_size_bytes || 0) / (1024 * 1024)))
     + ' · run metadata and verdicts are kept indefinitely.</p>'
     + '<div class="diag-capture-actions">'
-    + '<button type="button" class="ghost-btn" data-track="diag-save-settings" data-diag-action="save-settings">'
+    + '<button type="button" class="button-ghost" data-track="diag-save-settings" data-diag-action="save-settings">'
     + icon('save') + '<span>Save settings</span></button></div>'
     + '</div>';
 }

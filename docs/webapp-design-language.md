@@ -101,12 +101,18 @@ Primary nav is the **vendored fleet component** at `app_web/static/_vendored/nav
   Save & commit): one per view, never a second solid fill. A secondary
   action beside it (the generated image's Download) is `.button-tint`.
 - **`.button-tint.danger`** — every destructive verb (diagnostics Stop and
-  Delete, the playground's Reset sample, the confirm dialog's Confirm): the
-  outlined recipe, never a fill.
-- **`.ghost-btn`** — the local quiet text button for actions the vendored
-  mapping does not name, `min-height: 36 px`, border + transparent
-  background. Use for: Re-check, Clear, Pause log, Choose file, Add host,
-  the individual install-row fixers.
+  Delete, the machine Reboot / Shut down, a model's Force stop, the
+  playground's Reset sample, the confirm dialog's Confirm): the outlined
+  recipe, never a fill.
+- **`.button-surface`** — the vendored labelled utility tier: Choose file,
+  Re-check, the Services Start / Stop, Pause log, a model's Stop in the wide pane. `.file-row` and
+  `.services-row` only size and place it.
+- **`.button-ghost`** — the vendored quiet tier for a tertiary action: Clear
+  (an unsaved value, nothing deleted), Cancel, Add host, the individual
+  install-row fixers, the diagnostics run actions.
+  The app keeps no local button class of its own: `.ghost-btn` and
+  `.sheet-danger-row` are gone, and the only bespoke control is the
+  `.cld-counter` metric tile that selects a trend.
 - **`icon-button`** — a glyph-only control: the pencil that opens Edit
   placement in a model's Placement section, the row kebab, the close X.
 - **Row open** — an `action-row-main` button, also for a row that leaves the
@@ -121,7 +127,7 @@ max-tokens, Settings text size and theme) are the vendored `segmented`
 control: one track, borderless segments, the selected one raised
 (`aria-pressed="true"`), never tinted. The app carries no `.segmented` rules of
 its own beyond layout. File pickers hide
-the native input behind a ghost "Choose file" button with the selected
+the native input behind a surface "Choose file" button with the selected
 filename to its right (`.file-row`).
 
 Every interactive element has `min-height: 36 px` and a

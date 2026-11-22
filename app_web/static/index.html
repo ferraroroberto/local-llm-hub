@@ -246,7 +246,7 @@
               <div class="opt-stack">
                 <label for="playgroundAttachment">Attachment <span class="muted small">(image / PDF / text — claude &amp; gemini only)</span></label>
                 <div class="file-row">
-                  <button data-track="playground-attachment" id="playgroundAttachmentBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
+                  <button data-track="playground-attachment" id="playgroundAttachmentBtn" type="button" class="button-surface"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
                   <span id="playgroundAttachmentName" class="file-name muted small">No file selected</span>
                   <input id="playgroundAttachment" type="file" hidden aria-label="Attach a file — image, PDF, or any text/data file (claude/gemini only)">
                 </div>
@@ -268,7 +268,7 @@
 
             <div class="playground-send-row">
               <button id="playgroundSendBtn" data-track="play-send" type="button" class="button-primary"><svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>Send</button>
-              <button data-track="playground-clear" id="playgroundClearBtn" type="button" class="ghost-btn">Clear</button>
+              <button data-track="playground-clear" id="playgroundClearBtn" type="button" class="button-ghost">Clear</button>
             </div>
           </section>
           <section class="card play-composer" id="imageCard" data-surface="playground.image" data-mode="image" aria-label="Image" hidden>
@@ -304,7 +304,7 @@
               <div class="opt-stack">
                 <label for="imageAttachment">Reference image <span class="muted small">(optional — edits the upload instead of generating; slow &amp; experimental, can take minutes)</span></label>
                 <div class="file-row">
-                  <button data-track="image-attachment" id="imageAttachmentBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
+                  <button data-track="image-attachment" id="imageAttachmentBtn" type="button" class="button-surface"><svg class="icon" aria-hidden="true"><use href="#i-paperclip"></use></svg>Choose file</button>
                   <span id="imageAttachmentName" class="file-name muted small">No file selected</span>
                   <input id="imageAttachment" type="file" accept="image/*" hidden aria-label="Reference image to edit (optional)">
                 </div>
@@ -315,7 +315,7 @@
 
             <div class="playground-send-row">
               <button id="imageGenBtn" data-track="play-generate" type="button" class="button-primary"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Generate</button>
-              <button data-track="image-clear" id="imageClearBtn" type="button" class="ghost-btn">Clear</button>
+              <button data-track="image-clear" id="imageClearBtn" type="button" class="button-ghost">Clear</button>
             </div>
           </section>
           <section class="card play-composer" id="ttsCard" data-surface="playground.speech" data-mode="speech" aria-label="Speech" hidden>
@@ -867,7 +867,7 @@
         <div id="installRows"><p class="settings-note muted">Checking…</p></div>
         <div class="card-actions">
           <button data-track="install-fix-all" id="installFixAllBtn" type="button" class="button-primary launch-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-wrench"></use></svg>Fix all</button>
-          <button data-track="install-refresh" id="installRefreshBtn" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>Re-check</button>
+          <button data-track="install-refresh" id="installRefreshBtn" type="button" class="button-surface"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg>Re-check</button>
         </div>
       </div>
       <div class="detail-actions"><button data-track="settings-health-done" type="button" class="button-primary detail-save-btn" data-sheet-close>Done</button></div>

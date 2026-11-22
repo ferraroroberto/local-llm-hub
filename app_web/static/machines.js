@@ -509,7 +509,7 @@ function dangerSection(m, isStale) {
     return base;
   }
   function btn(action, glyph, text, available) {
-    return '<button type="button" class="sheet-danger-row" data-machine-action="' + action + '"'
+    return '<button type="button" class="button-tint danger" data-machine-action="' + action + '"'
       + (!available || blocked ? ' disabled' : '') + '>' + icon(glyph) + '<span>' + escapeHtml(text) + '</span></button>';
   }
   return '<div class="sheet-section sheet-danger">'

@@ -372,7 +372,9 @@ h2 { display: flex; align-items: center; gap: 8px; }
 /* The vendored tiers paint a button but do not lay out its content: a glyph
    beside a label centres with a gap, as .launch-btn does at full width. */
 .button-primary,
-.button-tint {
+.button-tint,
+.button-ghost,
+.button-surface {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -393,26 +395,6 @@ h2 { display: flex; align-items: center; gap: 8px; }
   font-size: var(--font-label);
 }
 .launch-btn:active { filter: brightness(0.9); }
-
-/* Secondary text-style button — Clear, Re-check, Pause, etc. */
-.ghost-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: var(--hit-min);
-  padding: 8px 14px;
-  font: inherit;
-  font-size: var(--font-label);
-  font-weight: 500;
-  color: var(--muted);
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-}
-.ghost-btn:hover { color: var(--ink); }
-.ghost-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
 
 /* ---------- key/value grid ---------- */
 .kv-grid {

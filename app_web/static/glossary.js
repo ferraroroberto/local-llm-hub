@@ -73,7 +73,7 @@ export function mountGlossaryEditor(container) {
   ed.mineBtn = document.createElement('button');
   ed.mineBtn.type = 'button';
   ed.mineBtn.dataset.track = 'glossary-mine';
-  ed.mineBtn.className = 'ghost-btn';
+  ed.mineBtn.className = 'button-ghost';
   ed.mineBtn.innerHTML = icon('sparkles') + 'Suggest from transcripts';
   ed.mineBtn.addEventListener('click', function () { onMine(ed); });
   ed.saveBtn = document.createElement('button');
@@ -329,7 +329,7 @@ function ghostBtn(label, onClick, opts) {
   const b = document.createElement('button');
   b.type = 'button';
   if (opts && opts.track) b.dataset.track = opts.track;
-  b.className = 'ghost-btn';
+  b.className = 'button-ghost';
   b.textContent = label;
   b.addEventListener('click', onClick);
   return b;

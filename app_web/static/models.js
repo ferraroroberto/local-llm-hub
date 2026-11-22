@@ -440,7 +440,7 @@ function modelInfoHtml(m) {
     return actionButton(it.act, it.glyph, it.label, { disabled: it.disabled, cls: it.cls });
   }).join('');
   const force = m.ownership === 'external'
-    ? '<div class="sheet-section sheet-danger"><button type="button" class="sheet-danger-row" data-track="model-force-stop" data-act="force-stop">'
+    ? '<div class="sheet-section sheet-danger"><button type="button" class="button-tint danger" data-track="model-force-stop" data-act="force-stop">'
       + icon('skull') + '<span>Force stop</span></button></div>'
     : '';
   return '<div class="sheet-section">'
@@ -517,7 +517,7 @@ function renderDetail() {
   }
   const verb = m ? powerVerb(m) : null;
   head.innerHTML = '<h2>' + escapeHtml(selectionTitle(sel)) + '</h2>'
-    + (verb ? '<button type="button" class="' + (verb.outline ? 'ghost-btn' : 'button-tint') + '"' + verb.attrs + (verb.disabled ? ' disabled' : '') + '>'
+    + (verb ? '<button type="button" class="' + (verb.outline ? 'button-surface' : 'button-tint') + '"' + verb.attrs + (verb.disabled ? ' disabled' : '') + '>'
       + icon(verb.glyph) + '<span>' + verb.label + '</span></button>' : '');
   head.dataset.id = m ? m.id : '';
   if (m) fillModelBody(slot, m);
@@ -706,7 +706,7 @@ function renderPlacementEditor(ed) {
   const cancelBtn = document.createElement('button');
   cancelBtn.type = 'button';
   cancelBtn.dataset.track = 'placement-cancel';
-  cancelBtn.className = 'ghost-btn pe-cancel';
+  cancelBtn.className = 'button-ghost pe-cancel';
   cancelBtn.textContent = 'Cancel';
   cancelBtn.addEventListener('click', closeEditors);
   actions.appendChild(saveBtn);
@@ -780,7 +780,7 @@ function placementAddRow(ed) {
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
   addBtn.dataset.track = 'placement-add-host';
-  addBtn.className = 'ghost-btn pe-add-btn';
+  addBtn.className = 'button-ghost pe-add-btn';
   addBtn.innerHTML = icon('plus') + 'Add host';
   addBtn.addEventListener('click', function () {
     if (!sel.value) return;

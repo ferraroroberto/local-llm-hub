@@ -86,7 +86,7 @@ function renderInstall(body) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.dataset.track = 'install-fix';
-      btn.className = 'ghost-btn';
+      btn.className = 'button-ghost';
       btn.innerHTML = icon('wrench') + escapeHtml(c.fix_label || 'Fix');
       btn.addEventListener('click', async function () {
         btn.disabled = true;
