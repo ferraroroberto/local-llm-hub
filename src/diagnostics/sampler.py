@@ -28,7 +28,7 @@ import psutil
 
 from src import system_stats
 
-from . import attribution, store
+from . import attribution, storage, store
 from .run_state import RunStatus, settle
 
 logger = logging.getLogger(__name__)
@@ -299,6 +299,7 @@ async def one_shot(*, retention_days: int = 90, trigger: str = "one-shot") -> Di
         await asyncio.to_thread(attribution.prime_cpu_percent)
         await asyncio.sleep(1.0)
         _n, ports_denied = await asyncio.to_thread(_write_tick, run_id)
+        await asyncio.to_thread(_save_storage, run_id)
         # Same finalize path as a timed run — coverage + verdict together.
         await asyncio.to_thread(_finalize, run_id, RunStatus.COMPLETE, ports_denied=ports_denied)
     except Exception as exc:  # noqa: BLE001
@@ -390,6 +391,11 @@ async def _run_loop(run: ActiveRun) -> None:
             if await _sleep_or_stop(sleep_for):
                 stopped = True
                 break
+        if not stopped:
+            # Once per run, after sampling: the walks are disk-heavy and would
+            # skew the very IO the ticks measure. A stopped run skips it so a
+            # stop never waits on a size walk.
+            await asyncio.to_thread(_save_storage, run.run_id)
     except asyncio.CancelledError:
         stopped = True
         raise
@@ -419,6 +425,21 @@ async def _run_loop(run: ActiveRun) -> None:
             "🔬 diagnostics capture %s (run=%s, %d samples)",
             status.value, run.run_id, run.samples_written,
         )
+
+
+def _save_storage(run_id: str) -> None:
+    """Collect and store the run's storage section. Runs in a worker thread
+    and never raises: storage is a supplement, so a failure here is logged and
+    the run still completes, with the section recorded as unknown."""
+    try:
+        storage_section = storage.collect()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️ diagnostics storage collection failed (run=%s): %s", run_id, exc)
+        storage_section = storage.unknown(f"{type(exc).__name__}: {exc}")
+    try:
+        store.save_storage(run_id, storage_section)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️ diagnostics storage save failed (run=%s): %s", run_id, exc)
 
 
 def _finalize(run_id: str, status: RunStatus, *, ports_denied: bool = False) -> None:

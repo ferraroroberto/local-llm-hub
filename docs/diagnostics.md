@@ -31,6 +31,8 @@ Reach it from the admin SPA's **Machines** tab → the *this machine* card's
 | `src/diagnostics/rules.py` | Health-verdict engine |
 | `src/diagnostics/coverage.py` | Per-collector coverage — what could and couldn't be measured |
 | `src/diagnostics/report.py` | Summary digest, baseline drift, markdown report |
+| `src/diagnostics/storage.py` | The storage section: drives, bounded folder sizes, known growers, Docker state |
+| `src/diagnostics/storage_report.py` | Markdown rendering of the storage section |
 | `src/diagnostics/ingest.py` | Ingest a portable foreign capture as an ordinary run |
 | `src/diagnostics/settings.py` | Retention + scheduled-snapshot settings |
 | `scripts/portable_capture.py` | Standalone SSH-delivered sampler for hub-less machines |
@@ -229,6 +231,53 @@ alongside it. This is why a blind macOS run isn't pinned at `warning` forever
 (`ok` / `partial` / `denied` / `unsupported`) and of which rule depends on which
 collector, so the report, rules, and export never drift apart.
 
+## Storage — where the disk went
+
+Each run also carries a `storage` section, collected **once per run** (a
+one-shot after its tick, a timed run after its last one, never during sampling
+so the walks cannot skew the IO the ticks measure; a run stopped early skips
+it). It is read-only and answers "what is eating this machine's disk":
+
+| Field | Holds |
+| --- | --- |
+| `drives` | Total and free bytes per mounted drive |
+| `growers` | The size of each configured known grower (Docker Desktop's WSL disk, the Hugging Face cache, the hub's model folder, plus any added in the local file, such as OneDrive log folders) |
+| `top_folders` | For each configured root, its largest immediate sub-folders, ranked |
+| `docker` | Engine reachability and version, every container's state and health, and `docker system df` totals (images, containers, volumes, build cache) as Docker prints them |
+
+**Unknown is its own state.** Every field is `{"status": "ok", ...}`,
+`{"status": "absent"}` (a configured path that does not exist) or
+`{"status": "unknown", "reason": ...}`. A walk that hit a bound or an
+unreadable directory reports `unknown` with the reason and a
+`lower_bound_bytes`, never a short number as a size. A missing Docker CLI, a
+stopped daemon or a `docker` call past its timeout makes the Docker field
+`unknown`, and `system df` timing out leaves the container list intact. One
+field failing never stops the others, and a storage failure never fails the run
+(the section is stored as `unknown` with the exception).
+
+**Bounds.** Walks never follow symlinks or junctions, and each is capped by
+`walk_budget_s` (default 8), `max_depth`, and `max_entries`, inside an
+`overall_budget_s` (default 30) for the whole section. Blocking calls run in
+daemon threads with an outer timeout, so a `scandir` wedged on a dead mount is
+abandoned and reported `unknown` instead of stalling the capture. A one-shot
+therefore takes at most about that budget longer than before, and usually a few
+seconds.
+
+**Configuration.** Defaults come from the environment (the user's home as the
+only root; the Docker WSL folder under `LOCALAPPDATA`, `HF_HOME` or the default
+Hugging Face cache, and the repo's `models/` as growers). Machine-specific
+roots and growers go in the gitignored `config/diagnostics_storage.local.json`;
+`config/diagnostics_storage.example.json` documents every key. `roots` replaces
+the default roots, `growers` adds to the defaults by label, paths accept `~`
+and environment variables, and the numeric bounds are clamped. A missing or
+malformed file yields the defaults.
+
+The section is in `GET /runs/{id}` (`storage`), in the export (`run.storage`),
+and in the markdown report's `## Storage`. A run with none (an ingested foreign
+capture, or one stopped early) says so in the report. There are no verdict
+rules on it: `disk.capacity` already judges fullness, and an `unknown` storage
+field does not count as degraded coverage.
+
 ## Baselines & drift
 
 Mark a representative run as **baseline** (one per machine). Every later run
@@ -310,7 +359,8 @@ Never edit a shipped step — add the next one.
 | `ports` | Listening sockets per tick, joined to owner + `app_id` |
 | `verdicts` | The persisted health verdict per run |
 
-`runs.coverage_json` (schema v2) holds the per-collector coverage map.
+`runs.coverage_json` (schema v2) holds the per-collector coverage map and
+`runs.storage_json` (schema v3) the storage section (`{}` when none was recorded).
 IO counters are stored **raw and cumulative**; deltas are derived at read time.
 
 ## Caveats

@@ -15,7 +15,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from . import store
+from . import storage_report, store
 
 TOP_N = 12
 
@@ -131,6 +131,7 @@ def summary(run_id: str) -> Optional[Dict[str, Any]]:
         "process_timeline": store.process_count_timeline(run_id),
         "ports": ports,
         "coverage": run.get("coverage") or {},
+        "storage": run.get("storage") or {},
         "verdict": {"level": run.get("verdict_level"), "findings": run.get("findings") or []},
     }
 
@@ -391,6 +392,7 @@ def markdown_report(run_id: str) -> Optional[str]:
         lines += _md_coverage(coverage_map)
     lines += _md_load_tables(data, coverage_map)
     lines += _md_ports(data, coverage_map)
+    lines += storage_report.markdown_lines(data.get("storage") or {})
     lines += _md_drift(d)
 
     lines.append("---")

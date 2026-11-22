@@ -1,0 +1,14 @@
+{
+  "roots": ["~"],
+  "growers": [
+    {"label": "onedrive-logs", "path": "%USERPROFILE%/OneDrive/logs"},
+    {"label": "docker-desktop-wsl", "path": "%LOCALAPPDATA%/Docker/wsl"}
+  ],
+  "walk_budget_s": 8,
+  "overall_budget_s": 30,
+  "max_depth": 8,
+  "max_entries": 200000,
+  "max_children": 60,
+  "top_n": 10,
+  "docker_timeout_s": 8
+}

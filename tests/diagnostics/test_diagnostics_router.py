@@ -184,6 +184,11 @@ def test_one_shot_snapshot_captures_and_evaluates(client):
     assert summary["verdict"]["level"] in {"healthy", "warning", "critical"}
     # CPU must be a real reading, not the 0.0 a cold psutil call returns.
     assert summary["resources"]["cpu"]["avg"] is not None
+    # The storage section rides the summary and the export, and the report renders it.
+    assert summary["storage"]["schema"] >= 1
+    export = client.get(f"/admin/api/diagnostics/runs/{run_id}/export").json()
+    assert export["run"]["storage"]["schema"] == summary["storage"]["schema"]
+    assert "## Storage" in client.get(f"/admin/api/diagnostics/runs/{run_id}/report").text
 
 
 def test_stop_when_idle_is_safe(client):

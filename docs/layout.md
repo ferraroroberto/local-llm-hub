@@ -56,6 +56,7 @@ local-llm-hub/
 │   ├── diagnostics_apps.json         # process -> fleet-app attribution rules (committed)
 │   ├── diagnostics_rules.json        # health-verdict thresholds (committed)
 │   ├── diagnostics_settings.json     # retention + scheduled snapshot (gitignored)
+│   ├── diagnostics_storage.example.json  # template for the gitignored diagnostics_storage.local.json — storage roots, known growers, walk bounds
 │   ├── health_watch.json             # health-watch + resource-watch thresholds and cadence (committed)
 │   ├── usage_digest.json             # weekly usage digest schedule + per-agent token budgets (committed)
 │   ├── startup_profile.example.json  # template + fresh-clone default for service autostart (services-only)
@@ -189,6 +190,8 @@ local-llm-hub/
 │   │   ├── rules.py              #   health-verdict engine over stored rows
 │   │   ├── coverage.py           #   per-collector coverage — measured vs blind
 │   │   ├── report.py             #   summary digest, baseline drift, markdown report
+│   │   ├── storage.py            #   storage section: drives, bounded folder sizes, known growers, Docker state
+│   │   ├── storage_report.py     #   markdown rendering of the storage section
 │   │   ├── ingest.py             #   ingest a portable foreign capture as a run
 │   │   └── settings.py           #   retention + scheduled-snapshot settings
 │   ├── health/               # machine health watch — slow resident sampler, leak/pressure verdict
