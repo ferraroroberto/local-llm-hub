@@ -4,7 +4,8 @@
  */
 
 import { state, els, TAB_KEY, STATUS_POLL_MS, COUNTERS_POLL_MS, MODELS_POLL_MS } from './state.js';
-import { jsonApi, tokenFromUrl, writeToken, setSignInHandler, toast } from './api.js';
+import { api, jsonApi, tokenFromUrl, writeToken, setSignInHandler, toast, isAuthError } from './api.js';
+import { initRestartSheet } from './_vendored/page-foot/restart-sheet.js';
 import { wireTabs, onTabChange, setTab } from './tabs.js';
 import { wireUsageLog } from './usage.js';
 import { buildReadoutText, fmtBuildTime } from './_vendored/page-foot/page-foot.js';
@@ -50,6 +51,20 @@ function openTab(tab) {
   // "Send a test request" lands on the Playground's Chat.
   if (tab === 'playground') setPlayMode('chat');
   setTab(tab);
+}
+
+// The sheet's POST reads the status itself (a refusal is an answer, not an error).
+async function postRestart(url, body) {
+  let res;
+  try {
+    res = await api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch (exc) {
+    if (isAuthError(exc)) return { status: 401, body: null };
+    throw exc;
+  }
+  let data = null;
+  try { data = await res.json(); } catch (_) { data = null; }
+  return { status: res.status, body: data };
 }
 
 async function fetchVersion() {
@@ -150,6 +165,10 @@ async function boot() {
   });
 
   await Promise.allSettled([fetchVersion(), fetchAllData()]);
+  initRestartSheet({
+    fetchJson: jsonApi, postJson: postRestart,
+    endpoint: '/admin/api/restart', versionEndpoint: '/admin/api/version',
+  });
 
   // The vendored nav already restored the persisted tab (and its streams)
   // in wireTabs(); only (re)start the hub streams if that's where we are.

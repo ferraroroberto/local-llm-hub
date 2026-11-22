@@ -163,7 +163,7 @@ disclosure    = { src = "app/webapp/static/_vendored/disclosure", sha = "5d460bd
 empty-state   = { src = "app/webapp/static/_vendored/empty-state", sha = "a04abc7b3af872cbac974401dd0945587eac6cef", dest = "app_web/static/_vendored/empty-state" }
 home-head     = { src = "app/webapp/static/_vendored/home-head", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "app_web/static/_vendored/home-head" }
 icons         = { src = "app/webapp/static/_vendored/icons", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app_web/static/_vendored/icons" }
-page-foot     = { src = "app/webapp/static/_vendored/page-foot", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "app_web/static/_vendored/page-foot" }
+page-foot = { src = "app/webapp/static/_vendored/page-foot", sha = "3f1dcc76d5ba40c8b3d12a80a99659816ce1dd0e", dest = "app_web/static/_vendored/page-foot" }
 modal         = { src = "app/webapp/static/_vendored/modal", sha = "713b1d1e36989440679ec4e415ff149b14d96c81", dest = "app_web/static/_vendored/modal" }
 sign-in       = { src = "app/webapp/static/_vendored/sign-in", sha = "dbf47eb1bfe4aa2f9656db647520356536de14c8", dest = "app_web/static/_vendored/sign-in" }
 nav           = { src = "app/webapp/static/_vendored/nav", sha = "cb9fff9130453c781146f2cdf5083d83fb43b0df", dest = "app_web/static/_vendored/nav" }
@@ -215,6 +215,7 @@ build-watch = { src = "app/webapp/static/_vendored/build-watch", sha = "2d871dd5
 # vendored admin-SPA components (copies by design), vendor/ (third-party ComfyUI) and
 # the gitignored data/ and models/ trees. Procedure + limits: project-scaffolding
 # docs/static-ratchet.md.
+self_restart = { src = "src/self_restart.py", sha = "3f1dcc76d5ba40c8b3d12a80a99659816ce1dd0e", dest = "src/self_restart.py" }
 [static_ratchet]
 enabled  = true
 baseline = ".static-ratchet-baseline.json"
