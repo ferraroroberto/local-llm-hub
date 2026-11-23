@@ -179,6 +179,7 @@ local-llm-hub/
 │   │                         #   exposed response headers; installed outside the bearer gate
 │   ├── event_loop.py         # Windows proactor-loop shim so uvicorn survives client aborts
 │   ├── build_info.py         # vendored scaffold helper: build_identity() -> git_sha + built_at
+│   ├── restart_check.py      # vendored scaffold helper: one-command tray restart (`python -m src.restart_check restart --port N --version-path P`) that fails unless a new process serves HEAD
 │   ├── request_timing.py     # vendored scaffold middleware: Server-Timing + slow/in-flight logging, TimedExecutor named pools (not yet mounted: callers migrate in the burn-down)
 │   ├── services.py           # host-side service helpers: Docker engine + Langfuse stack
 │   ├── fsio/                 # guarded file writers
