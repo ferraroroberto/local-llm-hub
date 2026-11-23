@@ -43,6 +43,11 @@ unwatched hub stays cheap.
 - **Hub stats.** `/admin/api/hub/stats` answers from the resource sampler's
   newest snapshot and starts no process. Each read marks a viewer watching for
   15 s (`src/health/live_stats.py`).
+- **Machines card and placement read.** The hub's own Machines card and the
+  fleet-placement row for the hub host show the same cached GPU sample and
+  start no process. They do not mark a viewer watching: their polls would
+  otherwise hold the sampler at its 2 s cadence. A sample older than 60 s
+  (two idle intervals) reads as no GPU figure rather than a frozen one.
 
 What still runs with nobody watching, and why:
 

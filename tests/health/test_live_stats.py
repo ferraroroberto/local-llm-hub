@@ -110,3 +110,65 @@ def test_hub_stats_starts_no_process(monkeypatch):
     assert r.json()["gpus"][0]["vram_percent"] == 50.0
     assert LIVE.watched()
 
+
+
+def test_fresh_gpus_serves_the_sample_inside_the_freshness_bound_only():
+    clock = Clock()
+    live = live_stats.LiveStats(clock)
+    assert live.fresh_gpus() == []
+    live.record_gpus([{"name": "gpu0", "vram_percent": 40.0}])
+    clock.now += live_stats.GPU_MAX_AGE_S - 0.1
+    assert live.fresh_gpus() == [{"name": "gpu0", "vram_percent": 40.0}]
+    clock.now += 0.2
+    assert live.fresh_gpus() == []
+
+
+def test_the_freshness_bound_outlasts_an_idle_sleep_and_a_slow_probe():
+    """A card must not blank between two idle samples, or when one probe runs long."""
+    assert live_stats.GPU_MAX_AGE_S >= 2 * live_stats.IDLE_INTERVAL_S
+
+
+def test_a_cached_gpu_read_neither_wakes_nor_holds_the_live_cadence():
+    """The Machines card polls every 10 s: letting it demand live sampling would
+    start nvidia-smi every 2 s, five times the rate its own reads used to."""
+    live = live_stats.LiveStats(Clock())
+    live.record_gpus([{"name": "gpu0"}])
+    live.fresh_gpus()
+    assert not live.watched()
+    assert live.interval_s() == live_stats.IDLE_INTERVAL_S
+
+
+def _no_spawn(monkeypatch):
+    from src import system_stats
+
+    def refuse(*args, **kwargs):
+        raise AssertionError(f"a request started a process: {args!r}")
+
+    monkeypatch.setattr(subprocess, "Popen", refuse)
+    monkeypatch.setattr(system_stats, "gpu_stats", refuse)
+
+
+def test_machines_self_card_starts_no_process_and_shows_the_cached_sample(monkeypatch):
+    from src.fleet import machine_console
+    from src.health.live_stats import LIVE
+
+    _no_spawn(monkeypatch)
+    sample = {"name": "gpu0", "used_mb": 1.0, "total_mb": 2.0, "vram_percent": 50.0,
+              "util_percent": 7.0}
+    LIVE.record_gpus([sample])
+
+    snap = asyncio.run(machine_console.self_snapshot())
+
+    assert snap["gpus"] == [sample]
+
+
+def test_machines_self_card_is_empty_when_the_cached_sample_is_stale(monkeypatch):
+    from src.fleet import machine_console
+    from src.health.live_stats import LIVE
+
+    _no_spawn(monkeypatch)
+    LIVE.record_gpus([{"name": "gpu0", "total_mb": 2.0}])
+    monkeypatch.setattr(LIVE, "_gpus_at", LIVE._clock() - live_stats.GPU_MAX_AGE_S - 1)
+
+    assert asyncio.run(machine_console.self_snapshot())["gpus"] == []
+

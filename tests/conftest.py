@@ -108,6 +108,25 @@ def _no_real_config_git_write(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_live_gpu_sample():
+    """No test inherits the previous one's cached GPU sample or demand window.
+
+    The Machines card and the placement read serve the sampler's sample, so a
+    leftover reading would show up as a GPU on a test that expects none.
+    """
+    from src.health.live_stats import LIVE
+
+    def reset() -> None:
+        LIVE.record_gpus([])
+        LIVE._gpus_at = None
+        LIVE._last_demand = None
+
+    reset()
+    yield
+    reset()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_alias_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Point the shared alias file at a missing temp path for every test.
 

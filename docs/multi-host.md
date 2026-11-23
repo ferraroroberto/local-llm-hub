@@ -220,7 +220,7 @@ muted caption size, keeping the per-model device tag — and a
 **homogeneous capacity line** (`GPU <used> / <total> · RAM <used> / <total>
 GB`, the same shape on every machine). The capacity figures are **live-first**
 : GPU and RAM used/total come from the same probes the Machines tab
-reads (local psutil/nvidia-smi, the cached SSH stats probe on peers), at the
+reads (local psutil plus the sampler's cached nvidia-smi sample, the cached SSH stats probe on peers), at the
 same 1-decimal format, so the two tabs can never disagree while both are
 live; the `~`-prefixed `est_vram_mb` sum vs the declared ceiling appears
 only as a fallback where no live GPU figure exists (host offline, or a
@@ -256,7 +256,7 @@ CPU-excluded desired/running footprint), `capacity_warning` (bool), `ram_mb`
 percent}` snapshot: local psutil on the hub host, the Machines tab's cached
 SSH stats probe on reachable peers, `null` where no live figure exists, in
 which case the UI shows the declared total), and `gpu` (the live
-`{used_mb, total_mb}` snapshot from the same plumbing: local nvidia-smi,
+`{used_mb, total_mb}` snapshot from the same plumbing: the sampler's cached nvidia-smi sample,
 the cached SSH probe on peers, `null` where the host reports no GPU metric,
 in which case the UI falls back to the `~` estimate vs the ceiling). The
 `est_vram_mb` figures remain static engineering approximations feeding the

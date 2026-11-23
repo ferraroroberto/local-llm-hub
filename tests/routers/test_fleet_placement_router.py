@@ -19,6 +19,7 @@ from app_web.routers import fleet_placement as fpr  # noqa: E402
 from src import server as server_mod  # noqa: E402
 from src import system_stats
 from src.fleet import fleet_reconcile, remote_stats  # noqa: E402
+from src.health.live_stats import LIVE  # noqa: E402
 from src.process import backend_process as bp  # noqa: E402
 from tests._placement_fixture import FIXTURE_DESIRED_PLACEMENT  # noqa: E402
 
@@ -388,12 +389,14 @@ def test_live_gpu_block_rides_local_and_ssh_peers(monkeypatch, config_with_examp
         "gpus": [{"name": "GTX 1070", "used_mb": 1900.0, "total_mb": 8192.0,
                   "vram_percent": 23.2, "util_percent": 2.0}],
     })
-    # After _stub_collect (which parks gpu_stats at []) — the local live path.
-    monkeypatch.setattr(
-        system_stats, "gpu_stats",
-        lambda: [{"name": "RTX 5080", "used_mb": 3100.0, "total_mb": 16384.0,
-                  "vram_percent": 18.9, "util_percent": 5.0}],
-    )
+    # The local row reads the resource sampler's cached sample and starts no
+    # nvidia-smi of its own.
+    def refuse(*args, **kwargs):
+        raise AssertionError("the placement read started a GPU probe")
+
+    monkeypatch.setattr(system_stats, "gpu_stats", refuse)
+    LIVE.record_gpus([{"name": "RTX 5080", "used_mb": 3100.0, "total_mb": 16384.0,
+                       "vram_percent": 18.9, "util_percent": 5.0}])
 
     client = TestClient(server_mod.app)
     hosts = {h["id"]: h for h in client.get("/admin/api/fleet-placement").json()["hosts"]}
