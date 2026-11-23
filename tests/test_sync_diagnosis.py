@@ -196,3 +196,113 @@ def test_diagnose_skips_git_for_a_matching_pair(monkeypatch):
     monkeypatch.setattr(sd, "_git", lambda *a, **k: pytest.fail("git must not run"))
     v = sd.diagnose(peer_name="P", git_sha_match=True, local_running="a", peer_running="a")
     assert v["kind"] == sd.IN_SYNC
+
+
+# ------------------------------------------------------- diagnosis cache
+class _Clock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+@pytest.fixture()
+def counted(repo, monkeypatch):
+    """A real checkout with an ``origin/main`` ref, every git start counted.
+
+    The fetch is stubbed as current so only the diagnosis's own git work is
+    measured; ``starts`` counts ``_git`` calls plus the checkout-sha lookup.
+    """
+    root, (first, second, third) = repo
+    _git(root, "update-ref", "refs/remotes/origin/main", third)
+    clock = _Clock()
+    starts: list[str] = []
+    real_git, real_resolve = sd._git, sd.resolve_git_sha
+
+    monkeypatch.setattr(sd, "_diagnosis_cache", {})
+    monkeypatch.setattr(sd, "time", clock)
+    monkeypatch.setattr(sd, "refresh_origin_main", lambda _root=root: True)
+    monkeypatch.setattr(sd, "_git", lambda *a, **k: starts.append(a[1]) or real_git(*a, **k))
+    monkeypatch.setattr(sd, "resolve_git_sha", lambda r: starts.append("resolve") or real_resolve(r))
+
+    def diagnose(peer="P", local=third, remote=first):
+        return sd.diagnose(
+            peer_name=peer, git_sha_match=local == remote,
+            local_running=local, peer_running=remote, root=root,
+        )
+
+    return diagnose, starts, clock, (first, second, third)
+
+
+def test_repeated_reads_with_unchanged_shas_start_no_git(counted):
+    diagnose, starts, _clock, _shas = counted
+    first_verdict = diagnose()
+    assert first_verdict["kind"] == sd.PEER_BEHIND
+    assert starts, "the first read has to resolve the pair"
+    starts.clear()
+    for _ in range(30):
+        assert diagnose() == first_verdict
+    assert starts == []
+
+
+def test_a_sha_change_on_either_side_runs_one_fresh_diagnosis(counted):
+    diagnose, starts, _clock, (first, second, third) = counted
+    diagnose()
+    starts.clear()
+
+    assert diagnose(remote=second)["kind"] == sd.PEER_BEHIND
+    assert starts, "a new peer sha is a new question"
+    starts.clear()
+    diagnose(remote=second)
+    assert starts == [], "the new answer is cached in turn"
+
+    assert diagnose(local=second, remote=first)["kind"] == sd.RESTART_LOCAL
+    assert starts, "a new local sha is a new question"
+
+
+def test_each_peer_keeps_its_own_entry(counted):
+    diagnose, starts, _clock, _shas = counted
+    diagnose(peer="P")
+    diagnose(peer="Q")
+    starts.clear()
+    diagnose(peer="P")
+    diagnose(peer="Q")
+    assert starts == []
+
+
+def test_an_aged_diagnosis_is_recomputed_not_served(counted):
+    diagnose, starts, clock, _shas = counted
+    diagnose()
+    clock.now += sd._DIAGNOSIS_TTL_S + 1
+    starts.clear()
+    diagnose()
+    assert starts, "past its age the answer is asked for again"
+
+
+def test_an_unknown_verdict_is_retried_sooner_than_a_confirmed_one(counted, monkeypatch):
+    diagnose, starts, clock, _shas = counted
+    fetched = {"ok": False}
+    monkeypatch.setattr(sd, "refresh_origin_main", lambda _root=None: fetched["ok"])
+    assert diagnose()["kind"] == sd.UNKNOWN
+    starts.clear()
+    diagnose()
+    assert starts == [], "inside the retry window an unknown is not re-resolved"
+
+    fetched["ok"] = True
+    clock.now += sd._DIAGNOSIS_RETRY_S + 1
+    assert diagnose()["kind"] == sd.PEER_BEHIND, "a later read must not stay stuck on the old unknown"
+
+
+def test_a_matching_pair_is_never_cached_as_a_diagnosis(counted):
+    diagnose, _starts, _clock, (_f, _s, third) = counted
+    assert diagnose(remote=third)["kind"] == sd.IN_SYNC
+    assert sd._diagnosis_cache == {}
+
+
+def test_expired_entries_are_dropped_so_the_cache_stays_bounded(counted):
+    diagnose, _starts, clock, (first, second, third) = counted
+    diagnose(remote=first)
+    clock.now += sd._DIAGNOSIS_TTL_S + 1
+    diagnose(remote=second)
+    assert len(sd._diagnosis_cache) == 1

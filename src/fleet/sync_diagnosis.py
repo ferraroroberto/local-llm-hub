@@ -20,7 +20,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Tuple
 
 from ..build_info import PROJECT_ROOT, resolve_git_sha
 from ..no_window import NO_WINDOW
@@ -139,8 +139,19 @@ _FETCH_TIMEOUT_S = 20.0
 _FETCH_TTL_S = 300.0
 _FETCH_RETRY_S = 60.0
 
+# A resolved pair is asked about again only after this long: the same horizon
+# as the fetch, since a newer ``origin/main`` is what can change the answer.
+# An unknown answer is asked again on the fetch-retry schedule instead, so a
+# transient failure is not held for the full window.
+_DIAGNOSIS_TTL_S = _FETCH_TTL_S
+_DIAGNOSIS_RETRY_S = _FETCH_RETRY_S
+
 _fetch_lock = threading.Lock()
 _fetch_state: Dict[str, float] = {"at": 0.0, "ok": 0.0}
+
+# (peer, local sha, peer sha) -> (verdict, monotonic time it was resolved).
+_diagnosis_lock = threading.Lock()
+_diagnosis_cache: Dict[Tuple[str, str, str], Tuple[Dict[str, object], float]] = {}
 
 
 def _git(root: Path, *args: str, timeout: float = _GIT_TIMEOUT_S) -> Optional["subprocess.CompletedProcess[str]"]:
@@ -218,6 +229,16 @@ def make_compare(root: Path = PROJECT_ROOT) -> Compare:
     return compare
 
 
+def _cached_verdict(key: Tuple[str, str, str], now: float) -> Optional[Dict[str, object]]:
+    """The still-fresh verdict for ``key``, else ``None``. Call with the lock held."""
+    hit = _diagnosis_cache.get(key)
+    if hit is None:
+        return None
+    verdict, at = hit
+    ttl = _DIAGNOSIS_RETRY_S if verdict["kind"] == UNKNOWN else _DIAGNOSIS_TTL_S
+    return dict(verdict) if now - at < ttl else None
+
+
 def diagnose(
     *,
     peer_name: str,
@@ -229,7 +250,11 @@ def diagnose(
     """:func:`classify` against this hub's checkout and ``origin/main``.
 
     Blocking (git subprocesses): call from a worker thread. A matching or
-    uncompared pair needs no git at all.
+    uncompared pair needs no git at all. A differing pair is resolved once per
+    (peer, local sha, peer sha) and then served from memory until it ages out,
+    because the Machines card polls every few seconds and each resolution
+    starts a burst of git processes. An aged entry is asked again, never
+    served, and an unknown verdict is cached only for the short retry window.
     """
     if git_sha_match is not False:
         return classify(
@@ -238,6 +263,32 @@ def diagnose(
             local_checkout=None, origin_main=None, fetch_ok=False,
             compare=lambda a, b: None,
         )
+    key = (peer_name, str(local_running), str(peer_running))
+    # Held across the resolution so concurrent card builds for one peer start
+    # one set of git processes, not one each.
+    with _diagnosis_lock:
+        cached = _cached_verdict(key, time.monotonic())
+        if cached is not None:
+            return cached
+        verdict = _resolve(
+            peer_name=peer_name, git_sha_match=git_sha_match,
+            local_running=local_running, peer_running=peer_running, root=root,
+        )
+        now = time.monotonic()
+        for stale in [k for k in _diagnosis_cache if _cached_verdict(k, now) is None]:
+            del _diagnosis_cache[stale]
+        _diagnosis_cache[key] = (verdict, now)
+        return dict(verdict)
+
+
+def _resolve(
+    *,
+    peer_name: str,
+    git_sha_match: Optional[bool],
+    local_running: Optional[str],
+    peer_running: Optional[str],
+    root: Path,
+) -> Dict[str, object]:
     checkout = resolve_git_sha(root)
     fetch_ok = refresh_origin_main(root)
     main_sha = _full_sha(root, "origin/main") if fetch_ok else None
