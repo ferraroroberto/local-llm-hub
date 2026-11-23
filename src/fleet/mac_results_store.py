@@ -10,7 +10,8 @@ landed, and ``delivered_runs`` is written once every image of the run is
 confirmed. A run is never recorded as delivered on anything short of that.
 ``filed_audits`` follows the same rule for the routing audit: written only once
 the filing tool confirmed an outcome, so an unconfirmed filing is retried. The
-nightly-CI record (``ci_reported``, ``flaky_nights``) is at the end of the file.
+nightly-CI record (``ci_reported``, ``flaky_nights``) and the unknown-night counter
+(``unknown_nights``) are at the end of the file.
 """
 
 from __future__ import annotations
@@ -56,6 +57,7 @@ def connect(path: Optional[Path] = None) -> sqlite3.Connection:
     conn = connect_sqlite(db)
     conn.executescript(_SCHEMA)
     conn.executescript(_CI_SCHEMA)
+    conn.executescript(_UNKNOWN_SCHEMA)
     return conn
 
 
@@ -191,3 +193,40 @@ def prune_ci(conn: sqlite3.Connection, before: float) -> None:
     with conn:
         conn.execute("DELETE FROM flaky_nights WHERE night_at < ?", (before,))
         conn.execute("DELETE FROM ci_reported WHERE night_at < ? AND digested = 1", (before,))
+
+
+# --------------------------------------------------------- unknown-night counter
+#
+# A night whose READY says it was never measured cannot change on a later pull, so
+# the pass counts how many pulls already saw it unknown (one row per repo and run).
+# Counting is bookkeeping only: the row never says the night is fine.
+
+_UNKNOWN_SCHEMA = """
+CREATE TABLE IF NOT EXISTS unknown_nights (
+    repo TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    pulls INTEGER NOT NULL,
+    last_seen REAL NOT NULL,
+    PRIMARY KEY (repo, run_id)
+);
+"""
+
+
+def unknown_pulls(conn: sqlite3.Connection, repo: str, run_id: str) -> int:
+    """How many earlier pulls saw the night as unknown (0 when none)."""
+    row = conn.execute("SELECT pulls FROM unknown_nights WHERE repo = ? AND run_id = ?", (repo, run_id)).fetchone()
+    return 0 if row is None else int(row[0])
+
+
+def note_unknown_pull(conn: sqlite3.Connection, repo: str, run_id: str, seen_at: float) -> None:
+    with conn:
+        conn.execute(
+            "INSERT INTO unknown_nights (repo, run_id, pulls, last_seen) VALUES (?, ?, 1, ?) "
+            "ON CONFLICT (repo, run_id) DO UPDATE SET pulls = pulls + 1, last_seen = excluded.last_seen",
+            (repo, run_id, seen_at),
+        )
+
+
+def prune_unknown(conn: sqlite3.Connection, before: float) -> None:
+    with conn:
+        conn.execute("DELETE FROM unknown_nights WHERE last_seen < ?", (before,))

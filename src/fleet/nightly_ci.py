@@ -70,6 +70,8 @@ REFUSED = "ci_refused"
 WOULD_REPORT = "ci_would_report"
 DIGEST_SENT = "digest_sent"
 DIGEST_NOT_CONFIRMED = "digest_not_confirmed"
+# A night READY recorded with no result, already reported unknown on earlier pulls: listed, never counted, never a pass.
+FINAL_UNKNOWN = "ci_final_unknown"
 
 
 @dataclass(frozen=True)
@@ -78,6 +80,9 @@ class CiOutcome:
     run_id: str
     state: str
     detail: str = ""
+    # True when no later pull can change the state (READY itself holds no result); a failed
+    # read of the Mac or of gh is not, because the next pull may get an answer.
+    unresolvable: bool = False
 
 
 @dataclass(frozen=True)
@@ -248,7 +253,7 @@ def report_night(ctx: CiContext, repo: str, run_id: str, age_s: int) -> CiOutcom
     except NightRefusal as exc:
         return CiOutcome(repo, run_id, REFUSED, str(exc))
     if night.result == "unknown":
-        return CiOutcome(repo, run_id, UNKNOWN, "READY records no known result for the night")
+        return CiOutcome(repo, run_id, UNKNOWN, "READY records no known result for the night", unresolvable=True)
     night_at = ctx.now - age_s
     state, detail = _issue_step(ctx, night, night_at)
     if state == issues.UNKNOWN:

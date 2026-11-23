@@ -47,6 +47,7 @@ Each condition is reported on its own line and never folded into "nothing to del
 | `audit_failed_night` | the same missing audit, on a night already reported red (`ci_reported`, recorded): a failed run writes no audit, so it is not a second signal | no, printed each pass, does not turn the verdict red |
 | `ci_reported` | the night's `ci-red-main` action and flaky steps were confirmed; recorded | yes |
 | `ci_unknown` | `READY` has no known result, or the marker, a junit/flaky file or a `gh` call could not be confirmed (including a Mac that predates the `ready` and `text` verbs) | no, retried; never read as green |
+| `audit_final_unknown`, `ci_final_unknown` | a night whose `READY` itself records no measured audit or no result (so no later pull can change it) and that earlier pulls already saw unknown; listed on every pass until it leaves the window, with its own wording, but not counted in the verdict and never a pass | printed each pass, does not turn the verdict red |
 | `ci_refused` | `READY` names another run or repo than its folder | no, retried |
 | `digest_sent` | the digest line was confirmed sent | yes |
 | `digest_not_confirmed` | the digest send was refused, unavailable or kept in a Job's artifacts | no, retried |
@@ -54,6 +55,8 @@ Each condition is reported on its own line and never folded into "nothing to del
 | `unreachable` (pass level) | the Mac's listing could not be read | no |
 
 Every pass ends with a `verdict:` line: `red` when something above is unknown, refused or not confirmed, `ok - old folders only` when the only noise is `legacy` folders (they age out of the window by themselves), plain `ok` otherwise. A missing setup never reaches it: that exits 2 with a `setup missing - ...` line before the Mac is read. A new run whose `READY` says `audit=unknown` or `not-run` is a real unmeasured night and stays `audit_unknown`; so does a `READY` listed by a dispatcher that predates the audit field, because the folder itself is not known to be old. The one exception is a night already reported red, which reads `audit_failed_night` instead (a red night whose report is itself unconfirmed keeps `audit_unknown`).
+
+A night whose `READY` left it unmeasured counts toward red on its first two pulls and is listed as final unknown from the third on (the hub counts the pulls per repo and run in its SQLite file, and a `--dry-run` does not count), so a stale night no longer hides a new failure; a failed read of the Mac or of `gh` is never final, because the next pull may answer it.
 
 An `audit=unknown` run is reported on every pass until it leaves the pull window, because the night was never measured (the first run of a repo only records a baseline, a skipped e2e leg is unmeasured too). A `READY` from a dispatcher or workflow that predates the audit field reads the same way. Only a `SENT=` line counts as sent. A timeout is `UNAVAILABLE`: the launcher may have stored the file, so a retry can rarely duplicate an image, but it is never lost.
 
