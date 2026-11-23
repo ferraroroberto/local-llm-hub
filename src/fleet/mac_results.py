@@ -101,6 +101,12 @@ AUDIT_NOT_MEASURED = "audit_unknown"  # the audit was not measured, or the filin
 AUDIT_FAILED_NIGHT = "audit_failed_night"
 WOULD_FILE = "would_file"  # --dry-run only
 LEGACY = "legacy"  # a folder that predates the audit or the READY marker; can never become measurable
+# A night whose READY records no measured audit and was already unknown on earlier pulls. It is
+# listed on every pass until it leaves the window, but a pull that cannot change it stops counting
+# it toward the verdict. Never a pass: it keeps its own word and icon.
+AUDIT_FINAL_UNKNOWN = "audit_final_unknown"
+# Pulls that must have seen the night unknown before the next one reports it final.
+FINAL_UNKNOWN_AFTER_PULLS = 2
 
 # A run folder with no READY this long after its last write is not in progress (a run
 # finishes within hours and the workflow writes READY last), so READY will never come.
@@ -124,6 +130,8 @@ class RunOutcome:
     run_id: str
     state: str
     detail: str = ""
+    # True when no later pull can change the state; only such a night can become final unknown.
+    unresolvable: bool = False
 
 
 @dataclass
@@ -146,6 +154,12 @@ class PassReport:
         bad = (REFUSED, NOT_CONFIRMED, AUDIT_NOT_MEASURED)
         ci_bad = (nightly_ci.UNKNOWN, nightly_ci.REFUSED, nightly_ci.DIGEST_NOT_CONFIRMED)
         return sum(o.state in bad for o in self.outcomes) + sum(o.state in ci_bad for o in self.ci_outcomes)
+
+    @property
+    def final_unknown(self) -> int:
+        """Nights listed as final unknown: not counted in :attr:`attention`, and never a pass."""
+        return sum(o.state == AUDIT_FINAL_UNKNOWN for o in self.outcomes) + sum(
+            o.state == nightly_ci.FINAL_UNKNOWN for o in self.ci_outcomes)
 
     @property
     def legacy(self) -> int:
@@ -534,7 +548,7 @@ def run_pass(ssh: Ssh, send: Sender, conn, staging_root: Path, *, window_days: i
         need_audit = entry.audit == AUDIT_MISS and not store.audit_filed(conn, entry.repo, entry.run_id)
         if entry.audit == AUDIT_UNKNOWN:
             # Never folded into clean: the night was not measured. Not recorded, so every pass says so.
-            report.outcomes.append(RunOutcome(entry.repo, entry.run_id, AUDIT_NOT_MEASURED, "READY records no measured routing audit"))
+            report.outcomes.append(RunOutcome(entry.repo, entry.run_id, AUDIT_NOT_MEASURED, "READY records no measured routing audit", unresolvable=True))
         elif entry.audit == AUDIT_LEGACY:
             report.outcomes.append(RunOutcome(entry.repo, entry.run_id, LEGACY, "READY predates the routing audit; not measurable, not counted"))
         if not (need_images or need_audit):
@@ -559,6 +573,7 @@ def run_pass(ssh: Ssh, send: Sender, conn, staging_root: Path, *, window_days: i
         report.ci_outcomes = nightly_ci.run_ci_stage(
             nights, ssh, gh, send, conn, staging_root, now=time.time() if now is None else now, dry_run=dry_run)
         _explain_unmeasured_red_nights(report, conn)
+    _settle_unknown_nights(report, conn, time.time() if now is None else now, dry_run)
     return report
 
 
@@ -570,6 +585,31 @@ def _explain_unmeasured_red_nights(report: PassReport, conn) -> None:
         if o.state == AUDIT_NOT_MEASURED and store.ci_result(conn, o.repo, o.run_id) == "red":
             report.outcomes[i] = RunOutcome(
                 o.repo, o.run_id, AUDIT_FAILED_NIGHT, "the night failed (reported as ci_reported), so no routing audit was measured")
+
+
+def _settle_unknown_nights(report: PassReport, conn, now: float, dry_run: bool) -> None:
+    """Report a night that READY left unmeasured once more as final unknown when earlier pulls
+    already saw it unknown, so it stops turning every pull red while it waits out the window.
+    A night is counted once per pass however many of its outcomes are unknown. A failed read of
+    the Mac or of gh is not recorded here: the next pull may answer it, so it stays unknown and counted."""
+    audit_idx = {i: (o.repo, o.run_id) for i, o in enumerate(report.outcomes) if o.state == AUDIT_NOT_MEASURED and o.unresolvable}
+    ci_idx = {i: (o.repo, o.run_id) for i, o in enumerate(report.ci_outcomes) if o.state == nightly_ci.UNKNOWN and o.unresolvable}
+    for repo, run_id in dict.fromkeys([*audit_idx.values(), *ci_idx.values()]):
+        earlier = store.unknown_pulls(conn, repo, run_id)
+        if earlier < FINAL_UNKNOWN_AFTER_PULLS:
+            if not dry_run:
+                store.note_unknown_pull(conn, repo, run_id, now)
+            continue
+        detail = (f"final unknown: READY records no result and {earlier} earlier pulls saw it unknown; "
+                  "no longer counted in the verdict, and not a pass")
+        for i, key in audit_idx.items():
+            if key == (repo, run_id):
+                report.outcomes[i] = RunOutcome(repo, run_id, AUDIT_FINAL_UNKNOWN, detail)
+        for i, key in ci_idx.items():
+            if key == (repo, run_id):
+                report.ci_outcomes[i] = nightly_ci.CiOutcome(repo, run_id, nightly_ci.FINAL_UNKNOWN, detail)
+    if not dry_run:
+        store.prune_unknown(conn, now - nightly_ci.LEDGER_KEEP_DAYS * 86400)
 
 
 # ---------------------------------------------------------------------- CLI
@@ -617,11 +657,12 @@ def _print_report(report: PassReport) -> None:
     if not report.outcomes:
         print("ℹ️ nothing new to deliver")
     icons = {DELIVERED: "✅", EMPTY: "ℹ️", PENDING: "ℹ️", WOULD_DELIVER: "ℹ️", REFUSED: "❌", NOT_CONFIRMED: "⚠️",
-             AUDIT_FILED: "✅", AUDIT_NOT_MEASURED: "⚠️", AUDIT_FAILED_NIGHT: "ℹ️", WOULD_FILE: "ℹ️", LEGACY: "ℹ️"}
+             AUDIT_FILED: "✅", AUDIT_NOT_MEASURED: "⚠️", AUDIT_FAILED_NIGHT: "ℹ️", WOULD_FILE: "ℹ️", LEGACY: "ℹ️", AUDIT_FINAL_UNKNOWN: "⚠️"}
     for o in report.outcomes:
         print(f"{icons[o.state]} {o.repo} run {o.run_id}: {o.state} - {o.detail}")
     ci_icons = {nightly_ci.REPORTED: "✅", nightly_ci.WOULD_REPORT: "ℹ️", nightly_ci.DIGEST_SENT: "✅",
-                nightly_ci.UNKNOWN: "⚠️", nightly_ci.REFUSED: "❌", nightly_ci.DIGEST_NOT_CONFIRMED: "⚠️"}
+                nightly_ci.UNKNOWN: "⚠️", nightly_ci.REFUSED: "❌", nightly_ci.DIGEST_NOT_CONFIRMED: "⚠️",
+                nightly_ci.FINAL_UNKNOWN: "⚠️"}
     for c in report.ci_outcomes:
         print(f"{ci_icons[c.state]} {c.repo} run {c.run_id}: {c.state} - {c.detail}")
     print(f"ℹ️ already delivered: {report.already_delivered}; outside the pull window: {report.out_of_window}")
@@ -631,10 +672,14 @@ def _print_report(report: PassReport) -> None:
 def _verdict_line(report: PassReport) -> str:
     """One line that says why the pass is green or red. A missing setup never reaches
     it: that exits 2 with its own ``setup missing`` line before the Mac is read."""
+    final = (f"; {report.final_unknown} night(s) final unknown, listed above, not counted and not a pass"
+             if report.final_unknown else "")
     if report.attention:
-        return f"⚠️ verdict: red - {report.attention} item(s) unknown, refused or not confirmed (listed above)"
+        return f"⚠️ verdict: red - {report.attention} item(s) unknown, refused or not confirmed (listed above){final}"
     if report.legacy:
-        return f"ℹ️ verdict: ok - old folders only: {report.legacy} legacy, not measurable and not counted; setup is complete"
+        return f"ℹ️ verdict: ok - old folders only: {report.legacy} legacy, not measurable and not counted; setup is complete{final}"
+    if final:
+        return f"ℹ️ verdict: ok - nothing new is unknown{final}"
     return "ℹ️ verdict: ok"
 
 

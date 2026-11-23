@@ -466,6 +466,95 @@ def test_an_unknown_night_beside_a_legacy_folder_still_reports_unknown_and_red(c
     assert "verdict: red - 1 item(s)" in capsys.readouterr().out
 
 
+# ------------------------------------------------------- final unknown nights
+
+NO_RESULT = "run={run}\nrepo=task-os\ne2e=pass\nsmoke=pass\naudit=clean\n"
+
+
+def _no_result(run: str, age: int = 60) -> Dict:
+    return {"age": age, "ready": NO_RESULT.format(run=run)}
+
+
+def _pulls(mac, conn, tmp_path, count: int, **kw) -> list:
+    return [_pass(mac, FakeGh(), FakeSender(), conn, tmp_path, **kw) for _ in range(count)]
+
+
+def test_a_night_unknown_on_two_pulls_is_final_unknown_on_the_third_and_stops_turning_it_red(conn, tmp_path, capsys):
+    mac = FakeMac({"100": _no_result("100")})
+    first, second, third, fourth = _pulls(mac, conn, tmp_path, 4)
+    for early in (first, second):
+        assert _states(early) == [("100", nc.UNKNOWN)] and early.exit_code == 1 and early.attention == 1
+    for later in (third, fourth):
+        assert _states(later) == [("100", nc.FINAL_UNKNOWN)]
+        assert later.exit_code == 0 and later.attention == 0 and later.final_unknown == 1
+    mr._print_report(third)
+    out = capsys.readouterr().out
+    assert "⚠️ task-os run 100: ci_final_unknown - final unknown" in out
+    assert "verdict: ok - nothing new is unknown; 1 night(s) final unknown, listed above, not counted and not a pass" in out
+    assert not any(w in out.lower() for w in ("green", "passed"))
+    assert not store.ci_reported(conn, REPO, "100")  # still never recorded as a reported night
+
+
+def test_a_different_night_unknown_on_the_third_pull_still_turns_it_red(conn, tmp_path, capsys):
+    mac = FakeMac({"100": _no_result("100")})
+    _pulls(mac, conn, tmp_path, 2)
+    mac.nights["101"] = _no_result("101")
+    third = _pass(mac, FakeGh(), FakeSender(), conn, tmp_path)
+    assert sorted(_states(third)) == [("100", nc.FINAL_UNKNOWN), ("101", nc.UNKNOWN)]
+    assert third.exit_code == 1 and third.attention == 1
+    mr._print_report(third)
+    assert "verdict: red - 1 item(s) unknown, refused or not confirmed (listed above); 1 night(s) final unknown" in capsys.readouterr().out
+
+
+def test_a_refused_night_beside_a_final_unknown_one_still_turns_it_red(conn, tmp_path):
+    mac = FakeMac({"100": _no_result("100")})
+    _pulls(mac, conn, tmp_path, 2)
+    mac.nights["101"] = {"age": 60, "ready": ready("999")}  # names another run: refused
+    third = _pass(mac, FakeGh(), FakeSender(), conn, tmp_path)
+    assert sorted(_states(third)) == [("100", nc.FINAL_UNKNOWN), ("101", nc.REFUSED)]
+    assert third.exit_code == 1
+
+
+def test_an_unmeasured_audit_goes_final_on_the_same_count(conn, tmp_path, capsys):
+    mac = FakeMac({"100": _unmeasured({"age": 60, "ready": ready("100")})})
+    first, second, third = _pulls(mac, conn, tmp_path, 3)
+    assert [r.exit_code for r in (first, second)] == [1, 1]
+    assert [(o.run_id, o.state) for o in third.outcomes if o.run_id != "-"] == [("100", mr.AUDIT_FINAL_UNKNOWN)]
+    assert third.exit_code == 0 and third.attention == 0 and third.final_unknown == 1
+    mr._print_report(third)
+    assert "audit_final_unknown - final unknown" in capsys.readouterr().out
+
+
+def test_one_night_unknown_in_both_stages_counts_as_one_pull(conn, tmp_path):
+    mac = FakeMac({"100": _unmeasured(_no_result("100"))})
+    first, second = _pulls(mac, conn, tmp_path, 2)
+    assert first.attention == second.attention == 2 and store.unknown_pulls(conn, REPO, "100") == 2
+    third = _pass(mac, FakeGh(), FakeSender(), conn, tmp_path)
+    assert third.exit_code == 0 and third.final_unknown == 2
+
+
+def test_a_failed_read_of_the_mac_is_never_final_however_often_it_repeats(conn, tmp_path):
+    mac = FakeMac({"100": _red_night()})
+    mac.down_for = "ready"
+    for report in _pulls(mac, conn, tmp_path, 4):
+        assert _states(report) == [("100", nc.UNKNOWN)] and report.exit_code == 1
+    assert store.unknown_pulls(conn, REPO, "100") == 0
+
+
+def test_a_dry_run_does_not_count_a_pull(conn, tmp_path):
+    mac = FakeMac({"100": _unmeasured({"age": 60, "ready": ready("100")})})
+    _pulls(mac, conn, tmp_path, 3, dry_run=True)
+    assert store.unknown_pulls(conn, REPO, "100") == 0
+    assert _pass(mac, FakeGh(), FakeSender(), conn, tmp_path).exit_code == 1
+
+
+def test_the_pull_counter_ages_out_with_the_ledger(conn):
+    store.note_unknown_pull(conn, REPO, "1", 100.0)
+    store.note_unknown_pull(conn, REPO, "2", 900.0)
+    store.prune_unknown(conn, 500.0)
+    assert (store.unknown_pulls(conn, REPO, "1"), store.unknown_pulls(conn, REPO, "2")) == (0, 1)
+
+
 # ------------------------------------------------------------------ gh helpers
 
 
