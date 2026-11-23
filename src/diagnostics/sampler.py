@@ -26,8 +26,8 @@ from typing import Any, Dict, Optional
 
 import psutil
 
-from src.concurrency.pools import BACKGROUND, run_on
 from src import system_stats
+from src.concurrency.pools import BACKGROUND, run_on
 
 from . import attribution, storage, store
 from .run_state import RunStatus, settle

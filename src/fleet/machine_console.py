@@ -26,8 +26,8 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
-from src.concurrency.pools import FAN_OUT, run_on
 from src import system_stats
+from src.concurrency.pools import FAN_OUT, run_on
 from src.fleet import peer_health, remote_stats, sync_diagnosis
 from src.health import resource_watch
 from src.health import watch as health_watch

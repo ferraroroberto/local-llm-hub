@@ -38,6 +38,7 @@ import time
 from typing import Any, Dict, Optional
 
 from src.concurrency.pools import BACKGROUND, run_on
+
 from .model_registry import STARTUP_ON_DEMAND, Model
 from .process.serving_state import LOAD_DEADLINE_S
 

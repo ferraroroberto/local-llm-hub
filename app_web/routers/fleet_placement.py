@@ -26,8 +26,8 @@ from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter
 
-from src.concurrency.pools import HOT_POLL, run_on
 from src import system_stats
+from src.concurrency.pools import HOT_POLL, run_on
 from src.fleet import fleet_reconcile, remote_stats
 from src.health.live_stats import LIVE
 from src.host_profile import HostProfile, all_hosts

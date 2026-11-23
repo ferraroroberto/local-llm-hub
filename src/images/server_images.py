@@ -35,6 +35,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from src.concurrency.pools import MEDIA, run_on
+
 from .. import on_demand
 from ..fleet.remote_proxy import remote_base_url
 from ..gemini_cli import GeminiCLIError, call_gemini_image
