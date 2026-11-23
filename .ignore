@@ -56,5 +56,6 @@
 /src/usage_log.py
 /tests/e2e/_paced_browser.py
 /tests/e2e/_surface.py
+/tests/host/_synthetic_host.py
 /tray/single_instance.py
 # END vendored-copies
