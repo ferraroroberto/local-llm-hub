@@ -151,6 +151,9 @@ path = ".usage-track-ratchet-baseline.json"
 [[e2e.rule]]
 tier = "none"
 path = ".request-budget-ratchet-baseline.json"
+[[e2e.rule]]
+tier = "none"
+path = ".windows-only-ratchet-baseline.json"
 
 # Components vendored byte-for-byte from project-scaffolding. Re-vendored by
 # `/propagate-vendored <key>`; never edit a copy here — fix it in the scaffold
@@ -187,6 +190,7 @@ ux_surface_ratchet = { src = "scripts/ux_surface_ratchet.py", sha = "adf0375e08a
 ux_surface_map = { src = "scripts/ux_surface_map.py", sha = "adf0375e08a186330196b8d6be7b8b51078a73ae", dest = "scripts/ux_surface_map.py" }
 request_budget_ratchet = { src = "scripts/request_budget_ratchet.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "scripts/request_budget_ratchet.py" }
 request_budget_scan = { src = "scripts/request_budget_scan.py", sha = "5ba99b0a04b1b5d7b3689f8f7a59bd3fe625a9bc", dest = "scripts/request_budget_scan.py" }
+windows_only_ratchet = { src = "scripts/windows_only_ratchet.py", sha = "5ba99b0a04b1b5d7b3689f8f7a59bd3fe625a9bc", dest = "scripts/windows_only_ratchet.py" }
 request_timing = { src = "src/request_timing.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "src/request_timing.py" }
 poll = { src = "app/webapp/static/_vendored/poll", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "app_web/static/_vendored/poll" }
 build_info  = { src = "src/build_info.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "src/build_info.py" }
@@ -388,6 +392,17 @@ baseline      = ".request-budget-ratchet-baseline.json"
 browser_paths = ["app_web/static/**"]
 server_paths  = ["src/**", "app_web/**", "tray/**"]
 handler_dirs  = ["app_web/routers", "src/routes"]
+
+# [windows_only_ratchet] -- scripts/windows_only_ratchet.py fails when a test touches a
+# Windows-only API (module, attribute, environment variable, planted .exe install lookup)
+# without the `windows_only` marker the Mac nightly's unit leg excludes, beyond
+# .windows-only-ratchet-baseline.json. Exit 3 is "not confirmed", never clean. Mechanism:
+# project-scaffolding docs/windows-only-ratchet.md.
+[windows_only_ratchet]
+enabled    = true
+baseline   = ".windows-only-ratchet-baseline.json"
+marker     = "windows_only"
+test_paths = ["tests/**"]
 
 # [usage_track_ratchet] -- scripts/usage_track_ratchet.py (with its reader
 # scripts/usage_track_scan.py) fails when the web app's HTML or JS gains a control with no

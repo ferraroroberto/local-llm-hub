@@ -291,6 +291,7 @@ local-llm-hub/
 │   ├── ux_surface_map.py         #   vendored: reads docs/ux-surfaces.yaml and generates docs/ux-surface-map.md
 │   ├── request_budget_ratchet.py # vendored from project-scaffolding: fails on a NEW fixed-rate poll, sub-2 s poll, undeclared fast server loop, handler directory walk, default-pool submit or missing timing middleware
 │   ├── request_budget_scan.py    #   vendored: the JS and Python readers it loads
+│   ├── windows_only_ratchet.py   # vendored from project-scaffolding: fails on a NEW test that uses a Windows-only module, attribute, environment variable or planted .exe install lookup without the `windows_only` marker
 │   ├── classify_e2e.py           # vendored from project-scaffolding: maps the diff to an e2e tier via .fleet.toml [e2e]
 │   ├── e2e_route.py              #   the gate's wrapper: an unreadable verdict runs the full suite, never less
 │   └── verify-before-ship.ps1    # byte-compile + static/docs/comment/structure/instruction/doc-refs/dead-code ratchets + pytest + diff-routed Playwright on Chromium
