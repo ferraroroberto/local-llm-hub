@@ -90,8 +90,10 @@ appears on a peer's row when the two hubs' `git_sha` (from
 `/admin/api/version`) differ. The sheet then says *why*, because `sync` only
 moves a peer to `origin/main` and so closes just one of the causes.
 `src/fleet/sync_diagnosis.py` resolves both served builds against this hub's own
-checkout and `origin/main` (one `git fetch` per five minutes at most) and names
-the case: this hub runs an older build than its checkout (restart this hub), this
+checkout and `origin/main` (one `git fetch` per five minutes at most), caches the
+answer per (peer, this hub's build, peer's build) for five minutes (one minute
+when it is *not confirmed*) so the Machines poll starts no git process between
+changes, and names the case: this hub runs an older build than its checkout (restart this hub), this
 hub's checkout is behind main (pull and restart here), the peer is behind main
 (**Sync** is offered), the peer is ahead of main, or either side runs work that is
 not on main (neither fixes it). A build id or `origin/main` that cannot be
