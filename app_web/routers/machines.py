@@ -49,6 +49,7 @@ import websockets
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from starlette.responses import Response
 
+from src.concurrency.pools import ACTION, run_on
 from src import config_write
 from src.fleet import actions_runner, machine_console, remote_bootstrap, ssh_terminal
 from src.fleet.wake_on_lan import WakeOnLanError, send_wake
@@ -109,7 +110,7 @@ async def machine_set_dormant(host_id: str, payload: Dict[str, Any]) -> Dict[str
     machine-local ``machines.local.yaml``. Takes effect at once — the
     parsed config is re-read — and survives a restart."""
     try:
-        changed = await asyncio.to_thread(
+        changed = await run_on(ACTION, 
             config_write.set_host_dormant, host_id, payload.get("dormant")
         )
     except config_write.ConfigWriteError as exc:

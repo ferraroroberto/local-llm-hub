@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, List, Optional, Sequence
 
+from src.concurrency.pools import HOT_POLL, run_on
 from .fleet import remote_stats
 from .host_profile import get_host
 from .host_profile import resolve as resolve_host
@@ -45,7 +46,7 @@ async def local_reachability(
             return False
         if listening is not None and m.port not in listening:
             return False
-        return await asyncio.to_thread(bp.is_reachable, m, bp.LIVENESS_PROBE_TIMEOUT_S)
+        return await run_on(HOT_POLL, bp.is_reachable, m, bp.LIVENESS_PROBE_TIMEOUT_S)
 
     return list(await asyncio.gather(*(_probe(m) for m in models)))
 
@@ -64,7 +65,7 @@ async def reachability_by_id(models: Sequence[Model]) -> Dict[str, bool]:
 
     out: Dict[str, bool] = {}
     if local:
-        listening = await asyncio.to_thread(snapshot_listening_pids)
+        listening = await run_on(HOT_POLL, snapshot_listening_pids)
         for m, ok in zip(local, await local_reachability(local, listening)):
             out[m.id] = bool(ok)
 

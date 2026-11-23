@@ -12,6 +12,7 @@ from typing import Any, Callable, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
+from src.concurrency.pools import ACTION, HOT_POLL, run_on
 from app_web.admin_forward import forward_admin_request
 from src import config_write
 from src.fleet import remote_stats
@@ -180,7 +181,7 @@ async def _probe_device(m: Model, reachable: bool) -> Optional[str]:
     """
     if not reachable or m.backend != "tts":
         return None
-    body = await asyncio.to_thread(bp.probe_health, m, bp.LIVENESS_PROBE_TIMEOUT_S)
+    body = await run_on(HOT_POLL, bp.probe_health, m, bp.LIVENESS_PROBE_TIMEOUT_S)
     dev = body.get("device") if isinstance(body, dict) else None
     if isinstance(dev, str) and dev.strip().lower() in ("cpu", "cuda", "mps"):
         return dev.strip().lower()
@@ -293,7 +294,7 @@ async def list_models_for_admin(local_only: bool = False) -> Dict[str, Any]:
     # psutil gives us every listening port in ~2 ms — use it both for
     # ownership *and* as a cheap reachability gate so we never fire an
     # HTTP probe at a port that isn't bound.
-    listening = await asyncio.to_thread(snapshot_listening_pids)
+    listening = await run_on(HOT_POLL, snapshot_listening_pids)
 
     reach_results = await local_reachability(local_models, listening)
 
@@ -375,7 +376,7 @@ async def model_placement_update(model_id: str, payload: Dict[str, Any]) -> Dict
     if isinstance(raw_idle, float) and raw_idle.is_integer():
         idle = int(raw_idle)
     try:
-        result = await asyncio.to_thread(
+        result = await run_on(ACTION, 
             config_write.apply_placement, model_id, chain, startup, idle
         )
     except config_write.ConfigWriteError as exc:
@@ -472,7 +473,7 @@ async def model_log(model_id: str, limit: int = 400) -> Dict[str, Any]:
             detail=f"backend {target.backend!r} has no managed process (subscription-backed)",
         )
     limit = max(1, min(limit, bp.LOG_TAIL_LINES * 10))
-    lines = await asyncio.to_thread(bp.log_lines, model_id, limit)
+    lines = await run_on(HOT_POLL, bp.log_lines, model_id, limit)
     return {
         "id": model_id,
         "lines": lines,

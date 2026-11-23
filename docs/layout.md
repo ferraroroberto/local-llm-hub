@@ -180,7 +180,9 @@ local-llm-hub/
 │   ├── event_loop.py         # Windows proactor-loop shim so uvicorn survives client aborts
 │   ├── build_info.py         # vendored scaffold helper: build_identity() -> git_sha + built_at
 │   ├── restart_check.py      # vendored scaffold helper: one-command tray restart (`python -m src.restart_check restart --port N --version-path P`) that fails unless a new process serves HEAD
-│   ├── request_timing.py     # vendored scaffold middleware: Server-Timing + slow/in-flight logging, TimedExecutor named pools (not yet mounted: callers migrate in the burn-down)
+│   ├── request_timing.py     # vendored scaffold middleware: Server-Timing + slow/in-flight logging, TimedExecutor named pools (mounted on the admin sub-app)
+│   ├── concurrency/          # bounded thread pools for blocking work
+│   │   └── pools.py              #   one named pool per class (hot-poll, heavy-read, action, fan-out, background, media) + run_on; nothing uses the shared default pool
 │   ├── services.py           # host-side service helpers: Docker engine + Langfuse stack
 │   ├── fsio/                 # guarded file writers
 │   │   └── runtime_files.py      #   mkdir/open/copy/move/log handler/SQLite opener that raise on a path under a code folder; the one place a caller-named runtime path is written

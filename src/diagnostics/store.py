@@ -82,7 +82,7 @@ def connect() -> Iterator[sqlite3.Connection]:
     """Yield a migrated connection, committing on clean exit.
 
     ``check_same_thread=False`` because the sampler runs its writes through
-    ``asyncio.to_thread`` — the connection never outlives the call, so no two
+    worker threads (``run_on``) — the connection never outlives the call, so no two
     threads ever hold it at once."""
     conn = _open_migrated(db_path())
     try:

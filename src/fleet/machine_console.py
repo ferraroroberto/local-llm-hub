@@ -26,6 +26,7 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
+from src.concurrency.pools import FAN_OUT, run_on
 from src import system_stats
 from src.fleet import peer_health, remote_stats, sync_diagnosis
 from src.health import resource_watch
@@ -163,7 +164,7 @@ async def _hub_facts(host: HostProfile) -> Optional[Dict[str, Any]]:
     if reachable:
         # Which side is behind and whether Sync can close it: only worth the
         # git work for a peer that answered.
-        facts["sync"] = await asyncio.to_thread(
+        facts["sync"] = await run_on(FAN_OUT, 
             sync_diagnosis.diagnose,
             peer_name=host.display_name or host.id,
             git_sha_match=facts["git_sha_match"],

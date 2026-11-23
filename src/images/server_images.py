@@ -23,7 +23,6 @@ mounted onto the parent hub app by ``server.py`` via ``include_router``.
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import logging
 import tempfile
@@ -35,6 +34,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from src.concurrency.pools import MEDIA, run_on
 from .. import on_demand
 from ..fleet.remote_proxy import remote_base_url
 from ..gemini_cli import GeminiCLIError, call_gemini_image
@@ -359,7 +359,7 @@ async def images_edits(
             tf.write(raw)
             tmp_path = Path(tf.name)
         try:
-            out = await asyncio.to_thread(
+            out = await run_on(MEDIA, 
                 call_gemini_image, prompt, reference_image=tmp_path
             )
         except GeminiCLIError as e:

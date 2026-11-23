@@ -17,7 +17,6 @@ onto the parent hub app by ``server.py`` via ``include_router``.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
@@ -25,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 
+from src.concurrency.pools import ACTION, run_on
 from .. import on_demand as _on_demand
 from ..fleet.remote_proxy import remote_auth_headers, remote_base_url
 from ..http_client import get_async_client
@@ -591,7 +591,7 @@ async def _forward_to_candidate(
     # propagating straight to the caller.
     try:
         if remote is None:
-            await asyncio.to_thread(ensure_backend_ready_or_503, target)
+            await run_on(ACTION, ensure_backend_ready_or_503, target)
     except HTTPException as exc:
         raise _BackendUnavailable(exc)
 

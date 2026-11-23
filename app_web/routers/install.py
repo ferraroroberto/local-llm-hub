@@ -13,12 +13,12 @@ status/control/log/request-stream surface the rest of that file owns.
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import asdict
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException, Request
 
+from src.concurrency.pools import ACTION, HEAVY_READ, run_on
 from ._helpers import maybe_json
 
 router = APIRouter()
@@ -32,7 +32,7 @@ async def install_status() -> Dict[str, Any]:
     uvicorn worker for seconds while other admin requests queue up."""
     from src import install
 
-    report = await asyncio.to_thread(install.run_all_checks)
+    report = await run_on(HEAVY_READ, install.run_all_checks)
     return {
         "worst_status": report.worst_status,
         "ok": report.ok,
@@ -55,7 +55,7 @@ async def install_fix(request: Request) -> Dict[str, Any]:
     fix_id = (body or {}).get("fix_id")
     if not fix_id:
         raise HTTPException(status_code=400, detail="fix_id is required")
-    report = await asyncio.to_thread(install.run_all_checks, use_cache=True)
+    report = await run_on(HEAVY_READ, install.run_all_checks, use_cache=True)
     target = next((c for c in report.checks if c.fix_id == fix_id), None)
     if target is None:
         raise HTTPException(status_code=404, detail=f"no fixable check with fix_id={fix_id!r}")
@@ -63,7 +63,7 @@ async def install_fix(request: Request) -> Dict[str, Any]:
     if fn is None:
         raise HTTPException(status_code=400, detail=f"no fix function for {fix_id!r}")
     try:
-        await asyncio.to_thread(fn)
+        await run_on(ACTION, fn)
     except Exception as exc:  # noqa: BLE001 — surface the failure to the UI
         raise HTTPException(status_code=500, detail=f"fix {fix_id!r} failed: {exc}")
     return {"ok": True, "fix_id": fix_id}
@@ -75,7 +75,7 @@ async def install_fix_all() -> Dict[str, Any]:
     as install_fix() — see its docstring."""
     from src import install
 
-    report = await asyncio.to_thread(install.run_all_checks, use_cache=True)
+    report = await run_on(HEAVY_READ, install.run_all_checks, use_cache=True)
     ran: List[Dict[str, Any]] = []
     for c in report.checks:
         if c.status not in ("missing", "error"):
@@ -84,7 +84,7 @@ async def install_fix_all() -> Dict[str, Any]:
         if fn is None:
             continue
         try:
-            await asyncio.to_thread(fn)
+            await run_on(ACTION, fn)
             ran.append({"fix_id": c.fix_id, "ok": True})
         except Exception as exc:  # noqa: BLE001
             ran.append({"fix_id": c.fix_id, "ok": False, "error": str(exc)})

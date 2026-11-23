@@ -20,6 +20,7 @@ import time
 from collections import deque
 from typing import Any, Callable, Deque, Dict, List, Optional
 
+from src.concurrency.pools import BACKGROUND, run_on
 from . import periodic, port_probe, port_rules, settings
 from .port_probe import PortProbe
 from .port_store import PortStore
@@ -201,12 +202,12 @@ WATCH = PortWatch()
 async def run_loop(on_tick: Optional[Callable[[], Any]] = None) -> None:
     """Sample forever on ``ports.interval_s``; ``on_tick`` re-judges the health
     verdict so an ``act`` alert fires within one port interval. Never raises out of a tick."""
-    cfg = await asyncio.to_thread(settings.load)
+    cfg = await run_on(BACKGROUND, settings.load)
     if not cfg.get("enabled", True) or not cfg["ports"].get("enabled", True):
         logger.info("ℹ️ port watch: disabled in config/health_watch.json")
         return
     try:
-        loaded = await asyncio.to_thread(WATCH.load, cfg)
+        loaded = await run_on(BACKGROUND, WATCH.load, cfg)
         logger.info("ℹ️ port watch: %s stored samples reloaded", loaded)
     except Exception as exc:  # noqa: BLE001 — an unreadable history must not stop live sampling
         logger.warning("⚠️ port watch: history reload failed: %s", exc)
@@ -228,7 +229,7 @@ async def run_window_loop(ports: Dict[str, Any]) -> None:
         started = time.monotonic()
         ports = WATCH.ports_config() or ports
         try:
-            await asyncio.to_thread(WATCH.record_window, ports)
+            await run_on(BACKGROUND, WATCH.record_window, ports)
             failing = False
             if first:
                 logger.info("ℹ️ port watch: burst window of %s s every %s s (%s s idle), first tally took %.1f ms",

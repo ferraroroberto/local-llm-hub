@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter
 
+from src.concurrency.pools import HOT_POLL, run_on
 from src import system_stats
 from src.fleet import fleet_reconcile, remote_stats
 from src.health.live_stats import LIVE
@@ -176,7 +177,7 @@ async def _serving_ids(alive: Dict[str, Any]) -> List[str]:
     """Ids of the live local backends that serve — a backend still loading,
     or alive but not answering, is not "running" (``bp.serving``)."""
     models = list(alive.values())
-    listening = await asyncio.to_thread(snapshot_listening_pids)
+    listening = await run_on(HOT_POLL, snapshot_listening_pids)
     reach = await local_reachability(models, listening)
     return [
         m.id for m, ok in zip(models, reach)

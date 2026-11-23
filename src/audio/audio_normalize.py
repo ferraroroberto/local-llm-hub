@@ -15,7 +15,6 @@ are fixed.
 
 from __future__ import annotations
 
-import asyncio
 import io
 import logging
 import re
@@ -27,6 +26,7 @@ from typing import Dict, Optional, Tuple
 
 from fastapi import HTTPException
 
+from src.concurrency.pools import MEDIA, run_on
 from ..hub_observability import ERROR_BAD_REQUEST, ERROR_INTERNAL, tag_error
 from ..no_window import NO_WINDOW
 
@@ -133,7 +133,7 @@ async def normalize_files(files: Optional[WhisperFiles]) -> Optional[WhisperFile
     container = container_of(data)
     if container is None:
         return files
-    wav = await asyncio.to_thread(_decode_to_wav, data, container)
+    wav = await run_on(MEDIA, _decode_to_wav, data, container)
     logger.info(
         "ℹ️ audio normalised: %s upload (%d B) decoded to 16 kHz mono wav (%d B)",
         container, len(data), len(wav),

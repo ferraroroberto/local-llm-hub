@@ -60,6 +60,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
+from src.concurrency.pools import ACTION, BACKGROUND, run_on
 from .fsio.runtime_files import make_dirs, move, save_text
 from .host_profile import _load_config
 from .model_registry import SPAWNABLE_BACKENDS, Model
@@ -483,13 +484,13 @@ async def _ensure_running_local(
     # model must never be resurrected by this engine.
     if getattr(model, "startup", None) == "on_demand":
         return None
-    if await asyncio.to_thread(bp.is_running, model.id):
+    if await run_on(BACKGROUND, bp.is_running, model.id):
         return None
     if start_local is not None:
         result = await start_local(model.id)
         _ENGINE_STARTED.add(model.id)
         return {"started": True, "detail": result}
-    outcome = await asyncio.to_thread(bp.start, model.id)
+    outcome = await run_on(ACTION, bp.start, model.id)
     # Only a process this engine spawned is engine-started: an adopted or
     # already-running instance existed before it acted, so failback must leave
     # it alone (additive contract).
@@ -508,11 +509,11 @@ async def _release_local(
 
     if model.id not in _ENGINE_STARTED:
         return None
-    if not await asyncio.to_thread(bp.is_running, model.id):
+    if not await run_on(BACKGROUND, bp.is_running, model.id):
         _ENGINE_STARTED.discard(model.id)
         return None
     recorded = _ENGINE_STARTED.pid_for(model.id)
-    current = await asyncio.to_thread(bp.pid, model.id)
+    current = await run_on(BACKGROUND, bp.pid, model.id)
     if not _spawned_by(recorded, current):
         logger.info(
             "ℹ️ failover: %s now runs as pid %s, not the pid %s failover started — "
@@ -524,7 +525,7 @@ async def _release_local(
         result = await stop_local(model.id)
         _ENGINE_STARTED.discard(model.id)
         return {"stopped": True, "detail": result}
-    outcome = await asyncio.to_thread(bp.stop, model.id)
+    outcome = await run_on(ACTION, bp.stop, model.id)
     _ENGINE_STARTED.discard(model.id)
     logger.info("failover: local stop %s -> %s (%s)", model.id, outcome.kind.value, outcome.detail)
     return {"stopped": outcome.ok, "detail": outcome.detail}

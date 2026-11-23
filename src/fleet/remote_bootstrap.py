@@ -34,6 +34,7 @@ import os
 import time
 from typing import Any, Dict, Optional
 
+from src.concurrency.pools import FAN_OUT, run_on
 from ..host_profile import get_host, hub_port
 from ..http_client import get_async_client
 from . import remote_stats
@@ -127,7 +128,7 @@ async def _trigger_and_poll(host_id: str, verb: str, emoji: str) -> Dict[str, An
     answers. Shared by ``bootstrap_host``/``sync_host`` — same shape apart
     from the verb and the log line's icon."""
     logger.info("%s %s_host(%r)", emoji, verb, host_id)
-    ssh_result = await asyncio.to_thread(_run_remote_command, host_id, verb)
+    ssh_result = await run_on(FAN_OUT, _run_remote_command, host_id, verb)
     if not ssh_result["ok"]:
         return {"ok": False, "detail": ssh_result["error"]}
     health = await _poll_health(host_id)
@@ -179,7 +180,7 @@ async def _trigger_power(host_id: str, flag: str, verb: str, emoji: str) -> Dict
     router knows which host is active); this layer already can't reach a host
     with no ``ssh_user``."""
     logger.info("%s %s_host(%r)", emoji, verb, host_id)
-    ssh_result = await asyncio.to_thread(_run_power_command, host_id, flag)
+    ssh_result = await run_on(FAN_OUT, _run_power_command, host_id, flag)
     if not ssh_result["ok"]:
         return {"ok": False, "detail": ssh_result["error"]}
     return {"ok": True, "detail": f"{verb} scheduled on {host_id}"}

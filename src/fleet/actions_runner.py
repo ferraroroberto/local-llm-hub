@@ -32,6 +32,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.concurrency.pools import FAN_OUT, run_on
 from ..host_profile import HostProfile, get_host, resolve
 from ..no_window import NO_WINDOW
 from . import remote_stats
@@ -334,11 +335,11 @@ async def status(host_id: str, *, fresh: bool = False) -> Dict[str, Any]:
                 "service": {"state": ServiceState.UNKNOWN.value, "reason": spec.problem},
                 "github": {"state": GithubState.UNKNOWN.value, "busy": None, "reason": ""},
                 "last_run": None, "boot": None, "actions": {v: False for v in VERBS}, "blocked": {}}
-    svc = await asyncio.to_thread(_read_service, host, spec)
+    svc = await run_on(FAN_OUT, _read_service, host, spec)
     runner_file = svc.get("runner_file") or {"name": None, "repo": None}
     name = spec.name or runner_file["name"]
     repo = spec.repo or runner_file["repo"]
-    gh = await asyncio.to_thread(_read_github, repo, name, spec.workflow, fresh=fresh)
+    gh = await run_on(FAN_OUT, _read_github, repo, name, spec.workflow, fresh=fresh)
 
     if not svc.get("reached"):
         service = {"state": ServiceState.UNKNOWN.value, "reason": svc["reason"]}
@@ -416,7 +417,7 @@ async def run_verb(host_id: str, verb: str) -> Dict[str, Any]:
         if not address:
             raise RunnerRefused(502, "the machine did not answer over SSH")
         logger.info("🏃 runner %s on %s", verb, host_id)
-        result = await asyncio.to_thread(
+        result = await run_on(FAN_OUT, 
             run_ssh, f"{host.ssh_user}@{address}", _verb_command(spec.directory, verb),
             timeout=_SSH_VERB_TIMEOUT_S,
         )

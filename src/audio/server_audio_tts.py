@@ -16,6 +16,7 @@ from typing import Any, Optional, Tuple
 from fastapi import HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 
+from src.concurrency.pools import ACTION, run_on
 from .. import on_demand as _on_demand
 from ..fleet.remote_proxy import remote_auth_headers, remote_base_url
 from ..http_client import get_async_client
@@ -177,8 +178,7 @@ async def audio_speech(request: Request) -> Response:
     # (distinct 503 on load failure) — same hook as the chat routes. Off the
     # event loop: the readiness poll is a blocking sleep/probe cycle.
     if remote is None:
-        import asyncio as _asyncio
-        await _asyncio.to_thread(ensure_backend_ready_or_503, target)
+        await run_on(ACTION, ensure_backend_ready_or_503, target)
 
     # The in-flight mark covers *every* exit below by default: the
     # ``with`` finishes it on a return or a raise, so a future branch can't

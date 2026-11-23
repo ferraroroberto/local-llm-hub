@@ -394,6 +394,141 @@ browser_paths = ["app_web/static/**"]
 server_paths  = ["src/**", "app_web/**", "tray/**"]
 handler_dirs  = ["app_web/routers", "src/routes"]
 
+# [[request_budget.loops]] -- every server loop that wakes more often than every 5 s, or
+# whose interval comes from config, with the reason it cannot wait for a viewer. Most are
+# bounded readiness waits (they end at a deadline); the rest are the hub's own watchers.
+[[request_budget.loops]]
+path       = "src/_respawn_watchdog.py"
+function   = "run"
+interval_s = 0.3
+why        = "bounded 30 s wait for the old hub to exit before it relaunches; nobody views a restart"
+
+[[request_budget.loops]]
+path       = "src/diagnostics/sampler.py"
+function   = "start_scheduled_snapshots._loop"
+interval_s = 3600
+why        = "scheduled snapshot, at least an hour apart (owner setting); it records history nobody is watching by design"
+
+[[request_budget.loops]]
+path       = "src/fleet/actions_runner.py"
+function   = "run_verb"
+interval_s = 3
+why        = "bounded wait for a runner start/stop the owner just asked for to converge; the request waits on it"
+
+[[request_budget.loops]]
+path       = "src/fleet/remote_bootstrap.py"
+function   = "_poll_health"
+interval_s = 1
+why        = "bounded wait for a peer hub the owner just started to answer /health; the request waits on it"
+
+[[request_budget.loops]]
+path       = "src/gemini_cli.py"
+function   = "_Pty._reader"
+interval_s = 0.03
+why        = "drains a live CLI pty for the request that spawned it; ends when the pty closes"
+
+[[request_budget.loops]]
+path       = "src/gemini_cli.py"
+function   = "_Pty.wait_exit"
+interval_s = 0.1
+why        = "bounded wait for the request's CLI child to exit"
+
+[[request_budget.loops]]
+path       = "src/gemini_cli.py"
+function   = "_Pty.wait_for"
+interval_s = 0.15
+why        = "bounded wait for a prompt marker in the request's CLI output"
+
+[[request_budget.loops]]
+path       = "src/health/loop_watch.py"
+function   = "LoopWatch._run"
+interval_s = 0.1
+why        = "event-loop stall detector: a heartbeat is the measurement, and a stall must be logged when it happens, viewed or not"
+
+[[request_budget.loops]]
+path       = "src/health/periodic.py"
+function   = "run_ticks"
+interval_s = 30
+why        = "health, resource and port watchers (30-600 s by owner setting, 1 s floor); they log incidents whether or not the admin is open"
+
+[[request_budget.loops]]
+path       = "src/health/port_watch.py"
+function   = "run_window_loop"
+interval_s = 1
+why        = "port burst window: 1 s only under port pressure, 10 s otherwise (owner settings); it must catch a leak as it happens"
+
+[[request_budget.loops]]
+path       = "src/images/comfyui_client.py"
+function   = "_await_history"
+interval_s = 1
+why        = "bounded wait for the request's image job to finish in ComfyUI"
+
+[[request_budget.loops]]
+path       = "src/model_failover.py"
+function   = "failover_loop"
+interval_s = 30
+why        = "probes chained backends (owner setting) so routing fails over before a request lands on a dead host; idles when no chain is configured"
+
+[[request_budget.loops]]
+path       = "src/on_demand.py"
+function   = "ensure_ready"
+interval_s = 1
+why        = "bounded wait for an on-demand backend the request just started to answer"
+
+[[request_budget.loops]]
+path       = "src/server_lifecycle.py"
+function   = "_fleet_reconcile_loop"
+interval_s = 300
+why        = "keeps placed backends running across machines, every 5 min (env override); placement must hold with nobody watching"
+
+[[request_budget.loops]]
+path       = "src/server_lifecycle.py"
+function   = "_resource_sampler"
+interval_s = 2
+why        = "2 s only while someone views the live stats, 30 s otherwise; the idle pace feeds the GPU list routing reads"
+
+[[request_budget.loops]]
+path       = "src/services.py"
+function   = "poll_until"
+interval_s = 2
+why        = "bounded wait for a service (docker, langfuse, agentsview) the owner just started to report ready"
+
+[[request_budget.loops]]
+path       = "src/tts_engines/orpheus.py"
+function   = "OrpheusEngine._wait_llama_ready"
+interval_s = 0.5
+why        = "bounded wait for the TTS engine's own llama-server child to load at startup"
+
+[[request_budget.loops]]
+path       = "src/usage/code_usage.py"
+function   = "_refresher_loop"
+interval_s = 1
+why        = "checks in-memory due times only (no I/O) so a usage summary is rebuilt before it expires, not on a viewer's request"
+
+[[request_budget.loops]]
+path       = "src/usage/token_history.py"
+function   = "refresh_blocking"
+interval_s = 0.5
+why        = "bounded wait for a recalculation already running, for the digest that needs a fresh result"
+
+[[request_budget.loops]]
+path       = "tray/tray.py"
+function   = "HubProcess.wait_ready"
+interval_s = 0.5
+why        = "bounded wait for the hub the tray just launched to answer"
+
+[[request_budget.loops]]
+path       = "tray/tray.py"
+function   = "TrayApp._wait_model_ready_worker"
+interval_s = 1
+why        = "bounded wait (120 s) for a model the owner started from the tray, to notify when it is ready"
+
+[[request_budget.loops]]
+path       = "tray/tray.py"
+function   = "TrayApp._color_loop"
+interval_s = 2
+why        = "the tray icon's color is always on screen, so its hub-health read is always watched; a loopback probe"
+
 # [windows_only_ratchet] -- scripts/windows_only_ratchet.py fails when a test touches a
 # Windows-only API (module, attribute, environment variable, planted .exe install lookup)
 # without the `windows_only` marker the Mac nightly's unit leg excludes, beyond

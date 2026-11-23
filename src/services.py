@@ -32,6 +32,7 @@ import time
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
+from src.concurrency.pools import ACTION, HOT_POLL, run_on
 from src.http_client import get_async_client
 from src.no_window import NO_WINDOW
 from src.observability import langfuse_host
@@ -140,9 +141,9 @@ async def docker_status(timeout_s: float = DOCKER_PROBE_TIMEOUT_S) -> Dict[str, 
     """
     # `which` stats every PATH entry for every PATHEXT suffix, which takes
     # seconds on a long PATH under antivirus; on the loop it froze every request.
-    if await asyncio.to_thread(shutil.which, "docker") is None:
+    if await run_on(HOT_POLL, shutil.which, "docker") is None:
         return {"running": False, "error": "docker CLI not on PATH"}
-    return await asyncio.to_thread(_docker_info_sync, timeout_s)
+    return await run_on(HOT_POLL, _docker_info_sync, timeout_s)
 
 
 # ---------------------------------------------------------------- langfuse
@@ -310,7 +311,7 @@ async def _run_langfuse_start_script() -> Dict[str, Any]:
     idempotent (``docker compose up -d``) so calling it again on an
     already-running stack is a fast no-op.
     """
-    return await asyncio.to_thread(_run_langfuse_start_script_sync)
+    return await run_on(ACTION, _run_langfuse_start_script_sync)
 
 
 async def start_docker_desktop() -> Dict[str, Any]:
@@ -479,7 +480,7 @@ async def stop_docker_desktop(timeout_s: float = DOCKER_STOP_TIMEOUT_S) -> Dict[
     info = await docker_status()
     if not info["running"]:
         return {"ok": True, "steps": [{"name": "docker_engine", "status": "skipped", "detail": "already down"}]}
-    result = await asyncio.to_thread(_stop_docker_desktop_sync, timeout_s)
+    result = await run_on(ACTION, _stop_docker_desktop_sync, timeout_s)
     status = "ok" if result["ok"] else "error"
     return {"ok": result["ok"], "steps": [{"name": "docker_engine", "status": status, "detail": result["detail"]}]}
 
@@ -499,7 +500,7 @@ async def stop_langfuse() -> Dict[str, Any]:
     health = await langfuse_health()
     if not health["reachable"]:
         return {"ok": True, "steps": [{"name": "langfuse_stack", "status": "skipped", "detail": "already down"}]}
-    result = await asyncio.to_thread(_run_langfuse_stop_script_sync)
+    result = await run_on(ACTION, _run_langfuse_stop_script_sync)
     if not result["ok"]:
         err_lines = [ln for ln in (result["stderr"] or "").splitlines() if ln.strip()]
         detail = err_lines[0][:200] if err_lines else f"exit {result['returncode']}"

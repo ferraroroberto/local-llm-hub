@@ -10,12 +10,12 @@ Mounts under ``/admin/api/code``.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
+from src.concurrency.pools import HEAVY_READ, HOT_POLL, run_on
 from src.usage.code_usage import _VALID_PERIODS, get_summary_cached, is_valid_vendor
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ async def code_usage_summary(
     try:
         # Off the loop: a cold/changed-file parse would otherwise stall every
         # /v1/* request this process serves.
-        body = await asyncio.to_thread(get_summary_cached, period, vendor)
+        body = await run_on(HOT_POLL, get_summary_cached, period, vendor)
         body["agentsview"] = agentsview_usage.status()
         return body
     except Exception as exc:
@@ -98,7 +98,7 @@ async def code_usage_history(
 
     try:
         # Off the loop: the first read lazily loads the cache file.
-        return await asyncio.to_thread(token_history.get_history, from_, to, refresh)
+        return await run_on(HEAVY_READ, token_history.get_history, from_, to, refresh)
     except ValueError as exc:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
