@@ -6,7 +6,7 @@ holds a ``None`` and costs nothing — no thread, no timer, no resident process.
 
 A run samples every ``interval_s`` until ``duration_s`` elapses or it is
 stopped. Sampling itself (psutil scans, ``nvidia-smi``, SQLite writes) is
-blocking work, so each tick is dispatched with ``asyncio.to_thread`` and never
+blocking work, so each tick is dispatched to the background pool (``run_on``) and never
 stalls the hub's request loop.
 
 Only one run may be active at a time — concurrent captures would double the
@@ -27,6 +27,7 @@ from typing import Any, Dict, Optional
 import psutil
 
 from src import system_stats
+from src.concurrency.pools import BACKGROUND, run_on
 
 from . import attribution, storage, store
 from .run_state import RunStatus, settle
@@ -244,11 +245,11 @@ async def start_run(
         # Opportunistic retention — no timer to keep alive, the prune just
         # rides the action the user already took.
         try:
-            await asyncio.to_thread(store.prune, retention_days)
+            await run_on(BACKGROUND, store.prune, retention_days)
         except Exception as exc:  # noqa: BLE001
             logger.warning("⚠️ diagnostics prune failed: %s", exc)
 
-        run_id = await asyncio.to_thread(
+        run_id = await run_on(BACKGROUND, 
             store.create_run,
             machine_id=_machine_id(),
             os_name=f"{platform.system()} {platform.release()}".strip(),
@@ -281,7 +282,7 @@ async def one_shot(*, retention_days: int = 90, trigger: str = "one-shot") -> Di
     async with _lock:
         if _active is not None:
             raise RuntimeError("a capture is already running")
-        run_id = await asyncio.to_thread(
+        run_id = await run_on(BACKGROUND, 
             store.create_run,
             machine_id=_machine_id(),
             os_name=f"{platform.system()} {platform.release()}".strip(),
@@ -296,15 +297,15 @@ async def one_shot(*, retention_days: int = 90, trigger: str = "one-shot") -> Di
         # Prime + settle so per-process CPU is real rather than the 0.0 a cold
         # read returns. (System CPU needs no priming — _collect_tick measures
         # it over its own window.)
-        await asyncio.to_thread(attribution.prime_cpu_percent)
+        await run_on(BACKGROUND, attribution.prime_cpu_percent)
         await asyncio.sleep(1.0)
-        _n, ports_denied = await asyncio.to_thread(_write_tick, run_id)
-        await asyncio.to_thread(_save_storage, run_id)
+        _n, ports_denied = await run_on(BACKGROUND, _write_tick, run_id)
+        await run_on(BACKGROUND, _save_storage, run_id)
         # Same finalize path as a timed run — coverage + verdict together.
-        await asyncio.to_thread(_finalize, run_id, RunStatus.COMPLETE, ports_denied=ports_denied)
+        await run_on(BACKGROUND, _finalize, run_id, RunStatus.COMPLETE, ports_denied=ports_denied)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️ diagnostics one-shot failed: %s", exc)
-        await asyncio.to_thread(store.finish_run, run_id, status=RunStatus.FAILED)
+        await run_on(BACKGROUND, store.finish_run, run_id, status=RunStatus.FAILED)
         raise
 
     logger.info("🔬 diagnostics one-shot captured (run=%s)", run_id)
@@ -316,7 +317,7 @@ async def stop_run() -> Dict[str, Any]:
 
     Signals the loop and lets it finish the tick it is in, rather than
     cancelling it. Cancelling mid-tick was wrong in a way that only showed up
-    under load: the sampler does its work through ``asyncio.to_thread``, and
+    under load: the sampler does its work on a worker thread (``run_on``), and
     cancelling the *await* does not stop the worker thread — so a half-written
     sample could still land in SQLite after the caller believed the run was
     over, and the finalize in the loop's ``finally`` could be skipped because
@@ -356,7 +357,7 @@ async def _run_loop(run: ActiveRun) -> None:
     global _active, _task
     stopped = failed = False
     try:
-        await asyncio.to_thread(attribution.prime_cpu_percent)
+        await run_on(BACKGROUND, attribution.prime_cpu_percent)
         while True:
             if _stop_requested.is_set():
                 stopped = True
@@ -366,7 +367,7 @@ async def _run_loop(run: ActiveRun) -> None:
             if deadline is not None and tick_started >= deadline:
                 break
             try:
-                _n, ports_denied = await asyncio.to_thread(_write_tick, run.run_id)
+                _n, ports_denied = await run_on(BACKGROUND, _write_tick, run.run_id)
                 run.samples_written += 1
                 if not ports_denied:
                     run.ports_ok_seen = True
@@ -395,7 +396,7 @@ async def _run_loop(run: ActiveRun) -> None:
             # Once per run, after sampling: the walks are disk-heavy and would
             # skew the very IO the ticks measure. A stopped run skips it so a
             # stop never waits on a size walk.
-            await asyncio.to_thread(_save_storage, run.run_id)
+            await run_on(BACKGROUND, _save_storage, run.run_id)
     except asyncio.CancelledError:
         stopped = True
         raise
@@ -407,7 +408,7 @@ async def _run_loop(run: ActiveRun) -> None:
         _task = None
         status = settle(stopped=stopped, failed=failed)
         # Finalize synchronously on this thread rather than through
-        # asyncio.to_thread: in the cancellation backstop path every *await*
+        # a worker thread: in the cancellation backstop path every *await*
         # here would re-raise CancelledError and silently skip the finalize,
         # leaving the run stuck at "running" forever. These are two short
         # SQLite writes, and the loop is already ending. Sealing first means a

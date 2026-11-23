@@ -22,13 +22,13 @@ stance ``machines.py`` takes for its power actions.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Request
 from starlette.responses import PlainTextResponse
 
+from src.concurrency.pools import ACTION, HEAVY_READ, run_on
 from src.diagnostics import ingest, report, rules, sampler, store
 from src.diagnostics import settings as diag_settings
 
@@ -118,7 +118,7 @@ async def diagnostics_ingest(request: Request) -> Dict[str, Any]:
     else:
         payload, machine = body, None
     try:
-        run_id = await asyncio.to_thread(ingest.ingest_payload, payload, machine=machine)
+        run_id = await run_on(ACTION, ingest.ingest_payload, payload, machine=machine)
     except ingest.IngestError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -130,13 +130,13 @@ async def diagnostics_ingest(request: Request) -> Dict[str, Any]:
 
 @router.get("/api/diagnostics/runs")
 async def diagnostics_runs(limit: int = 50) -> Dict[str, Any]:
-    runs = await asyncio.to_thread(store.list_runs, max(1, min(500, limit)))
+    runs = await run_on(HEAVY_READ, store.list_runs, max(1, min(500, limit)))
     return {"runs": runs}
 
 
 @router.get("/api/diagnostics/runs/{run_id}")
 async def diagnostics_run_summary(run_id: str) -> Dict[str, Any]:
-    data = await asyncio.to_thread(report.summary, run_id)
+    data = await run_on(HEAVY_READ, report.summary, run_id)
     if data is None:
         raise HTTPException(status_code=404, detail="unknown run")
     return data
@@ -144,7 +144,7 @@ async def diagnostics_run_summary(run_id: str) -> Dict[str, Any]:
 
 @router.get("/api/diagnostics/runs/{run_id}/drift")
 async def diagnostics_run_drift(run_id: str) -> Dict[str, Any]:
-    data = await asyncio.to_thread(report.drift, run_id)
+    data = await run_on(HEAVY_READ, report.drift, run_id)
     if data is None:
         raise HTTPException(status_code=404, detail="unknown run")
     return data
@@ -154,7 +154,7 @@ async def diagnostics_run_drift(run_id: str) -> Dict[str, Any]:
 async def diagnostics_run_report(run_id: str) -> PlainTextResponse:
     """The markdown health report — served as a download so it can be pasted
     into an LLM session or kept alongside other artefacts."""
-    text = await asyncio.to_thread(report.markdown_report, run_id)
+    text = await run_on(HEAVY_READ, report.markdown_report, run_id)
     if text is None:
         raise HTTPException(status_code=404, detail="unknown run")
     return PlainTextResponse(
@@ -170,14 +170,14 @@ async def diagnostics_run_export(run_id: str) -> Dict[str, Any]:
     JSON rather than the raw ``.db`` on purpose: a single run exports as a
     self-describing document, while shipping the whole database would hand
     over every *other* run on the machine as well."""
-    run = await asyncio.to_thread(store.get_run, run_id)
+    run = await run_on(HEAVY_READ, store.get_run, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="unknown run")
-    samples = await asyncio.to_thread(store.samples, run_id)
-    processes = await asyncio.to_thread(store.process_aggregates, run_id)
-    apps = await asyncio.to_thread(store.app_aggregates, run_id)
-    ports = await asyncio.to_thread(store.listening_ports, run_id)
-    timeline = await asyncio.to_thread(store.process_count_timeline, run_id)
+    samples = await run_on(HEAVY_READ, store.samples, run_id)
+    processes = await run_on(HEAVY_READ, store.process_aggregates, run_id)
+    apps = await run_on(HEAVY_READ, store.app_aggregates, run_id)
+    ports = await run_on(HEAVY_READ, store.listening_ports, run_id)
+    timeline = await run_on(HEAVY_READ, store.process_count_timeline, run_id)
     return {
         "run": run, "samples": samples, "process_aggregates": processes,
         "app_aggregates": apps, "ports": ports, "process_timeline": timeline,
@@ -187,7 +187,7 @@ async def diagnostics_run_export(run_id: str) -> Dict[str, Any]:
 @router.post("/api/diagnostics/runs/{run_id}/baseline")
 async def diagnostics_set_baseline(run_id: str) -> Dict[str, Any]:
     try:
-        await asyncio.to_thread(store.set_baseline, run_id)
+        await run_on(ACTION, store.set_baseline, run_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="unknown run")
     logger.info("📌 diagnostics baseline set to %s", run_id)
@@ -198,7 +198,7 @@ async def diagnostics_set_baseline(run_id: str) -> Dict[str, Any]:
 async def diagnostics_reevaluate(run_id: str) -> Dict[str, Any]:
     """Re-run the verdict against current thresholds — the point of keeping
     rules in a config file is being able to retune and re-judge old runs."""
-    run = await asyncio.to_thread(store.get_run, run_id)
+    run = await run_on(HEAVY_READ, store.get_run, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="unknown run")
     if run.get("status") == "pruned":
@@ -209,17 +209,17 @@ async def diagnostics_reevaluate(run_id: str) -> Dict[str, Any]:
             status_code=409,
             detail="run's raw samples were pruned; its saved verdict is final",
         )
-    await asyncio.to_thread(rules.reload_thresholds)
-    result = await asyncio.to_thread(rules.evaluate_and_save, run_id)
+    await run_on(ACTION, rules.reload_thresholds)
+    result = await run_on(ACTION, rules.evaluate_and_save, run_id)
     return {"ok": True, **result}
 
 
 @router.delete("/api/diagnostics/runs/{run_id}")
 async def diagnostics_delete_run(run_id: str) -> Dict[str, Any]:
-    run = await asyncio.to_thread(store.get_run, run_id)
+    run = await run_on(HEAVY_READ, store.get_run, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="unknown run")
-    await asyncio.to_thread(store.delete_run, run_id)
+    await run_on(ACTION, store.delete_run, run_id)
     logger.info("🗑️ diagnostics run deleted: %s", run_id)
     return {"ok": True}
 
@@ -228,7 +228,7 @@ async def diagnostics_delete_run(run_id: str) -> Dict[str, Any]:
 async def diagnostics_save_settings(request: Request) -> Dict[str, Any]:
     body = await maybe_json(request)
     try:
-        clean = await asyncio.to_thread(diag_settings.save_settings, body)
+        clean = await run_on(ACTION, diag_settings.save_settings, body)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

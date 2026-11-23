@@ -15,7 +15,6 @@ the "poll until ready" loop.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import shutil
@@ -25,6 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
+from src.concurrency.pools import ACTION, run_on
 from src.http_client import get_async_client
 from src.process.server_process import WIN_NEW_GROUP
 from src.services import PROJECT_ROOT, poll_until
@@ -212,13 +212,13 @@ async def stop_agentsview() -> Dict[str, Any]:
     if not port:
         return {"ok": False, "steps": [{"name": "agentsview", "status": "error", "detail": f"could not parse a port from {host!r}"}]}
 
-    pids = await asyncio.to_thread(find_port_pids, port)
+    pids = await run_on(ACTION, find_port_pids, port)
     if not pids:
         return {"ok": True, "steps": [{"name": "agentsview", "status": "skipped", "detail": "already down"}]}
 
     failures = []
     for pid in pids:
-        ok, msg = await asyncio.to_thread(kill_pid, pid)
+        ok, msg = await run_on(ACTION, kill_pid, pid)
         if not ok:
             failures.append(msg)
     if failures:

@@ -18,6 +18,8 @@ import asyncio
 import logging
 import time
 
+from src.concurrency.pools import ACTION, BACKGROUND, run_on
+
 from .health import loop_watch
 from .hub_log import HUB_LOG
 from .hub_observability import OBS
@@ -100,7 +102,7 @@ async def stop_diagnostics_sampler() -> None:
     survive a process restart regardless — draining it here finalizes the run as
     ``stopped`` instead of leaving it to be recovered as an ``orphan`` on the
     next boot. It also closes a test-isolation hazard: without this, a capture's
-    ``to_thread`` worker (or the scheduled-snapshot loop) can outlive the app and
+    worker thread (or the scheduled-snapshot loop) can outlive the app and
     write through the module-global ``db_path`` into the *next* test's database,
     surfacing as an intermittent ``database is locked``. Best-effort — a shutdown
     must never hang on it (``stop_run`` is itself bounded by a grace timeout)."""
@@ -130,7 +132,7 @@ async def wire_observatory_loop() -> None:
     # surviving model backends as "adopted" rather than "running".
     try:
         from .process import backend_process as bp
-        inherited = await asyncio.to_thread(bp.inherit_running_backends)
+        inherited = await run_on(ACTION, bp.inherit_running_backends)
         if inherited:
             logger.info("📎 Inherited %d running backend(s) from a previous hub", inherited)
     except Exception as exc:  # noqa: BLE001
@@ -191,7 +193,7 @@ async def _prewarm_code_usage() -> None:
     """
     from .usage import code_usage
 
-    await asyncio.to_thread(code_usage.prewarm_default_summary)
+    await run_on(BACKGROUND, code_usage.prewarm_default_summary)
 
 
 async def _autostart_configured_backends() -> None:
@@ -208,7 +210,7 @@ async def _autostart_configured_backends() -> None:
     logger.info("autostart: configured backend set: %s", model_ids)
     for model_id in model_ids:
         try:
-            outcome = await asyncio.to_thread(bp.start, model_id)
+            outcome = await run_on(ACTION, bp.start, model_id)
         except Exception as exc:  # noqa: BLE001
             logger.warning("autostart: %s raised: %s", model_id, exc)
             continue
@@ -230,7 +232,7 @@ async def _init_diagnostics() -> None:
         from .diagnostics import sampler, store
         from .diagnostics import settings as diag_settings
 
-        await asyncio.to_thread(store.close_orphan_runs)
+        await run_on(BACKGROUND, store.close_orphan_runs)
         cfg = diag_settings.load_settings()
         if cfg.scheduled_enabled:
             await sampler.start_scheduled_snapshots(
@@ -423,7 +425,7 @@ async def _resource_sampler() -> None:
     last_failure: str | None = None
     while True:
         try:
-            ram, cpu, gpus = await asyncio.to_thread(_sample_sync)
+            ram, cpu, gpus = await run_on(BACKGROUND, _sample_sync)
             LIVE.record_gpus(gpus)
             gpu0_vram = None
             gpu0_util = None

@@ -37,6 +37,8 @@ import uvicorn
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
+from src.concurrency.pools import MEDIA, run_on
+
 from .event_loop import LOOP_FACTORY
 from .fsio.runtime_files import save_bytes
 from .no_window import NO_WINDOW
@@ -167,7 +169,7 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         try:
-            state.proc, state.out_q = await asyncio.to_thread(_start_worker)
+            state.proc, state.out_q = await run_on(MEDIA, _start_worker)
         except Exception as exc:  # noqa: BLE001
             log.error("ParakeetWorker startup failed: %s", exc)
         try:
@@ -188,7 +190,7 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
         async with state.lock:
             if state.proc is None or state.proc.poll() is not None:
                 log.warning("worker not alive, restarting")
-                state.proc, state.out_q = await asyncio.to_thread(_start_worker)
+                state.proc, state.out_q = await run_on(MEDIA, _start_worker)
             proc = state.proc
             out_q = state.out_q
 
@@ -196,7 +198,7 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
                 raw_path = _upload_path(tmpdir, file.filename)
                 save_bytes(raw_path, await file.read())
                 try:
-                    wav_path = await asyncio.to_thread(_to_wav16k_mono, raw_path)
+                    wav_path = await run_on(MEDIA, _to_wav16k_mono, raw_path)
                 except subprocess.TimeoutExpired:
                     raise HTTPException(504, f"audio conversion timed out after {_CONVERT_TIMEOUT_S}s")
                 except subprocess.CalledProcessError as exc:
@@ -214,7 +216,7 @@ def build_app(model_id: str = DEFAULT_MODEL_ID) -> FastAPI:
                     return out_q.get(timeout=TRANSCRIBE_DEADLINE_S)
 
                 try:
-                    line = await asyncio.to_thread(_roundtrip)
+                    line = await run_on(MEDIA, _roundtrip)
                 except queue.Empty:
                     raise HTTPException(504, "parakeet worker timed out — no response")
 

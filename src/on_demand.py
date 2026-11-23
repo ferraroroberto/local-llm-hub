@@ -37,6 +37,8 @@ import threading
 import time
 from typing import Any, Dict, Optional
 
+from src.concurrency.pools import BACKGROUND, run_on
+
 from .model_registry import STARTUP_ON_DEMAND, Model
 from .process.serving_state import LOAD_DEADLINE_S
 
@@ -214,7 +216,7 @@ def ensure_ready(model: Model, deadline_s: float = READY_DEADLINE_S) -> None:
     No-op for eager rows, virtual aliases, and models currently served by a
     *remote* host (the owning hub runs its own on-demand lifecycle). For a
     cold local on-demand backend this spawns it and blocks (the caller runs
-    in a worker thread / ``to_thread``) polling ``is_reachable`` until it
+    in a worker thread) polling ``is_reachable`` until it
     answers or ``deadline_s`` expires — raising :class:`OnDemandNotReady`
     so the route can surface a distinct 503.
     """
@@ -322,7 +324,7 @@ async def idle_unload_loop() -> None:
     while True:
         await asyncio.sleep(IDLE_CHECK_INTERVAL_S)
         try:
-            await asyncio.to_thread(idle_unload_pass)
+            await run_on(BACKGROUND, idle_unload_pass)
         except Exception as exc:  # noqa: BLE001 — watchdog must not die
             logger.warning("on-demand idle sweep raised: %s", exc)
 

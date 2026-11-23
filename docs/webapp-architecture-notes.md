@@ -94,7 +94,8 @@ return. We hit this with `install_status` shelling out to
 seconds, cold); during that window the Playground tab's
 `fetchPlaygroundModels()` call was queued behind it.
 
-Workaround: wrap blocking calls in `await asyncio.to_thread(...)` —
+Workaround: run blocking calls on the named pool for their class,
+`await run_on(HOT_POLL, fn, ...)` from `src/concurrency/pools.py` —
 see `app_web/routers/install.py::install_status` and
 `app_web/routers/models.py::list_models_for_admin`. As a rule, anything
 that shells out or hits disk slowly belongs off the event loop.

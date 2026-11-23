@@ -27,6 +27,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
 
+from src.request_timing import RequestTimingMiddleware
 from src.runtime_data import runtime_data_dir, runtime_db_path
 from src.self_restart import TRAY_RESTART, RestartTarget, restart_router
 from src.static_versioning import (
@@ -166,6 +167,9 @@ def create_app() -> FastAPI:
         BearerTokenMiddleware,
         get_token=lambda: admin_token_from_state(app.state),
     )
+    # Added last so it wraps the auth layer too: Server-Timing and the slow-request
+    # line then cover a request's whole stay. The sub-app sees the full mounted path.
+    app.add_middleware(RequestTimingMiddleware, timed_prefix="/admin/api/")
 
     app.state.webapp_config = webapp_cfg
     app.state.login_lockout = auth.build_lockout()

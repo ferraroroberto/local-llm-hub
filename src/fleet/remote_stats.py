@@ -26,7 +26,6 @@ an SSH round-trip per poll tick would be wasteful and noisy.
 
 from __future__ import annotations
 
-import asyncio
 import concurrent.futures
 import logging
 import socket
@@ -34,6 +33,7 @@ import threading
 import time
 from typing import Any, Dict, List, Optional
 
+from src.concurrency.pools import FAN_OUT, run_on
 from src.fleet.ssh_exec import run_ssh
 from src.host_profile import HostProfile, hub_port
 from src.http_client import get_async_client
@@ -318,7 +318,7 @@ async def located_address(host: HostProfile) -> Optional[str]:
     cached = _liveness_cache.get(host.id)
     if cached is not None and cached[0] > now:
         return cached[1]
-    result = await asyncio.to_thread(locate, host)
+    result = await run_on(FAN_OUT, locate, host)
     _liveness_cache[host.id] = (now + _LIVENESS_CACHE_TTL_S, result)
     return result
 
@@ -465,7 +465,7 @@ async def dial_address_async(host: HostProfile) -> Optional[str]:
     """:func:`dial_address` with an inline probe, run off the event loop —
     async callers get the *resolved* route (worth the probe's latency) without
     stalling the loop."""
-    return await asyncio.to_thread(dial_address, host, wait=True)
+    return await run_on(FAN_OUT, dial_address, host, wait=True)
 
 
 def _run_ssh(host: HostProfile, command: str) -> Optional[str]:
@@ -575,7 +575,7 @@ async def collect(host: HostProfile) -> Optional[Dict[str, Any]]:
     cached = _cache.get(host.id)
     if cached is not None and cached[0] > now:
         return cached[1]
-    raw = await asyncio.to_thread(_run_ssh, host, command)
+    raw = await run_on(FAN_OUT, _run_ssh, host, command)
     stats = _parse(raw) if raw else None
     _cache[host.id] = (now + _CACHE_TTL_S, stats)
     return stats

@@ -46,12 +46,13 @@ with no FastAPI app in the loop.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 from typing import Any, Dict, List
 
 import httpx
+
+from src.concurrency.pools import ACTION, FAN_OUT, run_on
 
 from ..http_client import get_async_client
 from ..process.process_supervisor import OutcomeKind
@@ -146,7 +147,7 @@ async def _reconcile_local(desired: List[str]) -> Dict[str, Any]:
     started: List[Dict[str, Any]] = []
     for model_id in desired:
         try:
-            outcome = await asyncio.to_thread(bp.start, model_id)
+            outcome = await run_on(ACTION, bp.start, model_id)
         except Exception as exc:  # noqa: BLE001 — a bad row must not abort the pass
             logger.warning("fleet reconcile: local start %s raised: %s", model_id, exc)
             started.append({"id": model_id, "ok": False, "detail": str(exc)})
@@ -180,7 +181,7 @@ async def _reconcile_remote(host_id: str, desired: List[str]) -> Dict[str, Any]:
         # here; the next periodic pass finds the box up and converges.
         if owner.mac:
             try:
-                await asyncio.to_thread(send_wake, owner.mac)
+                await run_on(FAN_OUT, send_wake, owner.mac)
                 wol_sent = True
                 logger.info("fleet reconcile: WOL packet sent to %s (%s)", host_id, owner.mac)
             except WakeOnLanError as exc:

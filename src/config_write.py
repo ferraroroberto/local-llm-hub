@@ -35,6 +35,8 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.concurrency.pools import HOT_POLL, run_on
+
 from .fsio.runtime_files import save_bytes, save_text
 from .host_profile import (
     _CONFIG_CACHE,
@@ -248,7 +250,7 @@ async def config_sha_async() -> str:
     cached = _cached_config_sha()
     if cached is not None:
         return cached
-    return await asyncio.to_thread(config_sha)
+    return await run_on(HOT_POLL, config_sha)
 
 
 def config_sha(fresh: bool = False) -> str:
@@ -758,7 +760,7 @@ async def config_drift_sync_loop() -> None:
     await asyncio.sleep(_DRIFT_BOOT_DELAY_S)
     while True:
         try:
-            local = await asyncio.to_thread(config_sha, True)
+            local = await run_on(HOT_POLL, config_sha, True)
             if local != "unknown":
                 for peer in hub_peer_ids():
                     profile = get_host(peer)

@@ -13,6 +13,8 @@ import logging
 import time
 from typing import Any, Callable, Dict, Optional
 
+from src.concurrency.pools import BACKGROUND, run_on
+
 logger = logging.getLogger(__name__)
 
 Config = Dict[str, Any]
@@ -41,8 +43,8 @@ async def run_ticks(
     while True:
         started = time.monotonic()
         try:
-            cfg = await asyncio.to_thread(load_cfg)
-            result = await asyncio.to_thread(tick, cfg)
+            cfg = await run_on(BACKGROUND, load_cfg)
+            result = await run_on(BACKGROUND, tick, cfg)
             if on_result is not None:
                 on_result(result, first)
             first = False
@@ -73,7 +75,7 @@ async def run_periodic(
     its config to readers (even while disabled) can be handed it. ``disabled_in`` names the config
     file the off switch lives in, for the one info line a disabled watcher logs.
     """
-    cfg = await asyncio.to_thread(load_cfg)
+    cfg = await run_on(BACKGROUND, load_cfg)
     if on_loaded is not None:
         on_loaded(cfg)
     if not enabled_of(cfg):
