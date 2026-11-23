@@ -30,6 +30,7 @@ from src import system_stats
 from src.fleet import peer_health, remote_stats, sync_diagnosis
 from src.health import resource_watch
 from src.health import watch as health_watch
+from src.health.live_stats import LIVE
 from src.host_profile import HostProfile, all_hosts, resolve
 from src.process.server_process import lan_ip
 
@@ -40,9 +41,9 @@ async def self_snapshot() -> Dict[str, Any]:
     """Detailed snapshot of *this* machine for its Machines-tab card.
 
     Same shape ``remote_stats.collect`` produces for a peer, so every card
-    renders through identical code. ``gpu_stats`` shells out to nvidia-smi so
-    it runs off the event loop (same pattern as ``/api/hub/stats``)."""
-    gpus = await asyncio.to_thread(system_stats.gpu_stats)
+    renders through identical code. The GPU list is the resource sampler's cached
+    sample (``LIVE.fresh_gpus``), so a card poll starts no ``nvidia-smi``."""
+    gpus = LIVE.fresh_gpus()
     return {
         "cpu": system_stats.cpu_stats(),
         "ram": system_stats.ram_stats(),

@@ -28,6 +28,7 @@ from fastapi import APIRouter
 
 from src import system_stats
 from src.fleet import fleet_reconcile, remote_stats
+from src.health.live_stats import LIVE
 from src.host_profile import HostProfile, all_hosts
 from src.host_profile import resolve as resolve_host
 from src.model_reachability import local_reachability
@@ -158,8 +159,8 @@ async def _host_status(
         # in which case the UI falls back to the declared `ram_mb` total.
         "ram": None,
         # Live GPU snapshot — {used_mb, total_mb} from the same probe
-        # plumbing the Machines tab reads (local nvidia-smi, cached SSH stats
-        # on peers), so the capacity line and the Machines tab can never
+        # plumbing the Machines tab reads (the sampler's cached nvidia-smi
+        # sample locally, cached SSH stats on peers), so the capacity line and the Machines tab can never
         # disagree. None where no live figure exists (host off, no GPU
         # metric) — the UI then falls back to the ~est_vram_mb estimate vs
         # the declared ceiling.
@@ -202,7 +203,7 @@ async def _local_host_status(
     # on :8090) is flagged so the summary can label it distinctly rather
     # than claim the hub runs it.
     external = [m for m in running if bp.inherited_foreign(m)]
-    gpus = await asyncio.to_thread(system_stats.gpu_stats)
+    gpus = LIVE.fresh_gpus()
     return {
         **base, "local": True, "reachable": True, "dormant": False,
         "running": running, "external": external,

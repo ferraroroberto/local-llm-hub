@@ -5,7 +5,9 @@ live cadence only while a viewer has asked for stats recently, and at the idle
 cadence otherwise; each sample shells out to ``nvidia-smi``, so an unwatched
 hub would otherwise start a process every two seconds for nobody. A stats read
 records demand and wakes a sleeping sampler, so the viewer's next poll is fresh.
-``/api/hub/stats`` answers from ``gpus()`` instead of spawning its own probe.
+``/api/hub/stats`` answers from ``gpus()`` instead of spawning its own probe; the
+Machines card and the fleet-placement read answer from ``fresh_gpus()``, which serves the
+same sample without asking for the live cadence.
 """
 
 from __future__ import annotations
@@ -22,6 +24,10 @@ IDLE_INTERVAL_S = 30.0
 # A viewer counts as watching this long after its last read: the Hub tab polls every
 # 2.5 s while visible and stops in a hidden tab, so a few missed polls end the window.
 DEMAND_WINDOW_S = 15.0
+# Oldest sample a card may show: two idle intervals, so one slow or failed probe leaves the
+# card on the previous reading while a stopped sampler blanks it rather than showing a
+# frozen figure as live.
+GPU_MAX_AGE_S = 2 * IDLE_INTERVAL_S
 
 
 class LiveStats:
@@ -33,6 +39,7 @@ class LiveStats:
         self._lock = threading.Lock()
         self._last_demand: Optional[float] = None
         self._gpus: Optional[List[Dict[str, Any]]] = None
+        self._gpus_at: Optional[float] = None
         self._wake: Optional[asyncio.Event] = None
 
     def note_demand(self) -> None:
@@ -57,11 +64,23 @@ class LiveStats:
     def record_gpus(self, gpus: List[Dict[str, Any]]) -> None:
         with self._lock:
             self._gpus = list(gpus)
+            self._gpus_at = self._clock()
 
     def gpus(self) -> List[Dict[str, Any]]:
         """The newest sampled GPU list; empty until the first sample, never a new probe."""
         with self._lock:
             return list(self._gpus or [])
+
+    def fresh_gpus(self, max_age_s: float = GPU_MAX_AGE_S) -> List[Dict[str, Any]]:
+        """The newest sample when it is at most ``max_age_s`` old, else empty (the "no GPU
+        reading" shape every card already handles). Records no demand: a card that polls
+        slowly must not pull the sampler up to the live cadence."""
+        with self._lock:
+            sampled_at = self._gpus_at
+            gpus = list(self._gpus or [])
+        if sampled_at is None or self._clock() - sampled_at > max_age_s:
+            return []
+        return gpus
 
     async def sleep(self, seconds: float) -> None:
         """Sleep ``seconds``, or less when demand arrives while idle."""
