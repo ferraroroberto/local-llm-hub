@@ -66,6 +66,11 @@
 #      to the shared default pool, or missing request-timing middleware beyond
 #      .request-budget-ratchet-baseline.json. Whole tree, never routed; exit 3 (a file that
 #      cannot be read, JS that never closes, Python that does not parse) fails.
+#   10f. windows only ratchet: no test module gains a use of a Windows-only module,
+#      attribute or environment variable, or a planted .exe install lookup, without the
+#      `windows_only` marker the Mac nightly excludes, beyond
+#      .windows-only-ratchet-baseline.json. Whole tree, never routed; exit 3 (git
+#      unusable, a test module that cannot be read or parsed) fails.
 #   11. `pytest -q` (unit tests, no GPU / no real CLIs); stages 11-12 run inside
 #      the runtime write probe (--snapshot before, --probe after), which fails on
 #      any untracked or ignored file they leave under a code folder.
@@ -214,6 +219,13 @@ Step "request budget ratchet" {
     # (git unusable, a file that cannot be read, JS that never closes, Python that
     # does not parse) is a failure here, never a pass or a skip.
     & $Python scripts/request_budget_ratchet.py
+}
+
+Step "windows only ratchet" {
+    # Same as the request budget ratchet: Step fails on any non-zero exit, so exit 3
+    # (git unusable, a test module that cannot be read or parsed) is a failure here,
+    # never a pass or a skip.
+    & $Python scripts/windows_only_ratchet.py
 }
 
 Step "mmd history check" {
