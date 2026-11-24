@@ -50,6 +50,8 @@ def _throwaway_repo(tmp_path: Path, readme: str) -> Path:
     (root / "scripts").mkdir(parents=True)
     script = root / "scripts" / "docs_ratchet.py"
     shutil.copyfile(VENDORED, script)
+    # every ratchet loads this sibling to find its baseline in .ratchets/
+    shutil.copyfile(VENDORED.with_name("ratchet_baseline.py"), script.with_name("ratchet_baseline.py"))
     (root / ".fleet.toml").write_text(_FLEET, encoding="utf-8")
     (root / "README.md").write_text(readme, encoding="utf-8")
     _git(root, "init", "-q")

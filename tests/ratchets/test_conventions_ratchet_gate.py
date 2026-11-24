@@ -22,10 +22,11 @@ from src.no_window import NO_WINDOW
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VENDORED = REPO_ROOT / "scripts" / "conventions_ratchet.py"
-# The ratchet loads these siblings from beside itself, so a throwaway copy needs all three.
+# The ratchet loads these siblings from beside itself, so a throwaway copy needs all four.
 VENDORED_SIBLINGS = (
     REPO_ROOT / "scripts" / "conventions_readers.py",
     REPO_ROOT / "scripts" / "conventions_state.py",
+    REPO_ROOT / "scripts" / "ratchet_baseline.py",
 )
 
 EXIT_NOT_CONFIRMED = 3
