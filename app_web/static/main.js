@@ -14,6 +14,7 @@ import { wireHub, fetchHubStatus, fetchCounters, startHubStreams, stopHubStreams
 import { wireModels, fetchModels, fetchRoles } from './models.js';
 import { wireStartupProfile, fetchStartupProfile } from './startup.js';
 import { fetchDormant } from './dormant.js';
+import { wireWorkerPools, fetchWorkerPools } from './pools.js';
 import { fetchFleetPlacement } from './fleet_placement.js';
 import { wirePlayground, wirePlayModes, setPlayMode, fetchPlaygroundModels, fetchTtsModels, fetchImageModels } from './playground.js';
 import { wireJev, fetchJevInfo } from './playground_jev.js';
@@ -93,6 +94,7 @@ function fetchAllData() {
     fetchModels(),
     fetchStartupProfile(),
     fetchDormant(),
+    fetchWorkerPools(),
     fetchServicesStatus(),
     fetchOtelHealth(),
     fetchPlaygroundModels(),
@@ -111,6 +113,7 @@ async function boot() {
   wireHub();
   wireModels();
   wireStartupProfile();
+  wireWorkerPools();
   wirePlayground();
   wirePlayModes();
   wireJev();

@@ -805,6 +805,10 @@
       <section class="card settings-group" data-surface="settings.startup" aria-labelledby="settingsGroupStartup">
         <button type="button" class="settings-row settings-link" data-settings="startup" aria-haspopup="dialog" data-track="settings-startup"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-rocket"></use></svg><span class="settings-row-label">Service startup</span><span class="settings-row-value" id="startupSummary">—</span><svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
       </section>
+      <h3 class="settings-group-label" id="settingsGroupPerformance">Performance</h3>
+      <section class="card settings-group" data-surface="settings.performance" aria-labelledby="settingsGroupPerformance">
+        <button type="button" class="settings-row settings-link" data-settings="pools" aria-haspopup="dialog" data-track="settings-pools"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-cpu"></use></svg><span class="settings-row-label">Worker pools</span><span class="settings-row-value" id="poolsSummary">—</span><svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+      </section>
       <h3 class="settings-group-label" id="settingsGroupMachines">Machines</h3>
       <section class="card settings-group" data-surface="settings.machines" aria-labelledby="settingsGroupMachines">
         <button type="button" class="settings-row settings-link" data-settings="machines" aria-haspopup="dialog" data-track="settings-machines"><svg class="icon settings-row-icon" aria-hidden="true"><use href="#i-server"></use></svg><span class="settings-row-label">Dormant machines</span><span class="settings-row-value" id="dormantSummary">—</span><svg class="icon settings-row-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
@@ -837,6 +841,25 @@
         <ul id="startupList" class="startup-list"></ul>
       </div>
       <div class="detail-actions"><button data-track="settings-startup-done" type="button" class="button-primary detail-save-btn" data-sheet-close>Done</button></div>
+    </div>
+  </dialog>
+
+  <dialog data-surface="settings.pools-page" data-track-view="settings-pools" class="detail-dialog settings-sheet" id="settingsPage-pools" aria-labelledby="settingsPoolsTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="settingsPoolsTitle" tabindex="-1" autofocus>Worker pools</h2>
+        <button data-track="settings-pools-close" type="button" class="icon-button detail-close" data-sheet-close aria-label="Close">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div class="settings-sheet-body">
+        <p class="settings-note muted">How many threads each kind of blocking work may use at once. A size is a ceiling, not a reservation. Sizes are saved to <code>config/worker_pools.json</code> and apply at the next hub restart.</p>
+        <p class="settings-note pool-pending" id="poolsPending" hidden>A saved size differs from the one running now; restart the hub to apply it.</p>
+        <ul id="poolsList" class="startup-list"></ul>
+      </div>
+      <div class="detail-actions">
+        <button data-track="settings-pools-save" id="poolsSaveBtn" type="button" class="button-primary detail-save-btn">Save</button>
+      </div>
     </div>
   </dialog>
 

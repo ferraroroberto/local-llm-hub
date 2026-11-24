@@ -65,7 +65,11 @@ What still runs with nobody watching, and why:
 The gear in every page header opens **Settings**, the fleet's inset
 groups: **Display** (text size, and theme: System · Light · Dark beside the
 header toggle), **Startup** (the services that come up with the hub, saved as
-each switch flips), **Health** (Health & install with Fix all and Re-check, run
+each switch flips), **Performance** (Worker pools: how many threads each of the
+six pools blocking work runs on may use, 1 to 64 each, saved to
+`config/worker_pools.json`; the pools are built when the hub starts, so a saved
+size applies at the next restart and the sheet says so while one is pending),
+**Health** (Health & install with Fix all and Re-check, run
 when the row opens; a failing check also reaches Hub's header line) and
 **About** (build, models.yaml config version, process id, Open Langfuse UI,
 the frontier report). A row with a body opens it in place on a phone and

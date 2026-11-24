@@ -70,6 +70,7 @@ export const state = {
   // Startup card — what autostarts with the hub.
   startupProfile: null,   // /admin/api/startup-profile payload
   dormantMachines: null,  // /admin/api/machines/dormant rows (Settings › Machines)
+  workerPools: null,      // /admin/api/worker-pools payload (Settings › Performance)
 
   // Fleet placement card — fleet-wide desired state.
   fleetPlacement: null,          // /admin/api/fleet-placement payload
@@ -126,6 +127,10 @@ export const els = {
   startupSummary: document.getElementById('startupSummary'),
   dormantSummary: document.getElementById('dormantSummary'),
   dormantList: document.getElementById('dormantList'),
+  poolsSummary: document.getElementById('poolsSummary'),
+  poolsList: document.getElementById('poolsList'),
+  poolsPending: document.getElementById('poolsPending'),
+  poolsSaveBtn: document.getElementById('poolsSaveBtn'),
   aboutBuild: document.getElementById('aboutBuild'),
   aboutPid: document.getElementById('aboutPid'),
   aboutLangfuse: document.getElementById('aboutLangfuse'),

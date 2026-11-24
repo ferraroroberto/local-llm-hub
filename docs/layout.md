@@ -59,6 +59,7 @@ local-llm-hub/
 │   ├── diagnostics_storage.example.json  # template for the gitignored diagnostics_storage.local.json — storage roots, known growers, walk bounds
 │   ├── health_watch.json             # health-watch + resource-watch thresholds and cadence (committed)
 │   ├── usage_digest.json             # weekly usage digest schedule + per-agent token budgets (committed)
+│   ├── worker_pools.json             # owner-chosen worker pool sizes from Settings; absent means the defaults (gitignored)
 │   ├── startup_profile.example.json  # template + fresh-clone default for service autostart (services-only)
 │   ├── startup_profile.json          # live service-autostart profile, rewritten by the admin UI (gitignored)
 │   ├── fleet_maintenance.json        # live {host: {until, reason}} reconcile drain markers (gitignored)
@@ -182,7 +183,8 @@ local-llm-hub/
 │   ├── restart_check.py      # vendored scaffold helper: one-command tray restart (`python -m src.restart_check restart --port N --version-path P`) that fails unless a new process serves HEAD
 │   ├── request_timing.py     # vendored scaffold middleware: Server-Timing + slow/in-flight logging, TimedExecutor named pools (mounted on the admin sub-app)
 │   ├── concurrency/          # bounded thread pools for blocking work
-│   │   └── pools.py              #   one named pool per class (hot-poll, heavy-read, action, fan-out, background, media) + run_on; nothing uses the shared default pool
+│   │   ├── pools.py              #   one named pool per class (hot-poll, heavy-read, action, fan-out, background, media) + run_on; nothing uses the shared default pool
+│   │   └── pool_sizes.py         #   the six default sizes, bounds, and config/worker_pools.json load/validate/save
 │   ├── services.py           # host-side service helpers: Docker engine + Langfuse stack
 │   ├── fsio/                 # guarded file writers
 │   │   └── runtime_files.py      #   mkdir/open/copy/move/log handler/SQLite opener that raise on a path under a code folder; the one place a caller-named runtime path is written
@@ -244,11 +246,11 @@ local-llm-hub/
 │   │                         #   models / startup_profile / fleet_placement /
 │   │                         #   fleet_maintenance / roles / playground / services /
 │   │                         #   telemetry / code_usage / glossary / hosts / machines /
-│   │                         #   diagnostics
+│   │                         #   diagnostics / worker_pools
 │   └── static/               #   index.html (+ sheets.html, spliced in at serve time) + main.js + state.js + tabs.js + api.js +
 │                             #   hub.js + models.js + serving_state.js + startup.js + fleet_placement.js +
 │                             #   playground.js + playground_jev.js + code_usage.js/.css +
-│                             #   confirm_dialog.js + diagnostics.js + glossary.js + machines.js/.css +
+│                             #   confirm_dialog.js + diagnostics.js + glossary.js + machines.js/.css + pools.js +
 │                             #   machines_terminal.js + rows.js/.css + settings.js +
 │                             #   langfuse.js + dormant.js + theme.js + poll.js (visible-only polls) +
 │                             #   usage.js + styles.css + panels.css +

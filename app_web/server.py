@@ -62,6 +62,7 @@ from .routers import (
     startup_profile,
     telemetry,
     version,
+    worker_pools,
 )
 from .routers._helpers import STATIC_DIR
 
@@ -207,6 +208,7 @@ def create_app() -> FastAPI:
     app.include_router(hosts.router)
     app.include_router(machines.router)
     app.include_router(diagnostics.router)
+    app.include_router(worker_pools.router)
     app.include_router(telemetry.router)
     app.include_router(code_usage.router, prefix="/api/code")
     # Local-only view/tap log. No router dependency: the whole sub-app
