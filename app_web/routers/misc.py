@@ -60,6 +60,7 @@ def _inline_partials(body: str) -> str:
     request like ``index.html`` itself, so a markup edit needs no restart.
     """
     def _load(match: "re.Match[str]") -> str:
+        # path-sep-exempt: a partial name matched by [\w-]+\.html, so it holds no separator
         path = STATIC_DIR / match.group(1)
         try:
             return path.read_text(encoding="utf-8").rstrip("\n")
