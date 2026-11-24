@@ -12,6 +12,10 @@ the old process (the bat failed or hung, or the old build still serves); ``2`` w
 outcome cannot be established (no ``tray.bat``, an answer with nothing to tell old from
 new). Never ``0`` without a proof.
 
+The bat's output is captured, echoed to the caller once it ends, and, when the bat fails or hangs,
+its last lines are logged next to the failure line (bounded, home directory redacted), because a
+scheduled or agent-run restart often keeps none of the caller's streams.
+
 Why not type ``tray.bat --restart``: on a host that sets ``NoDefaultCurrentDirectoryInExePath``
 the bare name is found by no shell (Git Bash exits 127, PowerShell prints an error and leaves
 a stale ``$LASTEXITCODE``, ``cmd /c`` exits 1), and Git Bash ``cmd.exe /c "tray.bat --restart"``
@@ -61,6 +65,9 @@ DEFAULT_VERIFY_TIMEOUT_S = 60.0
 # the new build for 30 s; 180 s is that chain with margin, so a bat past it is hung, not slow.
 TRAY_RESTART_TIMEOUT_S = 180.0
 _PROBE_TIMEOUT_S = 3.0
+# Enough of the bat's tail to name the failing step, small enough for one log screen.
+_TAIL_LINES = 15
+_TAIL_LINE_CHARS = 300
 _POLL_INTERVAL_S = 1.0
 
 EXIT_OK = 0
@@ -162,16 +169,34 @@ def verify(
         sleep(_POLL_INTERVAL_S)
 
 
-def _std_handle(stream: Any) -> Any:
-    """The caller's own std handle for the child, or DEVNULL when it has none.
+def _decode(raw: Any) -> str:
+    """The bat's captured output as text; a console bat writes in the OEM code page on Windows."""
+    if isinstance(raw, str):
+        return raw
+    if not raw:
+        return ""
+    return bytes(raw).decode("oem" if sys.platform == "win32" else "utf-8", errors="replace")
 
-    The child runs with no console window, so a handle left to default would be a hidden
-    console and the bat's output would never reach the caller.
-    """
-    try:
-        return stream.fileno()
-    except (AttributeError, OSError, ValueError):
-        return subprocess.DEVNULL
+
+def _redact_home(text: str) -> str:
+    """Replace the user's home directory (either slash style) with ``~``, so a log line is shareable."""
+    home = str(Path.home())
+    for spelling in {home, home.replace("\\", "/")}:
+        if spelling:
+            text = text.replace(spelling, "~").replace(spelling.lower(), "~")
+    return text
+
+
+def _log_output_tail(raw: Any) -> None:
+    """Log the last ``_TAIL_LINES`` lines the bat wrote, bounded and home-redacted, or say it wrote none."""
+    lines = [ln.rstrip() for ln in _decode(raw).splitlines() if ln.strip()]
+    if not lines:
+        _log.error("❌ tray.bat wrote no output, so its own error is unknown")
+        return
+    kept = lines[-_TAIL_LINES:]
+    _log.error("❌ tray.bat output (last %s of %s lines):", len(kept), len(lines))
+    for line in kept:
+        _log.error("   | %s", _redact_home(line)[:_TAIL_LINE_CHARS])
 
 
 def restart(
@@ -205,17 +230,24 @@ def restart(
             [str(bat), "--restart"],
             cwd=str(bat.parent),
             stdin=subprocess.DEVNULL,
-            stdout=_std_handle(sys.stdout),
-            stderr=_std_handle(sys.stderr),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             timeout=TRAY_RESTART_TIMEOUT_S,
             creationflags=_NO_WINDOW,
             check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         _log.error("❌ restart FAILED: tray.bat did not complete (%s)", exc)
+        _log_output_tail(getattr(exc, "output", None))
         return EXIT_FAILED
+    # The caller still sees everything the bat wrote, as it did when the bat held the handles.
+    output = _decode(done.stdout)
+    if output:
+        sys.stdout.write(output if output.endswith("\n") else output + "\n")
+        sys.stdout.flush()
     if done.returncode != 0:
         _log.error("❌ restart FAILED: tray.bat exited %s, so the old process was not replaced", done.returncode)
+        _log_output_tail(done.stdout)
         return EXIT_FAILED
     return check(port, before, timeout_s)
 
