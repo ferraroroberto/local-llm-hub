@@ -1,4 +1,4 @@
-"""The Settings dialog: display, health, startup, machines and about.
+"""The Settings dialog: display, health, startup, worker pools, machines and about.
 
 The header gear opens Settings. One phase per section, each in its own browser
 context with its backing endpoints stubbed so the render is deterministic and
@@ -8,6 +8,7 @@ nothing real is repaired, started or written:
 * Health & install: "Fix all" appears only when a check has a fix, and a fix
   that fails raises an error toast, never the green success one;
 * Startup: a failed toggle reverts to the last saved value;
+* Worker pools: a saved size goes to the server and is refused with its reason when out of range;
 * Machines: a switch marks a peer dormant;
 * About: the models.yaml version.
 """
@@ -160,6 +161,61 @@ def _failed_startup_toggle_reverts_to_the_saved_value(page, admin_url):
     assert len(calls) == 2
 
 
+POOL_SPECS = [
+    ("hot-poll", "Hot poll", 8), ("heavy-read", "Heavy read", 4), ("action", "Action", 12),
+    ("fan-out", "Fan-out", 8), ("background", "Background", 6), ("media", "Media", 8),
+]
+
+
+def _pools_body(sizes, running=None):
+    running = running or {pid: default for pid, _, default in POOL_SPECS}
+    return {
+        "min": 1, "max": 64, "restart_pending": sizes != running,
+        "pools": [{"id": pid, "label": label, "description": "what it runs", "default": default,
+                   "size": sizes[pid], "running": running[pid]} for pid, label, default in POOL_SPECS],
+    }
+
+
+def _worker_pool_sizes_save_and_are_refused_out_of_range(page, admin_url, mark):
+    defaults = {pid: default for pid, _, default in POOL_SPECS}
+    puts = []
+
+    def _pools(route):
+        req = route.request
+        if req.method != "PUT":
+            return fulfil_json(route, _pools_body(defaults))
+        sizes = json.loads(req.post_data)["sizes"]
+        puts.append(sizes)
+        if sizes["action"] > 64:
+            return fulfil_json(route, {"detail": "action: size must be from 1 to 64, got 65"}, status=400)
+        return fulfil_json(route, {"ok": True, **_pools_body({**defaults, **sizes}, running=defaults)})
+
+    page.route("**/admin/api/worker-pools", _pools)
+    page.goto(admin_url, wait_until="load")
+    page.click("#paneHub .home-settings")
+    assert page.inner_text("#poolsSummary") == "Defaults"
+    page.click('#settingsDialog .settings-link[data-settings="pools"]')
+
+    assert page.locator("#poolsList .pool-row").count() == 6
+    assert page.locator("#poolSize-action").input_value() == "12"
+    assert page.locator("#poolsPending").is_hidden()
+    mark("settings.pools-page")
+
+    page.fill("#poolSize-action", "65")
+    page.click("#poolsSaveBtn")
+    page.wait_for_function("() => !document.getElementById('toast').hidden")
+    assert "error" in (page.locator("#toast").get_attribute("class") or "")
+    assert "action: size must be from 1 to 64" in page.locator("#toast").inner_text()
+    assert page.inner_text("#poolsSummary") == "Defaults"
+
+    page.fill("#poolSize-action", "20")
+    page.click("#poolsSaveBtn")
+    page.wait_for_function("() => document.getElementById('poolsSummary').textContent === '1 changed'")
+    assert puts[-1] == {**defaults, "action": 20}, puts
+    assert page.locator("#poolsPending").is_visible()
+    assert page.locator("#poolSize-action").input_value() == "20"
+
+
 def _a_switch_marks_a_machine_dormant(page, admin_url, mark):
     puts = []
     rows = [
@@ -231,6 +287,8 @@ def test_settings_dialog(browser, admin_url):
         _fix_all_reports_a_failed_fix(page, admin_url, lambda name: surface(page, name))
     with fresh_page(browser) as page:
         _failed_startup_toggle_reverts_to_the_saved_value(page, admin_url)
+    with fresh_page(browser) as page:
+        _worker_pool_sizes_save_and_are_refused_out_of_range(page, admin_url, lambda name: surface(page, name))
     with fresh_page(browser, viewport=PHONE, has_touch=True) as page:
         _a_switch_marks_a_machine_dormant(page, admin_url, lambda name: surface(page, name))
     with fresh_page(browser) as page:

@@ -1310,7 +1310,7 @@ surfaces:
     reach:
       - the gear in any pane's header
     holds:
-      - Display, Startup, Machines, Health and About groups
+      - Display, Startup, Performance, Machines, Health and About groups
       - a close button
     does:
       - the gear opens it as the full Settings page; a row with a body opens it as a sheet
@@ -1319,6 +1319,7 @@ surfaces:
     links:
       - to: settings.display
       - to: settings.startup
+      - to: settings.performance
       - to: settings.machines
       - to: settings.health
       - to: settings.about
@@ -1361,6 +1362,37 @@ surfaces:
     does:
       - a switch saves at once; a failure toasts and the switch snaps back
     why: model autostart is set per model in its placement editor, not here
+
+  - id: settings.performance
+    area: settings
+    title: Performance group
+    root: data-surface
+    reach:
+      - the Performance group of Settings
+    holds:
+      - Worker pools, with Defaults or how many sizes differ from them
+    does:
+      - opens the Worker pools sheet
+    states:
+      - not confirmed in the group's value when the read failed
+    links:
+      - to: settings.pools-page
+        via: Worker pools
+
+  - id: settings.pools-page
+    area: settings
+    title: Worker pools
+    root: data-surface
+    reach:
+      - Worker pools in Settings
+    holds:
+      - a note that sizes save to `config/worker_pools.json` and apply at the next hub restart
+      - one number field per pool (hot poll, heavy read, action, fan-out, background, media), each with what it runs and its default
+      - Save, the sheet's one primary; the close button leaves without saving
+    does:
+      - Save writes every field at once; a size that is not a whole number from 1 to 64 is refused with the server's reason in a toast and nothing is written
+      - a line says a restart is pending while a saved size differs from the one running
+    why: the pools are built when the hub starts, so a saved size cannot take effect sooner
 
   - id: settings.machines
     area: settings

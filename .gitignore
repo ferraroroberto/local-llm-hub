@@ -42,6 +42,8 @@ data/diagnostics.db
 data/diagnostics.db-wal
 data/diagnostics.db-shm
 config/diagnostics_settings.json
+# Owner-chosen worker pool sizes (Settings); absent means the defaults.
+config/worker_pools.json
 # Machine-specific storage roots and growers (sample: diagnostics_storage.example.json).
 config/diagnostics_storage.local.json
 tmp_server.log

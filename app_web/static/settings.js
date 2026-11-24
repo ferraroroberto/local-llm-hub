@@ -1,9 +1,9 @@
 /* Settings: the gear on every pane opens the vendored full Settings page
  * (settings-group): Display (text size, theme), Startup (service startup
- * switches), Machines (dormant switches), Health (Health & install) and About
+ * switches), Performance (worker pool sizes), Machines (dormant switches), Health (Health & install) and About
  * (build, config version, process id, Langfuse UI, frontier report).
  *
- * A row with a body (Service startup, Dormant machines, Health & install)
+ * A row with a body (Service startup, Worker pools, Dormant machines, Health & install)
  * opens it as a fitted sheet over the page, on every width. Text size keeps
  * the vendored control and its `llmhub.textsize` key; the pre-paint boot
  * script in index.html stamps it before first paint.
@@ -15,6 +15,7 @@ import { icon } from './_vendored/icons/icons.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
 import { langfuseUiBase } from './langfuse.js';
 import { fetchDormant } from './dormant.js';
+import { fetchWorkerPools } from './pools.js';
 import { renderHeadLine as renderHubHeadLine } from './hub.js';
 
 const APP_PREFIX = 'llmhub';
@@ -26,6 +27,7 @@ function openSheet(key) {
   const sheet = document.getElementById('settingsPage-' + key);
   if (!sheet || sheet.open) return;
   if (key === 'machines') fetchDormant();
+  if (key === 'pools') fetchWorkerPools();
   if (key === 'health' && !state.installChecked) {
     state.installChecked = true;
     fetchInstallStatus();

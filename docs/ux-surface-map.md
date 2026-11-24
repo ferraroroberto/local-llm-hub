@@ -51,7 +51,7 @@ Walked 2026-11-17 against build `f5e2794`, at widths 390, 1280, themes light, da
 | [Playground](#playground) | 11 |
 | [Code](#code) | 19 |
 | [Machines](#machines) | 12 |
-| [Settings](#settings) | 9 |
+| [Settings](#settings) | 11 |
 | [Keys and gestures](#keys-and-gestures) | 3 |
 
 ## Chrome
@@ -84,7 +84,7 @@ flowchart LR
   s67(["Machine detail pane · Machines"])
   s68(["Actions runner · Machines"])
   s70(["Diagnostics dialog · Machines"])
-  s82(["Tab keys · Keys and gestures"])
+  s84(["Tab keys · Keys and gestures"])
   s0 -->|"Hub"| s8
   s0 -->|"Models"| s20
   s0 -->|"Play"| s31
@@ -102,7 +102,7 @@ flowchart LR
   s67 -->|"Reboot or Shut down"| s6
   s68 -->|"ⓘ"| s7
   s70 -->|"Delete"| s6
-  s82 --> s0
+  s84 --> s0
 ```
 
 ### `chrome.nav` Nav
@@ -219,7 +219,7 @@ flowchart LR
   s73(["Settings page · Settings"])
   s7(["Info sheet · Chrome"])
   s32(["Chat composer · Playground"])
-  s84(["Sideways table scroll · Keys and gestures"])
+  s86(["Sideways table scroll · Keys and gestures"])
   s0 -->|"Hub"| s8
   s8 --> s9
   s8 --> s10
@@ -237,7 +237,7 @@ flowchart LR
   s12 -->|"Send a test request"| s32
   s13 -->|"Send a test request"| s32
   s14 -->|"Details"| s15
-  s84 --> s17
+  s86 --> s17
 ```
 
 ### `hub.tab` Hub tab
@@ -436,7 +436,7 @@ flowchart LR
   s73(["Settings page · Settings"])
   s7(["Info sheet · Chrome"])
   s6(["Confirm dialog · Chrome"])
-  s83(["Menu and dialog keys · Keys and gestures"])
+  s85(["Menu and dialog keys · Keys and gestures"])
   s0 -->|"Models"| s20
   s20 --> s21
   s20 --> s22
@@ -458,7 +458,7 @@ flowchart LR
   s26 -->|"Edit placement"| s28
   s26 -->|"Transcription dictionary"| s29
   s26 -->|"Model log"| s30
-  s83 --> s24
+  s85 --> s24
 ```
 
 ### `models.tab` Models tab
@@ -839,7 +839,7 @@ flowchart LR
   s60["No sessions found"]
   s0(["Nav · Chrome"])
   s7(["Info sheet · Chrome"])
-  s84(["Sideways table scroll · Keys and gestures"])
+  s86(["Sideways table scroll · Keys and gestures"])
   s0 -->|"Code"| s42
   s42 --> s44
   s42 -->|"before the first read"| s43
@@ -858,8 +858,8 @@ flowchart LR
   s53 --> s54
   s56 --> s57
   s59 --> s60
-  s84 --> s56
-  s84 --> s58
+  s86 --> s56
+  s86 --> s58
 ```
 
 ### `code-usage.tab` Code tab
@@ -1070,7 +1070,7 @@ flowchart LR
   s73(["Settings page · Settings"])
   s6(["Confirm dialog · Chrome"])
   s7(["Info sheet · Chrome"])
-  s83(["Menu and dialog keys · Keys and gestures"])
+  s85(["Menu and dialog keys · Keys and gestures"])
   s0 -->|"Machines"| s61
   s61 --> s62
   s61 --> s63
@@ -1092,7 +1092,7 @@ flowchart LR
   s69 --> s70
   s70 -->|"Delete"| s6
   s71 -->|"no companion"| s72
-  s83 --> s65
+  s85 --> s65
 ```
 
 ### `machines.tab` Machines tab
@@ -1268,11 +1268,13 @@ flowchart LR
   s74["Display"]
   s75["Startup group"]
   s76["Service startup"]
-  s77["Machines group"]
-  s78["Dormant machines"]
-  s79["Health group"]
-  s80["Health and install"]
-  s81["About"]
+  s77["Performance group"]
+  s78["Worker pools"]
+  s79["Machines group"]
+  s80["Dormant machines"]
+  s81["Health group"]
+  s82["Health and install"]
+  s83["About"]
   s1(["Pane header · Chrome"])
   s8(["Hub tab · Hub"])
   s20(["Models tab · Models"])
@@ -1286,9 +1288,11 @@ flowchart LR
   s73 --> s77
   s73 --> s79
   s73 --> s81
+  s73 --> s83
   s75 -->|"Service startup"| s76
-  s77 -->|"Dormant machines"| s78
-  s79 -->|"Health & install"| s80
+  s77 -->|"Worker pools"| s78
+  s79 -->|"Dormant machines"| s80
+  s81 -->|"Health & install"| s82
 ```
 
 ### `settings.dialog` Settings page
@@ -1296,7 +1300,7 @@ flowchart LR
 - **Root:** `data-surface`
 - **Reach:** the gear in any pane's header
 - **Holds:**
-  - Display, Startup, Machines, Health and About groups
+  - Display, Startup, Performance, Machines, Health and About groups
   - a close button
 - **Does:** the gear opens it as the full Settings page; a row with a body opens it as a sheet
 - **Phone:** a full-screen page
@@ -1304,6 +1308,7 @@ flowchart LR
 - **Leads to:**
   - [Display](#settingsdisplay-display)
   - [Startup group](#settingsstartup-startup-group)
+  - [Performance group](#settingsperformance-performance-group)
   - [Machines group](#settingsmachines-machines-group)
   - [Health group](#settingshealth-health-group)
   - [About](#settingsabout-about)
@@ -1334,6 +1339,28 @@ flowchart LR
   - one switch per service that comes up when the hub launches
 - **Does:** a switch saves at once; a failure toasts and the switch snaps back
 - **Why:** model autostart is set per model in its placement editor, not here
+
+### `settings.performance` Performance group
+
+- **Root:** `data-surface`
+- **Reach:** the Performance group of Settings
+- **Holds:** Worker pools, with Defaults or how many sizes differ from them
+- **Does:** opens the Worker pools sheet
+- **States:** not confirmed in the group's value when the read failed
+- **Leads to:** [Worker pools](#settingspools-page-worker-pools) (Worker pools)
+
+### `settings.pools-page` Worker pools
+
+- **Root:** `data-surface`
+- **Reach:** Worker pools in Settings
+- **Holds:**
+  - a note that sizes save to `config/worker_pools.json` and apply at the next hub restart
+  - one number field per pool (hot poll, heavy read, action, fan-out, background, media), each with what it runs and its default
+  - Save, the sheet's one primary; the close button leaves without saving
+- **Does:**
+  - Save writes every field at once; a size that is not a whole number from 1 to 64 is refused with the server's reason in a toast and nothing is written
+  - a line says a restart is pending while a saved size differs from the one running
+- **Why:** the pools are built when the hub starts, so a saved size cannot take effect sooner
 
 ### `settings.machines` Machines group
 
@@ -1393,21 +1420,21 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  s82["Tab keys"]
-  s83["Menu and dialog keys"]
-  s84["Sideways table scroll"]
+  s84["Tab keys"]
+  s85["Menu and dialog keys"]
+  s86["Sideways table scroll"]
   s0(["Nav · Chrome"])
   s24(["Model row menu · Models"])
   s65(["Machine row menu · Machines"])
   s17(["By model sheet · Hub"])
   s56(["By model sheet · Code"])
   s58(["Every project sheet · Code"])
-  s82 --> s0
-  s83 --> s24
-  s83 --> s65
-  s84 --> s17
-  s84 --> s56
-  s84 --> s58
+  s84 --> s0
+  s85 --> s24
+  s85 --> s65
+  s86 --> s17
+  s86 --> s56
+  s86 --> s58
 ```
 
 ### `keys.nav` Tab keys
@@ -1534,10 +1561,12 @@ flowchart LR
 | [Terminal dialog](#machinesterminal-dialog-terminal-dialog) | no companion | [Terminal unavailable](#machinesterminal-unavailable-terminal-unavailable) |
 | [Settings page](#settingsdialog-settings-page) |  | [Display](#settingsdisplay-display) |
 | [Settings page](#settingsdialog-settings-page) |  | [Startup group](#settingsstartup-startup-group) |
+| [Settings page](#settingsdialog-settings-page) |  | [Performance group](#settingsperformance-performance-group) |
 | [Settings page](#settingsdialog-settings-page) |  | [Machines group](#settingsmachines-machines-group) |
 | [Settings page](#settingsdialog-settings-page) |  | [Health group](#settingshealth-health-group) |
 | [Settings page](#settingsdialog-settings-page) |  | [About](#settingsabout-about) |
 | [Startup group](#settingsstartup-startup-group) | Service startup | [Service startup](#settingsstartup-page-service-startup) |
+| [Performance group](#settingsperformance-performance-group) | Worker pools | [Worker pools](#settingspools-page-worker-pools) |
 | [Machines group](#settingsmachines-machines-group) | Dormant machines | [Dormant machines](#settingsmachines-page-dormant-machines) |
 | [Health group](#settingshealth-health-group) | Health & install | [Health and install](#settingshealth-page-health-and-install) |
 | [Tab keys](#keysnav-tab-keys) |  | [Nav](#chromenav-nav) |
