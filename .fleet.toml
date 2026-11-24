@@ -190,6 +190,7 @@ ux_surface_ratchet = { src = "scripts/ux_surface_ratchet.py", sha = "adf0375e08a
 ux_surface_map = { src = "scripts/ux_surface_map.py", sha = "adf0375e08a186330196b8d6be7b8b51078a73ae", dest = "scripts/ux_surface_map.py" }
 request_budget_ratchet = { src = "scripts/request_budget_ratchet.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "scripts/request_budget_ratchet.py" }
 request_budget_scan = { src = "scripts/request_budget_scan.py", sha = "5ba99b0a04b1b5d7b3689f8f7a59bd3fe625a9bc", dest = "scripts/request_budget_scan.py" }
+request_budget_probe = { src = "tests/e2e/budget/_request_budget.py", sha = "2a65b20ee0b426fa8246bfc7ac3dd28e019a39b3", dest = "tests/e2e/budget/_request_budget.py" }
 windows_only_ratchet = { src = "scripts/windows_only_ratchet.py", sha = "5ba99b0a04b1b5d7b3689f8f7a59bd3fe625a9bc", dest = "scripts/windows_only_ratchet.py" }
 request_timing = { src = "src/request_timing.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "src/request_timing.py" }
 poll = { src = "app/webapp/static/_vendored/poll", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "app_web/static/_vendored/poll" }
@@ -528,6 +529,15 @@ path       = "tray/tray.py"
 function   = "TrayApp._color_loop"
 interval_s = 2
 why        = "the tray icon's color is always on screen, so its hub-health read is always watched; a loopback probe"
+
+# [request_budget] -- what the admin main page may read in a visible minute, checked by
+# tests/e2e/test_request_budget.py on a fake clock (hidden must stay at zero). 79 is the
+# measured minute on the Hub tab: stats 24, status 15, telemetry metrics 15, services 12,
+# telemetry health 12, usage log 1; its pollers all pause while hidden. A poll that gets
+# faster raises the count and needs a reason here; a missing key is reported as not
+# confirmed, never as a pass.
+[request_budget]
+visible_requests_per_minute = 79
 
 # [windows_only_ratchet] -- scripts/windows_only_ratchet.py fails when a test touches a
 # Windows-only API (module, attribute, environment variable, planted .exe install lookup)
