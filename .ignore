@@ -52,11 +52,13 @@
 /src/no_window.py
 /src/password.py
 /src/request_timing.py
+/src/restart_check.py
 /src/runtime_data.py
 /src/self_restart.py
 /src/usage_log.py
 /tests/e2e/_paced_browser.py
 /tests/e2e/_surface.py
+/tests/e2e/budget/_request_budget.py
 /tests/host/_synthetic_host.py
 /tray/single_instance.py
 # END vendored-copies
