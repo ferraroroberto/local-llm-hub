@@ -169,7 +169,7 @@ disclosure    = { src = "app/webapp/static/_vendored/disclosure", sha = "5d460bd
 empty-state   = { src = "app/webapp/static/_vendored/empty-state", sha = "a04abc7b3af872cbac974401dd0945587eac6cef", dest = "app_web/static/_vendored/empty-state" }
 home-head     = { src = "app/webapp/static/_vendored/home-head", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "app_web/static/_vendored/home-head" }
 icons         = { src = "app/webapp/static/_vendored/icons", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app_web/static/_vendored/icons" }
-page-foot = { src = "app/webapp/static/_vendored/page-foot", sha = "564864cb95a8b416c16d1a1e1e9f31b9d5b2ec8e", dest = "app_web/static/_vendored/page-foot" }
+page-foot = { src = "app/webapp/static/_vendored/page-foot", sha = "48602060fffdacbcdcdde66b9886c6471d835ff3", dest = "app_web/static/_vendored/page-foot" }
 modal         = { src = "app/webapp/static/_vendored/modal", sha = "713b1d1e36989440679ec4e415ff149b14d96c81", dest = "app_web/static/_vendored/modal" }
 sign-in       = { src = "app/webapp/static/_vendored/sign-in", sha = "dbf47eb1bfe4aa2f9656db647520356536de14c8", dest = "app_web/static/_vendored/sign-in" }
 nav           = { src = "app/webapp/static/_vendored/nav", sha = "cb9fff9130453c781146f2cdf5083d83fb43b0df", dest = "app_web/static/_vendored/nav" }
@@ -194,7 +194,7 @@ windows_only_ratchet = { src = "scripts/windows_only_ratchet.py", sha = "5ba99b0
 request_timing = { src = "src/request_timing.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "src/request_timing.py" }
 poll = { src = "app/webapp/static/_vendored/poll", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "app_web/static/_vendored/poll" }
 build_info  = { src = "src/build_info.py", sha = "db08b78dabcd817616ca4fc2954035466d2435d7", dest = "src/build_info.py" }
-restart_check = { src = "src/restart_check.py", sha = "db08b78dabcd817616ca4fc2954035466d2435d7", dest = "src/restart_check.py" }
+restart_check = { src = "src/restart_check.py", sha = "48602060fffdacbcdcdde66b9886c6471d835ff3", dest = "src/restart_check.py" }
 surface_capture = { src = "tests/e2e/_surface.py", sha = "5c4d3a7947dae8b3b4a028bf636c0f052ea3b1f7", dest = "tests/e2e/_surface.py" }
 static_ratchet = { src = "scripts/static_ratchet.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "scripts/static_ratchet.py" }
 docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "78635aa74a92b9622326cb53992e0634fbaf6246", dest = "scripts/docs_ratchet.py" }
@@ -218,7 +218,7 @@ password = { src = "src/password.py", sha = "1fab1b600964581c3df51a9f916f1fb4795
 no_window = { src = "src/no_window.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "src/no_window.py" }
 single_instance = { src = "app/tray/single_instance.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "tray/single_instance.py" }
 toast = { src = "app/webapp/static/_vendored/toast", sha = "e56c8330f8500b83635773033a09de6fc3cba342", dest = "app_web/static/_vendored/toast" }
-build-watch = { src = "app/webapp/static/_vendored/build-watch", sha = "2d871dd5a6a3ee6fe12a3c5c6439d2c53a93c2c4", dest = "app_web/static/_vendored/build-watch" }
+build-watch = { src = "app/webapp/static/_vendored/build-watch", sha = "48602060fffdacbcdcdde66b9886c6471d835ff3", dest = "app_web/static/_vendored/build-watch" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet.py, which fails on a
@@ -228,7 +228,7 @@ build-watch = { src = "app/webapp/static/_vendored/build-watch", sha = "2d871dd5
 # vendored admin-SPA components (copies by design), vendor/ (third-party ComfyUI) and
 # the gitignored data/ and models/ trees. Procedure + limits: project-scaffolding
 # docs/static-ratchet.md.
-self_restart = { src = "src/self_restart.py", sha = "564864cb95a8b416c16d1a1e1e9f31b9d5b2ec8e", dest = "src/self_restart.py" }
+self_restart = { src = "src/self_restart.py", sha = "48602060fffdacbcdcdde66b9886c6471d835ff3", dest = "src/self_restart.py" }
 [static_ratchet]
 enabled  = true
 baseline = ".static-ratchet-baseline.json"

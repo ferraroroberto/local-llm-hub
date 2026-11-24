@@ -220,6 +220,14 @@ def restart(
     return check(port, before, timeout_s)
 
 
+def _utf8_streams() -> None:
+    """Let the ✅/❌ lines through a console whose code page cannot encode them."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m src.restart_check", description=__doc__)
     parser.add_argument("action", choices=("restart",))
@@ -232,6 +240,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not args.version_path.startswith("/"):
         parser.error("--version-path must start with '/'")
+    _utf8_streams()
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
     return restart(args.port, args.timeout, version_path=args.version_path)
 

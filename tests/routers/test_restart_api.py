@@ -68,3 +68,14 @@ def test_the_route_refuses_when_the_middleware_is_missing(tmp_path: Path):
 def test_the_recipe_runs_the_repos_own_tray_bat():
     assert TRAY_RESTART[-2:] == (".\\tray.bat", "--restart")
     assert (ROOT / "tray.bat").is_file()
+
+
+def test_the_sheet_is_wired_to_the_update_routes_the_admin_app_serves():
+    # The vendored sheet defaults to /api/restart/{check,pull}; the SPA must name the /admin
+    # spellings, and each must resolve on the sub-app (a missing route is 404, a guarded one 401).
+    main_js = (admin_server.STATIC_DIR / "main.js").read_text(encoding="utf-8")
+    client = _admin_client()
+    for option, path in (("checkEndpoint", "/api/restart/check"), ("pullEndpoint", "/api/restart/pull")):
+        assert f"{option}: '/admin{path}'" in main_js
+        res = client.post(path, headers={**_PROXY_HEADERS, **ORIGIN})
+        assert res.status_code == 401, f"{path} is not mounted behind the bearer gate"
