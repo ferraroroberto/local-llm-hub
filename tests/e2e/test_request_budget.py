@@ -28,8 +28,12 @@ from pathlib import Path
 
 from playwright.sync_api import Route
 
-from tests.e2e._flow import PHONE, PHASE_TIMEOUT_MS
-from tests.e2e.budget._request_budget import assert_request_budget, measure_request_budget, visible_budget
+from tests.e2e._flow import PHASE_TIMEOUT_MS, PHONE
+from tests.e2e.budget._request_budget import (
+    assert_request_budget,
+    measure_request_budget,
+    visible_budget,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
