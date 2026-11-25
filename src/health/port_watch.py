@@ -86,7 +86,7 @@ class PortWatch:
     def record_window(self, ports: Dict[str, Any], now: Optional[float] = None) -> Dict[str, Any]:
         """Add one per-process tally to the rolling burst window. Blocking: call it off the event loop."""
         tally = self._probe.tally(now=now)
-        self._window.add(tally, self._probe.name_of, float(ports["window_s"]))
+        self._window.add(tally, self._probe.name_of, float(ports["window_s"]), self._probe.label_of)
         if tally["probes"] != self._window_probes:  # log a table going unreadable once, not once a second
             self._window_probes = dict(tally["probes"])
             logger.info("ℹ️ port watch: burst window table state %s", tally["probes"])
