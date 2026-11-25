@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 from src import installer
+from src.no_window import NO_WINDOW
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WEBAPP_SAMPLE = "config/webapp_config.sample.json"
@@ -44,7 +46,14 @@ def test_every_created_config_is_gitignored() -> None:
     assert "config/*.bak-*" in ignored
 
 
+def _checkout_with_this_gitignore(root: Path) -> None:
+    """A git checkout carrying this repo's .gitignore: the installer tops up only when git ignores the backup."""
+    subprocess.run(["git", "init", "-q", str(root)], check=True, timeout=60, creationflags=NO_WINDOW)
+    shutil.copyfile(REPO_ROOT / ".gitignore", root / ".gitignore")
+
+
 def test_top_up_keeps_values_adds_missing_keys_and_backs_up(tmp_path: Path) -> None:
+    _checkout_with_this_gitignore(tmp_path)
     (tmp_path / "config").mkdir()
     shutil.copyfile(REPO_ROOT / WEBAPP_SAMPLE, tmp_path / WEBAPP_SAMPLE)
     target = tmp_path / WEBAPP_TARGET
@@ -52,7 +61,7 @@ def test_top_up_keeps_values_adds_missing_keys_and_backs_up(tmp_path: Path) -> N
     plan = installer.load_plan(REPO_ROOT)
 
     report = installer.Report(what_if=False)
-    installer.ensure_configs(tmp_path, plan, report, "20260102-030405")
+    installer.ensure_configs(tmp_path, plan, report, "20260102-030405", subprocess.run)
 
     data = json.loads(target.read_text(encoding="utf-8"))
     assert data["auth_token"] == "kept-value"
@@ -61,7 +70,7 @@ def test_top_up_keeps_values_adds_missing_keys_and_backs_up(tmp_path: Path) -> N
     assert (tmp_path / "config" / "webapp_config.json.bak-20260102-030405").is_file()
 
     again = installer.Report(what_if=False)
-    installer.ensure_configs(tmp_path, plan, again, "20260102-030406")
+    installer.ensure_configs(tmp_path, plan, again, "20260102-030406", subprocess.run)
 
     assert [status for status, _, _ in again.lines] == ["unchanged"]
     assert not (tmp_path / "config" / "webapp_config.json.bak-20260102-030406").exists()

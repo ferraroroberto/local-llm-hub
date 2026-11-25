@@ -260,7 +260,7 @@ no_window = { src = "src/no_window.py", sha = "fe8cc1bdbd038ed65947186248df13072
 single_instance = { src = "app/tray/single_instance.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "tray/single_instance.py" }
 toast = { src = "app/webapp/static/_vendored/toast", sha = "e56c8330f8500b83635773033a09de6fc3cba342", dest = "app_web/static/_vendored/toast" }
 build-watch = { src = "app/webapp/static/_vendored/build-watch", sha = "48602060fffdacbcdcdde66b9886c6471d835ff3", dest = "app_web/static/_vendored/build-watch" }
-installer = { src = "src/installer.py", sha = "c23c5bf575a3f375a4ddbfb99a31763a80c6bee5", dest = "src/installer.py" }
+installer = { src = "src/installer.py", sha = "bafa9446b907dcb7fc6d833c1edfb1a069b7ca38", dest = "src/installer.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet.py, which fails on a
