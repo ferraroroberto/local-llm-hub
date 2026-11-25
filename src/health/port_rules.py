@@ -133,8 +133,8 @@ def snapshot_text(event: Dict[str, Any]) -> str:
 
 def peak_text(event: Dict[str, Any]) -> str:
     """Who peaked in the in-memory window before the event was read. A window that reached back to
-    the event and saw a process rise names it; anything else says the holder is not confirmed,
-    never that the ports were fine, because a burst shorter than the window's tally can escape it."""
+    the event and saw a process rise by a quarter of the range (``window_confirm_percent``) names
+    it; anything else says the holder is not confirmed and how little moved, never that the ports were fine, because a burst shorter than the window's tally can escape it."""
     peak = event.get("peak")
     if not peak:
         return "no peak window recorded, so the peak holder is not confirmed"
@@ -147,11 +147,13 @@ def peak_text(event: Dict[str, Any]) -> str:
             f" (from {fmt_count(h['low'])})" for h in [h for h in holders if h["peak"] - h["low"] >= peak["min_rise"]][:3])
     if not peak["samples"]:
         return f"the {span} held no readable {label} tally, so the peak holder is not confirmed"
-    why = (f"no process rose by {fmt_count(peak['min_rise'])} or more {label} ports"
-           if peak.get("covers_event") else "the window starts after the event")
-    steady = f" (largest: {holders[0]['name']} at {fmt_count(holders[0]['peak'])})" if holders else ""
-    return (f"peak holder not confirmed: {why} in the {span}{steady}; "
-            "a burst shorter than the tally interval can fall between two tallies")
+    if not peak.get("covers_event"):
+        return (f"peak holder not confirmed: the window starts after the event in the {span}; "
+                "a burst shorter than the tally interval can fall between two tallies")
+    # Events stored before largest_rise existed carry only the rows.
+    rise = peak.get("largest_rise", max((h["peak"] - h["low"] for h in holders), default=0))
+    return (f"peak holder not confirmed: largest rise {fmt_count(rise)} ports, too small to exhaust the range "
+            f"in the {span}; a burst shorter than the tally interval can fall between two tallies")
 
 
 def _event_findings(events: Sequence[Dict[str, Any]], history: Sequence[Dict[str, Any]],

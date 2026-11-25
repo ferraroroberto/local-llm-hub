@@ -101,8 +101,10 @@ class PortWatch:
             fresh = [e for e in events or [] if e["event_id"] in port_probe.SNAPSHOT_EVENTS
                      and e["record_id"] not in self._events]
         for e in fresh:
+            lo, hi = self._probe.ranges()[e["protocol"]]
             e["peak"] = self._window.peaks(e["protocol"], event_ts=e["ts"], top_n=int(ports["top_n"]),
-                                           min_rise=int(ports["window_min_rise"]))
+                                           range_size=hi - lo + 1,
+                                           confirm_percent=float(ports["window_confirm_percent"]))
         snapshots: Dict[str, Dict[str, Any]] = {}
         for protocol in sorted({e["protocol"] for e in fresh}):
             try:
@@ -118,8 +120,8 @@ class PortWatch:
             peak = e["peak"]
             logger.info("ℹ️ port watch: Tcpip %s window of %s s, %s readable samples, peak holder %s", e["event_id"],
                         round((peak["to"] or 0) - (peak["from"] or 0)), peak["samples"],
-                        f"{peak['holders'][0]['name']} ({peak['holders'][0]['peak']})" if peak["holders"]
-                        else "none")
+                        f"{peak['holders'][0]['name']} ({peak['holders'][0]['peak']})" if peak["confirmed"]
+                        else f"not confirmed (largest rise {peak['largest_rise']})")
 
     def tick(self, cfg: Dict[str, Any], now: Optional[float] = None) -> Dict[str, Any]:
         """Take one sample (and read the event log when due), store and keep it. Blocking."""
