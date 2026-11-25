@@ -9,7 +9,7 @@ The structure ratchet (`scripts/structure_ratchet.py`, configured in `.fleet.tom
 | `src/` | The hub: FastAPI routing, backend wrappers, process managers, usage parsers. A new module goes in the subpackage of its domain (`routes/`, `audio/`, `images/`, `fleet/`, `process/`, `usage/`, `diagnostics/`, `fsio/`, …), because the flat directory sits just under its 40-module limit. |
 | `app_web/` | The `/admin` sub-app: routers and the static SPA (no bundler). Declared by the shape instead of the scaffold's `app/webapp/`. |
 | `tray/` | The Windows system-tray launcher. Declared by the shape instead of the scaffold's `app/tray/`. |
-| `tests/` | Unit and integration tests, grouped by domain into subfolders (`chat/`, `audio/`, `backends/`, `routers/`, `usage/`, `diagnostics/`, `health/`, `concurrency/`, `ratchets/`, `host/` (the vendored synthetic host fixture), `e2e_harness/`), with `tests/e2e/` for the Playwright suite (`tests/e2e/budget/` holds the vendored request-budget probe that `test_request_budget.py` runs on the admin main page). A new test goes in the subfolder of its domain. |
+| `tests/` | Unit and integration tests, grouped by domain into subfolders (`chat/`, `audio/`, `backends/`, `routers/`, `usage/`, `diagnostics/`, `health/`, `concurrency/`, `ratchets/`, `install/` (what `setup.bat` creates), `host/` (the vendored synthetic host fixture), `e2e_harness/`), with `tests/e2e/` for the Playwright suite (`tests/e2e/budget/` holds the vendored request-budget probe that `test_request_budget.py` runs on the admin main page). A new test goes in the subfolder of its domain. |
 | `scripts/` | Gate, ratchets, installers, benchmarks and one-off tools. |
 | `config/` | Committed config, samples and pricing tables. |
 | `launchers/` | Per-model backend launchers (`.bat` and `.sh`). |
@@ -37,6 +37,7 @@ local-llm-hub/
 ├── requirements-dev.txt      # e2e deps (Playwright, pytest-playwright)
 ├── requirements-tts.txt      # TTS deps (chatterbox-tts, snac, kokoro-onnx, soundfile — torch); Piper is a downloaded binary
 ├── .env.example               # template for the gitignored .env (host override, Langfuse/OTel flags, keys)
+├── setup.bat                 # clone-and-setup: runs src/installer.py (docs/install.md)
 ├── tray.bat                  # Windows-only system-tray launcher (silent)
 ├── run_hub.bat / .sh         # start the FastAPI hub on :8000
 ├── start_langfuse.bat / .sh   # idempotent Langfuse stack start (assets/deploy/docker/langfuse)
@@ -224,7 +225,8 @@ local-llm-hub/
 │   │   ├── sample_store.py       #   shared JSON-row sample history in SQLite (resource + port stores build on it)
 │   │   ├── port_store.py         #   24 h port history + exhaustion events (SQLite under the runtime-data root)
 │   │   └── port_watch.py         #   the 30 s port loop; its findings join the health verdict
-│   ├── install.py            # first-run checks + --fix
+│   ├── install.py            # first-run checks + --fix (models, backends)
+│   ├── installer.py          #   vendored clone-and-setup installer that setup.bat runs (venv, requirements, configs, checklist)
 │   ├── usage_log.py          # vendored usage-log router (admin UI view/tap log)
 │   ├── login_lockout.py      # vendored per-client lock-out + guessing alert for the /admin password route
 │   ├── password.py           # vendored app password: hash in config/app_password.json, `python -m src.password set`
@@ -350,6 +352,7 @@ local-llm-hub/
     ├── multi-host.md             # cross-host proxying, placement, failover chains
     ├── model-lifecycle.md        # on-demand models, Linux satellite lifecycle
     ├── admin-console.md          # Hub / Settings / Machines tabs, machine identity
+    ├── install.md                # new PC, update, migrate an existing install, uninstall
     ├── running.md                # run modes, tray, tunnel, LAN access
     ├── api-usage.md              # client examples, headers, CORS, passthroughs
     ├── coding-agent-usage.md     # Code-tab usage accounting

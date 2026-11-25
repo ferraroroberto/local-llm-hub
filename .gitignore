@@ -130,3 +130,6 @@ assets/deploy/mac/*/Package.resolved
 
 # The app password hash (src/password.py)
 config/app_password.json
+
+# Timestamped backups setup.bat leaves beside a config it topped up (they hold the old values).
+config/*.bak-*
