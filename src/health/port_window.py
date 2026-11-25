@@ -17,12 +17,13 @@ from __future__ import annotations
 import math
 import threading
 from collections import deque
-from typing import Any, Callable, Deque, Dict, List, Tuple
+from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
 from .port_probe import PROTOCOLS
 
 _PROTOCOL_INDEX = {protocol: i for i, protocol in enumerate(PROTOCOLS)}
 NameOf = Callable[[int], str]
+LabelOf = Callable[[int], Optional[str]]
 
 
 class PortWindow:
@@ -32,21 +33,26 @@ class PortWindow:
         self._lock = threading.Lock()
         self._entries: Deque[Tuple[float, Dict[str, str], Dict[int, Tuple[int, int]]]] = deque()
         self._names: Dict[int, str] = {}
+        self._labels: Dict[int, Optional[str]] = {}
 
-    def add(self, tally: Dict[str, Any], name_of: NameOf, window_s: float) -> None:
-        """Keep ``tally`` and drop what has aged out of ``window_s``. A name is looked up once
-        per pid, here, because by the time an event is read the burst's process may have exited."""
+    def add(self, tally: Dict[str, Any], name_of: NameOf, window_s: float,
+            label_of: Optional[LabelOf] = None) -> None:
+        """Keep ``tally`` and drop what has aged out of ``window_s``. A name and a label are looked up
+        once per pid, here, because by the time an event is read the burst's process may have exited."""
         counts = tally["counts"]
         with self._lock:
             for pid in counts:
                 if pid not in self._names:
                     self._names[pid] = name_of(pid)
+                if label_of is not None and pid not in self._labels:
+                    self._labels[pid] = label_of(pid)
             self._entries.append((tally["ts"], tally["probes"], counts))
             cutoff = tally["ts"] - window_s
             while self._entries and self._entries[0][0] < cutoff:
                 self._entries.popleft()
             live = {pid for _, _, held in self._entries for pid in held}
             self._names = {pid: name for pid, name in self._names.items() if pid in live}
+            self._labels = {pid: label for pid, label in self._labels.items() if pid in live}
 
     def peaks(self, protocol: str, *, event_ts: float, top_n: int, range_size: int,
               confirm_percent: float) -> Dict[str, Any]:
@@ -61,6 +67,7 @@ class PortWindow:
         with self._lock:
             entries = list(self._entries)
             names = dict(self._names)
+            labels = dict(self._labels)
         readable = [(ts, held) for ts, probes, held in entries if probes.get(protocol) == "ok"]
         out: Dict[str, Any] = {
             "protocol": protocol, "samples": len(readable), "unread": len(entries) - len(readable),
@@ -81,8 +88,8 @@ class PortWindow:
                 peak[2] = min(peak[2], count)
         # A pid absent from a second held nothing in it, so its low is 0 unless it was always there.
         present_always = {pid for pid in stats if all(pid in held for _, held in readable)}
-        rows = [{"pid": pid, "name": names.get(pid, f"pid {pid}"), "peak": peak, "at": at,
-                 "low": low if pid in present_always else 0}
+        rows = [{"pid": pid, "name": names.get(pid, f"pid {pid}"), "label": labels.get(pid), "peak": peak,
+                 "at": at, "low": low if pid in present_always else 0}
                 for pid, (peak, at, low) in stats.items() if peak]
         rows.sort(key=lambda r: r["peak"], reverse=True)
         out["largest_rise"] = max((r["peak"] - r["low"] for r in rows), default=0)

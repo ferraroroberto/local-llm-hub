@@ -31,6 +31,7 @@ import psutil
 
 from ..no_window import NO_WINDOW
 from . import win_probe
+from .port_label import process_label
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ _MAX_EVENTS_PER_READ = 50
 
 Connections = Callable[[str], Iterable[Any]]
 NameOf = Callable[[int], str]
+LabelOf = Callable[[int, str], Optional[str]]
 
 
 def dynamic_range(protocol: str) -> Tuple[int, int]:
@@ -79,11 +81,15 @@ class PortProbe:
     injectable so a test drives a burst without opening a single socket."""
 
     def __init__(self, connections: Optional[Connections] = None, name_of: Optional[NameOf] = None,
-                 ranges: Optional[Dict[str, Tuple[int, int]]] = None) -> None:
+                 ranges: Optional[Dict[str, Tuple[int, int]]] = None,
+                 label_of: Optional[LabelOf] = None) -> None:
         self._connections = connections or psutil.net_connections
         self._name_of = name_of or process_name
+        # A probe on a fake name lookup has no real pids, so it must not read live processes for labels.
+        self._label_of = label_of or (process_label if name_of is None else (lambda pid, name: None))
         self._ranges = ranges
         self._names: Dict[int, str] = {}
+        self._labels: Dict[int, Optional[str]] = {}
 
     def ranges(self) -> Dict[str, Tuple[int, int]]:
         """Read once per probe: the range is a reboot-scope machine setting."""
@@ -95,6 +101,11 @@ class PortProbe:
         if pid not in self._names:
             self._names[pid] = self._name_of(pid)
         return self._names[pid]
+
+    def _label(self, pid: int) -> Optional[str]:
+        if pid not in self._labels:
+            self._labels[pid] = self._label_of(pid, self._name(pid))
+        return self._labels[pid]
 
     def _time_wait_groups(self, rows: List[Any], top_n: int) -> Tuple[List[Dict[str, Any]], int]:
         """TIME_WAIT sockets grouped by the local server port they belong to, each with its
@@ -140,6 +151,10 @@ class PortProbe:
     def name_of(self, pid: int) -> str:
         """The process name of ``pid``, for the window that outlives the process."""
         return self._name_of(pid)
+
+    def label_of(self, pid: int) -> Optional[str]:
+        """The repo and entry point of ``pid`` (see ``port_label``), for the window that outlives the process."""
+        return self._label_of(pid, self._name(pid))
 
     def _read_table(self, protocol: str, probes: Dict[str, str], *, quiet: bool = False) -> Optional[List[Any]]:
         """The endpoint table of ``protocol``, or ``None`` with ``probes[protocol]`` saying why."""
@@ -194,6 +209,7 @@ class PortProbe:
                     out["time_wait_groups"], out["time_wait_unplaced"] = self._time_wait_groups(rows, top_n)
         live = set(per_pid)
         self._names = {pid: name for pid, name in self._names.items() if pid in live}
+        self._labels = {pid: label for pid, label in self._labels.items() if pid in live}
         if rank_by in PROTOCOLS:
             # An event of one protocol ranks by that protocol alone; a process holding none of it is no holder.
             ranked = sorted(((pid, c) for pid, c in per_pid.items() if c[rank_by]),
@@ -201,7 +217,8 @@ class PortProbe:
         else:
             ranked = sorted(per_pid.items(), key=lambda kv: kv[1]["tcp"] + kv[1]["udp"], reverse=True)
         out["holders"] = [
-            {"pid": pid, "name": self._name(pid), "tcp": c["tcp"], "udp": c["udp"], "ports": c["tcp"] + c["udp"]}
+            {"pid": pid, "name": self._name(pid), "label": self._label(pid), "tcp": c["tcp"], "udp": c["udp"],
+             "ports": c["tcp"] + c["udp"]}
             for pid, c in ranked[:top_n]
         ]
         out["sample_ms"] = round((time.perf_counter() - started) * 1000, 1)

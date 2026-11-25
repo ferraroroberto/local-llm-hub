@@ -57,6 +57,12 @@ def _time_wait(sample: Dict[str, Any]) -> Optional[int]:
     return (sample.get("tcp") or {}).get("time_wait")
 
 
+def who(holder: Dict[str, Any]) -> str:
+    """A holder's name, with its repo and entry point in brackets when the watch could read them."""
+    label = holder.get("label")
+    return f"{holder['name']} ({label})" if label else holder["name"]
+
+
 def _top_holder(sample: Dict[str, Any], protocol: str) -> Optional[Dict[str, Any]]:
     holders = [h for h in sample.get("holders", []) if h.get(protocol)]
     return max(holders, key=lambda h: h[protocol]) if holders else None
@@ -80,7 +86,7 @@ def _pressure_finding(history, cfg, now, metric, read, label, unit, protocol) ->
     used = (at.get(protocol) or {}).get("used") if protocol else None
     if holder:
         process = holder["name"]
-        reason += f", mostly {process} ({fmt_count(holder[protocol])} ports)"
+        reason += f", mostly {who(holder)} ({fmt_count(holder[protocol])} ports)"
         if used and holder[protocol] / used >= float(cfg.get("attribution_share", 0.5)):
             fix = restart_fix(process, cfg)
     return {"level": level, "kind": "system", "metric": metric, "value": value, "process": process,
@@ -121,7 +127,7 @@ def snapshot_text(event: Dict[str, Any]) -> str:
         # Ranked by the event's own protocol, so the count shown is that protocol's, not tcp + udp.
         label = f"{LABELS[protocol]} ports" if protocol in LABELS else "ports"
         parts.append("top holders " + ", ".join(
-            f"{h['name']} ({fmt_count(h.get(protocol, h['ports']))} {label})" for h in holders[:3]))
+            f"{who(h)} ({fmt_count(h.get(protocol, h['ports']))} {label})" for h in holders[:3]))
     unread = sorted(p for p, state in (snap.get("probes") or {}).items() if state != "ok")
     if not parts:
         return f"snapshot {delay} found no holders: not confirmed (the burst may have drained)"
@@ -143,7 +149,7 @@ def peak_text(event: Dict[str, Any]) -> str:
     holders = peak.get("holders") or []
     if peak["confirmed"]:
         return f"peak {label} holders in the {span}: " + ", ".join(
-            f"{h['name']} {fmt_count(h['peak'])} at {time.strftime('%H:%M:%S', time.localtime(h['at']))}"
+            f"{who(h)} {fmt_count(h['peak'])} at {time.strftime('%H:%M:%S', time.localtime(h['at']))}"
             f" (from {fmt_count(h['low'])})" for h in [h for h in holders if h["peak"] - h["low"] >= peak["min_rise"]][:3])
     if not peak["samples"]:
         return f"the {span} held no readable {label} tally, so the peak holder is not confirmed"
@@ -232,7 +238,7 @@ def offenders(history: Sequence[Dict[str, Any]], now: float, per_list: int = 5) 
     out = []
     for h in history[-1].get("holders", [])[:per_list]:
         rate = _slope(series.get((h["pid"], h["name"]), []))
-        out.append({"name": h["name"], "pid": h["pid"], "value": h["ports"], "tcp": h["tcp"], "udp": h["udp"],
+        out.append({"name": h["name"], "label": h.get("label"), "pid": h["pid"], "value": h["ports"], "tcp": h["tcp"], "udp": h["udp"],
                     "rate_per_hour": None if rate is None else round(rate, 1)})
     return out
 
