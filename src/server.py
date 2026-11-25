@@ -23,6 +23,7 @@ Shapes exposed:
                                  subscription-CLI backends
   * POST /v1/chat/completions  - OpenAI shape (passthrough/translation)
   * GET  /v1/models            - union of enabled names (both shapes)
+  * GET  /healthz, /api/version - fleet liveness + build identity (`health_routes.py`)
   * POST /v1/audio/transcriptions, /v1/audio/translations
     GET  /v1/audio/health      - ASR proxy (`server_audio_asr.py`)
   * POST /v1/audio/speech      - TTS proxy (`server_audio_tts.py`)
@@ -70,11 +71,13 @@ from .audio.server_audio_asr import router as _audio_router
 from .compression import StreamSafeGZipMiddleware
 from .cors_policy import install_cors
 from .host_profile import hub_bind_host, hub_port
+from .health_routes import health_router
 from .hub_log import install_root_handler
 from .hub_observability import ObservatoryMiddleware
 from .images.server_images import router as _images_router
 from .model_registry import enabled_models
 from .observability import init_otel, instrument_fastapi_app
+from .process.process_identity import IDENTITY
 from .routes.anthropic_errors import install_anthropic_error_handlers
 from .routes.anthropic_messages import router as _anthropic_router
 from .routes.openai_chat import router as _openai_router
@@ -244,6 +247,8 @@ def info() -> Dict[str, Any]:
         "description": "Multi-model hub: Anthropic-shape + OpenAI-shape over Claude / Gemini / Qwen / GLM.",
         "endpoints": {
             "health": "GET /health",
+            "healthz": "GET /healthz",
+            "version": "GET /api/version",
             "audio_health": "GET /v1/audio/health",
             "messages": "POST /v1/messages",
             "count_tokens": "POST /v1/messages/count_tokens",
@@ -264,6 +269,15 @@ def favicon() -> Response:
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}
+
+
+# The fleet's standard liveness and build identity routes; /health stays for
+# its current callers. /api/version is gated by ParentBearerTokenMiddleware
+# (loopback bypasses), /healthz is exempt there.
+app.include_router(health_router(
+    service="local-llm-hub",
+    identity={"git_sha": IDENTITY["git_sha"], "built_at": IDENTITY["built_at"]},
+))
 
 
 @app.get("/v1/models")

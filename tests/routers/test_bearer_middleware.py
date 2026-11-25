@@ -163,3 +163,19 @@ def test_parent_no_token_configured_still_admits_non_loopback(monkeypatch):
     client = TestClient(server_mod.app)
     r = client.get("/v1/models", headers=_PROXY_HEADERS)
     assert r.status_code == 200
+
+
+def test_parent_healthz_is_open_and_version_stays_gated(monkeypatch):
+    """The vendored health routes: /healthz answers any caller, /api/version
+    keeps the parent gate (loopback bypasses) and serves the process identity."""
+    from src.process.process_identity import IDENTITY
+
+    _patch_parent_token(monkeypatch, "parentsecret")
+    client = TestClient(server_mod.app)
+    r = client.get("/healthz", headers=_PROXY_HEADERS)
+    assert r.status_code == 200
+    assert r.json() == {"ok": True, "service": "local-llm-hub"}
+    assert client.get("/api/version", headers=_PROXY_HEADERS).status_code == 401
+    r = client.get("/api/version")
+    assert r.status_code == 200
+    assert r.json() == {"git_sha": IDENTITY["git_sha"], "built_at": IDENTITY["built_at"]}
