@@ -379,6 +379,7 @@ PARENT_AUTH_EXEMPT_EXACT = frozenset(
     {
         "/",
         "/health",
+        "/healthz",
         "/info",
         "/favicon.ico",
         "/docs",
