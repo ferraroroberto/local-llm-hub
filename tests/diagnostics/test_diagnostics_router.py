@@ -25,9 +25,10 @@ from src.usage import agentsview_service
 _TICK_WAIT_S = 10.0
 
 # The capture tests share the sampler's module-level stop event, lock and
-# active-run state across one event loop per TestClient; on the Mac they fail a
-# different test each run (an "interrupted run" finalising into the next test's
-# database), so the unit leg excludes the module and the Windows gate runs it.
+# active-run state across one event loop per TestClient, and the Mac nightly has
+# not confirmed the module green since the startup orphan sweep stopped closing
+# runs this hub started (see test_diagnostics_startup.py), so the unit leg still
+# excludes it and the Windows gate runs it.
 pytestmark = pytest.mark.windows_only
 
 
