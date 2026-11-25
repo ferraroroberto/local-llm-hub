@@ -422,7 +422,8 @@ def test_a_window_with_nothing_unusual_says_the_holder_is_not_confirmed(rig):
     assert event["peak"]["confirmed"] is False
     assert event["peak"]["holders"][0]["name"] == "steady.exe"  # the data stays for the reader
     reason = next(f for f in rig.pw.current(now=T0)["findings"] if f["metric"] == "tcpip_4266")["reason"]
-    assert "peak holder not confirmed: no process rose by 50 or more UDP ports" in reason
+    assert "peak holder not confirmed: largest rise 0 ports, too small to exhaust the range" in reason
+    assert "steady.exe" not in reason.split("peak holder not confirmed")[1]  # a mover that cannot account for the event is never named
     assert "can fall between two tallies" in reason
 
 
@@ -444,12 +445,51 @@ def test_an_empty_window_and_a_window_that_starts_after_the_event_are_not_confir
     assert any("the window starts after the event" in f["reason"] for f in found)
 
 
+def _big_range_watch(rig):
+    """A watch on a real-sized 16,384-port range, where 83 ports is half a percent of it."""
+    big = {"tcp": (49_152, 65_535), "udp": (49_152, 65_535)}
+    return port_watch.PortWatch(port_probe.PortProbe(rig.table, NAMES.get, big), rig.store,
+                                read_events=lambda lookback: list(rig.events))
+
+
+def test_a_small_rise_on_a_big_range_is_not_the_confirmed_holder(rig):
+    pw = _big_range_watch(rig)
+    ports = _cfg()["ports"]
+    for age in range(59, -1, -1):
+        rig.table.set(tcp=_endpoints(101, 83 if 10 <= age <= 12 else 5, start=49_152))
+        pw.record_window(ports, now=T0 - age)
+    rig.table.set(tcp=_endpoints(101, 5, start=49_152))
+    rig.events.append(_event(80, T0 - 20, 4231))
+    pw.tick(_cfg(), now=T0)
+    (event,) = rig.store.events_since(T0 - 60)
+    peak = event["peak"]
+    assert peak["confirmed"] is False and peak["largest_rise"] == 78 and peak["range_size"] == 16_384
+    assert peak["holders"][0]["name"] == "burst.exe"  # the row stays for the reader
+    reason = next(f for f in pw.current(now=T0)["findings"] if f["metric"] == "tcpip_4231")["reason"]
+    assert "largest rise 78 ports, too small to exhaust the range" in reason
+    assert "burst.exe" not in reason.split("peak holder not confirmed")[1]  # the snapshot clause is separate
+
+
+def test_a_pid_that_rises_by_a_quarter_of_a_big_range_is_the_confirmed_holder(rig):
+    pw = _big_range_watch(rig)
+    ports = _cfg()["ports"]
+    for age in range(59, -1, -1):
+        rig.table.set(tcp=_endpoints(101, 4_101 if age == 12 else 5, start=49_152))
+        pw.record_window(ports, now=T0 - age)
+    rig.events.append(_event(81, T0 - 20, 4231))
+    pw.tick(_cfg(), now=T0)
+    (event,) = rig.store.events_since(T0 - 60)
+    assert event["peak"]["confirmed"] is True and event["peak"]["largest_rise"] == 4_096
+    reason = next(f for f in pw.current(now=T0)["findings"] if f["metric"] == "tcpip_4231")["reason"]
+    assert "burst.exe" in reason and "(from 5)" in reason
+
+
 def test_the_window_drops_what_aged_out_and_a_table_that_failed_is_not_a_zero(rig):
     ports = _cfg(window_s=10)["ports"]
     for age in range(30, -1, -1):
         rig.table.set(udp=_endpoints(101, 60))
         rig.pw.record_window(ports, now=T0 - age)
-    peak = rig.pw._window.peaks("udp", event_ts=T0 - 5, top_n=5, min_rise=50)
+    peak = rig.pw._window.peaks("udp", event_ts=T0 - 5, top_n=5, range_size=100, confirm_percent=25)
     assert peak["samples"] == 11 and peak["from"] == T0 - 10
 
     def half_broken(protocol):
@@ -460,7 +500,7 @@ def test_the_window_drops_what_aged_out_and_a_table_that_failed_is_not_a_zero(ri
     broken = port_watch.PortWatch(port_probe.PortProbe(half_broken, NAMES.get, RANGES), rig.store,
                                   read_events=lambda lookback: [])
     broken.record_window(ports, now=T0)
-    unread = broken._window.peaks("udp", event_ts=T0, top_n=5, min_rise=50)
+    unread = broken._window.peaks("udp", event_ts=T0, top_n=5, range_size=100, confirm_percent=25)
     assert unread["samples"] == 0 and unread["unread"] == 1 and unread["confirmed"] is False
 
 

@@ -14,6 +14,7 @@ than that nothing held the ports.
 
 from __future__ import annotations
 
+import math
 import threading
 from collections import deque
 from typing import Any, Callable, Deque, Dict, List, Tuple
@@ -47,12 +48,16 @@ class PortWindow:
             live = {pid for _, _, held in self._entries for pid in held}
             self._names = {pid: name for pid, name in self._names.items() if pid in live}
 
-    def peaks(self, protocol: str, *, event_ts: float, top_n: int, min_rise: int) -> Dict[str, Any]:
+    def peaks(self, protocol: str, *, event_ts: float, top_n: int, range_size: int,
+              confirm_percent: float) -> Dict[str, Any]:
         """Who held the most ``protocol`` endpoints in the window, each with the second it peaked
         and its lowest count (``low``, 0 when absent). ``confirmed`` is true only when the window
-        reaches back to the event and some process rose by ``min_rise`` or more: a steady holder
-        is a bystander, and an empty or unreadable window confirms nothing."""
+        reaches back to the event and some process rose by ``confirm_percent`` of ``range_size``
+        or more: a process that moved by a sliver of the range cannot have exhausted it, a steady
+        holder is a bystander, and an empty or unreadable window confirms nothing. ``largest_rise``
+        is the biggest rise of any process, so a small mover is still reported as just that."""
         index = _PROTOCOL_INDEX[protocol]
+        min_rise = max(1, math.ceil(range_size * confirm_percent / 100))
         with self._lock:
             entries = list(self._entries)
             names = dict(self._names)
@@ -60,7 +65,8 @@ class PortWindow:
         out: Dict[str, Any] = {
             "protocol": protocol, "samples": len(readable), "unread": len(entries) - len(readable),
             "from": entries[0][0] if entries else None, "to": entries[-1][0] if entries else None,
-            "min_rise": min_rise, "holders": [], "confirmed": False,
+            "range_size": range_size, "min_rise": min_rise, "largest_rise": 0, "holders": [],
+            "confirmed": False,
         }
         out["covers_event"] = bool(entries) and entries[0][0] <= event_ts
         if not readable:
@@ -79,6 +85,7 @@ class PortWindow:
                  "low": low if pid in present_always else 0}
                 for pid, (peak, at, low) in stats.items() if peak]
         rows.sort(key=lambda r: r["peak"], reverse=True)
-        out["confirmed"] = out["covers_event"] and any(r["peak"] - r["low"] >= min_rise for r in rows)
+        out["largest_rise"] = max((r["peak"] - r["low"] for r in rows), default=0)
+        out["confirmed"] = out["covers_event"] and out["largest_rise"] >= min_rise
         out["holders"] = rows[:top_n]
         return out
