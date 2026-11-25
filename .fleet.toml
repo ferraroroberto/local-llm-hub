@@ -12,6 +12,9 @@ chips       = ["claude -p", "agy gemini", "qwen35-4b :8088", "gemma-26b :8087", 
 # trees live under assets/deploy/, so no extra root is declared.
 shape       = "service"
 extra_roots = []
+# setup.bat is the clone-and-setup entry point a new PC runs by name from the clone root (docs/install.md);
+# the service shape's root-file set has no installer launcher.
+extra_root_files = ["setup.bat"]
 # Contracts with the rest of the fleet (schema: fleet-config architecture/README.md).
 # whisper :8090 is voice-transcriber's server, shared as a lock with the automation repo.
 interfaces = [
@@ -35,6 +38,37 @@ ignore_refs = [
 # worktree_junction_targets() in fleet-config/skills/_lib/worktree_claim.py.
 [worktree]
 extra_junctions = ["vendor/comfyui"]
+
+# Clone-and-setup installer (src/installer.py, run by setup.bat; project-scaffolding
+# docs/installer.md; the playbook is docs/install.md). `samples` is empty on purpose: the
+# folder scan would create config/aliases.local.json and
+# config/transcription_glossary.local.json from their samples, and those samples carry
+# placeholder vocabulary that the hub would then feed to whisper as real boost terms. Every
+# pair is declared instead. Not created by design: config/machines.local.yaml and
+# config/cloudflared.yml (a sample copy would name placeholder peers or start a tunnel),
+# config/startup_profile.json (the code falls back to its template, and the admin UI
+# rewrites it), and the files the hub itself writes (diagnostics_settings.json,
+# worker_pools.json, fleet_maintenance.json, app_password.json).
+[install]
+requirements = "requirements.txt"
+samples      = []
+settings     = ["config/webapp_config.json"]
+
+[[install.config]]
+sample = "config/webapp_config.sample.json"
+target = "config/webapp_config.json"
+
+# Model weights and the llama.cpp / whisper.cpp / TTS binaries are the hub's own installer's job
+# (gigabytes, so never part of setup.bat); this item only reports whether they are in place.
+[[install.check]]
+name    = "Model files and backends"
+command = ["{python}", "-m", "src.install"]
+hint    = "download them with: .venv\\Scripts\\python.exe -m src.install --fix"
+
+[[install.check]]
+name  = "ffmpeg (browser-recorded audio uploads)"
+which = "ffmpeg"
+hint  = "only the host that receives audio uploads needs it"
 
 # Nightly CI on the Mac Mini (project-scaffolding docs/mac-runner.md, "The
 # [ci.nightly] table"): the unit leg skips tests marked `windows_only`, the e2e leg
@@ -106,6 +140,10 @@ prefix     = "docs/"
 [[e2e.rule]]             # markdown anywhere -> none
 tier       = "none"
 extensions = ["md"]
+
+[[e2e.rule]]             # the installer launcher -> none
+tier = "none"
+path = "setup.bat"
 
 [[e2e.rule]]             # this file itself -> none
 tier = "none"
@@ -222,6 +260,7 @@ no_window = { src = "src/no_window.py", sha = "fe8cc1bdbd038ed65947186248df13072
 single_instance = { src = "app/tray/single_instance.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "tray/single_instance.py" }
 toast = { src = "app/webapp/static/_vendored/toast", sha = "e56c8330f8500b83635773033a09de6fc3cba342", dest = "app_web/static/_vendored/toast" }
 build-watch = { src = "app/webapp/static/_vendored/build-watch", sha = "48602060fffdacbcdcdde66b9886c6471d835ff3", dest = "app_web/static/_vendored/build-watch" }
+installer = { src = "src/installer.py", sha = "c23c5bf575a3f375a4ddbfb99a31763a80c6bee5", dest = "src/installer.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet.py, which fails on a

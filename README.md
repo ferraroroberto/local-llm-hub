@@ -29,6 +29,7 @@ mechanisms.
 - **Health watch** — per-machine leak and pressure verdict with a restart-or-reboot fix, a 30 s port-exhaustion watch that names the process holding the ports, plus a one-minute RAM, free-space and per-disk latency watch with Telegram alerts and a weekly stall summary: [docs/health-watch.md](docs/health-watch.md).
 - **Mac results** — the nightly Mac screenshots pulled over a read-only SSH key and sent to the owner's chat, once per run, plus a red `main` filed as an issue, a flake ledger and a morning digest line: [docs/mac-results.md](docs/mac-results.md).
 - **E2E harness** — how the Playwright suite stays off the loopback ephemeral-port pool and names a drained one: [docs/e2e-loopback-ports.md](docs/e2e-loopback-ports.md).
+- **Install** — a new PC, an update, moving an existing install (what to carry over) and uninstall: [docs/install.md](docs/install.md).
 - **Running** — launchers, tray, Cloudflare tunnel, server adoption, LAN access: [docs/running.md](docs/running.md).
 - **API usage** — Python/curl examples, token counting, audio and image calls, headers, CORS, the TypeSafe passthrough: [docs/api-usage.md](docs/api-usage.md).
 - **Coding-agent usage** — the Code tab's usage accounting and the cached per-day, per-agent `GET /admin/api/code/usage/history`: [docs/coding-agent-usage.md](docs/coding-agent-usage.md). The same history feeds a weekly per-agent digest and a token-budget alert on Telegram (`config/usage_digest.json`).
@@ -84,8 +85,11 @@ use.
 
 ## Setup
 
-One command does everything — deps, llama.cpp binary, GGUF downloads
-for the models enabled for this host:
+On a new Windows PC, `git clone` then `setup.bat`; updating and moving an
+existing install are in [docs/install.md](docs/install.md). `setup.bat` creates
+the venv and the missing config; the models and backends come from one more
+command — deps, llama.cpp binary, GGUF downloads for the models enabled for
+this host:
 
 ```bat
 .venv\Scripts\python -m pip install -r requirements.txt
