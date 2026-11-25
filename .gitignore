@@ -133,3 +133,6 @@ config/app_password.json
 
 # Timestamped backups setup.bat leaves beside a config it topped up (they hold the old values).
 config/*.bak-*
+
+# Top-up backups of a settings file hold its values (src/installer.py)
+*.json.bak-*
