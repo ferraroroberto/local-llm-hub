@@ -70,8 +70,8 @@ from .audio import server_audio_tts as _server_audio_tts  # noqa: F401 — regis
 from .audio.server_audio_asr import router as _audio_router
 from .compression import StreamSafeGZipMiddleware
 from .cors_policy import install_cors
-from .host_profile import hub_bind_host, hub_port
 from .health_routes import health_router
+from .host_profile import hub_bind_host, hub_port
 from .hub_log import install_root_handler
 from .hub_observability import ObservatoryMiddleware
 from .images.server_images import router as _images_router
