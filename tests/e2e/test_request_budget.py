@@ -19,7 +19,8 @@ beacon, sent once at the moment the tab hides because that is the last chance to
 report the visit. It does not repeat, so the rest of the hidden minute must stay
 at zero.
 
-Runs under Chromium only; `page.clock` needs Playwright 1.45+.
+Runs on Chromium and WebKit (the Mac nightly and the gate's WebKit stage); `page.clock` needs
+Playwright 1.45+.
 """
 
 from __future__ import annotations
@@ -38,6 +39,9 @@ from tests.e2e.budget._request_budget import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 _STREAMS = ("**/admin/api/hub/requests/stream", "**/admin/api/hub/log/tail")
+# The same two streams as path prefixes: WebKit announces their `request` event after the load
+# settles, so the probe is told they are streams and keeps that boot open out of the visible minute.
+_STREAM_PATHS = ("/admin/api/hub/requests/stream", "/admin/api/hub/log/tail")
 # The usage log's one send at hide (`session_end`); see the module docstring.
 _HIDE_BEACON = "/admin/api/usage/events"
 # An hour, in ms: longer than the two fake minutes plus the real time the probe takes.
@@ -56,7 +60,7 @@ def test_main_page_keeps_its_request_budget(browser, hub_url: str) -> None:
         page.set_default_navigation_timeout(PHASE_TIMEOUT_MS)
         for pattern in _STREAMS:
             page.route(pattern, _end_stream)
-        reading = measure_request_budget(page, f"{hub_url}/admin/", api_prefix="/admin/api/")
+        reading = measure_request_budget(page, f"{hub_url}/admin/", api_prefix="/admin/api/", stream_paths=_STREAM_PATHS)
         beacons = reading.hidden.pop(_HIDE_BEACON, 0)
         assert beacons <= 1, f"the usage log beacons once at hide, not {beacons} times: {reading.summary()}"
         assert_request_budget(reading, visible_budget(REPO_ROOT))
