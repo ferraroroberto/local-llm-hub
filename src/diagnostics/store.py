@@ -291,19 +291,24 @@ def finish_run(run_id: str, *, status: RunStatus = RunStatus.COMPLETE) -> None:
         )
 
 
-def close_orphan_runs() -> int:
+def close_orphan_runs(started_before: Optional[float] = None) -> int:
     """Close runs still marked ``running`` from a previous hub process.
 
     Called at hub startup: the sampler lives in-process, so any run still
     open in the DB belongs to a hub that died mid-capture. Marking them
     ``interrupted`` (rather than deleting) keeps whatever they did record
-    minable, and stops a stale row from looking like a live capture."""
+    minable, and stops a stale row from looking like a live capture.
+
+    ``started_before`` is the booting hub's start time. The sweep runs as a
+    background task, so it can land after this hub has begun a capture of its
+    own; only a run that began before the boot can be a predecessor's."""
+    sql = "UPDATE runs SET ended_at = COALESCE(ended_at, ?), status = ? WHERE status = ?"
+    args: list = [time.time(), RunStatus.INTERRUPTED.value, RunStatus.RUNNING.value]
+    if started_before is not None:
+        sql += " AND started_at < ?"
+        args.append(started_before)
     with connect() as conn:
-        cur = conn.execute(
-            "UPDATE runs SET ended_at = COALESCE(ended_at, ?), status = ?"
-            " WHERE status = ?",
-            (time.time(), RunStatus.INTERRUPTED.value, RunStatus.RUNNING.value),
-        )
+        cur = conn.execute(sql, args)
         count = cur.rowcount or 0
     if count:
         logger.info("🧹 diagnostics: closed %d orphaned run(s) from a previous hub", count)

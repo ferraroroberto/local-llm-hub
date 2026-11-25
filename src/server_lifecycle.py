@@ -158,7 +158,7 @@ async def wire_observatory_loop() -> None:
     # Diagnostics: close any capture orphaned by a previous hub
     # and arm the scheduled snapshot if it's enabled. No task is created when
     # it's off — the feature costs nothing until asked for.
-    _BACKGROUND_TASKS.append(loop.create_task(_init_diagnostics()))
+    _BACKGROUND_TASKS.append(loop.create_task(_init_diagnostics(time.time())))
     # Machine health watch: one cheap sample every 10 min (handles, commit,
     # pools, ports) so a slow leak is flagged before it forces a reboot.
     _BACKGROUND_TASKS.append(loop.create_task(_health_watch_loop()))
@@ -220,19 +220,22 @@ async def _autostart_configured_backends() -> None:
             logger.warning("⚠️ autostart: %s -> %s (%s)", model_id, outcome.detail, outcome.kind.value)
 
 
-async def _init_diagnostics() -> None:
+async def _init_diagnostics(boot_ts: float) -> None:
     """Diagnostics startup housekeeping.
 
-    The sampler lives in-process, so a run still marked ``running`` in the DB
-    belongs to a hub that died mid-capture — close it so a stale row never
-    looks like a live capture. Then arm the opt-in scheduled snapshot. Both
-    are best-effort: diagnostics must never keep the hub from starting.
+    The sampler lives in-process, so a run that began before ``boot_ts`` and
+    is still marked ``running`` in the DB belongs to a hub that died
+    mid-capture — close it so a stale row never looks like a live capture.
+    Runs from ``boot_ts`` on are this hub's own: this task is scheduled, not
+    awaited, so it can run after one has started. Then arm the opt-in
+    scheduled snapshot. Both are best-effort: diagnostics must never keep the
+    hub from starting.
     """
     try:
         from .diagnostics import sampler, store
         from .diagnostics import settings as diag_settings
 
-        await run_on(BACKGROUND, store.close_orphan_runs)
+        await run_on(BACKGROUND, store.close_orphan_runs, boot_ts)
         cfg = diag_settings.load_settings()
         if cfg.scheduled_enabled:
             await sampler.start_scheduled_snapshots(
