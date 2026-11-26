@@ -1,8 +1,11 @@
-"""Post-process whisper transcripts through a committed glossary.
+"""Post-process whisper transcripts through the transcription glossary.
 
 This implements the **replacement-rules half** of a Wispr-Flow-style
-dictionary. The two-part dictionary lives in one committed
-file, ``config/transcription_glossary.json``:
+dictionary. The two-part dictionary lives in one file,
+``config/transcription_glossary.json``. That live file is gitignored, because
+the admin editor rewrites it and a tracked file it dirtied would block
+``git pull --ff-only``; until the first save writes it, every reader uses the
+committed ``config/transcription_glossary.sample.json``. Its two parts:
 
   * ``replacements`` — an *ordered* list of literal ``{"from", "to"}``
     rules applied to the transcript text **after** whisper returns it.
@@ -48,6 +51,8 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_GLOSSARY_PATH = PROJECT_ROOT / "config" / "transcription_glossary.json"
+# Committed starting dictionary: read while the live file is absent, never written.
+SAMPLE_GLOSSARY_PATH = PROJECT_ROOT / "config" / "transcription_glossary.sample.json"
 DEFAULT_LOCAL_BOOST_PATH = PROJECT_ROOT / "config" / "transcription_glossary.local.json"
 DEFAULT_ALIAS_PATH = PROJECT_ROOT / "config" / "aliases.local.json"
 
@@ -64,6 +69,15 @@ class Rule(NamedTuple):
 
     pattern: "re.Pattern[str]"
     replacement: str
+
+
+def _source_path(path: Optional[str]) -> Path:
+    """The dictionary to read: ``path`` verbatim, else the live file, else the sample."""
+    if path:
+        return Path(path)
+    if DEFAULT_GLOSSARY_PATH.exists():
+        return DEFAULT_GLOSSARY_PATH
+    return SAMPLE_GLOSSARY_PATH
 
 
 def _compile_rules(replacements: List[Dict[str, str]]) -> List[Rule]:
@@ -131,7 +145,7 @@ def load_rules(
     glossary's own ``replacements``. Returns an empty tuple if neither file
     yields rules — a broken glossary must never break transcription.
     """
-    target = Path(path) if path else DEFAULT_GLOSSARY_PATH
+    target = _source_path(path)
     replacements: List[Dict[str, str]] = []
     if target.exists():
         data = read_json(target, "transcription glossary")
@@ -160,11 +174,11 @@ def load_boost_terms(
     land in this public repo (e.g. a caller's private proper nouns).
     Missing overlay file is a silent no-op. The overlay is **not** visible
     to :func:`load_glossary`/:func:`save_glossary` (the admin editor round
-    trip), so editing the committed dictionary in-app can never leak or
+    trip), so editing the dictionary in-app can never leak or
     overwrite it. The alias file (:func:`load_aliases`) is likewise outside
     the editor round trip.
     """
-    target = Path(path) if path else DEFAULT_GLOSSARY_PATH
+    target = _source_path(path)
     terms: List[str] = []
     data = read_json(target, "transcription glossary")
     raw = data.get("boost_terms", []) if isinstance(data, dict) else []
@@ -224,7 +238,7 @@ def _configured_budget(target: Path) -> Optional[int]:
 
 def load_boost_budget(path: Optional[str] = None) -> int:
     """Token budget for the boost prompt (file value, else the default)."""
-    target = Path(path) if path else DEFAULT_GLOSSARY_PATH
+    target = _source_path(path)
     return _configured_budget(target) or DEFAULT_BOOST_TOKEN_BUDGET
 
 
@@ -283,7 +297,7 @@ def load_glossary(path: Optional[str] = None) -> Dict[str, Any]:
     JSON shape the admin editor round-trips. Missing/unparseable file →
     empty lists, never an error.
     """
-    target = Path(path) if path else DEFAULT_GLOSSARY_PATH
+    target = _source_path(path)
     if not target.exists():
         return {"replacements": [], "boost_terms": []}
     data = read_json(target, "transcription glossary")
@@ -346,7 +360,7 @@ def save_glossary(data: Dict[str, Any], path: Optional[str] = None) -> Dict[str,
     clean = normalize_glossary(data)
     persisted = dict(clean)
     # The editor never sends the budget; carry a hand-set one across the save.
-    budget = _configured_budget(target)
+    budget = _configured_budget(_source_path(path))
     if budget is not None:
         persisted["boost_token_budget"] = budget
     atomic_write_text(

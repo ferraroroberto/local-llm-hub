@@ -46,8 +46,8 @@ extra_junctions = ["vendor/comfyui"]
 # placeholder vocabulary that the hub would then feed to whisper as real boost terms. Every
 # pair is declared instead. Not created by design: config/machines.local.yaml and
 # config/cloudflared.yml (a sample copy would name placeholder peers or start a tunnel),
-# config/startup_profile.json (the code falls back to its template, and the admin UI
-# rewrites it), and the files the hub itself writes (diagnostics_settings.json,
+# config/startup_profile.json and config/transcription_glossary.json (the code falls back to
+# the committed template, and the admin UI rewrites them), and the files the hub itself writes (diagnostics_settings.json,
 # worker_pools.json, fleet_maintenance.json, app_password.json).
 [install]
 requirements = "requirements.txt"

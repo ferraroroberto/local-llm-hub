@@ -243,7 +243,8 @@ failover drill — see [docs/fleet-maintenance.md](fleet-maintenance.md).
 **Transcription glossary.** Requests that go through the hub's audio
 proxy (`:8000/v1/audio/*`) get a deterministic post-processing pass that
 fixes persistent domain-term misspellings (e.g. "cloud code" → "Claude
-Code"). The rules live in [config/transcription_glossary.json](../config/transcription_glossary.json)
+Code"). The rules live in the gitignored `config/transcription_glossary.json`
+(the committed [sample](../config/transcription_glossary.sample.json) until the first save)
 — an ordered list of literal `{"from","to"}` replacements
 (case-insensitive, word-boundary, longest-phrase-first) plus a
 `boost_terms` vocabulary. Edit it from the **📖 button on any whisper row

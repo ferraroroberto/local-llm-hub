@@ -95,6 +95,11 @@ config/webapp_config.json
 config/tts_voices/
 config/cloudflared.yml
 
+# Live transcription dictionary — the admin's dictionary editor rewrites it, so
+# it must not be tracked. config/transcription_glossary.sample.json is the
+# committed starting dictionary, read until the first save writes this file.
+config/transcription_glossary.json
+
 # Local-only transcription boost_terms overlay (issue #290) — private
 # vocabulary (e.g. a caller's proper nouns) that must never be committed.
 # Sample file is committed as config/transcription_glossary.local.sample.json.
