@@ -59,7 +59,7 @@ git pull --ff-only
 
 `tray.bat --restart` stops only the hub on `:8000` and starts a fresh one. It leaves whisper on `:8090` and the llama-server ports alone. Confirm the new build at `http://127.0.0.1:8000/admin/api/version`: its `git_sha` is the one you pulled.
 
-The pull is a fast-forward only while the tracked tree is clean. Two tracked files are written by the hub itself: `config/models.yaml`, which the admin's placement cards commit and push from the one host named by `hub.config_write_host`, and `config/transcription_glossary.json`, which the dictionary editor rewrites in place. An edit to the dictionary left uncommitted makes `git pull --ff-only` refuse; commit it or restore it first.
+The pull is a fast-forward only while the tracked tree is clean. The one tracked file the hub writes itself is `config/models.yaml`, which the admin's placement cards commit and push from the one host named by `hub.config_write_host`, so the tree stays clean.
 
 ## Migrate from an existing install
 
@@ -75,7 +75,7 @@ Where the state lives decides what you copy:
 2. **Copy these across.** From the old folder into the new one, keeping their relative paths. They are all git-ignored, so nothing tracked is touched, and a path the old copy does not have is simply skipped. Never open them to check: the first three hold secrets.
    - secrets and sign-in: `.env`, `config/webapp_config.json` (bearer token, password, tailnet allowlist, CORS origins), `config/app_password.json` (the sign-in hash);
    - this PC's own addressing and tunnel: `config/machines.local.yaml`, `config/cloudflared.yml`;
-   - vocabulary: `config/aliases.local.json`, `config/transcription_glossary.local.json`, and `config/transcription_glossary.json` if the dictionary editor changed it (it is tracked, so compare it with the clone's before overwriting);
+   - vocabulary: `config/aliases.local.json`, `config/transcription_glossary.local.json`, and `config/transcription_glossary.json` (the dictionary as the admin's editor last saved it);
    - settings the admin writes: `config/startup_profile.json` (service autostart), `config/worker_pools.json`, `config/diagnostics_settings.json`, `config/diagnostics_storage.local.json`, `config/fleet_maintenance.json`;
    - `config/tts_voices/` (voice-cloning reference clips), and `config/machine_specs.yaml` if present (`scripts/detect_machine_specs.py` regenerates it);
    - state in the repo: `data/code_usage_history.json`, `data/code_token_history.json`, `data/usage_digest_state.json` and `data/telemetry/`;

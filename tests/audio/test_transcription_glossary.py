@@ -120,13 +120,13 @@ def test_apply_to_response_empty_rules_is_byte_identical():
 
 
 # ---------------------------------------------------------------------------
-# Committed config loads + the seed rules are present
+# Committed sample loads + the seed rules are present
 # ---------------------------------------------------------------------------
 
 def test_committed_glossary_loads_seed_rules():
     load_rules.cache_clear()
     rules = load_rules()
-    assert rules, "committed config/transcription_glossary.json yielded no rules"
+    assert rules, "committed config/transcription_glossary.sample.json yielded no rules"
     body = json.dumps({"text": "cloud code with open claw and quen"}).encode("utf-8")
     out = json.loads(apply_to_response(body, "application/json", rules))
     assert out["text"] == "Claude Code with openClaw and Qwen"

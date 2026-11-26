@@ -141,8 +141,24 @@ transcribing general multilingual audio should select the glossary-free
 A two-part, Wispr-Flow-style dictionary. The **boosting** half (above)
 biases recognition; the **replacement** half (below) deterministically
 fixes what boosting can't. Both halves share one config file,
-[config/transcription_glossary.json](../config/transcription_glossary.json),
-but are independent.
+`config/transcription_glossary.json`, but are independent.
+
+That live file is gitignored, because the admin editor rewrites it and a
+dirtied tracked file would block `git pull --ff-only`. Until the first save
+writes it, every reader uses the committed starting dictionary,
+[config/transcription_glossary.sample.json](../config/transcription_glossary.sample.json).
+Once the live file exists it replaces the sample whole, so a later change to
+the sample does not reach that PC.
+
+A clone that still tracks the live file and has edited it refuses the pull that
+untracks it, with the edits intact. Carry them across once, in PowerShell:
+
+```powershell
+Copy-Item config/transcription_glossary.json config/transcription_glossary.json.keep
+git restore config/transcription_glossary.json
+git pull --ff-only
+Move-Item -Force config/transcription_glossary.json.keep config/transcription_glossary.json
+```
 
 ```json
 {
@@ -188,7 +204,7 @@ but are independent.
 
 The dictionary does not need hand-editing. In the admin SPA's **Models**
 tab, every whisper row carries a 📖 button that expands an inline editor
-for the shared `config/transcription_glossary.json` (one dictionary feeds
+for the shared dictionary (one dictionary feeds
 all whisper backends):
 
 - **Replacements** — add / edit / delete / reorder the ordered rules.
@@ -217,7 +233,7 @@ config lives in
 
 ### Private vocabulary — local overlay
 
-`config/transcription_glossary.json` is committed and public, which is fine
+The dictionary's committed sample is public, which is fine
 for dev/tech jargon but wrong for a caller with genuinely private vocabulary
 to bias toward — e.g. `home-automation`'s voice assistant needed whisper
 biased toward household member names, and those can't land in a
@@ -227,14 +243,14 @@ public repo.
 `config/transcription_glossary.local.json` (same `{"boost_terms": [...]}`
 shape; committed placeholder at
 [config/transcription_glossary.local.sample.json](../config/transcription_glossary.local.sample.json))
-and merges its terms in after the committed list. Missing file → no-op, same
-defensive pattern as the committed loader. Like the committed list, it only
+and merges its terms in after the dictionary's list. Missing file → no-op, same
+defensive pattern as the dictionary loader. Like the dictionary's list, it only
 binds on the **next whisper launch** (restart the `whisper` model row after
 editing it).
 
 The overlay is deliberately invisible to the admin SPA's glossary editor
 (`load_glossary()`/`save_glossary()`, `app_web/routers/glossary.py`) — that
-editor only ever reads/writes the committed file, so opening and saving it
+editor only ever reads/writes the dictionary file, so opening and saving it
 in-app can never leak or silently drop the local terms.
 
 ### Shared alias file
@@ -248,7 +264,7 @@ single home for proper-noun and mishear knowledge. It is a list of
 The hub derives both halves of the dictionary from it:
 
 - every `canonical` joins the whisper boost vocabulary (`load_boost_terms()`,
-  after the committed and local-overlay terms, skipping duplicates);
+  after the dictionary and local-overlay terms, skipping duplicates);
 - every `variant` becomes a replacement rule to its `canonical`
   (`load_rules()`, merged with the glossary's own `replacements`).
 
@@ -260,6 +276,6 @@ Consumers read the same data through the hub, never by copying the file:
 `GET /admin/api/aliases` returns `{"aliases": [...], "count": n}` and has no
 write route (any other method answers 405). The journal skill and the voice
 transcriber are the intended readers. The admin glossary editor still edits
-only the committed `config/transcription_glossary.json`; the alias file is
+only `config/transcription_glossary.json`; the alias file is
 hand-edited and invisible to that editor round trip, so saving in-app can
 never overwrite it.

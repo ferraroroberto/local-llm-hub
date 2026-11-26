@@ -18,9 +18,11 @@ from src.no_window import NO_WINDOW
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WEBAPP_SAMPLE = "config/webapp_config.sample.json"
 WEBAPP_TARGET = "config/webapp_config.json"
-# Their samples hold placeholder vocabulary or placeholder peers, so a created copy would act as real data.
+# Their samples hold placeholder vocabulary or placeholder peers, so a created copy would act as real data;
+# the dictionary and the startup profile are read from their committed template until the admin saves them.
 NEVER_CREATED = (
     "config/aliases.local.json",
+    "config/transcription_glossary.json",
     "config/transcription_glossary.local.json",
     "config/machines.local.yaml",
     "config/cloudflared.yml",

@@ -74,8 +74,11 @@ local-llm-hub/
 │   ├── dictionary_miner.json         # glossary-miner state
 │   ├── aliases.local.sample.json     # template for the gitignored shared alias file
 │   │                                  #   (canonical + variants; feeds boost terms and rules)
-│   └── transcription_glossary.json / transcription_glossary.local.sample.json  # whisper
-│                                      #   replacement-rules dictionary
+│   ├── transcription_glossary.sample.json # starting whisper dictionary (replacement rules +
+│   │                                  #   boost terms), read until the live file exists
+│   ├── transcription_glossary.json    # live dictionary, rewritten by the admin editor (gitignored)
+│   └── transcription_glossary.local.sample.json  # template for the gitignored private
+│                                      #   boost-term overlay
 ├── data/                     # runtime artefacts (gitignored)
 │   ├── logs/                    # per-backend stdout/stderr: backend-<id>.log (+ one .log.1 backup)
 │   └── diagnostics.db           # SQLite capture store
@@ -98,7 +101,7 @@ local-llm-hub/
 │   │   ├── server_audio_common.py    #   header-safety + upstream-error helpers shared by the two above
 │   │   ├── audio_normalize.py        #   decode browser WebM/Ogg uploads to 16 kHz mono wav (ffmpeg) before an ASR backend sees them
 │   │   ├── audio_proxy.py            #   shared multipart bridging + default-language lookup for the whisper transcribe/translate paths
-│   │   ├── transcription_glossary.py #   post-process whisper transcripts through a committed glossary
+│   │   ├── transcription_glossary.py #   post-process whisper transcripts through the transcription glossary
 │   │   └── dictionary_miner.py       #   mine recent dictation transcripts for glossary suggestions
 │   ├── images/               # /v1/images/* + the ComfyUI client
 │   │   ├── server_images.py          #   /v1/images/* handlers (generations, edits)

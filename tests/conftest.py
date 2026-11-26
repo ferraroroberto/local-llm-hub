@@ -142,6 +142,21 @@ def _isolate_alias_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
 
 
 @pytest.fixture(autouse=True)
+def _isolate_live_glossary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point the live dictionary at a missing temp path for every test.
+
+    ``config/transcription_glossary.json`` is this PC's own gitignored copy, so a
+    test reads the committed sample instead, and a save never reaches that file.
+    """
+    from src.audio import transcription_glossary
+
+    monkeypatch.setattr(
+        transcription_glossary, "DEFAULT_GLOSSARY_PATH", tmp_path / "no-glossary.json"
+    )
+    transcription_glossary.load_rules.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_diagnostics_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep every test's diagnostics writes off the real store.
 
