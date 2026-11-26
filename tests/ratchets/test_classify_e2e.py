@@ -48,6 +48,7 @@ def test_real_rules_route_representative_paths() -> None:
     assert tier("src/process/server_process.py") == "skip"
     assert tier("tray/tray.py") == "skip"
     assert tier("tests/backends/test_server_process.py") == "skip"
+    assert tier("tests/fixtures/llama_cpp_releases.json") == "skip"
     assert tier("docs/architecture.mmd") == "skip"
     assert tier("README.md") == "skip"
     assert tier(".ratchets/static.json") == "skip"

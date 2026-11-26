@@ -131,6 +131,11 @@ tier       = "none"
 prefix     = "tests/"
 extensions = ["py"]
 
+[[e2e.rule]]             # recorded data the unit tests read; the browser suite opens none of it -> none
+tier       = "none"
+prefix     = "tests/fixtures/"
+extensions = ["json"]
+
 [[e2e.rule]]             # tooling scripts (incl. this classifier) -> none
 tier       = "none"
 prefix     = "scripts/"
