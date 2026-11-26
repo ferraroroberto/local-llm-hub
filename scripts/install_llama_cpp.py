@@ -1,8 +1,9 @@
 """Download and extract a prebuilt llama.cpp release for the current platform.
 
-Picks a release asset that matches this machine:
-  - Windows x64 + NVIDIA  -> llama-<tag>-bin-win-cuda-13.1-x64.zip
-                             (plus cudart-llama-bin-win-cuda-13.1-x64.zip
+Takes the newest numbered build release (``b<N>``) that has the assets for
+this machine:
+  - Windows x64 + NVIDIA  -> llama-<tag>-bin-win-cuda-13.5-x64.zip
+                             (plus cudart-llama-bin-win-cuda-13.5-x64.zip
                               for the CUDA runtime DLLs)
   - macOS arm64           -> llama-<tag>-bin-macos-arm64.tar.gz
 
@@ -14,10 +15,11 @@ from __future__ import annotations
 
 import logging
 import platform
+import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _lib import (  # noqa: E402
@@ -36,11 +38,14 @@ log = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 VENDOR_DIR = PROJECT_ROOT / "vendor" / "llama.cpp"
-RELEASES_URL = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
+# The listing, not releases/latest: upstream's "latest" is a vX.Y.Z tag with no
+# binaries, while the builds ship on the numbered releases marked prerelease.
+RELEASES_URL = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=30"
+BUILD_TAG = re.compile(r"b(\d+)")
 
-# Prefer CUDA 13.1 on Windows (matches current driver/toolkit line; Blackwell
-# requires CUDA >=12.8 so the older 12.4 build is the fallback only).
-WIN_CUDA_PREFS = ["cuda-13.1", "cuda-12.4"]
+# Prefer the newest CUDA line on Windows (matches current driver/toolkit line;
+# Blackwell requires CUDA >=12.8 so the older 12.4 build is the fallback only).
+WIN_CUDA_PREFS = ["cuda-13.5", "cuda-13.1", "cuda-12.4"]
 
 
 def _server_binary() -> Path:
@@ -71,8 +76,8 @@ def _linux_cuda_build_hint() -> str:
 
 
 def _pick_assets(release: dict) -> List[dict]:
+    """The assets to install from one release; empty if it lacks this platform's build."""
     assets = release.get("assets") or []
-    names = [a["name"] for a in assets]
 
     def find(predicate) -> Optional[dict]:
         for a in assets:
@@ -81,21 +86,13 @@ def _pick_assets(release: dict) -> List[dict]:
         return None
 
     if sys.platform == "win32":
-        picks: List[dict] = []
         for cuda in WIN_CUDA_PREFS:
             main = find(lambda n, c=cuda: n.startswith("llama-") and c in n and "win" in n and "x64" in n and n.endswith(".zip"))
-            if main:
-                picks.append(main)
-                rt = find(lambda n, c=cuda: n.startswith("cudart-") and c in n and n.endswith(".zip"))
-                if rt:
-                    picks.append(rt)
-                break
-        if not picks:
-            raise InstallError(
-                f"no matching CUDA Windows asset in release {release.get('tag_name')}. "
-                f"assets available: {names}"
-            )
-        return picks
+            rt = find(lambda n, c=cuda: n.startswith("cudart-") and c in n and "win" in n and "x64" in n and n.endswith(".zip"))
+            # Both or neither: without the runtime DLLs llama-server runs on CPU.
+            if main and rt:
+                return [main, rt]
+        return []
 
     if sys.platform == "darwin":
         if platform.machine() != "arm64":
@@ -103,13 +100,30 @@ def _pick_assets(release: dict) -> List[dict]:
                 f"only darwin arm64 is supported; this is {platform.machine()}"
             )
         pick = find(lambda n: n.startswith("llama-") and "macos-arm64" in n and n.endswith((".zip", ".tar.gz")) and "kleidiai" not in n)
-        if not pick:
-            raise InstallError(
-                f"no macOS arm64 asset in release {release.get('tag_name')}. assets: {names}"
-            )
-        return [pick]
+        return [pick] if pick else []
 
     raise InstallError(f"unsupported platform: {sys.platform}")
+
+
+def _pick_release(releases: List[dict]) -> Tuple[str, List[dict]]:
+    """Tag and assets of the highest build number that has this platform's build."""
+    builds = []
+    for release in releases:
+        match = BUILD_TAG.fullmatch(release.get("tag_name") or "")
+        if match:
+            builds.append((int(match.group(1)), release))
+    builds.sort(key=lambda build: build[0], reverse=True)
+
+    for _, release in builds:
+        assets = _pick_assets(release)
+        if assets:
+            return release["tag_name"], assets
+
+    wanted = f"Windows x64 {'/'.join(WIN_CUDA_PREFS)}" if sys.platform == "win32" else "macOS arm64"
+    raise InstallError(
+        f"no {wanted} llama.cpp build in any of the {len(builds)} numbered releases "
+        f"among the {len(releases)} listed at {RELEASES_URL}"
+    )
 
 
 def main() -> int:
@@ -123,10 +137,8 @@ def main() -> int:
         # above; reaching here means it's missing and must be compiled.
         raise InstallError(_linux_cuda_build_hint())
 
-    release = fetch_release(RELEASES_URL)
-    tag = release.get("tag_name", "?")
-    assets = _pick_assets(release)
-    log.info("release %s: picking %d asset(s)", tag, len(assets))
+    tag, assets = _pick_release(fetch_release(RELEASES_URL))
+    log.info("release %s: picking %s", tag, ", ".join(a["name"] for a in assets))
 
     VENDOR_DIR.mkdir(parents=True, exist_ok=True)
     for a in assets:

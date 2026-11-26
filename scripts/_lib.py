@@ -26,6 +26,7 @@ import tarfile
 import urllib.request
 import zipfile
 from pathlib import Path
+from typing import Any
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
@@ -65,8 +66,9 @@ def detect_cuda_arch() -> str:
     return ""
 
 
-def fetch_release(url: str) -> dict:
-    """GET a GitHub releases API ``url`` and return the decoded JSON."""
+def fetch_release(url: str) -> Any:
+    """GET a GitHub releases API ``url`` and return the decoded JSON: one
+    release object, or a list of them for a listing URL."""
     log.info("querying %s ...", url)
     req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(req, timeout=30) as r:
