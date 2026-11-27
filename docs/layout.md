@@ -233,7 +233,7 @@ local-llm-hub/
 │   ├── installer.py          #   vendored clone-and-setup installer that setup.bat runs (venv, requirements, configs, checklist)
 │   ├── installer_migrate.py  #   vendored `-MigrateFrom`: copy the declared files, install, start, verify the clone serves
 │   ├── installer_declaration.py # vendored parser of [install.migrate] / [install.endpoint]
-│   ├── installer_inplace.py  #   vendored `-InPlace`: stop, rename to a dated backup, clone, migrate
+│   ├── installer_inplace.py  #   vendored `-Replace` / `-InPlace`: stop, rename to a dated backup, move the fresh clone in, migrate
 │   ├── usage_log.py          # vendored usage-log router (admin UI view/tap log)
 │   ├── login_lockout.py      # vendored per-client lock-out + guessing alert for the /admin password route
 │   ├── password.py           # vendored app password: hash in config/app_password.json, `python -m src.password set`
