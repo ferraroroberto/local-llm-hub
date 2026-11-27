@@ -101,6 +101,30 @@ A UDP socket frees its port the instant it closes, so a burst can be gone before
 
 The holder is **confirmed** only when the window reaches back to the event and some process rose by `window_confirm_percent` (25 %) of the protocol's range or more (4,096 endpoints of a 16,384-port range); a flat block (a vendor service holding 50 UDP ports all day) and a small mover (a process that went from 5 to 83 ports) are listed but never named as the burst, the event text giving the largest rise (`largest rise 78 ports, too small to exhaust the range`). An empty or unreadable window, one that starts after the event, or one in which no process rose far enough reads `peak holder not confirmed`, never an all-clear. The limit: a burst shorter than the tally interval (1 s armed, 10 s idle) can fall between two tallies, and an event read more than `window_s` after it was logged is no longer covered; the event text says so. A snapshot ranks its holders by the event's own protocol (a UDP event by UDP endpoints, a TCP event by TCP), not by TCP plus UDP.
 
+### The sub-second trace
+
+The snapshot, the window and the event log all poll, so a burst of sockets that are bound and closed without connecting, shorter than one tally, escapes them: it leaves no TIME_WAIT behind, and a UDP port frees the instant its socket closes. Only a kernel trace with process ids can name it. Starting that trace needs an elevated shell and runs continuously, so it is the owner's machine-level step; the hub only reads what it saved and never starts, stops or flushes it.
+
+Arm it once, in an elevated PowerShell, from the root of the primary checkout (the save task runs this script by its path, so never arm from a worktree that will be removed):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\port_trace.ps1 -Arm
+```
+
+`scripts/port_trace.ps1 -Arm` starts the circular ETW session `LlmHubPortTrace`, capped at 512 MB (`-MaxMB`): the Winsock AFD provider (keyword `0x4`: socket create, bind and close, TCP and UDP alike, plus every send and receive, which is why the cap matters) and the TCPIP provider (keywords `0x8` bind and `0x80` diagnosis: port reservations). It registers the task `LlmHubPortTraceSave`, which runs as SYSTEM on every Tcpip 4231 or 4266 and at startup: it stops the session, moves its file into `port_trace/` beside the port watch's database as `trace-<UTC stamp>.etl`, starts the session again and keeps the newest five saves (`-Keep`). It writes `port_trace/armed.json`, the marker the hub reads, and prints the folder. Disarm with the same command and `-Disarm`: it stops the session, removes the task and the marker, and keeps the saved traces. Neither touches a port range, `TcpTimedWaitDelay` or any other machine setting.
+
+When a **new** `4231` or `4266` is read, the watch looks for the first saved trace stamped at or after the event and counts, per process, the AFD socket creates (event 1000), binds (1029, 1030) and closes (1001) and the TCPIP port reservations (1052, 1054; 1053 failed) in the `trace_window_s` (5 s) before it, with one `wevtutil qe <file> /lf:true` query filtered on event id and time, so only those events are read (`src/health/port_trace.py`). It stores the `trace` on the event, beside its snapshot and peak, and the event text ends with it: `trace, 5 s before the event: python.exe (local-llm-hub: -m pytest) (16,010 binds, 15,990 closes)`. The state says what the trace could tell:
+
+| `trace.state` | Event text |
+| --- | --- |
+| `ok` | The top three processes by trace events, with their counts; no events reads `not confirmed (the circular trace may have wrapped past it)`, and a read capped at `trace_max_events` (200,000) says so |
+| `not_armed` | `trace not armed`: no marker, or the trace was armed after the event |
+| `pending` | The save after the event has not landed yet; re-read on each event-log read for `trace_wait_s` (600 s) |
+| `not_saved` | Armed, but no saved trace covers the event after `trace_wait_s` |
+| `failed` | The saved trace could not be read |
+
+Every state but an `ok` read that found events says the sub-second holder is **not confirmed**; none of them reads "no holder". A trace event's process id is the process that made the call, so a holder that has exited since reads `pid N`. `ports.last_event` carries the `trace` and a `trace_summary`.
+
 ### Holder labels
 
 Every fleet repo runs `python.exe`, so a name alone attributes nothing. The first time the window or a sample sees an interpreter (`python.exe`, `pythonw.exe`, `node.exe`) it records a `label`: the folder name of the git repo its working directory sits in (a `.git` folder or a worktree's `.git` file), then the module or script it runs, as in `local-llm-hub: -m pytest` (`src/health/port_label.py`). Only the repo folder's name and the module or script basename are kept: never a path, an argument or inline code (`-c` is named, its text is not). A process that is not an interpreter, or that exited or denied access before it could be read, has `label` `null`, which says the label is unknown, not that there is no repo. The lookup runs once per pid while it stays in the window or the sample, never per tally. The label shows beside the name in the peak and snapshot text, and on `peak.holders`, `snapshot.holders` and `top_holders` rows.
@@ -110,7 +134,7 @@ Every fleet repo runs `python.exe`, so a name alone attributes nothing. The firs
 | Metric | Default watch / act | Judged on |
 | --- | --- | --- |
 | `tcp_percent`, `udp_percent` | 50 / 80 | The worst sample in the last `hold_minutes` (15) |
-| `tcp_time_wait` | 4,000 / 10,000 | The same |
+| `tcp_time_wait` | 4,000 / 10,000 | The same; the reason names the top TIME_WAIT groups of the peak sample when it carries them |
 | `tcpip_4231`, `tcpip_4266` | always `act` | For `event_hold_hours` (1) after the event, with its time |
 | `tcpip_4227` | `watch`; `act` when a sample within `hold_minutes` of the event had `tcp_percent` or `tcp_time_wait` at its `act` line | The same hold, with the event's time |
 
@@ -124,7 +148,7 @@ The act and cleared alerts are the health watch's own: each port tick re-judges 
 
 ### History
 
-Samples are kept for `history_hours` (24) and events for `event_keep_days` (30) in SQLite under the runtime-data root (`port_watch.sqlite3`; override with `LLM_HUB_PORT_WATCH_DB_PATH`) and reloaded at hub start, so the incident before a restart or a reboot is still judged and shown.
+A sample whose TIME_WAIT reaches `wave_time_wait` (1,500; about 400 at rest) also keeps its TIME_WAIT sockets grouped by the server port they point at and that port's listener (`time_wait_groups`, as in the snapshot), so a wave of churn that never logs an event still names the port it hit; a calmer sample carries no groups. Samples are kept for `history_hours` (24) and events for `event_keep_days` (30) in SQLite under the runtime-data root (`port_watch.sqlite3`; override with `LLM_HUB_PORT_WATCH_DB_PATH`) and reloaded at hub start, so the incident before a restart or a reboot is still judged and shown.
 
 ### Cost
 
@@ -132,7 +156,7 @@ Measured on the tower (about 760 TCP and 160 UDP endpoints): a port sample is on
 
 ### Configuration
 
-The `ports` section of `config/health_watch.json`, re-read every tick. Every threshold and cadence above is a key there; `ports.window_s`, `window_interval_s`, `window_idle_interval_s`, `window_arm_percent` and `window_confirm_percent` set the burst window's length, armed and idle tally intervals, the port use that arms it and the share of the range a rise must reach to confirm a holder. `"ports": {"enabled": false}` stops the port watch and the slow sample's port rows judge ports again.
+The `ports` section of `config/health_watch.json`, re-read every tick. Every threshold and cadence above is a key there; `ports.window_s`, `window_interval_s`, `window_idle_interval_s`, `window_arm_percent` and `window_confirm_percent` set the burst window's length, armed and idle tally intervals, the port use that arms it and the share of the range a rise must reach to confirm a holder; `wave_time_wait` is the TIME_WAIT a sample must reach to keep its groups; `trace_window_s`, `trace_wait_s` and `trace_max_events` set the seconds of trace read before an event, how long a save may take to land and the cap on the events one read counts. `"ports": {"enabled": false}` stops the port watch and the slow sample's port rows judge ports again.
 
 ## Resource watch: RAM, free space and disk latency
 
@@ -200,6 +224,8 @@ The `resource` section of `config/health_watch.json`, re-read every sample like 
 | `src/health/watch.py` | The loop, the rolling history and the act/cleared alerts |
 | `src/health/port_probe.py` | One port sample from the endpoint tables, the TIME_WAIT-attributing snapshot, and the Tcpip exhaustion events from the System log |
 | `src/health/port_window.py` | The rolling 60 s window of per-second, per-process endpoint counts and its peak summary |
+| `src/health/port_trace.py` | Reads the owner-armed socket trace saved after a 4231/4266: per-process creates, binds, closes and reservations in the seconds before it |
+| `scripts/port_trace.ps1` | Owner-run, elevated: arms (`-Arm`) or disarms (`-Disarm`) the circular trace and its SYSTEM save task |
 | `src/health/port_label.py` | A holder's repo and entry point (`local-llm-hub: -m pytest`), read once per interpreter pid |
 | `src/health/port_rules.py` | Port findings, holders with growth, the `ports` block (pure) |
 | `src/health/sample_store.py` | The JSON-row sample history both stores build on |

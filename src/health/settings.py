@@ -82,6 +82,13 @@ DEFAULTS: Dict[str, Any] = {
         "window_arm_percent": 25,
         "window_idle_interval_s": 10,
         "window_confirm_percent": 25,
+        # A sample at or above this TIME_WAIT keeps its sockets grouped by port: the rest level is about 400.
+        "wave_time_wait": 1500,
+        # The owner-armed socket trace (port_trace): seconds read before an event, how long the
+        # save task may take before "not saved", and a cap on the events one read counts.
+        "trace_window_s": 5,
+        "trace_wait_s": 600,
+        "trace_max_events": 200000,
         "tcp_percent": {"watch": 50, "act": 80},
         "udp_percent": {"watch": 50, "act": 80},
         "tcp_time_wait": {"watch": 4000, "act": 10000},

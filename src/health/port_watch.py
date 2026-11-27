@@ -4,10 +4,11 @@ Ephemeral-port exhaustion builds and drains in minutes, so the health watch's
 10-minute sample misses it. This loop samples every ``ports.interval_s``
 (30 s), tallies per-process endpoints into a burst window (every 1 s under port
 pressure, slower otherwise), reads the System log's Tcpip exhaustion events every
-``ports.events_interval_s``, keeps both on disk (``port_store``) so a restart
+``ports.events_interval_s``, reads the owner-armed socket trace for each new
+4231/4266 (``port_trace``), keeps them on disk (``port_store``) so a restart
 or a reboot keeps the incident, and hands its findings to the health verdict
 (``watch.HealthWatch.current``). Advice only: it never closes a socket or
-touches a process.
+touches a process, and it never starts or stops the trace.
 """
 
 from __future__ import annotations
@@ -25,6 +26,8 @@ from src.concurrency.pools import BACKGROUND, run_on
 from . import periodic, port_probe, port_rules, settings
 from .port_probe import PortProbe
 from .port_store import PortStore
+from .port_trace import PortTrace, TraceState
+from .port_trace import default_dir as port_trace_dir
 from .port_window import PortWindow
 
 logger = logging.getLogger(__name__)
@@ -43,10 +46,12 @@ class PortWatch:
     Thread-safe: the sampler thread writes, request handlers read."""
 
     def __init__(self, probe: Optional[PortProbe] = None, store: Optional[PortStore] = None,
-                 read_events: Optional[EventReader] = None) -> None:
+                 read_events: Optional[EventReader] = None, trace: Optional[PortTrace] = None) -> None:
         self._lock = threading.Lock()
         self._probe = probe or PortProbe()
         self._store = store or PortStore()
+        # The trace folder sits beside the store, so a watch on a temp store never reads the real one.
+        self._trace = trace or PortTrace(port_trace_dir(self._store))
         self._window = PortWindow()
         self._window_probes: Optional[Dict[str, str]] = None
         # The Tcpip events exist only in the Windows System log.
@@ -117,22 +122,53 @@ class PortWatch:
                 e["snapshot"] = {**snapshot, "delay_s": round(max(0.0, snapshot["ts"] - e["ts"]), 1)}
                 logger.info("ℹ️ port watch: holder snapshot taken %s s after Tcpip %s", e["snapshot"]["delay_s"],
                             e["event_id"])
+            e["trace"] = self._read_trace(e, ports, now)
             peak = e["peak"]
             logger.info("ℹ️ port watch: Tcpip %s window of %s s, %s readable samples, peak holder %s", e["event_id"],
                         round((peak["to"] or 0) - (peak["from"] or 0)), peak["samples"],
                         f"{peak['holders'][0]['name']} ({peak['holders'][0]['peak']})" if peak["confirmed"]
                         else f"not confirmed (largest rise {peak['largest_rise']})")
 
+    def _read_trace(self, event: Dict[str, Any], ports: Dict[str, Any], now: float) -> Dict[str, Any]:
+        """The socket trace's counts for ``event``; a reader that raised is ``failed``, never lost."""
+        try:
+            trace = self._trace.attribute(event, now=now, ports=ports, name_of=self._probe.name_of,
+                                          label_of=self._probe.label_of)
+        except Exception as exc:  # noqa: BLE001 — a broken trace read must not lose the event itself
+            logger.warning("⚠️ port watch: trace read failed: %s", exc)
+            trace = {"state": TraceState.FAILED.value, "from": event["ts"] - float(ports["trace_window_s"]), "to": event["ts"],
+                     "checked_at": now}
+        logger.info("ℹ️ port watch: Tcpip %s trace %s%s", event["event_id"], trace["state"],
+                    f" in {trace['file']}" if trace.get("file") else "")
+        return trace
+
+    def _retrace_pending(self, ports: Dict[str, Any], now: float) -> None:
+        """Read the trace again for each stored event whose save had not landed yet, and store the
+        result: the SYSTEM task saves the trace seconds after the event, maybe after the first read."""
+        with self._lock:
+            pending = [dict(e) for e in self._events.values()
+                       if (e.get("trace") or {}).get("state") == TraceState.PENDING]
+        for e in pending:
+            e["trace"] = self._read_trace(e, ports, now)
+            with self._lock:
+                self._events[e["record_id"]] = e
+            try:
+                self._store.update_event(e)
+            except Exception as exc:  # noqa: BLE001 — the in-memory reading still holds the verdict
+                logger.warning("⚠️ port watch: trace write failed: %s", exc)
+
     def tick(self, cfg: Dict[str, Any], now: Optional[float] = None) -> Dict[str, Any]:
         """Take one sample (and read the event log when due), store and keep it. Blocking."""
         ports = cfg["ports"]
-        sample = self._probe.sample(top_n=int(ports["top_n"]), now=now)
+        sample = self._probe.sample(top_n=int(ports["top_n"]), now=now,
+                                    time_wait_groups_at=int(ports["wave_time_wait"]))
         now = sample["ts"]
         events: Optional[List[Dict[str, Any]]] = None
         lookback = self._due_events(ports, now)
         if lookback is not None and self._read_events is not None:
             events = self._read_events(lookback)
             self._attach_snapshot(events, ports, now)
+            self._retrace_pending(ports, now)
         try:
             self._store.add_sample(sample, keep_hours=float(ports["history_hours"]))
             if events:

@@ -8,14 +8,18 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
+import re
+import time
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Dict, List
 
 import psutil
 import pytest
 
-from src.health import port_probe, port_watch, settings, watch
+from src.health import port_probe, port_trace, port_watch, settings, watch
 from src.health.port_store import PortStore
 
 T0 = 1_800_000_000.0
@@ -553,3 +557,210 @@ def test_unknown_port_pressure_keeps_the_1s_tally(rig):
                               read_events=lambda lookback: [])
     pw.tick(_cfg(), now=T0)
     assert pw.window_interval(ports, now=T0 + 1) == ports["window_interval_s"]
+
+
+# --- TIME_WAIT waves: a sample over the threshold names the port the churn hit ---
+
+
+def test_a_sample_over_the_wave_threshold_carries_time_wait_groups_and_one_under_does_not(rig):
+    rig.pw._probe._name_of = {404: "hub.exe", 505: "web.exe", **NAMES}.get
+    cfg = _cfg(wave_time_wait=50)
+    rig.table.set(tcp=LISTENERS + _time_wait_to(HUB_PORT, 49))
+    calm = rig.pw.tick(cfg, now=T0)
+    assert "time_wait_groups" not in calm
+    rig.table.set(tcp=LISTENERS + _time_wait_to(HUB_PORT, 60))
+    wave = rig.pw.tick(cfg, now=T0 + 30)
+    assert [(g["port"], g["listener"], g["count"]) for g in wave["time_wait_groups"]] == [(HUB_PORT, "hub.exe", 60)]
+    stored_calm, stored_wave = rig.store.samples_since(T0 - 1)
+    assert "time_wait_groups" not in stored_calm and stored_wave["time_wait_groups"][0]["port"] == HUB_PORT
+
+
+def test_a_time_wait_finding_names_the_waves_port_and_listener(rig):
+    rig.pw._probe._name_of = {404: "hub.exe", 505: "web.exe", **NAMES}.get
+    rig.table.set(tcp=LISTENERS + _time_wait_to(HUB_PORT, 60))
+    rig.pw.tick(_cfg(wave_time_wait=50, tcp_time_wait={"watch": 40, "act": 1000}), now=T0)
+    (found,) = [f for f in rig.pw.current(now=T0)["findings"] if f["metric"] == "tcp_time_wait"]
+    assert f"time wait mostly on port {HUB_PORT} (hub.exe, 60 sockets)" in found["reason"]
+
+
+# --- the owner-armed socket trace, read for the seconds before a 4231 / 4266 ---
+
+AFD_GUID = "{E53C6823-7BB8-44BB-90DC-3F86090D48A6}"
+TCPIP_GUID = "{2F07E2EE-15DB-40F1-90EF-9D7BA282188A}"
+
+
+def _etw(provider: str, guid: str, event_id: int, pid: int) -> str:
+    """One event as ``wevtutil qe <file>.etl /lf:true /f:xml`` prints it."""
+    return (f"<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System>"
+            f"<Provider Name='{provider}' Guid='{guid}'/><EventID>{event_id}</EventID><Version>0</Version>"
+            f"<Level>4</Level><TimeCreated SystemTime='2027-01-15T08:00:00.0000000Z'/><EventRecordID>0</EventRecordID>"
+            f"<Execution ProcessID='{pid}' ThreadID='1'/><Channel/><Computer>box</Computer></System></Event>")
+
+
+BURST_XML = "".join(
+    [_etw("Microsoft-Windows-Winsock-AFD", AFD_GUID, 1029, 101)] * 40
+    + [_etw("Microsoft-Windows-Winsock-AFD", AFD_GUID, 1001, 101)] * 38
+    + [_etw("Microsoft-Windows-Winsock-AFD", AFD_GUID, 1000, 202)] * 2
+    + [_etw("Microsoft-Windows-TCPIP", TCPIP_GUID, 1052, 303)]
+    + [_etw("Microsoft-Windows-TCPIP", TCPIP_GUID, 1001, 202)] * 5  # TCPIP endpoint create: not counted
+)
+
+
+def _stamp(ts: float) -> str:
+    return time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(ts))
+
+
+class FakeTrace:
+    """The trace folder the owner's SYSTEM task fills, and the wevtutil query over a saved file."""
+
+    def __init__(self, tmp_path, xml=BURST_XML) -> None:
+        self.dir = tmp_path / "port_trace"
+        self.dir.mkdir()
+        self.xml = xml
+        self.queries: List[tuple] = []
+
+    def arm(self, at: float) -> None:
+        (self.dir / port_trace.MARKER).write_text(json.dumps({"armed_at": at}), encoding="utf-8")
+
+    def save(self, at: float) -> None:
+        (self.dir / f"trace-{_stamp(at)}.etl").write_bytes(b"")
+
+    def query(self, path, start, end, max_events):
+        self.queries.append((path.name, start, end))
+        return self.xml
+
+
+def _traced(rig, fake: FakeTrace) -> port_watch.PortWatch:
+    return port_watch.PortWatch(port_probe.PortProbe(rig.table, NAMES.get, RANGES), rig.store,
+                                read_events=lambda lookback: list(rig.events),
+                                trace=port_trace.PortTrace(fake.dir, query=fake.query))
+
+
+def _finding(pw, now: float, event_id: int = 4231) -> Dict:
+    (found,) = [f for f in pw.current(now=now)["findings"] if f["metric"] == f"tcpip_{event_id}"]
+    return found
+
+
+def test_with_no_trace_armed_the_event_says_trace_not_armed_never_no_holder(rig, tmp_path):
+    fake = FakeTrace(tmp_path)
+    pw = _traced(rig, fake)
+    rig.events.append(_event(60, T0 - 5, 4266))
+    pw.tick(_cfg(), now=T0)
+    (stored,) = rig.store.events_since(T0 - 60)
+    assert stored["trace"]["state"] == "not_armed"
+    reason = _finding(pw, T0, 4266)["reason"]
+    assert "trace not armed, so the sub-second holder is not confirmed" in reason
+    assert "holders" not in stored["trace"]  # an empty holder list would read as "nobody"
+    assert fake.queries == []
+
+
+def test_a_trace_armed_only_after_the_event_does_not_cover_it(rig, tmp_path):
+    fake = FakeTrace(tmp_path)
+    fake.arm(T0 - 1)
+    fake.save(T0)
+    pw = _traced(rig, fake)
+    rig.events.append(_event(61, T0 - 5, 4231))
+    pw.tick(_cfg(), now=T0 + 10)
+    assert rig.store.events_since(T0 - 60)[0]["trace"]["state"] == "not_armed"
+
+
+def test_an_armed_trace_names_the_process_that_bound_and_closed_in_the_5s_before_the_event(rig, tmp_path):
+    fake = FakeTrace(tmp_path)
+    fake.arm(T0 - 3600)
+    fake.save(T0 - 7200)  # an older save does not cover the event
+    fake.save(T0 - 2)  # the save the event triggered
+    fake.save(T0 + 600)  # a later save is not the first one after the event
+    pw = _traced(rig, fake)
+    rig.events.append(_event(62, T0 - 4, 4231))
+    pw.tick(_cfg(), now=T0 + 30)
+    assert fake.queries == [(f"trace-{_stamp(T0 - 2)}.etl", T0 - 9, T0 - 4)]
+    (stored,) = rig.store.events_since(T0 - 60)
+    trace = stored["trace"]
+    assert trace["state"] == "ok" and trace["events"] == 81 and not trace["truncated"]
+    top = trace["holders"][0]
+    assert (top["name"], top["bind"], top["close"], top["create"]) == ("burst.exe", 40, 38, 0)
+    assert {h["name"]: h["total"] for h in trace["holders"]} == {"burst.exe": 78, "steady.exe": 2, "dns.exe": 1}
+    found = _finding(pw, T0 + 30)
+    assert "trace, 5 s before the event: burst.exe (40 binds, 38 closes)" in found["reason"]
+    assert "dns.exe (1 reservations)" in found["reason"]
+    assert found["trace"]["state"] == "ok"
+    assert "burst.exe" in pw.current(now=T0 + 30)["block"]["last_event"]["trace_summary"]
+
+
+def test_a_save_that_lands_after_the_first_read_is_read_on_the_next_and_survives_a_restart(rig, tmp_path):
+    fake = FakeTrace(tmp_path)
+    fake.arm(T0 - 3600)
+    pw = _traced(rig, fake)
+    cfg = _cfg()
+    rig.events.append(_event(63, T0 - 4, 4231))
+    pw.tick(cfg, now=T0)
+    assert rig.store.events_since(T0 - 60)[0]["trace"]["state"] == "pending"
+    assert "save after the event not read yet" in _finding(pw, T0)["reason"]
+    fake.save(T0 - 1)
+    pw.tick(cfg, now=T0 + 60)
+    assert rig.store.events_since(T0 - 60)[0]["trace"]["state"] == "ok"
+    assert "burst.exe (40 binds" in _finding(pw, T0 + 60)["reason"]
+
+    reborn = _traced(rig, fake)
+    reborn.load(cfg, now=T0 + 120)
+    reborn.tick(cfg, now=T0 + 120)
+    assert reborn.current(now=T0 + 120)["block"]["last_event"]["trace"]["state"] == "ok"
+    assert len(fake.queries) == 1  # a trace already read is not read again
+
+
+def test_a_save_that_never_lands_reads_not_saved_after_the_wait(rig, tmp_path):
+    fake = FakeTrace(tmp_path)
+    fake.arm(T0 - 3600)
+    pw = _traced(rig, fake)
+    cfg = _cfg(trace_wait_s=120)
+    rig.events.append(_event(64, T0 - 4, 4231))
+    pw.tick(cfg, now=T0)
+    pw.tick(cfg, now=T0 + 60)
+    assert rig.store.events_since(T0 - 60)[0]["trace"]["state"] == "pending"
+    pw.tick(cfg, now=T0 + 120)
+    assert rig.store.events_since(T0 - 60)[0]["trace"]["state"] == "not_saved"
+    assert ("no saved trace covers the event, so the sub-second holder is not confirmed"
+            in _finding(pw, T0 + 120)["reason"])
+
+
+@pytest.mark.parametrize("xml,state,text", [
+    (None, "failed", "could not be read, so the sub-second holder is not confirmed"),
+    ("<Event", "failed", "could not be read, so the sub-second holder is not confirmed"),
+    ("", "ok", "trace held no socket events in the 5 s before the event: not confirmed"),
+])
+def test_an_unreadable_or_empty_trace_is_not_confirmed(rig, tmp_path, xml, state, text):
+    fake = FakeTrace(tmp_path, xml=xml)
+    fake.arm(T0 - 3600)
+    fake.save(T0)
+    pw = _traced(rig, fake)
+    rig.events.append(_event(65, T0 - 4, 4231))
+    pw.tick(_cfg(), now=T0 + 30)
+    assert rig.store.events_since(T0 - 60)[0]["trace"]["state"] == state
+    assert text in _finding(pw, T0 + 30)["reason"]
+
+
+def test_a_trace_read_capped_at_max_events_says_so(rig, tmp_path):
+    fake = FakeTrace(tmp_path)
+    fake.arm(T0 - 3600)
+    fake.save(T0)
+    pw = _traced(rig, fake)
+    rig.events.append(_event(66, T0 - 4, 4231))
+    pw.tick(_cfg(trace_max_events=81), now=T0 + 30)
+    assert "(first 81 events only)" in _finding(pw, T0 + 30)["reason"]
+
+
+def test_trace_events_are_told_apart_by_provider_name_or_guid():
+    nameless = _etw("", AFD_GUID.lower(), 1029, 7) + _etw("", TCPIP_GUID, 1001, 7)
+    per_pid, total = port_trace.parse_counts(nameless)
+    assert total == 1 and per_pid[7]["bind"] == 1 and per_pid[7]["close"] == 0
+
+
+def test_nothing_in_the_hub_arms_the_trace_or_changes_a_machine_port_setting():
+    """Arming the trace and the port settings are the owner's machine-level calls: the hub only reads."""
+    forbidden = re.compile(r"logman|schtasks|ScheduledTask|\bwpr\b|xperf|tracelog|TcpTimedWaitDelay"
+                           r"|set\s+dynamicport", re.IGNORECASE)
+    root = Path(port_trace.__file__).resolve().parents[2]
+    hits = [f"{path.relative_to(root)}:{n}" for folder in ("src/health", "app_web", "tray")
+            for path in (root / folder).rglob("*.py")
+            for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1) if forbidden.search(line)]
+    assert hits == []

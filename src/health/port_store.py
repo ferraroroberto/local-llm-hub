@@ -35,6 +35,12 @@ class PortStore(SampleStore):
                              [(e["record_id"], e["ts"], json.dumps(e, separators=(",", ":"))) for e in events])
             conn.execute("DELETE FROM events WHERE ts < ?", (now - keep_days * 86400.0,))
 
+    def update_event(self, event: Dict[str, Any]) -> None:
+        """Replace a stored event: a trace read after the event was first stored."""
+        with closing(self._connect()) as conn, conn:
+            conn.execute("INSERT OR REPLACE INTO events (record_id, ts, body) VALUES (?, ?, ?)",
+                         (event["record_id"], event["ts"], json.dumps(event, separators=(",", ":"))))
+
     def events_since(self, since_ts: float) -> List[Dict[str, Any]]:
         """Events at or after ``since_ts``, oldest first."""
         with closing(self._connect()) as conn:
