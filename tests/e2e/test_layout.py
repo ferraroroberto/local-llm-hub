@@ -4,6 +4,8 @@
   width; its live line is never the line the phone drops.
 * Large text scales every tab's title without overflowing, at phone and desktop
   width in both themes.
+* Rendered geometry on every phone-to-column width: each control's hit area is
+  at least 44px, no two overlap and the page never scrolls sideways.
 * Code text sits on the design system's recipes: a listing on the card surface
   with a hairline, an inline chip on neutral-soft.
 * Navigation routes: a ``#telemetry`` link or a stored ``telemetry`` tab opens
@@ -15,6 +17,13 @@ from __future__ import annotations
 import pytest
 
 from tests.e2e._flow import DESKTOP, PHONE, fresh_page
+from tests.e2e._geometry import (
+    VIEWPORT_WIDTHS,
+    apply_matrix_leg,
+    assert_min_target,
+    assert_no_horizontal_overflow,
+    assert_no_overlap,
+)
 
 # tab button id -> pane id (OTel is reached from the header, not the nav).
 _TABS = {
@@ -24,6 +33,12 @@ _TABS = {
     "#tabCodeUsage": "#paneCodeUsage",
     "#tabMachines": "#paneMachines",
 }
+
+# Tabs whose rows arrive after the header, so measuring waits for the first one.
+_ROW_PANES = ("#paneHub", "#paneModels", "#paneMachines")
+
+# A search field's target is its whole label, which focuses the input on tap.
+_CONTROLS = ":is(button, select, textarea, summary, .action-row-filter):visible"
 
 _ACTIVITY_IN_VIEW = """() => {
     const r = document.getElementById('activityCard').getBoundingClientRect();
@@ -118,6 +133,25 @@ def _headers_match_a_collapsed_card_and_fit_the_phone(page, admin_url):
     ) == "nowrap"
 
 
+def _controls_meet_the_rendered_geometry_contract(page, admin_url):
+    page.goto(admin_url, wait_until="load")
+    for width in VIEWPORT_WIDTHS:
+        # Geometry does not vary with the theme, so one theme covers each width.
+        apply_matrix_leg(page, width, "light")
+        for tab, pane in _TABS.items():
+            page.click(tab)
+            page.wait_for_selector(f"{pane} .home-head", state="visible", timeout=5000)
+            if pane in _ROW_PANES:
+                page.wait_for_selector(f"{pane} .action-row-main", state="visible", timeout=5000)
+            # The tab bar floats over the content, so it is swept on its own.
+            for controls in (page.locator(f"{pane} {_CONTROLS}"), page.locator("nav.tabs [data-tab]")):
+                assert_min_target(controls)
+                assert_no_overlap(controls)
+            assert_no_horizontal_overflow(page)
+        # Size only: the readout's hit area grows upward over the content by design.
+        assert_min_target(page.locator(".page-foot-restart"))
+
+
 def _title_px(page, pane: str) -> float:
     return page.evaluate(
         "pane => parseFloat(getComputedStyle(document.querySelector(pane + ' .home-title')).fontSize)",
@@ -208,6 +242,8 @@ def test_layout_holds_on_every_tab(browser, admin_url):
         _headers_match_a_collapsed_card_and_fit_the_phone(page, admin_url)
     with fresh_page(browser) as page:
         _large_text_scales_every_tab_without_overflow(page, admin_url)
+    with fresh_page(browser, viewport=PHONE, has_touch=True, is_mobile=True) as page:
+        _controls_meet_the_rendered_geometry_contract(page, admin_url)
     with fresh_page(browser) as page:
         _code_text_follows_the_recipes(page, admin_url)
     with fresh_page(browser, console_errors=True, page_errors=True, viewport=PHONE) as page:

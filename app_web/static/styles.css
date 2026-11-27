@@ -74,6 +74,9 @@
   --space-xl: 32px;
   /* uniform gutter between cards/tiles and from the page edges */
   --gap: 12px;
+  /* layout.measure — the centred content column, also read by the vendored
+     settings-group page */
+  --measure: 772px;
   /* shared height for inline controls (select / input) so they line up */
   --control-h: 36px;
   /* components.hit-target.min — the floor for every pointer target */
@@ -252,8 +255,8 @@ h2 { display: flex; align-items: center; gap: 8px; }
 .services-label { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; font-size: var(--font-label); }
 
 .app {
-  /* Centered phone-first measure — the spec's 772px desktop cap. */
-  max-width: 772px;
+  /* Centered phone-first measure — the spec's desktop cap. */
+  max-width: var(--measure);
   margin: 0 auto;
   /* Bottom padding equals the side gutter; the phone nav overrides it with its
    * own reserve, which also clears the build footer. */
