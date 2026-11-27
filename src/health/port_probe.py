@@ -46,7 +46,7 @@ EXHAUSTION_EVENTS: Dict[int, Tuple[str, str]] = {
 }
 # The events whose holder the watch snapshots at once: the dynamic range ran out.
 SNAPSHOT_EVENTS = (4231, 4266)
-_EVENT_NS ="{http://schemas.microsoft.com/win/2004/08/events/event}"
+EVENT_NS ="{http://schemas.microsoft.com/win/2004/08/events/event}"
 _MAX_EVENTS_PER_READ = 50
 
 Connections = Callable[[str], Iterable[Any]]
@@ -185,9 +185,12 @@ class PortProbe:
         return {"ts": time.time() if now is None else now, "probes": probes,
                 "counts": {pid: (c["tcp"], c["udp"]) for pid, c in per_pid.items()}}
 
-    def sample(self, *, top_n: int = 10, now: Optional[float] = None,
-               with_time_wait: bool = False, rank_by: Optional[str] = None) -> Dict[str, Any]:
-        """One sample. Blocking: call it off the event loop."""
+    def sample(self, *, top_n: int = 10, now: Optional[float] = None, with_time_wait: bool = False,
+               rank_by: Optional[str] = None, time_wait_groups_at: Optional[int] = None) -> Dict[str, Any]:
+        """One sample. ``with_time_wait`` always groups TIME_WAIT by port and listener;
+        ``time_wait_groups_at`` groups it only when TIME_WAIT reaches that count, so a wave of
+        churn names its target port without every calm sample paying for the grouping.
+        Blocking: call it off the event loop."""
         started, cpu_started = time.perf_counter(), time.process_time()
         ranges = self.ranges()
         out: Dict[str, Any] = {"ts": time.time() if now is None else now, "probes": {}}
@@ -204,8 +207,9 @@ class PortProbe:
             out[protocol] = {"used": len(used), "total": total, "range": [lo, hi],
                              "percent": round(100.0 * len(used) / total, 1)}
             if protocol == "tcp":
-                out[protocol]["time_wait"] = sum(1 for r in rows if r.status == psutil.CONN_TIME_WAIT)
-                if with_time_wait:
+                time_wait = sum(1 for r in rows if r.status == psutil.CONN_TIME_WAIT)
+                out[protocol]["time_wait"] = time_wait
+                if with_time_wait or (time_wait_groups_at is not None and time_wait >= time_wait_groups_at):
                     out["time_wait_groups"], out["time_wait_unplaced"] = self._time_wait_groups(rows, top_n)
         live = set(per_pid)
         self._names = {pid: name for pid, name in self._names.items() if pid in live}
@@ -237,13 +241,13 @@ def _parse_events(xml_text: str) -> List[Dict[str, Any]]:
     """Each ``<Event>`` wevtutil printed, as ``record_id``/``ts``/``event_id``/``protocol``/``reason``."""
     events = []
     root = ET.fromstring(f"<Events>{xml_text}</Events>")
-    for node in root.iter(f"{_EVENT_NS}Event"):
-        system = node.find(f"{_EVENT_NS}System")
+    for node in root.iter(f"{EVENT_NS}Event"):
+        system = node.find(f"{EVENT_NS}System")
         if system is None:
             continue
-        event_id = int(system.findtext(f"{_EVENT_NS}EventID") or 0)
-        created = system.find(f"{_EVENT_NS}TimeCreated")
-        record = system.findtext(f"{_EVENT_NS}EventRecordID")
+        event_id = int(system.findtext(f"{EVENT_NS}EventID") or 0)
+        created = system.find(f"{EVENT_NS}TimeCreated")
+        record = system.findtext(f"{EVENT_NS}EventRecordID")
         if event_id not in EXHAUSTION_EVENTS or created is None or not record:
             continue
         protocol, reason = EXHAUSTION_EVENTS[event_id]

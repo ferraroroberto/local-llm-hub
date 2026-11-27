@@ -223,6 +223,7 @@ local-llm-hub/
 │   │   ├── resource_watch.py     #   the one-minute loop that ties them together
 │   │   ├── port_probe.py         #   one port sample (TCP + UDP endpoints per process in each dynamic range) + Tcpip exhaustion events from the System log
 │   │   ├── port_window.py        #   rolling 60 s window of per-second per-process endpoint counts; peak holders stored with a 4231/4266 event
+│   │   ├── port_trace.py         #   reads the owner-armed socket trace saved after a 4231/4266 (never starts or stops it)
 │   │   ├── port_label.py         #   a port holder's repo and entry-point label, never a path or argument
 │   │   ├── port_rules.py         #   pure port findings, holders with growth, the endpoint's ports block
 │   │   ├── sample_store.py       #   shared JSON-row sample history in SQLite (resource + port stores build on it)
@@ -295,6 +296,7 @@ local-llm-hub/
 │   ├── install_tts.py           # pip -r requirements-tts.txt + Piper/Kokoro assets + warm TTS
 │   ├── install_comfyui.py       # ComfyUI clone + isolated venv + torch cu130 (sm_120 verified) → vendor/comfyui/
 │   ├── portable_capture.py      # standalone psutil sampler, SSH-delivered to hub-less machines
+│   ├── port_trace.ps1           # owner-run, elevated: arm/disarm the circular socket trace + its SYSTEM save task (docs/health-watch.md)
 │   ├── static_ratchet.py         # vendored from project-scaffolding: fails on a NEW duplicate block / unused import
 │   ├── static_ratchet_gate.py    #   the gate's wrapper: exit 3 (detector could not run) = NOT CONFIRMED, never a pass
 │   ├── docs_ratchet.py           # vendored from project-scaffolding: fails on a NEW history marker in README/docs or a README past its size baseline

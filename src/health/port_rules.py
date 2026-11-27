@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .classifier import fmt_count, restart_fix
 from .port_probe import SNAPSHOT_EVENTS
+from .port_trace import TraceState
 
 LABELS = {"tcp": "TCP", "udp": "UDP"}
 RUNBOOK_FIX = ("No reboot: ports drain in minutes once the burst stops; find the client opening "
@@ -82,6 +83,9 @@ def _pressure_finding(history, cfg, now, metric, read, label, unit, protocol) ->
     if at is not history[-1]:
         reason = f"{label} peaked at {fmt_count(value)}{unit} at {_clock(at['ts'])} (now {fmt_count(current or 0)}{unit})"
     fix, process = RUNBOOK_FIX, None
+    if not protocol and at.get("time_wait_groups"):
+        # A TIME_WAIT wave has no owning process; the port it hit and that port's listener name it.
+        reason += ", " + groups_text(at["time_wait_groups"])
     holder = _top_holder(at, protocol) if protocol else None
     used = (at.get(protocol) or {}).get("used") if protocol else None
     if holder:
@@ -107,6 +111,13 @@ def _churn_at_act_line(history: Sequence[Dict[str, Any]], cfg: Dict[str, Any], t
     return False
 
 
+def groups_text(groups: Sequence[Dict[str, Any]]) -> str:
+    """The top three TIME_WAIT groups: the server port each socket points at, and its listener."""
+    return "time wait mostly on " + ", ".join(
+        f"port {g['port']} ({g['listener'] or 'not a local listener'}, {fmt_count(g['count'])} sockets)"
+        for g in groups[:3])
+
+
 def snapshot_text(event: Dict[str, Any]) -> str:
     """What the immediate snapshot of an exhaustion event found, with its delay after the event.
     A snapshot that held nothing, or could not read a table, is "not confirmed": a drained
@@ -118,9 +129,7 @@ def snapshot_text(event: Dict[str, Any]) -> str:
     parts = []
     groups = snap.get("time_wait_groups") or []
     if groups:
-        parts.append("time wait mostly on " + ", ".join(
-            f"port {g['port']} ({g['listener'] or 'not a local listener'}, {fmt_count(g['count'])} sockets)"
-            for g in groups[:3]))
+        parts.append(groups_text(groups))
     holders = snap.get("holders") or []
     protocol = event.get("protocol")
     if holders:
@@ -162,6 +171,40 @@ def peak_text(event: Dict[str, Any]) -> str:
             f"in the {span}; a burst shorter than the tally interval can fall between two tallies")
 
 
+_TRACE_STATES = {
+    TraceState.NOT_ARMED: "trace not armed, so the sub-second holder is not confirmed",
+    TraceState.UNSUPPORTED: "no trace reader on this platform, so the sub-second holder is not confirmed",
+    TraceState.PENDING: "trace armed, its save after the event not read yet, so the sub-second holder is not confirmed",
+    TraceState.NOT_SAVED: "trace armed but no saved trace covers the event, so the sub-second holder is not confirmed",
+    TraceState.FAILED: "the saved trace could not be read, so the sub-second holder is not confirmed",
+}
+
+
+def trace_text(event: Dict[str, Any]) -> str:
+    """What the owner-armed socket trace says about the seconds before the event. Only an ``ok``
+    read with events names anyone; every other state says the holder is not confirmed."""
+    trace = event.get("trace")
+    if not trace:
+        return "no trace reading, so the sub-second holder is not confirmed"
+    if trace["state"] != TraceState.OK:
+        return _TRACE_STATES.get(trace["state"], f"trace {trace['state']}, so the sub-second holder is not confirmed")
+    span = f"{fmt_count(round(trace['to'] - trace['from']))} s before the event"
+    holders = trace.get("holders") or []
+    if not holders:
+        return (f"trace held no socket events in the {span}: not confirmed "
+                "(the circular trace may have wrapped past it)")
+    rows = []
+    for h in holders[:3]:
+        counts = ", ".join(f"{fmt_count(h[k])} {label}" for k, label in
+                           (("bind", "binds"), ("close", "closes"), ("create", "creates"),
+                            ("reserve", "reservations"), ("reserve_failed", "failed reservations")) if h.get(k))
+        rows.append(f"{who(h)} ({counts})")
+    text = f"trace, {span}: " + "; ".join(rows)
+    if trace.get("truncated"):
+        text += f" (first {fmt_count(trace['events'])} events only)"
+    return text
+
+
 def _event_findings(events: Sequence[Dict[str, Any]], history: Sequence[Dict[str, Any]],
                     cfg: Dict[str, Any], now: float) -> List[Dict[str, Any]]:
     since = now - float(cfg["event_hold_hours"]) * _HOUR
@@ -172,9 +215,11 @@ def _event_findings(events: Sequence[Dict[str, Any]], history: Sequence[Dict[str
          "kind": "system", "metric": f"tcpip_{e['event_id']}", "value": e["event_id"],
          "process": None, "ts": e["ts"],
          "reason": f"Windows logged {e['reason']} (Tcpip {e['event_id']}) at {_clock(e['ts'])}"
-                   + (f"; {snapshot_text(e)}; {peak_text(e)}" if e["event_id"] in SNAPSHOT_EVENTS else ""),
+                   + (f"; {snapshot_text(e)}; {peak_text(e)}; {trace_text(e)}"
+                      if e["event_id"] in SNAPSHOT_EVENTS else ""),
          "fix": RUNBOOK_FIX, **({"snapshot": e["snapshot"]} if e.get("snapshot") else {}),
-         **({"peak": e["peak"]} if e.get("peak") else {})}
+         **({"peak": e["peak"]} if e.get("peak") else {}),
+         **({"trace": e["trace"]} if e.get("trace") else {})}
         for e in recent
     ]
 
@@ -271,4 +316,6 @@ def block(history: Sequence[Dict[str, Any]], events: Sequence[Dict[str, Any]], c
         out["last_event"]["snapshot_summary"] = snapshot_text(last)
         out["last_event"]["peak"] = last.get("peak")
         out["last_event"]["peak_summary"] = peak_text(last)
+        out["last_event"]["trace"] = last.get("trace")
+        out["last_event"]["trace_summary"] = trace_text(last)
     return out

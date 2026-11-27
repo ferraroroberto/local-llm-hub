@@ -829,6 +829,12 @@ module = "src/diagnostics/run_state.py"
 type   = "RunStatus"
 derive = "settle"
 
+[[state_machines]]
+name   = "port_trace"
+module = "src/health/port_trace.py"
+type   = "TraceState"
+derive = ""
+
 # [ux_surface_ratchet] -- scripts/ux_surface_ratchet.py fails when the admin app's HTML or JS
 # gains a surface root (a <dialog>, a dialog/menu/tabpanel role, a popover) with no constant
 # `data-surface` id, an id with no entry in docs/ux-surfaces.yaml, a map entry no element

@@ -128,6 +128,10 @@
     "window_arm_percent": 25,
     "window_idle_interval_s": 10,
     "window_confirm_percent": 25,
+    "wave_time_wait": 1500,
+    "trace_window_s": 5,
+    "trace_wait_s": 600,
+    "trace_max_events": 200000,
     "tcp_percent": {
       "watch": 50,
       "act": 80
