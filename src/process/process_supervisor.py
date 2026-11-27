@@ -3,25 +3,23 @@
 The hub process and each local model backend have different launch details
 (log pipe vs. log file, singleton vs. keyed state, inherited PID support), but
 share the same start/stop lifecycle: reject already-running processes, adopt a
-reachable external listener, spawn with UTF-8 env, and terminate with a polite
-then forceful shutdown.  This module keeps that workflow in one place while the
+reachable external listener, spawn with UTF-8 env, and stop with terminate then
+kill.  This module keeps that workflow in one place while the
 callers provide their process-specific policy.
 """
 
 from __future__ import annotations
 
-import signal
 import subprocess
-import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import IO, Callable, Optional
 
 # Stop budgets for a model-backend child (llama-server, the TTS server). The
-# polite window is long enough for a backend to flush its KV cache / close its
-# listener after CTRL_BREAK or terminate(); the kill window only covers the OS
-# reaping a process that was already force-killed, so it is shorter.
+# terminate window is long enough for a backend to flush its KV cache / close its
+# listener where terminate() is a catchable SIGTERM; the kill window only covers
+# the OS reaping a process that was already force-killed, so it is shorter.
 STOP_TERMINATE_TIMEOUT_S = 8.0
 STOP_KILL_TIMEOUT_S = 5.0
 
@@ -93,8 +91,8 @@ class ProcessSupervisor:
 
     ``start`` owns the common orchestration; callers only supply how to check
     reachability, find external PIDs, build a ``SpawnSpec``, and record the
-    resulting ``Popen``. ``stop_popen`` centralises the Windows CTRL_BREAK /
-    terminate / kill fallback sequence while preserving per-caller timeouts.
+    resulting ``Popen``. ``stop_popen`` centralises the terminate / kill
+    sequence while preserving per-caller timeouts.
     """
 
     def __init__(
@@ -167,27 +165,16 @@ class ProcessSupervisor:
         terminate_timeout: float,
         kill_timeout: float,
     ) -> ProcessOutcome:
+        """Stop a child by its handle: terminate, then kill.
+
+        No console control event is sent first. Callers spawn with
+        ``CREATE_NO_WINDOW``, so the child has its own console that a
+        ``CTRL_BREAK_EVENT`` never reaches, and from a console-less caller (the
+        pythonw tray and the hub it spawns) the failed ``os.kill`` leaves an
+        exception pending on CPython 3.12.3 / 3.13.0 that surfaces as a
+        ``SystemError`` and fails the stop.
+        """
         try:
-            if sys.platform == "win32":
-                try:
-                    proc.send_signal(signal.CTRL_BREAK_EVENT)
-                except (OSError, ValueError):
-                    pass
-                else:
-                    # Give the child's own graceful-shutdown handler a
-                    # chance to run before escalating — terminate() is an
-                    # immediate hard TerminateProcess on Windows, so calling
-                    # it right away never let a
-                    # just-sent CTRL_BREAK actually land. tray/tray.py's
-                    # HubProcess.stop always waited at this point; every
-                    # other stop_popen caller escalated instantly instead —
-                    # a divergence that made this the *worse* of two
-                    # duplicate stop sequences.
-                    try:
-                        proc.wait(timeout=terminate_timeout)
-                        return ProcessOutcome(OutcomeKind.STOPPED, "stopped")
-                    except subprocess.TimeoutExpired:
-                        pass
             proc.terminate()
             try:
                 proc.wait(timeout=terminate_timeout)

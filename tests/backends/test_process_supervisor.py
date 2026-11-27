@@ -1,19 +1,13 @@
-"""Unit tests for ``ProcessSupervisor.stop_popen``'s Windows escalation (#530).
+"""Unit tests for ``ProcessSupervisor.stop_popen``: terminate, then kill.
 
-Regression for the divergence the #530 audit flagged: every ``stop_popen``
-caller (``backend_process.stop``, ``tts_engines.orpheus``) sent
-``CTRL_BREAK_EVENT`` and immediately called ``terminate()`` — a hard
-``TerminateProcess`` on Windows — with no grace period for the graceful
-signal to actually land. ``tray/tray.py``'s hand-rolled ``HubProcess.stop``
-had always waited between the two, which is the behavior that actually
-lets a process shut down cleanly. #530 folds the correct sequence back into
-the shared helper (and drops the tray's now-redundant duplicate).
+No console control event is sent. Every caller spawns its child with
+``CREATE_NO_WINDOW``, so the child has a console of its own that a
+``CTRL_BREAK_EVENT`` never reaches, and from a console-less caller the failed
+send itself can break the stop.
 
 Fakes a ``subprocess.Popen``-shaped object rather than spawning a real
-process — the escalation *sequencing* is what's under test, not OS signal
-delivery, and a fake keeps this deterministic and platform-independent to
-run (only the Windows branch is exercised via ``monkeypatch.setattr(sys,
-"platform", "win32")``).
+process: the escalation *sequencing* is what's under test, and a fake keeps
+this deterministic and platform-independent to run.
 """
 
 from __future__ import annotations
@@ -29,9 +23,10 @@ from src.process.process_supervisor import (
     ProcessSupervisor,
 )
 
-# The Windows branch reads ``subprocess.CTRL_BREAK_EVENT``, which only exists on
-# Windows, so faking ``sys.platform`` is not enough to run these elsewhere.
-_NEEDS_CTRL_BREAK = pytest.mark.windows_only
+# What CPython 3.12.3 / 3.13.0 raise from ``os.kill(pid, CTRL_BREAK_EVENT)``
+# when the caller has no console (a pythonw tray): the failed console event
+# leaves an exception set, which surfaces as this ``SystemError``.
+_PENDING_EXC = "<built-in function kill> returned a result with an exception set"
 
 
 class _FakePopen:
@@ -44,8 +39,7 @@ class _FakePopen:
 
     def send_signal(self, _sig) -> None:
         self.calls.append("send_signal")
-        if self.dies_after == "send_signal":
-            self._alive = False
+        raise SystemError(_PENDING_EXC)
 
     def terminate(self) -> None:
         self.calls.append("terminate")
@@ -62,33 +56,17 @@ class _FakePopen:
             raise subprocess.TimeoutExpired(cmd="fake", timeout=timeout)
 
 
-@_NEEDS_CTRL_BREAK
-def test_ctrl_break_given_a_grace_period_before_terminate(monkeypatch):
-    """A process that dies from CTRL_BREAK alone must never see terminate()."""
-    monkeypatch.setattr(sys, "platform", "win32")
-    proc = _FakePopen(dies_after="send_signal")
-
-    outcome = ProcessSupervisor.stop_popen(proc, terminate_timeout=5, kill_timeout=5)
-
-    assert outcome == ProcessOutcome(OutcomeKind.STOPPED, "stopped")
-    assert proc.calls == ["send_signal", "wait"]   # no terminate/kill needed
-
-
-@_NEEDS_CTRL_BREAK
-def test_escalates_to_terminate_only_after_ctrl_break_grace_expires(monkeypatch):
-    """A process that ignores CTRL_BREAK escalates to terminate() next."""
-    monkeypatch.setattr(sys, "platform", "win32")
+@pytest.mark.parametrize("platform", ["win32", "linux"])
+def test_stop_terminates_without_a_console_signal(monkeypatch, platform):
+    monkeypatch.setattr(sys, "platform", platform)
     proc = _FakePopen(dies_after="terminate")
 
     outcome = ProcessSupervisor.stop_popen(proc, terminate_timeout=5, kill_timeout=5)
 
     assert outcome == ProcessOutcome(OutcomeKind.STOPPED, "stopped")
-    # CTRL_BREAK's own wait must time out (raise) *before* terminate() is
-    # ever called — the exact ordering the pre-#530 code skipped.
-    assert proc.calls == ["send_signal", "wait", "terminate", "wait"]
+    assert proc.calls == ["terminate", "wait"]
 
 
-@_NEEDS_CTRL_BREAK
 def test_escalates_to_kill_as_last_resort(monkeypatch):
     monkeypatch.setattr(sys, "platform", "win32")
     proc = _FakePopen(dies_after="kill")
@@ -96,17 +74,7 @@ def test_escalates_to_kill_as_last_resort(monkeypatch):
     outcome = ProcessSupervisor.stop_popen(proc, terminate_timeout=5, kill_timeout=5)
 
     assert outcome == ProcessOutcome(OutcomeKind.STOPPED, "stopped")
-    assert proc.calls == ["send_signal", "wait", "terminate", "wait", "kill", "wait"]
-
-
-def test_non_windows_skips_ctrl_break_entirely(monkeypatch):
-    monkeypatch.setattr(sys, "platform", "linux")
-    proc = _FakePopen(dies_after="terminate")
-
-    outcome = ProcessSupervisor.stop_popen(proc, terminate_timeout=5, kill_timeout=5)
-
-    assert outcome == ProcessOutcome(OutcomeKind.STOPPED, "stopped")
-    assert proc.calls == ["terminate", "wait"]   # no send_signal on non-Windows
+    assert proc.calls == ["terminate", "wait", "kill", "wait"]
 
 
 # --------------------------------------------------------------------------- #

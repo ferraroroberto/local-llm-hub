@@ -76,9 +76,9 @@ TUNNEL_CONFIG_PATH = PROJECT_ROOT / "config" / "cloudflared.yml"
 # on it, seconds: room for a large GGUF to load from disk (not measured; the
 # value predates this name and is kept as is).
 _MODEL_READY_TIMEOUT_S = 120.0
-# Each stop window for the hub child, seconds: its CTRL_BREAK shutdown handler,
-# then the OS reaping it after a force-kill. Not measured; model backends use
-# the longer process_supervisor.STOP_* pair.
+# Each stop window for the hub child, seconds: its exit after terminate(), then
+# the OS reaping it after a force-kill. Not measured; model backends use the
+# longer process_supervisor.STOP_* pair.
 _HUB_STOP_TIMEOUT_S = 5.0
 
 
@@ -116,8 +116,8 @@ class HubProcess:
     *is* a child of the tray.
 
     Drives the shared :class:`src.process.process_supervisor.ProcessSupervisor`
-    rather than a second hand-rolled start/stop, so the wait between the
-    graceful signal and the hard kill lives in one shared implementation.
+    rather than a second hand-rolled start/stop, so the terminate-then-kill
+    sequence lives in one shared implementation.
     """
 
     def __init__(self) -> None:

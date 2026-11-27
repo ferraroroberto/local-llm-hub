@@ -498,7 +498,7 @@ class OrpheusEngine(TTSEngine):
                 kill_timeout=STOP_KILL_TIMEOUT_S,
             )
             if not outcome.ok:
-                log.warning("error stopping Orpheus llama-server: %s", outcome.detail)
+                log.warning("error stopping Orpheus llama-server (PID %s): %s", proc.pid, outcome.detail)
         job = self._job
         self._job = None
         terminate_and_close(job)

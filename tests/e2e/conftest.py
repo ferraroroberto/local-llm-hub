@@ -164,7 +164,7 @@ def hub_url(hub_state_dir: Path, hub_egress_log: EgressLog) -> Iterator[str]:
     # reaps the whole tree instead of just the hub PID — a plain
     # ``proc.terminate()`` never reaches a grandchild, and an on-demand
     # backend is deliberately spawned in its own process group (so a
-    # restart's CTRL_BREAK doesn't hit it), so it survives that alone.
+    # console event at the hub doesn't hit it), so it survives that alone.
     # ``None`` on non-Windows / on API failure — the ``if job`` guards below
     # then fall back to the previous hub-PID-only teardown.
     job = win_job.create_kill_on_close_job(f"local-llm-hub-e2e-{port}")

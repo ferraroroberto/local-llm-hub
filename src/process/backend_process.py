@@ -654,17 +654,19 @@ def start(model_id: str) -> ProcessOutcome:
 def stop(model_id: str) -> ProcessOutcome:
     state = _state_for(model_id)
     p = state.proc
-    # Inherited backend: we don't hold a Popen handle, so polite shutdown
-    # isn't an option — taskkill the PID directly.
+    # Inherited backend: we hold no Popen handle — taskkill the PID directly.
     if p is None:
         if _inherited_alive(state):
             pid_ = int(state.inherited_pid)
+            ok, msg = kill_pid(pid_)
+            if not ok:
+                # The PID is kept: a survivor stays ours, and Stop can retry it.
+                logging.getLogger(__name__).warning("⚠️ stop %s: PID %s survived: %s", model_id, pid_, msg)
+                return ProcessOutcome(OutcomeKind.STOP_FAILED, msg, pid_)
             state.inherited_pid = None
             state.inherited_create_time = None
-            ok, msg = kill_pid(pid_)
-            if ok:
-                state.load = None
-            return ProcessOutcome(OutcomeKind.STOPPED if ok else OutcomeKind.STOP_FAILED, msg, pid_)
+            state.load = None
+            return ProcessOutcome(OutcomeKind.STOPPED, msg, pid_)
         # Stopping a process that already died acknowledges the failure.
         state.load = None
         return ProcessOutcome(OutcomeKind.NOT_RUNNING, "not running")
@@ -680,6 +682,8 @@ def stop(model_id: str) -> ProcessOutcome:
     if outcome.kind is OutcomeKind.STOPPED:
         state.proc = None
         state.load = None
+    else:
+        logging.getLogger(__name__).warning("⚠️ stop %s: PID %s survived: %s", model_id, p.pid, outcome.detail)
     return outcome
 
 
