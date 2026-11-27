@@ -87,15 +87,22 @@ What stays where it is:
 - **Elsewhere on the PC:** the Cloudflare tunnel's credentials file in `%USERPROFILE%\.cloudflared` (named by `credentials-file` in `config/cloudflared.yml`, an absolute path to fix if the user folder differs), and the SSH key `.env` names in `LOCAL_LLM_HUB_SSH_KEY`. The hub serves plain HTTP on `:8000`, so it has no certificate of its own.
 - **Downloads:** `vendor/` and `models/`. They are not copied (see the steps only you can do).
 
-**Reinstall in the same folder (the usual case).** The run stops every process that runs from the folder: the tray, the hub and the backends started from it, a whisper server started from `vendor/` included, which the voice transcriber shares. Run it from a plain terminal whose current folder is outside the app, never from a session or editor working inside it. Finish or remove any git worktree of this checkout first: a worktree points into the folder's `.git`, which the rename moves.
+**Reinstall in the same folder (the usual case).** It works whatever version the installed copy is, because it runs from a fresh clone beside it and never runs the old copy's code. The run stops every process that runs from the folder: the tray, the hub and the backends started from it, a whisper server started from `vendor/` included, which the voice transcriber shares. Run it from a plain terminal whose current folder is outside the app, never from a session or editor working inside it. Finish or remove any git worktree of this checkout first: a worktree points into the folder's `.git`, which the rename moves.
+
+Run these in order from `<root>`, the folder that holds `local-llm-hub`:
 
 ```powershell
-cd <PARENT FOLDER>
-.\local-llm-hub\setup.bat -InPlace -WhatIf    # read the backup name and every step; nothing changes
-.\local-llm-hub\setup.bat -InPlace
+cd <root>
+git clone https://github.com/ferraroroberto/local-llm-hub.git local-llm-hub.incoming   # run nothing in it yet
+.\local-llm-hub.incoming\setup.bat -Replace local-llm-hub -WhatIf    # read the backup name and every step; nothing changes
+.\local-llm-hub.incoming\setup.bat -Replace local-llm-hub
 ```
 
-It keeps the replaced copy as `local-llm-hub.bak-YYYYMMDD-N`, clones the remote's default branch, copies the files above, installs, runs `tray.bat --restart` and passes only when `http://127.0.0.1:8000/admin/api/version` serves the new clone's commit from a process in that clone. The path is unchanged, so the Startup shortcut and anything else that stores it need no edit.
+It stops the install, renames it to `local-llm-hub.bak-YYYYMMDD-N` (uncommitted edits stay there), moves the clone to `local-llm-hub`, copies the files above, installs, runs `tray.bat --restart` and passes only when `http://127.0.0.1:8000/admin/api/version` serves the new clone's commit from a process in that clone. The path is unchanged, so the Startup shortcut and anything else that stores it need no edit.
+
+- The clone must be fresh: no changed or untracked file and no `.venv`.
+- Its `origin` must name the same repository as the install's. When the install's differs from the URL above (SSH, a mirror), clone the one `git -C local-llm-hub remote get-url origin` prints.
+- On an install whose `setup.bat` already has `-InPlace`, `.\local-llm-hub\setup.bat -InPlace` does the same and makes the clone itself.
 
 **Beside it (another folder, or an old copy that is not a git clone):**
 
