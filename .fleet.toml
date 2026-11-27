@@ -63,12 +63,61 @@ target = "config/webapp_config.json"
 [[install.check]]
 name    = "Model files and backends"
 command = ["{python}", "-m", "src.install"]
+level   = "optional"
+blocks  = "local models"
 hint    = "download them with: .venv\\Scripts\\python.exe -m src.install --fix"
 
 [[install.check]]
-name  = "ffmpeg (browser-recorded audio uploads)"
-which = "ffmpeg"
-hint  = "only the host that receives audio uploads needs it"
+name   = "ffmpeg (browser-recorded audio uploads)"
+which  = "ffmpeg"
+level  = "optional"
+blocks = "browser-recorded audio uploads"
+hint   = "only the host that receives audio uploads needs it"
+
+# `setup.bat -MigrateFrom` / `-InPlace` verify (project-scaffolding docs/installer.md,
+# "Migrating an existing install"): the clone must serve its own HEAD here. The port is the
+# top-level `port`; the hub reads it from the committed config/models.yaml, so no PC overrides it.
+[install.endpoint]
+scheme       = "http"
+version_path = "/admin/api/version"
+self_signed  = false
+
+# What a migration carries over: only this PC's own git-ignored configs, secrets and history.
+# Downloads (vendor/, models/) are not copied: the playbook moves or re-fetches them.
+# The usage and watch databases live in the runtime-data folder named under `shared`,
+# which stays where it is. `start` is the default, `tray.bat --restart`.
+[install.migrate]
+copy = [
+  ".env",
+  "config/webapp_config.json",
+  "config/app_password.json",
+  "config/machines.local.yaml",
+  "config/cloudflared.yml",
+  "config/aliases.local.json",
+  "config/transcription_glossary.json",
+  "config/transcription_glossary.local.json",
+  "config/startup_profile.json",
+  "config/worker_pools.json",
+  "config/diagnostics_settings.json",
+  "config/diagnostics_storage.local.json",
+  "config/fleet_maintenance.json",
+  "config/machine_specs.yaml",
+  "config/tts_voices",
+  "data/code_usage_history.json",
+  "data/code_token_history.json",
+  "data/usage_digest_state.json",
+  "data/telemetry",
+  "assets/deploy/docker/langfuse/.env",
+  "assets/deploy/docker/searxng/config",
+]
+secrets = [
+  ".env",
+  "config/webapp_config.json",
+  "config/app_password.json",
+  "assets/deploy/docker/langfuse/.env",
+  "assets/deploy/docker/searxng/config/settings.yml",
+]
+shared = ["local-llm-hub"]
 
 # Nightly CI on the Mac Mini (project-scaffolding docs/mac-runner.md, "The
 # [ci.nightly] table"): the unit leg skips tests marked `windows_only`, the e2e leg
@@ -199,6 +248,9 @@ path = ".ratchets/request-budget.json"
 [[e2e.rule]]
 tier = "none"
 path = ".ratchets/windows-only.json"
+[[e2e.rule]]
+tier = "none"
+path = ".ratchets/install-standard.json"
 
 # Components vendored byte-for-byte from project-scaffolding. Re-vendored by
 # `/propagate-vendored <key>`; never edit a copy here — fix it in the scaffold
@@ -267,7 +319,11 @@ no_window = { src = "src/no_window.py", sha = "fe8cc1bdbd038ed65947186248df13072
 single_instance = { src = "app/tray/single_instance.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "tray/single_instance.py" }
 toast = { src = "app/webapp/static/_vendored/toast", sha = "e56c8330f8500b83635773033a09de6fc3cba342", dest = "app_web/static/_vendored/toast" }
 build-watch = { src = "app/webapp/static/_vendored/build-watch", sha = "48602060fffdacbcdcdde66b9886c6471d835ff3", dest = "app_web/static/_vendored/build-watch" }
-installer = { src = "src/installer.py", sha = "bafa9446b907dcb7fc6d833c1edfb1a069b7ca38", dest = "src/installer.py" }
+installer = { src = "src/installer.py", sha = "a40310fe47f82ed7af62835fbfb3ea7ba9e04f8d", dest = "src/installer.py" }
+installer_migrate = { src = "src/installer_migrate.py", sha = "a40310fe47f82ed7af62835fbfb3ea7ba9e04f8d", dest = "src/installer_migrate.py" }
+installer_declaration = { src = "src/installer_declaration.py", sha = "a40310fe47f82ed7af62835fbfb3ea7ba9e04f8d", dest = "src/installer_declaration.py" }
+installer_inplace = { src = "src/installer_inplace.py", sha = "a40310fe47f82ed7af62835fbfb3ea7ba9e04f8d", dest = "src/installer_inplace.py" }
+install_standard_ratchet = { src = "scripts/install_standard_ratchet.py", sha = "a40310fe47f82ed7af62835fbfb3ea7ba9e04f8d", dest = "scripts/install_standard_ratchet.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet.py, which fails on a
@@ -599,6 +655,15 @@ enabled    = true
 baseline   = ".ratchets/windows-only.json"
 marker     = "windows_only"
 test_paths = ["tests/**"]
+
+# [install_standard_ratchet] -- scripts/install_standard_ratchet.py fails when a piece of the
+# fleet install standard is missing beyond .ratchets/install-standard.json: an installer module
+# missing, undeclared or behind the scaffold's, an [install.migrate] that does not parse, or a
+# playbook (docs/install.md) without its Install, Update and Migrate sections. Exit 3 is "not
+# confirmed", never clean. Mechanism: project-scaffolding docs/install-standard-ratchet.md.
+[install_standard_ratchet]
+enabled  = true
+baseline = ".ratchets/install-standard.json"
 
 # [usage_track_ratchet] -- scripts/usage_track_ratchet.py (with its reader
 # scripts/usage_track_scan.py) fails when the web app's HTML or JS gains a control with no
