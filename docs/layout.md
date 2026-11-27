@@ -230,6 +230,9 @@ local-llm-hub/
 │   │   └── port_watch.py         #   the 30 s port loop; its findings join the health verdict
 │   ├── install.py            # first-run checks + --fix (models, backends)
 │   ├── installer.py          #   vendored clone-and-setup installer that setup.bat runs (venv, requirements, configs, checklist)
+│   ├── installer_migrate.py  #   vendored `-MigrateFrom`: copy the declared files, install, start, verify the clone serves
+│   ├── installer_declaration.py # vendored parser of [install.migrate] / [install.endpoint]
+│   ├── installer_inplace.py  #   vendored `-InPlace`: stop, rename to a dated backup, clone, migrate
 │   ├── usage_log.py          # vendored usage-log router (admin UI view/tap log)
 │   ├── login_lockout.py      # vendored per-client lock-out + guessing alert for the /admin password route
 │   ├── password.py           # vendored app password: hash in config/app_password.json, `python -m src.password set`
@@ -304,6 +307,7 @@ local-llm-hub/
 │   ├── request_budget_ratchet.py # vendored from project-scaffolding: fails on a NEW fixed-rate poll, sub-2 s poll, undeclared fast server loop, handler directory walk, default-pool submit or missing timing middleware
 │   ├── request_budget_scan.py    #   vendored: the JS and Python readers it loads
 │   ├── windows_only_ratchet.py   # vendored from project-scaffolding: fails on a NEW test that uses a Windows-only module, attribute, environment variable or planted .exe install lookup without the `windows_only` marker
+│   ├── install_standard_ratchet.py # vendored from project-scaffolding: fails on a NEW missing or stale installer module, unparseable migration table or lost playbook section
 │   ├── classify_e2e.py           # vendored from project-scaffolding: maps the diff to an e2e tier via .fleet.toml [e2e]
 │   ├── e2e_route.py              #   the gate's wrapper: an unreadable verdict runs the full suite, never less
 │   └── verify-before-ship.ps1    # byte-compile + static/docs/comment/structure/instruction/doc-refs/dead-code ratchets + pytest + diff-routed Playwright on Chromium
@@ -355,7 +359,7 @@ local-llm-hub/
     ├── multi-host.md             # cross-host proxying, placement, failover chains
     ├── model-lifecycle.md        # on-demand models, Linux satellite lifecycle
     ├── admin-console.md          # Hub / Settings / Machines tabs, machine identity
-    ├── install.md                # new PC, update, migrate an existing install, uninstall
+    ├── install.md                # install (and uninstall), update, migrate an existing install
     ├── running.md                # run modes, tray, tunnel, LAN access
     ├── api-usage.md              # client examples, headers, CORS, passthroughs
     ├── coding-agent-usage.md     # Code-tab usage accounting

@@ -12,7 +12,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from src import installer
+from src import installer, installer_declaration
 from src.no_window import NO_WINDOW
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -76,3 +76,22 @@ def test_top_up_keeps_values_adds_missing_keys_and_backs_up(tmp_path: Path) -> N
 
     assert [status for status, _, _ in again.lines] == ["unchanged"]
     assert not (tmp_path / "config" / "webapp_config.json.bak-20260102-030406").exists()
+
+
+def _ignored(path: str) -> bool:
+    done = subprocess.run(["git", "check-ignore", "-q", path], cwd=REPO_ROOT, timeout=60,
+                          check=False, creationflags=NO_WINDOW)
+    return done.returncode == 0
+
+
+def test_migration_carries_only_ignored_files_and_verifies_the_build_endpoint() -> None:
+    mig = installer_declaration.parse_migration(installer_declaration.read_fleet_toml(REPO_ROOT))
+
+    # An unignored copy would leave the clone dirty, and the next -MigrateFrom refuses a dirty clone.
+    # A folder rule ("data/telemetry/") matches only a file below it on a checkout without the folder.
+    assert not [item for item in mig.copy if not (_ignored(item) or _ignored(f"{item}/probe"))]
+    assert not [name for name in mig.secrets if not any(name == c or name.startswith(f"{c}/") for c in mig.copy)]
+    assert not [item for item in mig.copy if item.endswith((".db", ".sqlite", ".sqlite3", "-wal", "-shm"))]
+    assert mig.shared == ["local-llm-hub"]
+    assert mig.endpoint is not None
+    assert (mig.endpoint.port, mig.endpoint.version_path) == (8000, "/admin/api/version")

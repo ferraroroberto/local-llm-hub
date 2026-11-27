@@ -71,6 +71,11 @@
 #      `windows_only` marker the Mac nightly excludes, beyond
 #      .windows-only-ratchet-baseline.json. Whole tree, never routed; exit 3 (git
 #      unusable, a test module that cannot be read or parsed) fails.
+#   10g. install standard ratchet: no installer module missing, undeclared or behind
+#      project-scaffolding's, no [install.migrate] that does not parse, and no
+#      docs/install.md without its Install, Update and Migrate sections, beyond
+#      .ratchets/install-standard.json. Whole tree, never routed; exit 3 (a module or
+#      the playbook cannot be read) fails.
 #   11. `pytest -q` (unit tests, no GPU / no real CLIs); stages 11-12 run inside
 #      the runtime write probe (--snapshot before, --probe after), which fails on
 #      any untracked or ignored file they leave under a code folder.
@@ -226,6 +231,13 @@ Step "windows only ratchet" {
     # (git unusable, a test module that cannot be read or parsed) is a failure here,
     # never a pass or a skip.
     & $Python scripts/windows_only_ratchet.py
+}
+
+Step "install standard ratchet" {
+    # Same as the windows only ratchet: Step fails on any non-zero exit, so exit 3
+    # (an installer module or the playbook cannot be read, or the migration module
+    # does not load) is a failure here, never a pass or a skip.
+    & $Python scripts/install_standard_ratchet.py
 }
 
 Step "mmd history check" {
