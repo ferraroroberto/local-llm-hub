@@ -68,7 +68,7 @@ def _self_contain() -> None:
     process that is force-killed, times out, or ends its turn early) skips
     its ASGI shutdown handler (``server_lifecycle.stop_backend_children``)
     entirely, and any backend it spawned on demand — deliberately started
-    with ``CREATE_NEW_PROCESS_GROUP`` so a restart's CTRL_BREAK doesn't hit
+    with ``CREATE_NEW_PROCESS_GROUP`` so a console event at the hub doesn't hit
     it — survives as an orphan, pinning whatever worktree it's rooted in
     (the failure mode this guards against). Assigning this process to a
     kill-on-close Job Object *before* any backend is spawned means every

@@ -119,7 +119,7 @@ in a module-level `_STATES` dict — that state lives in **process
 memory** and dies with the hub. A hub restart leaves the *previous
 hub's* model children alive on their ports (they're not killed
 because they were spawned with `CREATE_NEW_PROCESS_GROUP` to detach
-from CTRL+BREAK), but the new hub has no `_STATES` entry → it sees
+from console events), but the new hub has no `_STATES` entry → it sees
 them as "external" / adopted.
 
 `src/process/backend_process.py::inherit_running_backends()` runs at hub
@@ -129,7 +129,12 @@ the exe looks like ours (`llama-server.exe` / `whisper-server.exe` /
 
 Limitations for inherited backends:
 - Stop uses `taskkill /F /PID` (or `SIGKILL` on POSIX) because we
-  don't hold a Popen handle to politely terminate.
+  don't hold a Popen handle. A backend this hub spawned is stopped
+  through its handle: `terminate()`, then `kill()`. Neither path sends a
+  console control event: each backend has its own hidden console, which
+  `CTRL_BREAK_EVENT` never reaches, and from a console-less hub the
+  failed send can fail the stop. A failed stop logs the backend and PID
+  and keeps the process as the hub's.
 
 ### 7. Tray drives the hub via HTTP, not by calling `backend_process`
 

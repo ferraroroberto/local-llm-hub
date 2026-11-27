@@ -51,10 +51,9 @@ OWNERSHIP_OURS = "ours"
 OWNERSHIP_EXTERNAL = "external"
 OWNERSHIP_NONE = "none"
 
-# On Windows, give the child its own process group so CTRL_BREAK_EVENT
-# during stop() doesn't propagate to the tray launcher, and suppress the
-# console so silent parents (pythonw, e.g. the tray) don't spawn a
-# stray cmd window.
+# On Windows, give the child its own process group and a hidden console of
+# its own, so a console event aimed at the launcher never reaches it and
+# silent parents (pythonw, e.g. the tray) don't spawn a stray cmd window.
 WIN_NEW_GROUP = (
     subprocess.CREATE_NEW_PROCESS_GROUP | NO_WINDOW if sys.platform == "win32" else 0
 )

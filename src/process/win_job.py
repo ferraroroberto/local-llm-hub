@@ -21,8 +21,8 @@ A verification run (``tests/e2e``'s ``hub_url`` fixture) boots a throwaway
 hub as a plain ``subprocess.Popen``. If a test drives an ``on_demand``
 backend row (``src.process.backend_process.start``), that backend is spawned with
 ``CREATE_NEW_PROCESS_GROUP`` (see ``server_process.WIN_NEW_GROUP``) —
-deliberately detached so ``CTRL_BREAK_EVENT`` aimed at the hub during its
-own polite shutdown doesn't propagate to it. That's correct for the
+deliberately detached so a console event aimed at the hub doesn't propagate
+to it. That's correct for the
 *primary* checkout, where a backend surviving a hub restart is the intended
 behaviour (``inherit_running_backends``). It's wrong for a throwaway test
 hub: the fixture's teardown only ``proc.terminate()``s the hub PID itself,
