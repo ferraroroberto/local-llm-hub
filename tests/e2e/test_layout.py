@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 
 from tests.e2e._flow import DESKTOP, PHONE, fresh_page
@@ -39,6 +41,23 @@ _ROW_PANES = ("#paneHub", "#paneModels", "#paneMachines")
 
 # A search field's target is its whole label, which focuses the input on tap.
 _CONTROLS = ":is(button, select, textarea, summary, .action-row-filter):visible"
+
+# A poll re-render can replace a control between the locator query and its
+# measurement, and the detached node measures 0x0. A real geometry violation
+# fails every attempt.
+_SWEEP_ATTEMPTS = 3
+
+
+def _settled(check: Callable[[], None]) -> None:
+    """Run a geometry check, raising only if every attempt fails."""
+    for attempt in range(1, _SWEEP_ATTEMPTS + 1):
+        try:
+            check()
+            return
+        except AssertionError:
+            if attempt == _SWEEP_ATTEMPTS:
+                raise
+
 
 _ACTIVITY_IN_VIEW = """() => {
     const r = document.getElementById('activityCard').getBoundingClientRect();
@@ -145,8 +164,8 @@ def _controls_meet_the_rendered_geometry_contract(page, admin_url):
                 page.wait_for_selector(f"{pane} .action-row-main", state="visible", timeout=5000)
             # The tab bar floats over the content, so it is swept on its own.
             for controls in (page.locator(f"{pane} {_CONTROLS}"), page.locator("nav.tabs [data-tab]")):
-                assert_min_target(controls)
-                assert_no_overlap(controls)
+                _settled(lambda: assert_min_target(controls))
+                _settled(lambda: assert_no_overlap(controls))
             assert_no_horizontal_overflow(page)
         # Size only: the readout's hit area grows upward over the content by design.
         assert_min_target(page.locator(".page-foot-restart"))
