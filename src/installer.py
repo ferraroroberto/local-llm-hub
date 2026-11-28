@@ -236,7 +236,8 @@ def load_plan(root: Path) -> Plan:
     except ModuleNotFoundError as exc:
         raise ValueError("reading .fleet.toml needs Python 3.11 or newer") from exc
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        # utf-8-sig on every read of an owner-edited file: a Windows editor may add a byte-order mark.
+        data = tomllib.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
         raise ValueError(f".fleet.toml does not parse ({type(exc).__name__})") from exc
     table = data.get("install", {})
@@ -385,7 +386,7 @@ def _add_missing(current: dict[str, Any], sample: dict[str, Any]) -> None:
 
 def _load_object(path: Path) -> tuple[dict[str, Any] | None, str]:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeDecodeError, ValueError) as exc:
         return None, f"does not parse ({type(exc).__name__})"
     if not isinstance(data, dict):
@@ -594,7 +595,7 @@ def _config_state(target: Path, settings: bool) -> tuple[str, str]:
         data, error = _load_object(target)
         return (OK if data is not None else MISSING), error
     try:
-        json.loads(target.read_text(encoding="utf-8"))
+        json.loads(target.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeDecodeError, ValueError) as exc:
         return MISSING, f"does not parse ({type(exc).__name__})"
     return OK, ""

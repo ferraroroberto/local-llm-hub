@@ -26,6 +26,11 @@ The rules (docs/install-standard-ratchet.md):
   * `playbook-sections` -- the playbook is missing, or lacks an `## Install`,
     `## Update` or `## Migrate` heading (outside code fences). Other sections
     (Uninstall, Execution policy) are allowed.
+  * `setup-flags` -- `setup.bat` is missing, or does not offer one of the
+    migrate entry points the playbook names (`ENTRY_POINTS`): `-Replace` and
+    `-InPlace` need a line testing the argument and a line running
+    `installer_inplace.py`; `-MigrateFrom` needs `%*` passed on to
+    `installer.py`. Comment lines offer nothing. The file is read, never run.
 
 Opt-in, per adopter, in its own `.fleet.toml`:
 
@@ -33,6 +38,7 @@ Opt-in, per adopter, in its own `.fleet.toml`:
     enabled  = true
     baseline = ".ratchets/install-standard.json"  # default
     playbook = "docs/install.md"                  # default
+    setup    = "setup.bat"                        # default
 
 Exit codes: 0 pass or not enabled; 1 a hit beyond the baseline, or the baseline
 is missing / a mode was refused; 2 bad configuration, baseline or arguments;
@@ -79,10 +85,11 @@ _baseline = _load_sibling("ratchet_baseline")  # where the baseline lives, and i
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-RULES: tuple[str, ...] = ("installer-vendored", "migrate-table", "playbook-sections")
+RULES: tuple[str, ...] = ("installer-vendored", "migrate-table", "playbook-sections", "setup-flags")
 BASELINE_VERSION = 1
 DEFAULT_BASELINE = ".ratchets/install-standard.json"
 DEFAULT_PLAYBOOK = "docs/install.md"
+DEFAULT_SETUP = "setup.bat"
 SECTIONS: tuple[str, ...] = ("Install", "Update", "Migrate")
 LABEL = "install standard ratchet"
 EXIT_PASS, EXIT_RISE, EXIT_CONFIG, EXIT_NOT_CONFIRMED = 0, 1, 2, 3
@@ -91,18 +98,25 @@ EXIT_PASS, EXIT_RISE, EXIT_CONFIG, EXIT_NOT_CONFIRMED = 0, 1, 2, 3
 # current installer modules; tests/ratchets/installer/test_install_standard_ratchet.py fails the scaffold's
 # gate until they are updated in the same PR as the installer.
 INSTALLER: dict[str, tuple[str, str]] = {
-    "installer": ("src/installer.py", "aca52564fcf71b7e377782b3fa527f80d11d328c7dda1a832efca695b5cee906"),
+    "installer": ("src/installer.py", "44daf3cf0ebbbdf72d0597259dcf55d066aebac42b4b0ce34be169b99b90c5b2"),
     "installer_migrate": ("src/installer_migrate.py",
-                          "4bcdd0bbbc6a6b356239acd7d627944cf1d2a28f7c6de9bdb929d076d2181086"),
+                          "c41faeff05e639c793ea448d93221eb9934850fd4b2f9f4b2986078b39aaeb0b"),
     "installer_declaration": ("src/installer_declaration.py",
-                              "f8730c8d8020797d95f9ae2df9b777ab09207181cd74a1f52d1065992e0593fa"),
+                              "bc4324f433e465d4e97e6d2ae7de9766a0030cb7d6fa9ca68610db621eada42c"),
     "installer_inplace": ("src/installer_inplace.py",
-                          "498688cc805a83ab0e8f0e15d8a735f8df6fe2b5905ac11894ba271b38c4734d"),
+                          "156f88db3aabb0b633014be0042744c35f4ee80c6ba4f15e0af043a10aa49ce8"),
 }
 
-_CONFIG_KEYS = {"enabled", "baseline", "playbook"}
+# The playbook's migrate entry points and how a setup.bat offers each. "branch": it tests its
+# arguments for the flag and runs installer_inplace.py, because that run renames the folder it
+# started in. "forward": it passes %* on to installer.py. The scaffold's test fails until this names
+# the same entry points as the playbook template's Migrate section.
+ENTRY_POINTS: dict[str, str] = {"-MigrateFrom": "forward", "-Replace": "branch", "-InPlace": "branch"}
+
+_CONFIG_KEYS = {"enabled", "baseline", "playbook", "setup"}
 _FENCE = re.compile(r"^\s*(```|~~~)")
 _HEADING = re.compile(r"^##[ \t]+(.+?)[ \t#]*$")
+_BAT_COMMENT = re.compile(r"^\s*@?\s*(rem\b|::)", re.IGNORECASE)
 
 
 class ConfigError(RuntimeError):
@@ -115,8 +129,8 @@ class NotConfirmed(RuntimeError):
 
 # ----------------------------------------------------------------- config
 
-def parse_config(data: dict[str, Any]) -> tuple[str, str] | None:
-    """`[install_standard_ratchet]` -> (baseline, playbook), or None when the stage is not enabled."""
+def parse_config(data: dict[str, Any]) -> tuple[str, str, str] | None:
+    """`[install_standard_ratchet]` -> (baseline, playbook, setup), or None when the stage is not enabled."""
     table = data.get("install_standard_ratchet")
     if table is None:
         return None
@@ -133,10 +147,15 @@ def parse_config(data: dict[str, Any]) -> tuple[str, str] | None:
     baseline = _baseline.configured(table.get("baseline", DEFAULT_BASELINE), DEFAULT_BASELINE)
     if not isinstance(baseline, str) or not baseline:
         raise ConfigError("[install_standard_ratchet] baseline must be a non-empty string")
-    playbook = table.get("playbook", DEFAULT_PLAYBOOK)
-    if not isinstance(playbook, str) or not playbook or Path(playbook).is_absolute() or ".." in Path(playbook).parts:
-        raise ConfigError("[install_standard_ratchet] playbook must be a path inside the repo")
-    return baseline, playbook
+    return (baseline, _repo_path(table, "playbook", DEFAULT_PLAYBOOK),
+            _repo_path(table, "setup", DEFAULT_SETUP))
+
+
+def _repo_path(table: dict[str, Any], key: str, default: str) -> str:
+    value = table.get(key, default)
+    if not isinstance(value, str) or not value or Path(value).is_absolute() or ".." in Path(value).parts:
+        raise ConfigError(f"[install_standard_ratchet] {key} must be a path inside the repo")
+    return value
 
 
 def read_toml(root: Path) -> dict[str, Any]:
@@ -257,8 +276,33 @@ def check_playbook(root: Path, playbook: str) -> dict[str, str]:
             for name in SECTIONS if name not in present}
 
 
-def scan(root: Path, data: dict[str, Any], playbook: str) -> dict[str, str]:
-    return {**check_installer(root, data), **check_migrate(root, data), **check_playbook(root, playbook)}
+def _offers(code: list[str], flag: str, how: str) -> bool:
+    """Whether a batch file's non-comment lines offer `flag` (see `ENTRY_POINTS`)."""
+    if how == "forward":
+        return any("installer.py" in line.lower() and "%*" in line for line in code)
+    quoted = re.escape(f'"{flag}"')
+    tests = re.compile(rf"\bif\b.*(?:==\s*{quoted}|{quoted}\s*==)", re.IGNORECASE)
+    return any(tests.search(line) for line in code) and any("installer_inplace.py" in line.lower() for line in code)
+
+
+def check_setup(root: Path, setup: str) -> dict[str, str]:
+    """`setup-flags` hits: {hit key: why}."""
+    path = root / setup
+    if not path.is_file():
+        return {f"setup-flags: {setup}": "missing -- copy project-scaffolding scripts/templates/setup.bat"}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise NotConfirmed(f"{setup}: cannot be read: {exc}") from exc
+    code = [line for line in text.splitlines() if not _BAT_COMMENT.match(line)]
+    return {f"setup-flags: {setup} {flag}":
+            f"does not offer {flag} -- take its lines from project-scaffolding scripts/templates/setup.bat"
+            for flag, how in ENTRY_POINTS.items() if not _offers(code, flag, how)}
+
+
+def scan(root: Path, data: dict[str, Any], playbook: str, setup: str) -> dict[str, str]:
+    return {**check_installer(root, data), **check_migrate(root, data), **check_playbook(root, playbook),
+            **check_setup(root, setup)}
 
 
 # ---------------------------------------------------------------- baseline
@@ -327,7 +371,7 @@ def run(root: Path, *, init: bool, update: bool, allow_additions: bool) -> int:
             return EXIT_CONFIG
         print(f"{LABEL}: not enabled (no [install_standard_ratchet] enabled = true in .fleet.toml)")
         return EXIT_PASS
-    baseline_name, playbook = cfg
+    baseline_name, playbook, setup = cfg
     baseline_path = _baseline.resolve(root, baseline_name, DEFAULT_BASELINE, LABEL)
     if baseline_path is None:
         return EXIT_CONFIG
@@ -335,7 +379,7 @@ def run(root: Path, *, init: bool, update: bool, allow_additions: bool) -> int:
     if isinstance(baseline, int):
         return baseline
     try:
-        hits = scan(root, data, playbook)
+        hits = scan(root, data, playbook, setup)
     except NotConfirmed as exc:
         print(f"{LABEL}: NOT CONFIRMED: {exc}")
         print("  (a piece could not be checked, so this is neither a pass nor a hit)")

@@ -105,7 +105,7 @@ def local_port(root: Path, endpoint: Endpoint) -> tuple[int | None, str]:
         return endpoint.port, "declared"
     name = endpoint.port_config
     try:
-        value: Any = json.loads((root / name).read_text(encoding="utf-8"))
+        value: Any = json.loads((root / name).read_text(encoding="utf-8-sig"))
     except FileNotFoundError:
         return endpoint.port, f"declared; {name} is not here"
     except (OSError, UnicodeDecodeError, ValueError):
@@ -120,8 +120,10 @@ def local_port(root: Path, endpoint: Endpoint) -> tuple[int | None, str]:
         return None, f"{name} {endpoint.port_key} is not a TCP port"
 
 
-def parse_migration(data: dict[str, Any]) -> Migration:
-    """The migration declaration from a parsed ``.fleet.toml``; ValueError names the first bad key."""
+def parse_migration(data: dict[str, Any] | str) -> Migration:
+    """The migration declaration of a ``.fleet.toml``, parsed or as text; ValueError names the first bad key."""
+    if isinstance(data, str):
+        data = _parse_toml(data)
     install = data.get("install", {})
     if not isinstance(install, dict):
         raise ValueError("[install] must be a table")
@@ -142,13 +144,26 @@ def parse_migration(data: dict[str, Any]) -> Migration:
     return mig
 
 
-def read_fleet_toml(root: Path) -> dict[str, Any]:
-    """``root/.fleet.toml`` parsed; ValueError when it is missing or does not parse."""
+def _unreadable(exc: Exception) -> ValueError:
+    return ValueError(f".fleet.toml cannot be read ({type(exc).__name__})")
+
+
+def _parse_toml(text: str) -> dict[str, Any]:
+    """A ``.fleet.toml``'s text parsed, with or without a BOM; ValueError when it does not parse."""
     try:
         import tomllib
     except ModuleNotFoundError as exc:
         raise ValueError("reading .fleet.toml needs Python 3.11 or newer") from exc
     try:
-        return tomllib.loads((root / ".fleet.toml").read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
-        raise ValueError(f".fleet.toml cannot be read ({type(exc).__name__})") from exc
+        return tomllib.loads(text.removeprefix("\ufeff"))
+    except tomllib.TOMLDecodeError as exc:
+        raise _unreadable(exc) from exc
+
+
+def read_fleet_toml(root: Path) -> dict[str, Any]:
+    """``root/.fleet.toml`` parsed; ValueError when it is missing or does not parse."""
+    try:
+        text = (root / ".fleet.toml").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise _unreadable(exc) from exc
+    return _parse_toml(text)
