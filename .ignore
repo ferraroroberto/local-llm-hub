@@ -29,9 +29,11 @@
 /scripts/dead_code_ratchet.py
 /scripts/doc_refs_ratchet.py
 /scripts/docs_ratchet.py
+/scripts/install_standard_ratchet.py
 /scripts/instruction_frontmatter.py
 /scripts/instruction_ratchet.py
 /scripts/instruction_repeats.py
+/scripts/personal_data_ratchet.py
 /scripts/ratchet_baseline.py
 /scripts/request_budget_ratchet.py
 /scripts/request_budget_scan.py
@@ -51,6 +53,9 @@
 /src/compression.py
 /src/health_routes.py
 /src/installer.py
+/src/installer_declaration.py
+/src/installer_inplace.py
+/src/installer_migrate.py
 /src/login_alert.py
 /src/login_lockout.py
 /src/no_window.py
@@ -60,6 +65,7 @@
 /src/runtime_data.py
 /src/self_restart.py
 /src/usage_log.py
+/tests/e2e/_geometry.py
 /tests/e2e/_paced_browser.py
 /tests/e2e/_surface.py
 /tests/e2e/budget/_request_budget.py

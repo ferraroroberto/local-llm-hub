@@ -1,6 +1,6 @@
 # `settings-group` — the full Settings page
 
-The fleet's **Settings page**: a full page opened from the header gear, never a small pop-up. On a phone it fills the screen; on desktop it is a centred column at the layout measure (772px). Its body is **iOS-style inset groups** on a sunk canvas: each group a sentence-case label above a borderless card of one-line rows. Contract: `~/.claude/design.md` → **settings group** and the `settings-group` token entry (`pageInset` 20px, `rounded` 20px, no border, content `spacing.md` inside, labels 16px/700 `fg-muted` in sentence case). The shared piece is the page shell, the groups, the row types and the detail sheet's fit; each app supplies its own rows.
+The fleet's **Settings page**: a full page opened from the header gear, never a small pop-up. On a phone it fills the screen; on desktop it is a centred column at the layout measure (772px). Its body is **iOS-style inset groups** on a sunk canvas: each group a sentence-case label above a borderless card of one-line rows. Contract: the fleet design system → **settings group** and the `settings-group` token entry (`pageInset` 20px, `rounded` 20px, no border, content `spacing.md` inside, labels 16px/700 `fg-muted` in sentence case). The shared piece is the page shell, the groups, the row types and the detail sheet's fit; each app supplies its own rows.
 
 ## Files
 

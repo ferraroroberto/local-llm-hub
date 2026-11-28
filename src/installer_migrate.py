@@ -11,9 +11,8 @@ Two entries, both stdlib only (schema: project-scaffolding ``docs/installer.md``
   ``[install.migrate]`` declares (never over a file that is already here), rebinds
   old-folder paths in the copied JSON configs, compares the declared secrets by
   hash, runs the normal install, starts the app and verifies it.
-* ``setup.bat -InPlace`` (``installer_inplace.py``, which imports this file) replaces
-  an install at the same path: stop, rename to a backup, clone, then ``-MigrateFrom``
-  the backup.
+* ``setup.bat -Replace`` / ``-InPlace`` (``installer_inplace.py``, which imports this file)
+  land a fresh clone at an install's canonical path, then ``-MigrateFrom`` the live copy.
 
 Verify passes only when the endpoint serves this clone's ``HEAD`` and the process
 listening on the port runs from this clone, so an old copy still serving the port
@@ -41,7 +40,7 @@ import subprocess
 import sys
 import time
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import ModuleType
@@ -51,7 +50,7 @@ from typing import TYPE_CHECKING, Any
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 OK, MISSING, UNKNOWN, FAILED = "ok", "missing", "unknown", "failed"
-SECTIONS = ("guard", "inventory", "stop", "copy", "rebind", "secrets", "shared", "install", "start", "verify",
+SECTIONS = ("guard", "discover", "inventory", "stop", "copy", "rebind", "secrets", "shared", "install", "start", "verify",
             "leftover", "in place")
 # Rows in these states fail the run: a step that did not happen, or a fact nobody established.
 FAILING_STATES = (FAILED, UNKNOWN, "refused")
@@ -293,12 +292,12 @@ def _sha256(path: Path) -> str:
 # ---------------------------------------------------------------- git, PowerShell, processes
 
 def git(args: list[str], cwd: Path, runner: Runner) -> str | None:
-    """One read-only git query's trimmed output; None when git is missing or the query fails."""
-    env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
+    """The trimmed output of a git command that moves no ref or file, never prompting; None when it fails."""
+    env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0"}
     try:
-        # conventions-exempt: a vendor-verbatim file cannot import the adopter's run_git; read-only queries
+        # conventions-exempt: a vendor-verbatim file cannot import the adopter's run_git; no ref or file moves
         done = runner(["git", *args], cwd=cwd, env=env, timeout=GIT_TIMEOUT_S, check=False, capture_output=True,
-                      encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
+                      stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
     except (OSError, subprocess.TimeoutExpired):
         return None
     return (done.stdout or "").strip() if done.returncode == 0 else None
@@ -396,16 +395,7 @@ def runs_from(proc: Proc, folder: Path) -> bool:
                                         and mentions(proc.cmdline, folder))
 
 
-def ancestors(snap: Snapshot, pid: int) -> set[int]:
-    """``pid`` and every parent above it still alive."""
-    seen: set[int] = set()
-    while pid in snap.procs and pid not in seen:
-        seen.add(pid)
-        pid = snap.procs[pid].ppid
-    return seen
-
-
-def processes_from(snap: Snapshot, folder: Path, mine: set[int]) -> list[Proc]:
+def processes_from(snap: Snapshot, folder: Path, mine: Collection[int]) -> list[Proc]:
     """The processes that run from ``folder``, leaving out this run and its parents."""
     return [p for p in snap.procs.values() if p.pid not in mine and runs_from(p, folder)]
 
@@ -416,7 +406,7 @@ def _ports_of(snap: Snapshot, pids: set[int]) -> list[int]:
 
 def owner_of(snap: Snapshot, pid: int, clone: Path, old: Path | None) -> tuple[str, Proc | None]:
     """Which copy a listening process belongs to: the nearest process up its parent chain that runs from one."""
-    for ancestor in _chain(snap, pid):
+    for ancestor in ancestors(snap, pid):
         proc = snap.procs[ancestor]
         if old is not None and runs_from(proc, old):
             return "old", proc
@@ -425,7 +415,8 @@ def owner_of(snap: Snapshot, pid: int, clone: Path, old: Path | None) -> tuple[s
     return UNKNOWN, snap.procs.get(pid)
 
 
-def _chain(snap: Snapshot, pid: int) -> list[int]:
+def ancestors(snap: Snapshot, pid: int) -> list[int]:
+    """``pid`` and every parent above it still alive, nearest first."""
     chain: list[int] = []
     while pid in snap.procs and pid not in chain:
         chain.append(pid)
@@ -477,50 +468,60 @@ def _kill_tree(pid: int, runner: Runner) -> None:
         pass  # the next snapshot shows whether it is gone
 
 
-def stop_old(old: Path, port: int | None, report: MigrationReport, runner: Runner,
-             snapshot_fn: Callable[[], Snapshot | None]) -> None:
-    """Stop every process that runs from ``old`` (by PID, its tree with it), then wait for the app's port."""
+def _running_from(snap: Snapshot, folders: list[Path], mine: Collection[int]) -> list[tuple[Proc, Path]]:
+    """Each process outside ``mine`` that runs from one of ``folders``, with the first such folder."""
+    return [(p, home) for p in snap.procs.values() if p.pid not in mine
+            and (home := next((f for f in folders if runs_from(p, f)), None)) is not None]
+
+
+def stop_old(folders: list[Path], ports: list[int], report: MigrationReport, runner: Runner,
+             snapshot_fn: Callable[[], Snapshot | None], label: str = "old copy") -> None:
+    """Stop every process that runs from any of ``folders`` (by PID, its tree with it), then wait for each port."""
     snap = snapshot_fn()
     if snap is None:
-        report.add("stop", FAILED, "old copy", "could not list processes, so nothing was stopped")
+        report.add("stop", FAILED, label, "could not list processes, so nothing was stopped")
         return
     me = os.getpid()
     mine = ancestors(snap, me)
-    # Only a parent whose program lives in the folder is the app; one that names it on its command line
+    # Only a parent whose program lives in a folder is the app; one that names it on its command line
     # (the py launcher, the cmd.exe running setup.bat) is what started this run.
-    parents = [p for p in snap.procs.values() if p.pid in mine and p.pid != me and inside(p.exe, old)]
+    parents = [p for p in snap.procs.values()
+               if p.pid in mine and p.pid != me and any(inside(p.exe, f) for f in folders)]
     if parents:
-        report.add("stop", "refused", "old copy", f"this run was started from it (PID {parents[0].pid}), so "
+        report.add("stop", "refused", label, f"this run was started from it (PID {parents[0].pid}), so "
                    "stopping it ends this run too; run it from a plain terminal, not from a session the app hosts")
         return
-    found = processes_from(snap, old, mine)
+    found = _running_from(snap, folders, mine)
     if report.what_if:
-        for proc in found:
-            report.add("stop", "would stop", f"PID {proc.pid} {os.path.basename(proc.exe) or '?'}")
+        for proc, home in found:
+            held = _ports_of(snap, {proc.pid})
+            report.add("stop", "would stop", f"PID {proc.pid} {os.path.basename(proc.exe) or '?'}",
+                       f"runs from {home.name}" + (", ports " + ", ".join(map(str, held)) if held else ""))
         if not found:
-            report.add("stop", "none", "old copy", "nothing runs from the old folder")
+            report.add("stop", "none", label, "nothing runs from " + ", ".join(f.name for f in folders))
         return
     stopped: set[int] = set()
     for _ in range(STOP_ROUNDS):
         if not found:
             break
-        pids = {p.pid for p in found}
-        for proc in found:
+        pids = {p.pid for p, _ in found}
+        for proc, _ in found:
             if proc.ppid not in pids:
                 _kill_tree(proc.pid, runner)
         stopped |= pids
         time.sleep(STOP_SETTLE_S)
         snap = snapshot_fn()
         if snap is None:
-            report.add("stop", UNKNOWN, "old copy", "could not list processes after stopping")
+            report.add("stop", UNKNOWN, label, "could not list processes after stopping")
             return
-        found = processes_from(snap, old, mine)
+        found = _running_from(snap, folders, mine)
     if found:
-        report.add("stop", FAILED, "old copy", "still running: PID " + ", ".join(str(p.pid) for p in found))
+        report.add("stop", FAILED, label, "still running: PID " + ", ".join(str(p.pid) for p, _ in found))
         return
-    report.add("stop", "stopped" if stopped else "none", "old copy",
-               ("PID " + ", ".join(map(str, sorted(stopped)))) if stopped else "nothing runs from the old folder")
-    if port is not None:
+    report.add("stop", "stopped" if stopped else "none", label,
+               ("PID " + ", ".join(map(str, sorted(stopped)))) if stopped
+               else "nothing runs from " + ", ".join(f.name for f in folders))
+    for port in ports:
         _wait_port_free(port, report, snapshot_fn)
 
 
@@ -607,7 +608,7 @@ def rebind_copied(old: Path, new: Path, copied: list[str], report: MigrationRepo
         try:
             if source.stat().st_size > TEXT_SCAN_MAX_BYTES:
                 continue
-            text = source.read_text(encoding="utf-8")
+            text = source.read_text(encoding="utf-8-sig")
         except (OSError, UnicodeDecodeError):
             continue
         if not mentions(text, old):
@@ -860,11 +861,11 @@ def migrate(root: Path, old: Path, *, installer: ModuleType, what_if: bool, stop
     inventory(old, report, runner, snap)
     port = local_port(old, mig.endpoint)[0] if mig.endpoint else None
     if stop:
-        stop_old(old, port, report, runner, snapshot_fn)
+        stop_old([old], [port] if port is not None else [], report, runner, snapshot_fn)
         if report.failed:
             return report
         snap = None if report.what_if else snapshot_fn()
-    mine = ancestors(snap, os.getpid()) if snap else set()
+    mine = ancestors(snap, os.getpid()) if snap else []
     old_running = snap is None or bool(processes_from(snap, old, mine))
     copied = copy_declared(old, root, mig, report, old_running and not (stop and report.what_if))
     rebind_copied(old, root, copied, report)
