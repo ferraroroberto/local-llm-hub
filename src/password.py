@@ -23,9 +23,11 @@ echoed or logged)::
     python -m src.password status          # is a password stored? prints no secret
 
 ``status`` is an installer probe (``src/installer.py``): exit 0 when a password
-is stored, 1 when none is, 2 when a file it needs cannot be read or does not
-parse. An app still honouring its old plaintext value names where that value
-lives, a top-level key of a JSON file, so it counts as stored::
+is stored, 1 when none is, 2 when a file it needs cannot be read. A password
+file whose content holds no usable hash, unparseable included, is 1: it is
+logged and left as it is, and ``set`` replaces it. An app still honouring its
+old plaintext value names where that value lives, a top-level key of a JSON
+file, so it counts as stored (that file not parsing is 2)::
 
     python -m src.password status --legacy config/webapp_config.json auth_password
 
@@ -180,13 +182,18 @@ def _legacy_value(source: str, key: str) -> str | None:
 
 
 def _unreadable(path: Path) -> bool:
-    """True when ``path`` is there but cannot be read or does not parse, so what it holds is not known."""
+    """True when ``path`` is there but cannot be read, so what it holds is not known.
+
+    Content that holds no usable hash, one that does not parse included, is a known
+    answer: no login can use it. Adopters' installers read it as no password stored.
+    """
     try:
-        return not isinstance(json.loads(path.read_text(encoding="utf-8-sig")), dict)
+        path.read_bytes()
     except FileNotFoundError:
         return False
-    except (OSError, ValueError):
+    except OSError:
         return True
+    return False
 
 
 def _status(legacy: list[str] | None) -> int:
